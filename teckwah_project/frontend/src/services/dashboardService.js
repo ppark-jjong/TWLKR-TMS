@@ -9,8 +9,17 @@ export const dashboardService = {
    * @returns {Promise<Object>} 생성된 대시보드 정보
    */
   create: async (data) => {
-    const { data: response } = await api.post('/dashboard', data);
-    return response;
+    try {
+      // ETA 날짜 포맷 변환
+      const formattedData = {
+        ...data,
+        eta: format(data.eta, "yyyy-MM-dd'T'HH:mm:ss")
+      };
+      return await api.post('/dashboard', formattedData);
+    } catch (error) {
+      console.error('대시보드 생성 실패:', error);
+      throw error;
+    }
   },
 
   /**
@@ -19,9 +28,13 @@ export const dashboardService = {
    * @returns {Promise<Array>} 대시보드 목록
    */
   getList: async (date) => {
-    const formattedDate = format(date, 'yyyy-MM-dd');
-    const { data } = await api.get(`/dashboard?date=${formattedDate}`);
-    return data;
+    try {
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      return await api.get(`/dashboard?date=${formattedDate}`);
+    } catch (error) {
+      console.error('대시보드 목록 조회 실패:', error);
+      throw error;
+    }
   },
 
   /**
@@ -30,8 +43,12 @@ export const dashboardService = {
    * @returns {Promise<Object>} 대시보드 상세 정보
    */
   getDetail: async (id) => {
-    const { data } = await api.get(`/dashboard/${id}`);
-    return data;
+    try {
+      return await api.get(`/dashboard/${id}`);
+    } catch (error) {
+      console.error('대시보드 상세 조회 실패:', error);
+      throw error;
+    }
   },
 
   /**
@@ -41,8 +58,12 @@ export const dashboardService = {
    * @returns {Promise<Object>} 업데이트된 대시보드 정보
    */
   updateStatus: async (id, status) => {
-    const { data } = await api.put(`/dashboard/${id}/status`, { status });
-    return data;
+    try {
+      return await api.put(`/dashboard/${id}/status`, { status });
+    } catch (error) {
+      console.error('상태 업데이트 실패:', error);
+      throw error;
+    }
   },
 
   /**
@@ -52,8 +73,12 @@ export const dashboardService = {
    * @returns {Promise<Object>} 업데이트된 대시보드 정보
    */
   updateRemark: async (id, remark) => {
-    const { data } = await api.put(`/dashboard/${id}/remark`, { remark });
-    return data;
+    try {
+      return await api.put(`/dashboard/${id}/remark`, { remark });
+    } catch (error) {
+      console.error('메모 업데이트 실패:', error);
+      throw error;
+    }
   },
 
   /**
@@ -64,12 +89,16 @@ export const dashboardService = {
    * @returns {Promise<Object>} 배차 결과
    */
   assignDriver: async (dashboardIds, driverId, driverRemark) => {
-    const { data } = await api.post('/dashboard/assign', {
-      dashboard_ids: dashboardIds,
-      driver_id: driverId,
-      driver_remark: driverRemark,
-    });
-    return data;
+    try {
+      return await api.post('/dashboard/assign', {
+        dashboard_ids: dashboardIds,
+        driver_id: driverId,
+        driver_remark: driverRemark
+      });
+    } catch (error) {
+      console.error('기사 배차 실패:', error);
+      throw error;
+    }
   },
 
   /**
@@ -78,9 +107,13 @@ export const dashboardService = {
    * @returns {Promise<Object>} 삭제 결과
    */
   deleteDashboards: async (dashboardIds) => {
-    const { data } = await api.delete('/dashboard', {
-      data: { dashboard_ids: dashboardIds },
-    });
-    return data;
+    try {
+      return await api.delete('/dashboard', {
+        data: { dashboard_ids: dashboardIds }
+      });
+    } catch (error) {
+      console.error('대시보드 삭제 실패:', error);
+      throw error;
+    }
   },
 };

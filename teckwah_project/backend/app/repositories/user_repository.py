@@ -14,14 +14,6 @@ class UserRepository(BaseRepository[User]):
         """사용자 ID로 사용자 조회"""
         return self.db.query(User).filter(User.user_id == user_id).first()
 
-    def get_by_department(self, department: str) -> list[User]:
-        """부서별 사용자 목록 조회"""
-        try:
-            return self.db.query(User).filter(User.user_department == department).all()
-        except Exception as e:
-            Logger.error(f"부서별 사용자 조회 중 오류 발생: {str(e)}")
-            raise
-
     def verify_password(self, user_id: str, password: str) -> Optional[User]:
         """사용자 인증"""
         user = self.get_by_user_id(user_id)
@@ -79,11 +71,3 @@ class UserRepository(BaseRepository[User]):
         """사용자 삭제"""
         query = "DELETE FROM users WHERE user_id = %s"
         return bool(execute_query(query, (user_id,)))
-
-    def get_by_id(self, user_id: str) -> User:
-        """사용자 ID로 사용자 조회"""
-        try:
-            return self.db.query(User).filter(User.user_id == user_id).first()
-        except Exception as e:
-            Logger.error(f"사용자 조회 중 오류 발생: {str(e)}")
-            raise

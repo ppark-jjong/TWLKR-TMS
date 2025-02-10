@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 백엔드 코드 복사
 COPY backend/ .
+COPY backend/app/data /app/data  
 
 # Frontend 빌드 결과물 복사
 COPY --from=frontend-build /frontend/build/* /app/static/

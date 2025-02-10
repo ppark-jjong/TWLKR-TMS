@@ -1,115 +1,67 @@
-// src/contexts/AuthContext.js
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
+import { CircularProgress } from '@mui/material';
 
 const AuthContext = createContext(null);
 
-// 메모리 기반 토큰 저장소
-const tokenStore = {
-  accessToken: null,
-  refreshToken: null,
-  user: null
-};
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(tokenStore.user);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const refreshToken = useCallback(async () => {
-    try {
-      if (!tokenStore.refreshToken) return false;
-
-      const response = await authService.refreshToken(tokenStore.refreshToken);
-      
-      if (response.access_token) {
-        tokenStore.accessToken = response.access_token;
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('토큰 갱신 실패:', error);
-      return false;
-    }
-  }, []);
-
-  // 초기 인증 상태 확인
   useEffect(() => {
-    const initAuth = async () => {
-      if (tokenStore.refreshToken) {
-        const success = await refreshToken();
-        if (!success) {
-          tokenStore.accessToken = null;
-          tokenStore.refreshToken = null;
-          tokenStore.user = null;
-          setUser(null);
-          if (!location.pathname.startsWith('/login')) {
-            navigate('/login');
-          }
-        }
-      }
-      setLoading(false);
-    };
-
-    initAuth();
-  }, [navigate, location, refreshToken]);
+    setLoading(false);
+  }, []);
 
   const login = async (userId, password) => {
     try {
       const response = await authService.login(userId, password);
-      const { access_token, refresh_token, user: userData } = response;
+      console.log("로그인 응답:", response); // 응답 데이터 확인
 
-      tokenStore.accessToken = access_token;
-      tokenStore.refreshToken = refresh_token;
-      tokenStore.user = userData;
-
-      setUser(userData);
+      
+      if (!response || !response.user) {
+        console.error("로그인 응답이 올바르지 않습니다.", response);
+        return false;
+      }
+  
+      setUser(response.user);
       navigate('/dashboard');
       return true;
     } catch (error) {
-      console.error('로그인 실패:', error);
+      console.error("로그인 실패:", error);
       return false;
     }
   };
+  
 
   const logout = async () => {
     try {
-      if (tokenStore.refreshToken) {
-        await authService.logout(tokenStore.refreshToken);
-      }
+      await authService.logout();
     } catch (error) {
       console.error('로그아웃 중 오류:', error);
     } finally {
-      tokenStore.accessToken = null;
-      tokenStore.refreshToken = null;
-      tokenStore.user = null;
       setUser(null);
       navigate('/login');
     }
   };
 
-  // API 인터셉터에서 사용할 토큰 접근자
-  const getAccessToken = () => tokenStore.accessToken;
-  const getRefreshToken = () => tokenStore.refreshToken;
-
-  const value = {
-    user,
-    login,
-    logout,
-    loading,
-    isAuthenticated: !!user,
-    getAccessToken,
-    getRefreshToken,
-    refreshToken
-  };
-
   if (loading) {
-    return <div>Loading...</div>;
+    return <CircularProgress sx={{ position: 'absolute', top: '50%', left: '50%' }} />;
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider 
+      value={{
+        user,
+        login,
+        logout,
+        isAuthenticated: !!user
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

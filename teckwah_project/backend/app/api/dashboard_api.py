@@ -38,13 +38,10 @@ async def get_dashboard_list(
         service = get_dashboard_service()
         result = await service.get_list(date)
         Logger.info(f"대시보드 목록 조회 성공: {len(result)}건")
-        return result
+        return result or []
     except Exception as e:
         Logger.error(f"대시보드 목록 조회 중 오류 발생: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="대시보드 목록 조회 중 오류가 발생했습니다."
-        )
+        return []
 
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 async def get_dashboard_detail(

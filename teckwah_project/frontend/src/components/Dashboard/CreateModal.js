@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// src/components/dashboard/CreateModal.js
+import React, { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -11,60 +12,87 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  FormHelperText,
   Typography,
   Alert,
-} from '@mui/material';
-import { DateTimePicker } from '@mui/x-date-pickers';
-import { format } from 'date-fns';
+} from "@mui/material";
+import { DateTimePicker } from "@mui/x-date-pickers";
 
-const initialFormData = {
-  type: '',
-  order_no: '',
-  warehouse: '',
-  sla: '',
-  postal_code: '',
-  address: '',
-  customer: '',
-  contact: '',
-  remark: ''
-};
-
+/**
+ * 대시보드 생성 모달 컴포넌트
+ * @param {Object} props
+ * @param {boolean} props.open - 모달 표시 여부
+ * @param {Function} props.onClose - 닫기 핸들러
+ * @param {Function} props.onCreate - 생성 핸들러
+ * @param {string} props.userDepartment - 사용자 부서
+ * @returns {JSX.Element} 생성 모달
+ */
 function CreateModal({ open, onClose, onCreate, userDepartment }) {
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState({
+    type: "",
+    order_no: "",
+    warehouse: "",
+    sla: "",
+    postal_code: "",
+    address: "",
+    customer: "",
+    contact: "",
+    remark: "",
+  });
   const [eta, setEta] = useState(new Date());
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
-
+    // 우편번호 유효성 검증
+    if (!/^\d{5}$/.test(formData.postal_code)) {
+      setError("우편번호는 5자리 숫자여야 합니다.");
+      return;
+    }
     try {
-      const submitData = {
+      await onCreate({
         ...formData,
         department: userDepartment,
-        eta: format(eta, "yyyy-MM-dd'T'HH:mm:ss")
-      };
-
-      await onCreate(submitData);
+        eta: eta.toISOString(),
+      });
       handleClose();
     } catch (err) {
-      setError(err.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다.');
+      setError(err.response?.data?.detail || "대시보드 생성 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setFormData(initialFormData);
-    setError('');
+    setFormData({
+      type: "",
+      order_no: "",
+      warehouse: "",
+      sla: "",
+      postal_code: "",
+      address: "",
+      customer: "",
+      contact: "",
+      remark: "",
+    });
+    setEta(new Date());
+    setError("");
     onClose();
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="md" 
+      fullWidth
+      PaperProps={{
+        elevation: 3,
+        sx: { borderRadius: 1 }
+      }}
+    >
       <DialogTitle>
         <Typography variant="h6">대시보드 생성</Typography>
       </DialogTitle>
@@ -77,7 +105,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
           )}
           <Grid container spacing={2}>
             <Grid item xs={6}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth size="small" required>
                 <InputLabel>종류</InputLabel>
                 <Select
                   value={formData.type}
@@ -91,6 +119,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
             </Grid>
             <Grid item xs={6}>
               <TextField
+                size="small"
                 fullWidth
                 required
                 label="Order No"
@@ -99,7 +128,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
               />
             </Grid>
             <Grid item xs={6}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth size="small" required>
                 <InputLabel>출발 허브</InputLabel>
                 <Select
                   value={formData.warehouse}
@@ -114,7 +143,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
               </FormControl>
             </Grid>
             <Grid item xs={6}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth size="small" required>
                 <InputLabel>SLA</InputLabel>
                 <Select
                   value={formData.sla}
@@ -133,22 +162,33 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
               <DateTimePicker
                 label="ETA"
                 value={eta}
-                onChange={(newValue) => setEta(newValue)}
-                renderInput={(params) => <TextField {...params} fullWidth required />}
-                format="yyyy-MM-dd HH:mm"
+                onChange={setEta}
+                ampm={false}
+                format="YYYY-MM-DD HH:mm"
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    fullWidth: true,
+                    required: true
+                  }
+                }}
+                views={['year', 'month', 'day', 'hours', 'minutes']}
               />
             </Grid>
             <Grid item xs={6}>
               <TextField
+                size="small"
                 fullWidth
                 required
                 label="우편번호"
                 value={formData.postal_code}
                 onChange={(e) => setFormData(prev => ({ ...prev, postal_code: e.target.value }))}
+                inputProps={{ maxLength: 5 }}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
+                size="small"
                 fullWidth
                 required
                 label="도착주소"
@@ -158,6 +198,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
             </Grid>
             <Grid item xs={6}>
               <TextField
+                size="small"
                 fullWidth
                 required
                 label="수령인"
@@ -167,6 +208,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
             </Grid>
             <Grid item xs={6}>
               <TextField
+                size="small"
                 fullWidth
                 required
                 label="연락처"
@@ -176,6 +218,7 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
             </Grid>
             <Grid item xs={12}>
               <TextField
+                size="small"
                 fullWidth
                 label="메모"
                 multiline
@@ -186,11 +229,11 @@ function CreateModal({ open, onClose, onCreate, userDepartment }) {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={handleClose}>취소</Button>
           <Button 
             type="submit" 
-            variant="contained" 
+            variant="contained"
             disabled={loading}
           >
             {loading ? '생성 중...' : '생성'}

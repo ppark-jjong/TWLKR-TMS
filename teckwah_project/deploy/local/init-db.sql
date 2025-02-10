@@ -86,14 +86,17 @@ CREATE TABLE IF NOT EXISTS `users` (
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;
 
--- 6. refresh_tokens 테이블 생성
-CREATE TABLE IF NOT EXISTS `refresh_tokens` (
-  `token` VARCHAR(255) NOT NULL,
-  `user_id` VARCHAR(50) NOT NULL,
-  `expires_at` TIMESTAMP NOT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`token`),
-  CONSTRAINT `fk_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+-- 새롭게 세션 관리를 위한 sessions 테이블 생성
+CREATE TABLE IF NOT EXISTS `sessions` (
+  `session_id` VARCHAR(255) NOT NULL,  -- 클라이언트에 전달할 세션 고유 ID (쿠키에 저장)
+  `user_id` VARCHAR(50) NOT NULL,      -- 해당 세션과 연결된 사용자 ID
+  `expires_at` TIMESTAMP NOT NULL,     -- 세션 만료 시간
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 세션 생성 시간
+  PRIMARY KEY (`session_id`),
+  CONSTRAINT `fk_user_session`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `users`(`user_id`)
+    ON DELETE CASCADE
 ) ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;

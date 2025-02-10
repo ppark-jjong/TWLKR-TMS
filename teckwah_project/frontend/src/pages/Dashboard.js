@@ -4,6 +4,7 @@ import { Box, TextField, Button, CircularProgress, Typography } from "@mui/mater
 import { useAuth } from "../contexts/AuthContext";
 import { dashboardService } from "../services/dashboardService";
 import { driverService } from "../services/driverService";
+import { format } from 'date-fns';
 import DashboardTable from "../components/dashboard/DashboardTable";
 import DashboardToolbar from "../components/dashboard/DashboardToolbar";
 import DetailModal from "../components/dashboard/DetailModal";
@@ -31,21 +32,16 @@ function Dashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await dashboardService.getList(date);
-      console.log("API 응답:", response); // API 응답 로그 추가
-      if (Array.isArray(response)) {
-        setData(response);
-      } else {
-        console.error("API 응답이 배열이 아닙니다:", response);
-        setData([]);
-      }
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      const response = await dashboardService.getList(formattedDate);
+      setData(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error("대시보드 데이터 로드 실패:", error);
+      setData([]);
     } finally {
       setLoading(false);
     }
   };
-
   // 기사 목록 로드
   const loadDrivers = async () => {
     try {
