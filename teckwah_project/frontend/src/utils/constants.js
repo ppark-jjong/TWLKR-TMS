@@ -1,0 +1,21 @@
+// src/utils/constants.js
+export const DELIVERY_STATUS = {
+  WAITING: "WAITING",
+  IN_PROGRESS: "IN_PROGRESS",
+  COMPLETE: "COMPLETE",
+  ISSUE: "ISSUE",
+};
+
+export const DELIVERY_STATUS_MAP = {
+  [DELIVERY_STATUS.WAITING]: "대기",
+  [DELIVERY_STATUS.IN_PROGRESS]: "진행",
+  [DELIVERY_STATUS.COMPLETE]: "완료",
+  [DELIVERY_STATUS.ISSUE]: "이슈",
+};
+
+export const STATUS_COLORS = {
+  [DELIVERY_STATUS.WAITING]: "#9e9e9e", // 회색
+  [DELIVERY_STATUS.IN_PROGRESS]: "#ffd700", // 노란색
+  [DELIVERY_STATUS.COMPLETE]: "#4caf50", // 초록색
+  [DELIVERY_STATUS.ISSUE]: "#f44336", // 빨간색
+};
