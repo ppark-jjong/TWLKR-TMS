@@ -86,14 +86,15 @@ CREATE TABLE IF NOT EXISTS `users` (
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;
 
--- 새롭게 세션 관리를 위한 sessions 테이블 생성
-CREATE TABLE IF NOT EXISTS `sessions` (
-  `session_id` VARCHAR(255) NOT NULL,  -- 클라이언트에 전달할 세션 고유 ID (쿠키에 저장)
-  `user_id` VARCHAR(50) NOT NULL,      -- 해당 세션과 연결된 사용자 ID
-  `expires_at` TIMESTAMP NOT NULL,     -- 세션 만료 시간
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 세션 생성 시간
-  PRIMARY KEY (`session_id`),
-  CONSTRAINT `fk_user_session`
+-- 6. tokens 테이블 생성 (토큰 관리용)
+CREATE TABLE IF NOT EXISTS `tokens` (
+  `token_id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` VARCHAR(50) NOT NULL,
+  `refresh_token` VARCHAR(255) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`token_id`),
+  CONSTRAINT `fk_user_token`
     FOREIGN KEY (`user_id`)
     REFERENCES `users`(`user_id`)
     ON DELETE CASCADE

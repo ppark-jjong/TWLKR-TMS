@@ -4,15 +4,19 @@ from app.models.user_model import User
 from .base_repository import BaseRepository
 from app.config.database import execute_query
 from app.utils.logger_util import Logger
+from fastapi import HTTPException, status
 
 
 class UserRepository(BaseRepository[User]):
     def __init__(self, db: Session):
         super().__init__(User, db)
 
-    def get_by_user_id(self, user_id: str) -> Optional[User]:
+    async def get_by_user_id(self, user_id: str) -> User:
         """사용자 ID로 사용자 조회"""
-        return self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+        return user
 
     def verify_password(self, user_id: str, password: str) -> Optional[User]:
         """사용자 인증"""

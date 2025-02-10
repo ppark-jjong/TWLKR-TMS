@@ -94,22 +94,10 @@ class DashboardService:
 
     async def get_detail(self, dashboard_id: int) -> Optional[DashboardDetailResponse]:
         """대시보드 상세 정보 조회"""
-        try:
-            dashboard = await self.repository.get_detail(dashboard_id)
-            if not dashboard:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다.",
-                )
-            return DashboardDetailResponse.from_orm(dashboard)
-        except HTTPException:
-            raise
-        except Exception as e:
-            Logger.error(f"대시보드 상세 조회 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 상세 조회 중 오류가 발생했습니다.",
-            )
+        dashboard = await self.repository.get_by_id(dashboard_id)
+        if not dashboard:
+            return None
+        return DashboardDetailResponse.from_orm(dashboard)
 
     async def create_dashboard(
         self, data: DashboardCreate, user: User
