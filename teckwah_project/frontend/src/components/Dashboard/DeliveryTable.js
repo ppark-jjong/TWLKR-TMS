@@ -1,10 +1,4 @@
-// frontend/src/components/dashboard/DeliveryTable.js
-
-/**
- * 배송 현황 테이블 컴포넌트
- * 데이터 상태 관리 및 에러 처리 포함
- * @module DeliveryTable
- */
+// frontend/src/components/dashboard/deliveryTable.js
 
 import React from 'react';
 import {
@@ -16,27 +10,30 @@ import {
   TableHead,
   TableRow,
   Checkbox,
-  Paper
+  Paper,
+  Typography
 } from '@material-ui/core';
-import { format } from 'date-fns';
-import ErrorDisplay from '../common/ErrorDisplay';
+import { formatDateTime } from '../../utils/date.utils';
 
 const useStyles = makeStyles((theme) => ({
   root: {
     width: '100%',
-    marginTop: theme.spacing(3)
+    position: 'relative'
   },
-  table: {
-    minWidth: 750
+  container: {
+    maxHeight: 'calc(100vh - 250px)', // 헤더와 필터 영역을 고려한 높이
+    overflowY: 'auto'
   },
-  tableHead: {
-    backgroundColor: theme.palette.grey[100],
+  stickyHeader: {
     position: 'sticky',
-    top: 64, // AppBar 높이 + 필터 영역 높이
+    top: 0,
+    backgroundColor: theme.palette.background.paper,
     zIndex: 1
   },
-  statusCell: {
-    fontWeight: 'bold'
+  noData: {
+    padding: theme.spacing(3),
+    textAlign: 'center',
+    color: theme.palette.text.secondary
   },
   waitingRow: {
     backgroundColor: theme.palette.grey[100]
@@ -51,26 +48,6 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.error.light
   }
 }));
-
-const getStatusText = (status) => {
-  const statusMap = {
-    'WAITING': '대기',
-    'IN_PROGRESS': '진행',
-    'COMPLETE': '완료',
-    'ISSUE': '이슈'
-  };
-  return statusMap[status] || status;
-};
-
-const getRowStyle = (status, classes) => {
-  const styleMap = {
-    'WAITING': classes.waitingRow,
-    'IN_PROGRESS': classes.inProgressRow,
-    'COMPLETE': classes.completeRow,
-    'ISSUE': classes.issueRow
-  };
-  return styleMap[status] || '';
-};
 
 const DeliveryTable = ({
   deliveries,
@@ -113,40 +90,53 @@ const DeliveryTable = ({
     onSelectionChange(newSelected);
   };
 
-  // 에러 상태 및 로딩 상태 처리
-  if (loading || error || deliveries.length === 0) {
+  if (loading) {
     return (
-      <ErrorDisplay
-        loading={loading}
-        error={error}
-        noData={!loading && !error && deliveries.length === 0}
-      />
+      <Paper className={classes.noData}>
+        <Typography variant="body1">데이터를 불러오는 중입니다...</Typography>
+      </Paper>
+    );
+  }
+
+  if (error) {
+    return (
+      <Paper className={classes.noData}>
+        <Typography variant="body1" color="error">{error}</Typography>
+      </Paper>
+    );
+  }
+
+  if (!deliveries || deliveries.length === 0) {
+    return (
+      <Paper className={classes.noData}>
+        <Typography variant="body1">조회되는 데이터가 없습니다.</Typography>
+      </Paper>
     );
   }
 
   return (
     <Paper className={classes.root}>
-      <TableContainer>
-        <Table className={classes.table} size="small">
-          <TableHead className={classes.tableHead}>
+      <TableContainer className={classes.container}>
+        <Table stickyHeader>
+          <TableHead>
             <TableRow>
-              <TableCell padding="checkbox">
+              <TableCell padding="checkbox" className={classes.stickyHeader}>
                 <Checkbox
                   indeterminate={selectedItems.length > 0 && selectedItems.length < deliveries.length}
                   checked={deliveries.length > 0 && selectedItems.length === deliveries.length}
                   onChange={handleSelectAll}
                 />
               </TableCell>
-              <TableCell>종류</TableCell>
-              <TableCell>부서</TableCell>
-              <TableCell>출발 허브</TableCell>
-              <TableCell>담당 기사</TableCell>
-              <TableCell>Order No</TableCell>
-              <TableCell>생성시간</TableCell>
-              <TableCell>출발 시각</TableCell>
-              <TableCell>ETA</TableCell>
-              <TableCell>배송 상태</TableCell>
-              <TableCell>도착 지역</TableCell>
+              <TableCell className={classes.stickyHeader}>종류</TableCell>
+              <TableCell className={classes.stickyHeader}>부서</TableCell>
+              <TableCell className={classes.stickyHeader}>출발 허브</TableCell>
+              <TableCell className={classes.stickyHeader}>담당 기사</TableCell>
+              <TableCell className={classes.stickyHeader}>Order No</TableCell>
+              <TableCell className={classes.stickyHeader}>생성시간</TableCell>
+              <TableCell className={classes.stickyHeader}>출발 시각</TableCell>
+              <TableCell className={classes.stickyHeader}>ETA</TableCell>
+              <TableCell className={classes.stickyHeader}>배송 상태</TableCell>
+              <TableCell className={classes.stickyHeader}>도착 지역</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -155,7 +145,7 @@ const DeliveryTable = ({
                 hover
                 onClick={() => onRowClick(delivery)}
                 key={delivery.dashboard_id}
-                className={getRowStyle(delivery.status, classes)}
+                className={classes[`${delivery.status.toLowerCase()}Row`]}
               >
                 <TableCell padding="checkbox">
                   <Checkbox
@@ -170,16 +160,10 @@ const DeliveryTable = ({
                 <TableCell>{delivery.warehouse}</TableCell>
                 <TableCell>{delivery.driver_name || '-'}</TableCell>
                 <TableCell>{delivery.order_no}</TableCell>
-                <TableCell>{format(new Date(delivery.create_time), 'yyyy-MM-dd HH:mm')}</TableCell>
-                <TableCell>
-                  {delivery.depart_time 
-                    ? format(new Date(delivery.depart_time), 'yyyy-MM-dd HH:mm')
-                    : '-'}
-                </TableCell>
-                <TableCell>{format(new Date(delivery.eta), 'yyyy-MM-dd HH:mm')}</TableCell>
-                <TableCell className={classes.statusCell}>
-                  {getStatusText(delivery.status)}
-                </TableCell>
+                <TableCell>{formatDateTime(delivery.create_time)}</TableCell>
+                <TableCell>{delivery.depart_time ? formatDateTime(delivery.depart_time) : '-'}</TableCell>
+                <TableCell>{formatDateTime(delivery.eta)}</TableCell>
+                <TableCell>{formatDeliveryStatus(delivery.status)}</TableCell>
                 <TableCell>{delivery.region}</TableCell>
               </TableRow>
             ))}

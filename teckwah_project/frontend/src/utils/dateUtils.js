@@ -1,38 +1,32 @@
-// src/utils/dateUtils.js
-import { format, parse } from "date-fns";
+// frontend/src/utils/dateUtils.js
 
 /**
- * Date 객체를 YYYY-MM-DD 형식의 문자열로 변환
- * @param {Date} date - 변환할 날짜
- * @returns {string} 포맷된 날짜 문자열
+ * 날짜 관련 유틸리티 함수
+ * @module DateUtils
  */
-export const formatDate = (date) => {
-  return format(date, "yyyy-MM-dd");
+
+import { format, parseISO } from 'date-fns';
+
+/**
+ * ISO 문자열을 지정된 형식으로 포맷팅
+ * @param {string} isoString - ISO 형식 날짜 문자열
+ * @param {string} formatStr - 출력 형식
+ * @returns {string} 포맷팅된 날짜 문자열
+ */
+export const formatDate = (isoString, formatStr = 'yyyy-MM-dd') => {
+  if (!isoString) return '-';
+  try {
+    return format(parseISO(isoString), formatStr);
+  } catch {
+    return '-';
+  }
 };
 
 /**
- * Date 객체를 YYYY-MM-DD HH:mm 형식의 문자열로 변환
- * @param {Date} date - 변환할 날짜
- * @returns {string} 포맷된 날짜/시간 문자열
+ * ISO 문자열을 날짜와 시간 형식으로 포맷팅
+ * @param {string} isoString - ISO 형식 날짜 문자열
+ * @returns {string} 포맷팅된 날짜와 시간
  */
-export const formatDateTime = (date) => {
-  return format(date, "yyyy-MM-dd HH:mm");
-};
-
-/**
- * YYYY-MM-DD 형식의 문자열을 Date 객체로 변환
- * @param {string} dateStr - 변환할 날짜 문자열
- * @returns {Date} 변환된 Date 객체
- */
-export const parseDate = (dateStr) => {
-  return parse(dateStr, "yyyy-MM-dd", new Date());
-};
-
-/**
- * YYYY-MM-DD HH:mm 형식의 문자열을 Date 객체로 변환
- * @param {string} dateTimeStr - 변환할 날짜/시간 문자열
- * @returns {Date} 변환된 Date 객체
- */
-export const parseDateTime = (dateTimeStr) => {
-  return parse(dateTimeStr, "yyyy-MM-dd HH:mm", new Date());
+export const formatDateTime = (isoString) => {
+  return formatDate(isoString, 'yyyy-MM-dd HH:mm');
 };

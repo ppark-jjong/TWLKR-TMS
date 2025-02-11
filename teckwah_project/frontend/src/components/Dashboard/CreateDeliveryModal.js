@@ -1,4 +1,4 @@
-// frontend/src/components/dashboard/CreateDeliveryModal.js
+// frontend/src/components/dashboard/createDeliveryModal.js
 
 /**
  * 새로운 배송 등록을 위한 모달 컴포넌트
@@ -19,7 +19,7 @@ import {
   makeStyles
 } from '@material-ui/core';
 import { DateTimePicker } from '@material-ui/pickers';
-import DashboardService from '../../services/dashboard.service';
+import DashboardService from '../../services/dashboardService';
 
 const useStyles = makeStyles((theme) => ({
   content: {

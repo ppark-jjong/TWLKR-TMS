@@ -1,12 +1,7 @@
 // frontend/src/components/common/Layout.js
 
-/**
- * 애플리케이션의 기본 레이아웃 컴포넌트
- * 사이드바와 메인 콘텐츠 영역을 포함
- * @module Layout
- */
-
 import React from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import {
   makeStyles,
   Drawer,
@@ -25,8 +20,7 @@ import {
   Timeline as TimelineIcon,
   ExitToApp as LogoutIcon
 } from '@material-ui/icons';
-import { useNavigate } from 'react-router-dom';
-import AuthService from '../../services/auth.service';
+import { useAuth } from '../../contexts/AuthContext';
 
 const drawerWidth = 240;
 
@@ -37,6 +31,7 @@ const useStyles = makeStyles((theme) => ({
   appBar: {
     width: `calc(100% - ${drawerWidth}px)`,
     marginLeft: drawerWidth,
+    backgroundColor: theme.palette.primary.main
   },
   drawer: {
     width: drawerWidth,
@@ -44,6 +39,7 @@ const useStyles = makeStyles((theme) => ({
   },
   drawerPaper: {
     width: drawerWidth,
+    backgroundColor: theme.palette.background.paper
   },
   toolbar: theme.mixins.toolbar,
   logo: {
@@ -51,26 +47,39 @@ const useStyles = makeStyles((theme) => ({
     textAlign: 'center',
     '& img': {
       width: 150,
-    },
+      height: 'auto'
+    }
   },
   content: {
     flexGrow: 1,
     padding: theme.spacing(3),
+    backgroundColor: theme.palette.background.default,
+    minHeight: '100vh'
   },
   userInfo: {
     padding: theme.spacing(2),
+    backgroundColor: theme.palette.grey[100]
   },
+  menuItem: {
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover
+    }
+  },
+  activeMenuItem: {
+    backgroundColor: theme.palette.action.selected
+  }
 }));
 
-const Layout = ({ children }) => {
+const Layout = () => {
   const classes = useStyles();
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { user, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
-      await AuthService.logout();
-      navigate('/login');
+      console.log('로그아웃 시도...');
+      await logout();
+      console.log('로그아웃 성공');
     } catch (error) {
       console.error('로그아웃 실패:', error);
     }
@@ -78,7 +87,7 @@ const Layout = ({ children }) => {
 
   const menuItems = [
     { text: '배송현황', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: '시각화', icon: <TimelineIcon />, path: '/visualization' },
+    { text: '시각화', icon: <TimelineIcon />, path: '/visualization' }
   ];
 
   return (
@@ -104,8 +113,10 @@ const Layout = ({ children }) => {
         </div>
         <Divider />
         <div className={classes.userInfo}>
-          <Typography variant="subtitle1">{user.user_id}</Typography>
-          <Typography variant="body2">{user.user_department}</Typography>
+          <Typography variant="subtitle1">{user?.user_id}</Typography>
+          <Typography variant="body2" color="textSecondary">
+            {user?.user_department}
+          </Typography>
         </div>
         <Divider />
         <List>
@@ -114,6 +125,7 @@ const Layout = ({ children }) => {
               button
               key={item.text}
               onClick={() => navigate(item.path)}
+              className={classes.menuItem}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
@@ -122,7 +134,7 @@ const Layout = ({ children }) => {
         </List>
         <Divider />
         <List>
-          <ListItem button onClick={handleLogout}>
+          <ListItem button onClick={handleLogout} className={classes.menuItem}>
             <ListItemIcon><LogoutIcon /></ListItemIcon>
             <ListItemText primary="로그아웃" />
           </ListItem>
@@ -131,7 +143,7 @@ const Layout = ({ children }) => {
 
       <main className={classes.content}>
         <div className={classes.toolbar} />
-        {children}
+        <Outlet />
       </main>
     </div>
   );

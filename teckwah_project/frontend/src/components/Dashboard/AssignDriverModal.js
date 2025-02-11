@@ -1,4 +1,4 @@
-// frontend/src/components/dashboard/AssignDriverModal.js
+// frontend/src/components/dashboard/assignDriverModal.js
 
 /**
  * 기사 배차를 위한 모달 컴포넌트
@@ -18,7 +18,7 @@ import {
   makeStyles,
   MenuItem
 } from '@material-ui/core';
-import DashboardService from '../../services/dashboard.service';
+import DashboardService from '../../services/dashboardService';
 
 const useStyles = makeStyles((theme) => ({
   content: {

@@ -5,7 +5,7 @@
  * @module AuthService
  */
 
-import api from './main_api';
+import api from './mainApi';
 
 /** @typedef {Object} LoginCredentials
  * @property {string} user_id - 사용자 ID

@@ -5,7 +5,7 @@
  * @module DashboardService
  */
 
-import api from './main_api';
+import api from './mainApi';
 
 const DashboardService = {
   /**

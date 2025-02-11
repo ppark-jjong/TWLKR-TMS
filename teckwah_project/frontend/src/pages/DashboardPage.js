@@ -1,12 +1,11 @@
-// frontend/src/pages/DashboardPage.js
+// frontend/src/pages/dashboardPage.js
 
 /**
  * 대시보드 메인 페이지 컴포넌트
- * 배송 현황 리스트와 관련 기능을 총괄 관리
- * @module DashboardPage
+ * 배송 현황 관리 및 데이터 처리 담당
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import {
   makeStyles,
@@ -16,36 +15,38 @@ import {
   IconButton,
   TextField,
   Grid,
-  MenuItem
+  MenuItem,
+  Snackbar
 } from '@material-ui/core';
+import { Alert } from '@material-ui/lab';
 import {
   Add as AddIcon,
   Refresh as RefreshIcon,
   Delete as DeleteIcon,
-  DriveEta as AssignIcon
+  LocalShipping as AssignIcon
 } from '@material-ui/icons';
-import DeliveryTable from '../components/dashboard/DeliveryTable';
-import CreateDeliveryModal from '../components/dashboard/CreateDeliveryModal';
-import AssignDriverModal from '../components/dashboard/AssignDriverModal';
-import DeliveryDetailModal from '../components/dashboard/DeliveryDetailModal';
-import DashboardService from '../services/dashboardService';
 import { DatePicker } from '@material-ui/pickers';
+import DeliveryTable from '../components/dashboard/deliveryTable';
+import CreateDeliveryModal from '../components/dashboard/createDeliveryModal';
+import AssignDriverModal from '../components/dashboard/assignDriverModal';
+import DeliveryDetailModal from '../components/dashboard/deliveryDetailModal';
+import DashboardService from '../services/dashboard.service';
+import { formatDate } from '../utils/date.utils';
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    padding: theme.spacing(3)
+    padding: theme.spacing(3),
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column'  
   },
   header: {
     marginBottom: theme.spacing(3),
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing(2),
+    padding: theme.spacing(2),
+    backgroundColor: theme.palette.background.paper,
     position: 'sticky',
     top: 0,
-    zIndex: 100,
-    backgroundColor: theme.palette.background.default,
-    padding: theme.spacing(2),
-    borderBottom: `1px solid ${theme.palette.divider}`
+    zIndex: 100
   },
   actions: {
     display: 'flex',
@@ -55,7 +56,10 @@ const useStyles = makeStyles((theme) => ({
     display: 'flex',
     gap: theme.spacing(2),
     alignItems: 'center'
-  }
+  },
+  tableContainer: {
+    flexGrow: 1,
+    overflow: 'hidden'  }
 }));
 
 const DashboardPage = () => {
@@ -69,52 +73,85 @@ const DashboardPage = () => {
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [department, setDepartment] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  useEffect(() => {
-    fetchDeliveries();
-  }, [selectedDate]);
-
-  const fetchDeliveries = async () => {
+  const fetchDeliveries = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
       const data = await DashboardService.getList(formattedDate);
       setDeliveries(data);
     } catch (error) {
-      console.error('배송 목록 조회 실패:', error);
+      setError('배송 목록 조회 중 오류가 발생했습니다.');
+      setSnackbar({
+        open: true,
+        message: '데이터 조회 실패',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchDeliveries();
+  }, [fetchDeliveries]);
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
+    setSelectedItems([]);
   };
 
   const handleRefresh = () => {
     fetchDeliveries();
+    setSelectedItems([]);
   };
 
   const handleCreateSuccess = () => {
     setOpenCreate(false);
+    setSnackbar({
+      open: true,
+      message: '배송이 성공적으로 등록되었습니다.',
+      severity: 'success'
+    });
     fetchDeliveries();
   };
 
   const handleAssignSuccess = () => {
     setOpenAssign(false);
+    setSnackbar({
+      open: true,
+      message: '기사 배차가 완료되었습니다.',
+      severity: 'success'
+    });
     fetchDeliveries();
     setSelectedItems([]);
   };
 
   const handleDelete = async () => {
     if (!window.confirm('선택한 항목을 삭제하시겠습니까?')) return;
+    
     try {
       await DashboardService.deleteMultiple(selectedItems);
+      setSnackbar({
+        open: true,
+        message: '선택한 항목이 삭제되었습니다.',
+        severity: 'success'
+      });
       fetchDeliveries();
       setSelectedItems([]);
     } catch (error) {
-      console.error('삭제 실패:', error);
+      setSnackbar({
+        open: true,
+        message: '삭제 처리 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
     }
   };
 
-  // 검색과 필터링된 데이터 계산
   const filteredDeliveries = deliveries
     .filter(delivery => 
       department === 'all' || delivery.department === department
@@ -128,7 +165,7 @@ const DashboardPage = () => {
   return (
     <div className={classes.root}>
       <Paper className={classes.header}>
-        <Grid container spacing={2} alignItems="center">
+        <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
             <div className={classes.filters}>
               <DatePicker
@@ -194,15 +231,19 @@ const DashboardPage = () => {
         </Grid>
       </Paper>
 
-      <DeliveryTable
-        deliveries={filteredDeliveries}
-        selectedItems={selectedItems}
-        onSelectionChange={setSelectedItems}
-        onRowClick={(delivery) => {
-          setSelectedDelivery(delivery);
-          setOpenDetail(true);
-        }}
-      />
+      <div className={classes.tableContainer}>
+        <DeliveryTable
+          deliveries={filteredDeliveries}
+          selectedItems={selectedItems}
+          onSelectionChange={setSelectedItems}
+          onRowClick={(delivery) => {
+            setSelectedDelivery(delivery);
+            setOpenDetail(true);
+          }}
+          loading={loading}
+          error={error}
+        />
+      </div>
 
       {openCreate && (
         <CreateDeliveryModal
@@ -232,6 +273,16 @@ const DashboardPage = () => {
           onUpdate={fetchDeliveries}
         />
       )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

@@ -1,13 +1,12 @@
-// src/services/driverService.js
-import api from "./api";
+// frontend/src/services/driverService.js
 
-export const driverService = {
-  /**
-   * 기사 목록 조회
-   * @returns {Promise<Array>} 기사 목록
-   */
-  getDrivers: async () => {
-    const { data } = await api.get("/drivers");
-    return data;
-  },
+const DriverService = {
+  getDriverList: async () => {
+    try {
+      const response = await api.get('/drivers');
+      return response.data;
+    } catch (error) {
+      throw new Error('기사 목록 조회 실패');
+    }
+  }
 };

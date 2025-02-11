@@ -1,51 +1,38 @@
-// src/services/visualizationService.js
-import api from './api';
-import { format } from 'date-fns';
+// frontend/src/services/visualizationService.js
 
-export const visualizationService = {
+/**
+ * 시각화 데이터 조회 서비스
+ * @module VisualizationService
+ */
+
+import api from './mainApi';
+
+const VisualizationService = {
   /**
    * 배송 현황 통계 조회
-   * @param {Date} startDate - 시작일
-   * @param {Date} endDate - 종료일
-   * @returns {Promise<Object>} 배송 현황 통계
+   * @param {string} startDate - 시작일자 (YYYY-MM-DD)
+   * @param {string} endDate - 종료일자 (YYYY-MM-DD)
+   * @returns {Promise<Object>}
    */
   getDeliveryStatus: async (startDate, endDate) => {
-    try {
-      const formattedStartDate = format(startDate, 'yyyy-MM-dd');
-      const formattedEndDate = format(endDate, 'yyyy-MM-dd');
-      
-      return await api.get('/visualization/delivery-status', {
-        params: {
-          start_date: formattedStartDate,
-          end_date: formattedEndDate
-        }
-      });
-    } catch (error) {
-      console.error('배송 현황 통계 조회 실패:', error);
-      throw error;
-    }
+    const response = await api.get('/visualization/status', {
+      params: { start_date: startDate, end_date: endDate }
+    });
+    return response.data;
   },
 
   /**
    * 시간대별 접수량 조회
-   * @param {Date} startDate - 시작일
-   * @param {Date} endDate - 종료일
-   * @returns {Promise<Object>} 시간대별 접수량
+   * @param {string} startDate - 시작일자 (YYYY-MM-DD)
+   * @param {string} endDate - 종료일자 (YYYY-MM-DD)
+   * @returns {Promise<Object>}
    */
   getHourlyVolume: async (startDate, endDate) => {
-    try {
-      const formattedStartDate = format(startDate, 'yyyy-MM-dd');
-      const formattedEndDate = format(endDate, 'yyyy-MM-dd');
-      
-      return await api.get('/visualization/hourly-volume', {
-        params: {
-          start_date: formattedStartDate,
-          end_date: formattedEndDate
-        }
-      });
-    } catch (error) {
-      console.error('시간대별 접수량 조회 실패:', error);
-      throw error;
-    }
-  },
+    const response = await api.get('/visualization/hourly', {
+      params: { start_date: startDate, end_date: endDate }
+    });
+    return response.data;
+  }
 };
+
+export default VisualizationService;
