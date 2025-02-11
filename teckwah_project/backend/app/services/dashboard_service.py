@@ -134,6 +134,7 @@ class DashboardService:
                 detail="대시보드 생성 중 오류가 발생했습니다.",
             )
 
+        
     async def update_status(
         self, dashboard_id: int, new_status: DeliveryStatus
     ) -> DashboardResponse:
@@ -147,33 +148,30 @@ class DashboardService:
                 )
 
             # 상태 변경 가능 여부 검증
-            allowed_transitions = {
-                DeliveryStatus.WAITING: [DeliveryStatus.IN_PROGRESS],
-                DeliveryStatus.IN_PROGRESS: [
-                    DeliveryStatus.COMPLETE,
-                    DeliveryStatus.ISSUE,
-                ],
-                DeliveryStatus.COMPLETE: [],
-                DeliveryStatus.ISSUE: [],
-            }
-
-            if new_status not in allowed_transitions.get(dashboard.status, []):
+            allowed_transitions = STATUS_TRANSITIONS.get(dashboard.status, [])
+            if new_status not in allowed_transitions:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"현재 상태({dashboard.status})에서 {new_status}로 변경할 수 없습니다.",
                 )
 
-            # 시간 정보 업데이트
+            # 상태 변경에 따른 시간 정보 업데이트
             update_time = datetime.utcnow()
+            
+            if new_status == DeliveryStatus.IN_PROGRESS:
+                if not dashboard.depart_time:  # 출발 시간이 없는 경우에만 설정
+                    dashboard.depart_time = update_time
+            elif new_status in [DeliveryStatus.COMPLETE, DeliveryStatus.ISSUE]:
+                if not dashboard.complete_time:  # 완료 시간이 없는 경우에만 설정
+                    dashboard.complete_time = update_time
 
-            updated = await self.repository.update_status(
-                dashboard_id, new_status, update_time
-            )
+            dashboard.status = new_status
+            await self.repository.update(dashboard)
 
             return DashboardResponse(
                 success=True,
                 message="상태가 성공적으로 업데이트되었습니다.",
-                data=DashboardDetailResponse.from_orm(updated),
+                data=DashboardDetailResponse.from_orm(dashboard),
             )
 
         except HTTPException:

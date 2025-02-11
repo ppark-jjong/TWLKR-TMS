@@ -7,7 +7,7 @@ from app.utils.logger_util import Logger
 from fastapi import HTTPException, status
 
 
-class TokenRepository:
+class RefreshTokenRepository:
     """토큰 데이터 접근 레포지토리"""
 
     def __init__(self, db: Session):
