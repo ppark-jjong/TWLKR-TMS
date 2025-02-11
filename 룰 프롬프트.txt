@@ -18,9 +18,11 @@
   - 디자인: 깔끔하고 직관적, 사용자 친화적 UI/UX
   - 프론트에 대한 지식이 전무합니다 디테일하게 구축해주세요
   - 확장자는 .js 로만 구현합니다.
-  - material-ui를 사용합니다.
+  - Ant Design 라이브러리를 사용하며, 추가 커스터마이징은 필요 없습니다.
   - jsdoc를 활용하여 타입 오류를 최소화 합니다.
   - webpack은 필요 없습니다. Create React App(CRA) 방식만을 채택합니다.
+  - 무료버젼 라이브러리들만 사용하세요 
+  - babel 관련 설정과 기능은 필요 없습니다.
 
 - **백엔드**:
   - FastAPI
@@ -91,11 +93,11 @@ teckwah_project/
 │    │   ├── components/      # 재사용 가능한 UI 컴포넌트 (예: common, dashboard)
 │    │   ├── pages/           # 페이지 단위 컴포넌트 (예: Auth, Dashboard, Visualization)
 │    │   ├── services/        # API 호출 및 비즈니스 로직 서비스
-│    │   ├── styles/          # 전역 스타일 파일 및 material-ui 커스터마이징
+│    │   ├── contexts/        
 │    │   ├── utils/           # 공통 유틸리티 함수 및 헬퍼 모듈
 │    │   ├── App.js           # 메인 App 컴포넌트 (라우터 포함)
 │    │   ├── index.js         # 애플리케이션 진입점
-│    │   └── appRoutes.js        # 라우트 설정 파일 (React Router 사용)
+│    │   └── AppRoutes.js        # 라우트 설정 파일 (React Router 사용)
 │    ├── package.json         # npm 패키지 및 스크립트 설정
 │
 ├── backend/
@@ -115,6 +117,7 @@ teckwah_project/
 └── deploy/
     └── local/                # 로컬 개발 환경 설정
         ├── Dockerfile        # FastAPI + MySQL 컨테이너
+        ├── docker-compose        
         ├── .env.local        # 로컬 환경 변수
         └── init-db.sql      # DB 초기화 스크립트
 
@@ -192,8 +195,7 @@ teckwah_project/
   - 캐싱 관련 기능 구축은 현재 필요하지 않습니다.
   - 절대 절대 절대 절대로 DB 구조를 함부로 바꾸면 안돼 model은 DB 기반으로 구축되는거니까 수정 시 허락을 구해
   - 문서화 관련 기능은 필요 없습니다.
-  
-
+  - 현재 gae와 같이 배포 서비스에 관한 유료 라이센스를 제외하고 코드 구축 중 패키지나 라이브러리 설치는 무조건 무료버젼으로 해야해
 
   ** 이 룰 프롬프트를 꼭 준수하세요 **
 

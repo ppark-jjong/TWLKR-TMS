@@ -1,9 +1,32 @@
-from pydantic import BaseModel, Field
-from .common_schema import UserDepartment, UserRole
+# backend/app/schemas/auth_schema.py
 
-class LoginRequest(BaseModel):
-    user_id: str = Field(..., description="사용자 ID")
-    password: str = Field(..., description="비밀번호")
+from pydantic import BaseModel
+from typing import Optional
+from enum import Enum
+from datetime import datetime
+
+class UserDepartment(str, Enum):
+    CS = "CS"
+    HES = "HES"
+    LENOVO = "LENOVO"
+
+class UserRole(str, Enum):
+    ADMIN = "ADMIN"
+    USER = "USER"
+
+class UserLogin(BaseModel):
+    user_id: str
+    user_password: str
+
+class Token(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+class TokenData(BaseModel):
+    user_id: str
+    department: UserDepartment
+    role: UserRole
 
 class UserResponse(BaseModel):
     user_id: str
@@ -13,17 +36,12 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class LoginResponse(BaseModel):
-    access_token: str
+class RefreshTokenResponse(BaseModel):
+    refresh_token_id: int
+    user_id: str
     refresh_token: str
-    token_type: str = "bearer"
-    user: UserResponse
+    expires_at: datetime
+    created_at: datetime
 
-class LogoutRequest(BaseModel):
-    refresh_token: str
-
-class LogoutResponse(BaseModel):
-    message: str
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    class Config:
+        from_attributes = True

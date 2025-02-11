@@ -1,19 +1,16 @@
+# backend/app/models/postal_code_model.py
 from sqlalchemy import Column, String, Integer
-from sqlalchemy.orm import relationship
-from app.config.database import Base
-
+from app.database import Base
 
 class PostalCode(Base):
-    """우편번호 모델"""
+    __tablename__ = 'postal_code'
 
-    __tablename__ = "postal_code"
-
-    postal_code = Column(String(10), primary_key=True)
-    district = Column(String(100), nullable=False)
-    city = Column(String(100), nullable=False)
+    postal_code = Column(String(5), primary_key=True, nullable=False)
+    district = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
     distance = Column(Integer, nullable=True)
     bill_distance = Column(Integer, nullable=True)
     duration_time = Column(Integer, nullable=True)
 
-    # Relationships
-    dashboards = relationship("Dashboard", back_populates="postal_code_info")
+    def __repr__(self):
+        return f"<PostalCode(postal_code='{self.postal_code}', city='{self.city}', district='{self.district}')>" 

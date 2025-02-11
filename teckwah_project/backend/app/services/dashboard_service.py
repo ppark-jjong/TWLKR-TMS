@@ -1,249 +1,202 @@
-"""대시보드 관련 서비스"""
+# backend/app/services/dashboard_service.py
+# 경로: backend/app/services/dashboard_service.py
+# 역할: 대시보드 관련 비즈니스 로직을 처리하는 서비스 클래스
+# 구조: DashboardService 클래스는 DashboardRepository를 의존성으로 주입받아 사용
 
-from datetime import datetime, date, timedelta
-from typing import Optional, List, Dict, Any
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import List, Optional, Dict
+from fastapi import HTTPException
 
-
-from app.repositories.dashboard_repository import DashboardRepository
 from app.schemas.dashboard_schema import (
-    DashboardCreate,
-    DashboardListResponse,
-    DashboardDetailResponse,
-    DashboardResponse,
-    DashboardDeleteResponse,
-    DriverAssignmentResult,
+    DashboardCreate, DashboardResponse, DashboardDetailResponse,
+    DashboardStatusUpdate, DashboardRemarkUpdate, DashboardDriverUpdate
 )
-from app.schemas.common_schema import DeliveryStatus
-from app.models.user_model import User
-from app.utils.logger_util import Logger
-
-STATUS_TRANSITIONS = {
-    DeliveryStatus.WAITING: [DeliveryStatus.IN_PROGRESS],
-    DeliveryStatus.IN_PROGRESS: [DeliveryStatus.COMPLETE, DeliveryStatus.ISSUE],
-    DeliveryStatus.COMPLETE: [],
-    DeliveryStatus.ISSUE: [],
-}
-
+from app.repositories.dashboard_repository import DashboardRepository
+from app.utils.logger import log_error, log_info
+from app.utils.error_handler import (
+    validate_dashboard_data, ValidationError, 
+    create_error_response
+)
 
 class DashboardService:
-    def __init__(self, db: Session):
-        self.db = db
-        self.repository = DashboardRepository(db)
+    def __init__(self, dashboard_repository: DashboardRepository):
+        self.repository = dashboard_repository
+        self.status_map = {
+            "WAITING": "대기",
+            "IN_PROGRESS": "진행",
+            "COMPLETE": "완료",
+            "ISSUE": "이슈"
+        }
+        # 허용되는 상태 전환 정의
+        self.allowed_status_transitions = {
+            "WAITING": ["IN_PROGRESS"],
+            "IN_PROGRESS": ["COMPLETE", "ISSUE"],
+            "COMPLETE": [],  # 완료 상태에서는 더 이상 전환 불가
+            "ISSUE": ["IN_PROGRESS"]  # 이슈 상태에서는 진행중으로만 전환 가능
+        }
 
-    def _validate_date(self, target_date: datetime) -> bool:
-        """날짜가 1개월 이내인지 검증"""
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        one_month_ago = today - timedelta(days=30)
-        return one_month_ago <= target_date <= today
-
-    async def get_list(self, target_date: datetime) -> List[Dict[str, Any]]:
-        """
-        날짜별 대시보드 목록 조회
-
-        Args:
-            target_date: 조회할 날짜
-
-        Returns:
-            List[Dict[str, Any]]: 대시보드 목록
-
-        Raises:
-            HTTPException: 날짜 검증 실패 또는 조회 실패 시
-        """
-        try:
-            # 날짜 검증
-            if not self._validate_date(target_date):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="조회 가능한 날짜는 오늘부터 1개월 전까지입니다.",
-                )
-
-            Logger.info(f"대시보드 목록 조회: target_date={target_date}")
-            dashboards = await self.repository.get_list_by_eta_date(target_date)
-
-            # 데이터 형식 변환
-            result = []
-            for dashboard in dashboards:
-                result.append(
-                    {
-                        "dashboard_id": dashboard.dashboard_id,
-                        "type": dashboard.type,
-                        "department": dashboard.department,
-                        "warehouse": dashboard.warehouse,
-                        "driver_name": dashboard.driver_name,
-                        "order_no": dashboard.order_no,
-                        "create_time": dashboard.create_time,
-                        "depart_time": dashboard.depart_time,
-                        "eta": dashboard.eta,
-                        "status": dashboard.status,
-                        "region": dashboard.region,
-                    }
-                )
-
-            return result
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            Logger.error(f"대시보드 목록 조회 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 목록 조회 중 오류가 발생했습니다.",
-            )
-
-    async def get_detail(self, dashboard_id: int) -> Optional[DashboardDetailResponse]:
-        """대시보드 상세 정보 조회"""
-        dashboard = await self.repository.get_by_id(dashboard_id)
-        if not dashboard:
-            return None
-        return DashboardDetailResponse.from_orm(dashboard)
-
-    async def create_dashboard(
-        self, data: DashboardCreate, user: User
-    ) -> DashboardResponse:
+    def create_dashboard(self, dashboard_data: DashboardCreate, user_department: str) -> DashboardResponse:
         """대시보드 생성"""
         try:
-            Logger.info(f"대시보드 생성 시작: {data.dict()}")
-
-            # 우편번호 형식 검증
-            if not data.postal_code.isdigit() or len(data.postal_code) != 5:
-                raise ValueError("올바른 우편번호 형식이 아닙니다.")
-
-            create_data = data.dict()
-            create_data["department"] = user.user_department
-            create_data["status"] = DeliveryStatus.WAITING
-
-            # 트리거 실행을 위한 create 호출
-            dashboard = await self.repository.create(create_data)
-            Logger.info(f"대시보드 생성 성공: dashboard_id={dashboard.dashboard_id}")
-
-            return DashboardResponse(
-                success=True,
-                message="대시보드가 성공적으로 생성되었습니다.",
-                data=DashboardDetailResponse.from_orm(dashboard),
-            )
-
-        except ValueError as e:
-            Logger.error(f"대시보드 생성 중 유효성 검증 오류: {str(e)}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-        except Exception as e:
-            Logger.error(f"대시보드 생성 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 생성 중 오류가 발생했습니다.",
-            )
-
-        
-    async def update_status(
-        self, dashboard_id: int, new_status: DeliveryStatus
-    ) -> DashboardResponse:
-        """상태 업데이트"""
-        try:
-            dashboard = await self.repository.get_detail(dashboard_id)
-            if not dashboard:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다.",
-                )
-
-            # 상태 변경 가능 여부 검증
-            allowed_transitions = STATUS_TRANSITIONS.get(dashboard.status, [])
-            if new_status not in allowed_transitions:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"현재 상태({dashboard.status})에서 {new_status}로 변경할 수 없습니다.",
-                )
-
-            # 상태 변경에 따른 시간 정보 업데이트
-            update_time = datetime.utcnow()
+            log_info("대시보드 생성 요청", {
+                "data": dashboard_data.dict(),
+                "user_department": user_department
+            })
             
-            if new_status == DeliveryStatus.IN_PROGRESS:
-                if not dashboard.depart_time:  # 출발 시간이 없는 경우에만 설정
-                    dashboard.depart_time = update_time
-            elif new_status in [DeliveryStatus.COMPLETE, DeliveryStatus.ISSUE]:
-                if not dashboard.complete_time:  # 완료 시간이 없는 경우에만 설정
-                    dashboard.complete_time = update_time
+            # 데이터 검증
+            validate_dashboard_data(dashboard_data.dict())
+            
+            # 사용자의 부서 정보로 department 설정
+            dashboard_dict = dashboard_data.dict()
+            dashboard_dict["department"] = user_department
+            
+            # 대시보드 생성
+            dashboard = self.repository.create_dashboard(dashboard_dict)
+            return DashboardResponse.model_validate(dashboard)
+            
+        except ValidationError as e:
+            log_error(e, "대시보드 생성 검증 실패")
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            log_error(e, "대시보드 생성 실패")
+            raise HTTPException(status_code=500, detail=create_error_response(e))
 
-            dashboard.status = new_status
-            await self.repository.update(dashboard)
-
-            return DashboardResponse(
-                success=True,
-                message="상태가 성공적으로 업데이트되었습니다.",
-                data=DashboardDetailResponse.from_orm(dashboard),
+    def validate_status_transition(self, current_status: str, new_status: str) -> None:
+        """상태 전환 검증"""
+        if new_status not in self.allowed_status_transitions.get(current_status, []):
+            allowed = self.allowed_status_transitions.get(current_status, [])
+            allowed_str = ", ".join([self.status_map[status] for status in allowed])
+            current_str = self.status_map[current_status]
+            raise ValidationError(
+                f"'{current_str}' 상태에서는 다음 상태로만 전환 가능합니다: {allowed_str}"
             )
 
+    def update_dashboard_status(self, dashboard_id: int, 
+                              status_update: DashboardStatusUpdate) -> DashboardDetailResponse:
+        """대시보드 상태 업데이트"""
+        try:
+            log_info(f"대시보드 상태 업데이트: {dashboard_id}, 상태: {status_update.status}")
+            
+            # 현재 대시보드 상태 확인
+            current_dashboard = self.repository.get_dashboard_by_id(dashboard_id)
+            if not current_dashboard:
+                raise HTTPException(status_code=404, detail="대시보드를 찾을 수 없습니다")
+            
+            # 상태 전환 검증
+            self.validate_status_transition(current_dashboard.status, status_update.status)
+            
+            # 상태 업데이트
+            dashboard = self.repository.update_dashboard_status(
+                dashboard_id, status_update.status, datetime.now()
+            )
+            return DashboardDetailResponse.model_validate(dashboard)
+            
+        except ValidationError as e:
+            log_error(e, "대시보드 상태 업데이트 검증 실패")
+            raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
             raise
         except Exception as e:
-            Logger.error(f"상태 업데이트 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="상태 업데이트 중 오류가 발생했습니다.",
-            )
+            log_error(e, "대시보드 상태 업데이트 실패")
+            raise HTTPException(status_code=500, detail=create_error_response(e))
 
-    async def update_remark(self, dashboard_id: int, remark: str) -> DashboardResponse:
-        """메모 업데이트"""
+    def update_dashboard_remark(self, dashboard_id: int, 
+                              remark_update: DashboardRemarkUpdate) -> DashboardDetailResponse:
+        """대시보드 메모 업데이트"""
         try:
-            updated = await self.repository.update_remark(dashboard_id, remark)
-            if not updated:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다.",
+            log_info(f"대시보드 메모 업데이트: {dashboard_id}")
+            dashboard = self.repository.update_dashboard_remark(
+                dashboard_id, remark_update.remark
+            )
+            if not dashboard:
+                raise HTTPException(status_code=404, detail="대시보드를 찾을 수 없습니다")
+            return DashboardDetailResponse.model_validate(dashboard)
+        except HTTPException:
+            raise
+        except Exception as e:
+            log_error(e, "대시보드 메모 업데이트 실패")
+            raise HTTPException(status_code=500, detail=create_error_response(e))
+
+    def validate_driver_info(self, driver_update: DashboardDriverUpdate) -> None:
+        """배차 정보 검증"""
+        if not driver_update.driver_name.strip():
+            raise ValidationError("기사 이름은 필수입니다")
+            
+        # 연락처 형식 검증
+        contact = ''.join(filter(str.isdigit, driver_update.driver_contact))
+        if len(contact) != 11:
+            raise ValidationError("연락처는 11자리 숫자여야 합니다 (예: 010-1234-5678)")
+
+    def update_driver_info(self, driver_update: DashboardDriverUpdate) -> List[DashboardResponse]:
+        """배차 정보 업데이트"""
+        try:
+            log_info("배차 정보 업데이트", driver_update.dict())
+            
+            # 배차 정보 검증
+            self.validate_driver_info(driver_update)
+            
+            # 대시보드 상태 검증
+            for dashboard_id in driver_update.dashboard_ids:
+                dashboard = self.repository.get_dashboard_by_id(dashboard_id)
+                if not dashboard:
+                    raise ValidationError(f"대시보드를 찾을 수 없습니다: {dashboard_id}")
+                if dashboard.status != "WAITING":
+                    raise ValidationError(
+                        f"대기 상태의 대시보드만 배차할 수 있습니다 (대시보드 ID: {dashboard_id})"
+                    )
+
+            # 연락처 형식 변환
+            contact = ''.join(filter(str.isdigit, driver_update.driver_contact))
+            formatted_contact = f"{contact[:3]}-{contact[3:7]}-{contact[7:]}"
+            
+            # 배차 정보 업데이트
+            dashboards = self.repository.update_dashboard_driver(
+                driver_update.dashboard_ids,
+                driver_update.driver_name,
+                formatted_contact
+            )
+            return [DashboardResponse.model_validate(d) for d in dashboards]
+            
+        except ValidationError as e:
+            log_error(e, "배차 정보 업데이트 검증 실패")
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            log_error(e, "배차 정보 업데이트 실패")
+            raise HTTPException(status_code=500, detail=create_error_response(e))
+
+    def validate_dashboard_deletion(self, dashboard_ids: List[int]) -> None:
+        """대시보드 삭제 검증"""
+        if not dashboard_ids:
+            raise ValidationError("삭제할 대시보드를 선택해주세요")
+            
+        for dashboard_id in dashboard_ids:
+            dashboard = self.repository.get_dashboard_by_id(dashboard_id)
+            if not dashboard:
+                raise ValidationError(f"대시보드를 찾을 수 없습니다: {dashboard_id}")
+            if dashboard.status != "WAITING":
+                raise ValidationError(
+                    f"대기 상태의 대시보드만 삭제할 수 있습니다 (대시보드 ID: {dashboard_id})"
                 )
-            return DashboardResponse(
-                success=True,
-                message="메모가 성공적으로 업데이트되었습니다.",
-                data=DashboardDetailResponse.from_orm(updated),
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            Logger.error(f"메모 업데이트 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="메모 업데이트 중 오류가 발생했습니다.",
-            )
 
-    async def assign_driver(
-        self,
-        dashboard_ids: List[int],
-        driver_id: int,
-        driver_remark: Optional[str] = None,
-    ) -> DashboardResponse:
-        """기사 배차"""
+    def delete_dashboards(self, dashboard_ids: List[int]) -> bool:
+        """대시보드 삭제"""
         try:
-            result = await self.repository.assign_driver(
-                dashboard_ids, driver_id, driver_remark
-            )
+            log_info(f"대시보드 삭제 요청: {dashboard_ids}")
+            
+            # 삭제 가능 여부 검증
+            self.validate_dashboard_deletion(dashboard_ids)
 
-            return DashboardResponse(
-                success=True,
-                message=f"기사 배차가 완료되었습니다. (성공: {len(result['success'])}건)",
-                data=DriverAssignmentResult(**result),
-            )
+            # 대시보드 삭제
+            success = self.repository.delete_dashboards(dashboard_ids)
+            if not success:
+                raise Exception("대시보드 삭제에 실패했습니다")
+                
+            log_info("대시보드 삭제 완료")
+            return True
+            
+        except ValidationError as e:
+            log_error(e, "대시보드 삭제 검증 실패")
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            Logger.error(f"기사 배차 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="기사 배차 중 오류가 발생했습니다.",
-            )
-
-    async def delete_dashboards(
-        self, dashboard_ids: List[int]
-    ) -> DashboardDeleteResponse:
-        """대시보드 일괄 삭제"""
-        try:
-            result = await self.repository.delete_multiple(dashboard_ids)
-            return DashboardDeleteResponse(
-                success=True,
-                message="대시보드가 성공적으로 삭제되었습니다.",
-                deleted_count=len(result["success"]),
-            )
-        except Exception as e:
-            Logger.error(f"대시보드 삭제 중 오류: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 삭제 중 오류가 발생했습니다.",
-            )
+            log_error(e, "대시보드 삭제 실패")
+            raise HTTPException(status_code=500, detail=create_error_response(e))

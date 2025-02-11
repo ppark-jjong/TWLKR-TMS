@@ -1,3 +1,4 @@
+# backend/app/config/init_user.py
 import argparse
 import bcrypt
 from .database import execute_query, get_mysql_connection

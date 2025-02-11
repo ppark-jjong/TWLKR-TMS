@@ -1,3 +1,4 @@
+# backend/app/config/excel_to_postalcode.py
 import pandas as pd
 from .database import execute_query
 
@@ -12,7 +13,7 @@ def import_postal_codes(file_path="/app/data/postal_code.xlsx"):
     df = df[expected_columns]  # 필요 컬럼만 유지
 
     # 데이터 타입 변환
-    df["postal_code"] = df["postal_code"].astype(str)
+    df["postal_code"] = df["postal_code"].astype(str).str.zfill(5)  # 4자리인 경우 앞에 0 추가
     df["duration_time"] = df["duration_time"].fillna(0).astype(int)
     df["distance"] = df["distance"].fillna(0).astype(int)
 

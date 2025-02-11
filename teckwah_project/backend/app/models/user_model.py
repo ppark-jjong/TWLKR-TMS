@@ -1,26 +1,14 @@
-"""사용자 모델"""
+# backend/app/models/user_model.py
 from sqlalchemy import Column, String, Enum
-from sqlalchemy.orm import relationship
-from app.config.database import Base
-from app.schemas.common_schema import UserRole, UserDepartment
-from app.utils.logger_util import Logger
-from passlib.context import CryptContext
-
+from app.database import Base
 
 class User(Base):
-    """사용자 모델"""
-    __tablename__ = "users"
+    __tablename__ = 'user'
 
-    user_id = Column(String(50), primary_key=True)
+    user_id = Column(String(50), primary_key=True, nullable=False)
     user_password = Column(String(255), nullable=False)
-    user_department = Column(Enum(UserDepartment), nullable=False)
-    user_role = Column(Enum(UserRole), nullable=False)
+    user_department = Column(Enum('CS', 'HES', 'LENOVO'), nullable=False)
+    user_role = Column(Enum('ADMIN', 'USER'), nullable=False)
 
-    tokens = relationship("Token", back_populates="user", cascade="all, delete-orphan")
-
-    def verify_password(self, password: str) -> bool:
-        """비밀번호 검증"""
-        return self.pwd_context.verify(password, self.user_password)
-
-    class Config:
-        from_attributes = True
+    def __repr__(self):
+        return f"<User(user_id='{self.user_id}', user_role='{self.user_role}')>" 
