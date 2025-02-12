@@ -1,9 +1,10 @@
 # backend/app/models/postal_code_model.py
 from sqlalchemy import Column, String, Integer
-from app.database import Base
+from app.config.database import Base
+
 
 class PostalCode(Base):
-    __tablename__ = 'postal_code'
+    __tablename__ = "postal_code"
 
     postal_code = Column(String(5), primary_key=True, nullable=False)
     district = Column(String(100), nullable=True)
@@ -13,4 +14,4 @@ class PostalCode(Base):
     duration_time = Column(Integer, nullable=True)
 
     def __repr__(self):
-        return f"<PostalCode(postal_code='{self.postal_code}', city='{self.city}', district='{self.district}')>" 
+        return f"<PostalCode(postal_code='{self.postal_code}', city='{self.city}', district='{self.district}')>"

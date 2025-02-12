@@ -1,25 +1,29 @@
 # backend/app/config/excel_to_user.py
 import pandas as pd
 import bcrypt
-from .database import execute_query
-from ..utils.logger_util import Logger
+from app.config.database import execute_query
+from app.utils.logger import Logger
+
 
 def hash_password(password):
     """비밀번호 해싱 처리"""
     try:
-        password_bytes = str(password).encode('utf-8')  # 비밀번호를 바이트 형식으로 인코딩
+        password_bytes = str(password).encode(
+            "utf-8"
+        )  # 비밀번호를 바이트 형식으로 인코딩
         salt = bcrypt.gensalt()  # Salt 생성
         hashed = bcrypt.hashpw(password_bytes, salt)  # 비밀번호 해싱
 
         # 해싱된 비밀번호의 길이를 로그로 남김
         Logger.debug(f"비밀번호 해싱 성공: 해시 길이 {len(hashed)}")
-        
-        return hashed.decode('utf-8')  # 바이트 형태의 해시를 문자열로 반환
+
+        return hashed.decode("utf-8")  # 바이트 형태의 해시를 문자열로 반환
 
     except Exception as e:
         # 예외 발생 시 에러 로그 남기기
         Logger.error(f"비밀번호 해싱 중 오류: {str(e)}")
         raise  # 오류를 다시 던져서 상위에서 처리할 수 있도록 함
+
 
 def normalize_role(role):
     """사용자 역할 정규화 (소문자로 변환)"""
@@ -34,6 +38,7 @@ def normalize_department(dept):
         return dept.upper()  # init-db.sql의 ENUM 정의에 맞춰 대문자로 변환
     return dept
 
+
 # 사용자 데이터 임포트 중 오류 발생시 Logger 사용
 def import_users(file_path="/app/data/user.xlsx"):
     try:
@@ -47,7 +52,7 @@ def import_users(file_path="/app/data/user.xlsx"):
 
         # 역할 정규화 (소문자로 변환)
         df["user_role"] = df["user_role"].apply(normalize_role)
-        
+
         # 부서 정규화 (대문자로 변환)
         df["user_department"] = df["user_department"].apply(normalize_department)
 
