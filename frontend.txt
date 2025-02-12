@@ -1,0 +1,41 @@
+frontend/
+├── public/
+│   ├── index.html
+│   ├── logo.png
+│   └── favicon.ico
+├── src/
+│   ├── components/
+│   │   ├── common/
+│   │   │   ├── ErrorBoundary.js
+│   │   │   ├── LoadingSpin.js
+│   │   │   ├── ConfirmModal.js
+│   │   │   ├── MainLayout.js
+│   │   │   └── Sidebar.js
+│   │   ├── dashboard/
+│   │   │   ├── DashboardTable.js
+│   │   │   ├── CreateDashboardModal.js
+│   │   │   ├── AssignDriverModal.js
+│   │   │   └── DashboardDetailModal.js
+│   │   └── visualization/
+│   │       ├── StatusPieChart.js
+│   │       └── HourlyBarChart.js
+│   ├── contexts/
+│   │   ├── AuthContext.js
+│   │   └── DashboardContext.js
+│   ├── pages/
+│   │   ├── LoginPage.js
+│   │   ├── DashboardPage.js
+│   │   └── VisualizationPage.js
+│   ├── services/
+│   │   ├── AuthService.js
+│   │   ├── DashboardService.js
+│   │   └── VisualizationService.js
+│   ├── utils/
+│   │   ├── AxiosConfig.js
+│   │   ├── Constants.js
+│   │   ├── Formatter.js
+│   │   └── types.js
+│   ├── App.js
+│   ├── AppRoutes.js
+│   └── index.js (빠져있음)
+└── package.json
