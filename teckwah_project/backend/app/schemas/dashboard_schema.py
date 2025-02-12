@@ -1,13 +1,14 @@
 # backend/app/schemas/dashboard_schema.py
-
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
 
+
 class DashboardType(str, Enum):
     DELIVERY = "DELIVERY"
     RETURN = "RETURN"
+
 
 class DashboardStatus(str, Enum):
     WAITING = "WAITING"
@@ -15,18 +16,21 @@ class DashboardStatus(str, Enum):
     COMPLETE = "COMPLETE"
     ISSUE = "ISSUE"
 
-class DashboardDepartment(str, Enum):
+
+class Department(str, Enum):
     CS = "CS"
     HES = "HES"
     LENOVO = "LENOVO"
 
-class DashboardWarehouse(str, Enum):
+
+class Warehouse(str, Enum):
     SEOUL = "SEOUL"
     BUSAN = "BUSAN"
     GWANGJU = "GWANGJU"
     DAEJEON = "DAEJEON"
 
-class DashboardSLA(str, Enum):
+
+class SLAType(str, Enum):
     XHR = "XHR"
     POX = "POX"
     EMC = "EMC"
@@ -34,18 +38,19 @@ class DashboardSLA(str, Enum):
     LENOVO = "LENOVO"
     ETC = "ETC"
 
+
 class DashboardCreate(BaseModel):
     type: DashboardType
     order_no: int
-    department: DashboardDepartment
-    warehouse: DashboardWarehouse
-    sla: DashboardSLA
+    warehouse: Warehouse
+    sla: SLAType
     eta: datetime
-    postal_code: str
+    postal_code: str = Field(..., min_length=5, max_length=5)
     address: str
     customer: str
-    contact: str
+    contact: str = Field(..., pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
     remark: Optional[str] = None
+
 
 class DashboardUpdate(BaseModel):
     status: Optional[DashboardStatus] = None
@@ -53,22 +58,12 @@ class DashboardUpdate(BaseModel):
     driver_name: Optional[str] = None
     driver_contact: Optional[str] = None
 
-class DashboardStatusUpdate(BaseModel):
-    status: DashboardStatus
-
-class DashboardRemarkUpdate(BaseModel):
-    remark: str
-
-class DashboardDriverUpdate(BaseModel):
-    driver_name: str
-    driver_contact: str
-    dashboard_ids: List[int]
 
 class DashboardResponse(BaseModel):
     dashboard_id: int
     type: DashboardType
-    department: DashboardDepartment
-    warehouse: DashboardWarehouse
+    department: Department
+    warehouse: Warehouse
     driver_name: Optional[str]
     order_no: int
     create_time: datetime
@@ -80,11 +75,12 @@ class DashboardResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class DashboardDetailResponse(BaseModel):
+
+class DashboardDetail(BaseModel):
     dashboard_id: int
     type: DashboardType
-    department: DashboardDepartment
-    warehouse: DashboardWarehouse
+    department: Department
+    warehouse: Warehouse
     driver_name: Optional[str]
     driver_contact: Optional[str]
     order_no: int
@@ -103,5 +99,20 @@ class DashboardDetailResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class DateQuery(BaseModel):
+
+class DriverAssignment(BaseModel):
+    dashboard_ids: List[int]
+    driver_name: str
+    driver_contact: str = Field(..., pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
+
+
+class StatusUpdate(BaseModel):
+    status: DashboardStatus
+
+
+class RemarkUpdate(BaseModel):
+    remark: str
+
+
+class DashboardQuery(BaseModel):
     date: datetime = Field(..., description="YYYY-MM-DD format date for filtering")

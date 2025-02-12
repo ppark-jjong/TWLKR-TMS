@@ -2,7 +2,7 @@
 import pandas as pd
 import bcrypt
 from app.config.database import execute_query
-from app.utils.logger import Logger
+from app.utils.logger import log_info, log_error
 
 
 def hash_password(password):
@@ -15,13 +15,13 @@ def hash_password(password):
         hashed = bcrypt.hashpw(password_bytes, salt)  # 비밀번호 해싱
 
         # 해싱된 비밀번호의 길이를 로그로 남김
-        Logger.debug(f"비밀번호 해싱 성공: 해시 길이 {len(hashed)}")
+        log_info(f"비밀번호 해싱 성공: 해시 길이 {len(hashed)}")
 
         return hashed.decode("utf-8")  # 바이트 형태의 해시를 문자열로 반환
 
     except Exception as e:
         # 예외 발생 시 에러 로그 남기기
-        Logger.error(f"비밀번호 해싱 중 오류: {str(e)}")
+        log_error(f"비밀번호 해싱 중 오류: {str(e)}")
         raise  # 오류를 다시 던져서 상위에서 처리할 수 있도록 함
 
 

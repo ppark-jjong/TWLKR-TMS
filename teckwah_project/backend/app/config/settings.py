@@ -6,6 +6,7 @@ import os
 
 load_dotenv()
 
+
 class Settings(BaseSettings):
     # 데이터베이스 설정
     MYSQL_HOST: str = os.getenv("MYSQL_HOST")

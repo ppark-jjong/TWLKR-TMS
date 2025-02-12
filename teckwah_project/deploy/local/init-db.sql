@@ -60,10 +60,6 @@ CREATE TABLE IF NOT EXISTS dashboard (
   INDEX idx_eta (eta),
   INDEX idx_status (status),
   INDEX idx_department (department)
-) PARTITION BY RANGE (TO_DAYS(eta)) (
-  PARTITION p_past VALUES LESS THAN (TO_DAYS(CURRENT_DATE)),
-  PARTITION p_current VALUES LESS THAN (TO_DAYS(CURRENT_DATE + INTERVAL 30 DAY)),
-  PARTITION p_future VALUES LESS THAN MAXVALUE
 );
 
 -- 에러 로그 테이블 생성

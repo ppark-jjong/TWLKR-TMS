@@ -1,35 +1,41 @@
 # backend/app/schemas/visualization_schema.py
-
-from pydantic import BaseModel
-from datetime import datetime, date
-from typing import List, Dict, Any
+from pydantic import BaseModel, Field
+from datetime import date
+from typing import List
 from enum import Enum
 
-class VisualizationType(str, Enum):
+
+class ChartType(str, Enum):
     DELIVERY_STATUS = "배송 현황"
     HOURLY_ORDERS = "시간별 접수량"
 
-class DateRangeQuery(BaseModel):
+
+class DateRange(BaseModel):
     start_date: date
     end_date: date
 
-class StatusCount(BaseModel):
+
+class StatusData(BaseModel):
     status: str
     count: int
     percentage: float
 
-class DeliveryStatusResponse(BaseModel):
-    total_count: int
-    status_breakdown: List[StatusCount]
 
-class HourlyOrderCount(BaseModel):
-    hour: int  # 0-23
+class HourlyData(BaseModel):
+    hour: int = Field(..., ge=0, le=23)
     count: int
 
-class HourlyOrderResponse(BaseModel):
+
+class DeliveryStatusResponse(BaseModel):
     total_count: int
-    hourly_breakdown: List[HourlyOrderCount]
+    status_breakdown: List[StatusData]
+
+
+class HourlyOrdersResponse(BaseModel):
+    total_count: int
+    hourly_breakdown: List[HourlyData]
+
 
 class VisualizationResponse(BaseModel):
-    type: VisualizationType
-    data: Dict[str, Any]  # DeliveryStatusResponse 또는 HourlyOrderResponse의 데이터가 포함됨
+    type: ChartType
+    data: dict
