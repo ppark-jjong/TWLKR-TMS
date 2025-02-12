@@ -1,6 +1,6 @@
 # backend/app/services/visualization_service.py
 
-from datetime import date
+from datetime import datetime
 from typing import Dict, Any
 from fastapi import HTTPException
 
@@ -25,7 +25,7 @@ class VisualizationService:
             "ISSUE": "이슈"
         }
 
-    def get_delivery_status(self, start_date: date, end_date: date) -> Dict[str, Any]:
+    def get_delivery_status(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """배송 현황 시각화 데이터 생성"""
         try:
             log_info("배송 현황 데이터 조회", {
@@ -33,6 +33,7 @@ class VisualizationService:
                 "end_date": end_date
             })
             
+            # 상태별 집계 데이터 조회
             status_counts = self.repository.get_status_counts(start_date, end_date)
             total_count = sum(count for _, count in status_counts)
             
@@ -42,6 +43,7 @@ class VisualizationService:
                     status_breakdown=[]
                 ).dict()
 
+            # 상태별 비율 계산 및 한글 상태명 매핑
             status_breakdown = [
                 StatusCount(
                     status=self.status_map.get(status, status),
@@ -51,7 +53,11 @@ class VisualizationService:
                 for status, count in status_counts
             ]
 
-            log_info("배송 현황 데이터 처리 완료", {"total_count": total_count})
+            log_info("배송 현황 데이터 처리 완료", {
+                "total_count": total_count,
+                "breakdown_count": len(status_breakdown)
+            })
+            
             return DeliveryStatusResponse(
                 total_count=total_count,
                 status_breakdown=status_breakdown
@@ -61,10 +67,10 @@ class VisualizationService:
             log_error(e, "배송 현황 데이터 처리 실패")
             raise HTTPException(
                 status_code=500,
-                detail=create_error_response(e)
+                detail="배송 현황 데이터 처리 중 오류가 발생했습니다"
             )
 
-    def get_hourly_orders(self, start_date: date, end_date: date) -> Dict[str, Any]:
+    def get_hourly_orders(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """시간별 접수량 시각화 데이터 생성"""
         try:
             log_info("시간별 접수량 데이터 조회", {
@@ -72,6 +78,7 @@ class VisualizationService:
                 "end_date": end_date
             })
             
+            # 시간대별 접수량 조회
             hourly_counts = self.repository.get_hourly_counts(start_date, end_date)
             
             # 0-23시간대 데이터 초기화
@@ -83,13 +90,17 @@ class VisualizationService:
                 hour_dict[int(hour)] = count
                 total_count += count
 
-            # 시간별 데이터 리스트 생성
+            # 시간별 데이터 정렬 및 리스트 생성
             hourly_breakdown = [
                 HourlyOrderCount(hour=hour, count=count)
-                for hour, count in hour_dict.items()
+                for hour, count in sorted(hour_dict.items())
             ]
 
-            log_info("시간별 접수량 데이터 처리 완료", {"total_count": total_count})
+            log_info("시간별 접수량 데이터 처리 완료", {
+                "total_count": total_count,
+                "hours_with_data": sum(1 for h in hourly_breakdown if h.count > 0)
+            })
+            
             return HourlyOrderResponse(
                 total_count=total_count,
                 hourly_breakdown=hourly_breakdown
@@ -99,11 +110,11 @@ class VisualizationService:
             log_error(e, "시간별 접수량 데이터 처리 실패")
             raise HTTPException(
                 status_code=500,
-                detail=create_error_response(e)
+                detail="시간별 접수량 데이터 처리 중 오류가 발생했습니다"
             )
 
     def get_visualization_data(self, viz_type: VisualizationType, 
-                             start_date: date, end_date: date) -> Dict[str, Any]:
+                             start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """시각화 타입에 따른 데이터 조회"""
         try:
             log_info("시각화 데이터 요청", {
@@ -111,9 +122,6 @@ class VisualizationService:
                 "start_date": start_date,
                 "end_date": end_date
             })
-            
-            # 날짜 범위 검증
-            validate_date_range(start_date, end_date)
 
             if viz_type == VisualizationType.DELIVERY_STATUS:
                 data = self.get_delivery_status(start_date, end_date)
@@ -138,5 +146,5 @@ class VisualizationService:
             log_error(e, "시각화 데이터 처리 실패")
             raise HTTPException(
                 status_code=500,
-                detail=create_error_response(e)
+                detail="시각화 데이터 처리 중 오류가 발생했습니다"
             )

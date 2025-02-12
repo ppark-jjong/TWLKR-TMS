@@ -14,7 +14,6 @@ class ValidationError(Exception):
     pass
 
 class AuthenticationError(Exception):
-    """인증 관련 에러"""
     pass
 
 def handle_database_error(error: SQLAlchemyError, context: str, data: Optional[Any] = None) -> None:

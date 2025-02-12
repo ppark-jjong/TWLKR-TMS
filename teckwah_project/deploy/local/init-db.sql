@@ -50,11 +50,18 @@ CREATE TABLE IF NOT EXISTS `dashboard` (
   `driver_contact` VARCHAR(50) NULL DEFAULT NULL,
 
   INDEX `idx_eta` (`eta` ASC) VISIBLE,
+  INDEX `idx_dashboard_eta_status` (`eta`, `status`),
+  INDEX `idx_dashboard_department` (`department`),
   CONSTRAINT `dashboard_ibfk_1`
     FOREIGN KEY (`postal_code`)
     REFERENCES `postal_code` (`postal_code`)
     ON DELETE CASCADE 
-) ENGINE = InnoDB
+)
+PARTITION BY RANGE (TO_DAYS(eta)) (
+    PARTITION p_current VALUES LESS THAN (TO_DAYS(NOW())),
+    PARTITION p_future VALUES LESS THAN MAXVALUE
+)
+ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;
 

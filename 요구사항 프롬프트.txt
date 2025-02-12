@@ -1,206 +1,218 @@
+--------------[기본 프로젝트 설명]--------------
+
+1. 프로젝트 명: 배송 실시간 관제 시스템 및 데이터 시각화 서비스
+2. 기술 스택:
+	- 프론트엔드: React (Create React App, JavaScript), Ant Design, jsdoc
+	- 백엔드: FastAPI (Python)
+	- 데이터베이스: MySQL (Cloud SQL), DB 트리거: trg_dashboard_before_insert_postal → 대시보드 생성 시, 입력된 postal_code 값을 기반으로 postal_code 테이블에서 city, district, distance, duration_time 등을 조회하여 자동 업데이트
+3. 배포 환경:
+- 단일 컨테이너 배포 (Google App Engine, Docker-Desktop을 통한 로컬 테스트)
+- 프론트엔드 빌드 결과물(정적 파일)을 백엔드(FastAPI)에서 서빙
+4. 라이선스 및 패키지 정책:
+- GAE 배포 서비스 관련 유료 라이선스를 제외하고, 코드 구축에 사용되는 모든 패키지 및 라이브러리는 무료 버전만 사용
+5. 특징 및 주의 사항:
+- 프론트엔드와 백엔드는 동일 도메인에서 실행되므로 CORS 등 네트워크 미들웨어(Reverse Proxy 등)는 필요 없음
+- 네트워크 미들웨어와는 별개로, 백엔드에서는 API 요청마다 JWT 인증을 위한 "인증 로직"(예: FastAPI의 Depends를 활용한 토큰 검증)을 구현해야 함 (이것은 네트워크 미들웨어와는 다른 개념)
+- 로그인 시 발급받은 JWT 액세스 토큰(60분 만료)과 리프레시 토큰(7일 만료)을 프론트엔드에서 localStorage에 저장하고, 모든 API 호출 시 Axios 인터셉터를 통해 헤더에 자동 포함하도록 구성
 
 
+--------------[프론트엔드 요구사항]--------------
 
-프론트엔드 요구사항
+1. 공통 사항
 
-백엔드에서 구축된 코드(api, 주고받는 데이터 형식)에 따라 데이터 송수신을 활용하고,
-전체 디자인은 깔끔하고 유저 친화적인 디자인을 원해
-** 또한 타입 오류, 유저 토큰 유지 오류, 기본 데이터 유지에 대한 오류들이 많이 생깁니다 이를 확실히 지정해주세요 **
+- 기술 스택: React (Create React App, .js 파일), Ant Design,  jsdoc를 활용하여 함수, 인자, 반환값을 명시하여 타입 오류를 최소화
+- 디자인: 깔끔하고 사용자 친화적인 UI/UX
+- public 폴더의 logo.png, favicorn 활용
+- 토큰 관리: 그인 시 발급받은 JWT 액세스 토큰(60분 만료)과 리프레시 토큰(7일 만료)을 localStorage에 저장, axios 인터셉터를 활용하여 모든 API 요청 시 Authorization: Bearer <토큰> 헤더에 자동 포함
+- 에러 핸들링: 타입 오류, 토큰 유지 오류, 데이터 유지 오류 등 발생 시 구체적 에러 메시지 및 사용자 알림 처리
+- Axios 인터셉터 
+요청 인터셉터:
+모든 API 요청 전, localStorage에서 JWT 액세스 토큰을 읽어 Authorization: Bearer <토큰> 헤더에 자동 포함
+응답 인터셉터:
+401 Unauthorized 응답 발생 시, 자동으로 토큰 갱신 API 호출 후 원래 요청 재시도
+에러 발생 시 구체적 에러 메시지를 사용자에게 알림
+서버 전체 실행, 사용자 UI/UX에는 문제가 없게 작동되어야 함
 
-1. 로그인 페이지
-        로그인 백엔드 코드와 연동 되어야 해 또한 백엔드의 기능과 같이 움직여야 해
-        세션, jwt 인증 관리도 백엔드 코드와 같이 연동 되어야 해
-	로그인 페이지는 간단하고 깔끔하게 만들어
-	logo.png가 public에 존재해 이를 활용해
-2. 메인 페이지​ 는 dashboard 페이지야
-3. 왼쪽 사이드 바 
-        유저이름, 담당부서(user테이블의 user_department 정보)는 구분지어 텍스트로 띄우고
-	배송현황(dashboard 기능 페이지로 ), 통계(visualization 기능 페이지), 로그아웃 이렇게 들어가게 만들어
-	logo.png가 public에 존재해 이를 활용해
+2. 로그인 페이지
 
-* 로그인 후 바로 dashboard 페이지를 적용하여 보여지는게 기본값 입니다.
-4. dashboard 페이지
-        - 테이블 형태의 배송 현황 리스트 깔끔한 디자인
-	- 사이드 바에서 배송현황을 클릭하면 보여지는 페이지 이며 기본 요청 값에는 오늘 날짜를 넣어 요청 api를 해야합니다.
-	- 리스트 조회는 무조건 날짜별 조회 밖에 안돼 또한 이 날짜 조회를 위해 맨 위에는 현재 선택된 날짜를 보여주고 YYYY-MM-DD 형식을 따라야합니다.
-	- 날짜를 클릭하면 작은 달력 컴포넌트를 띄워주고 여기서 날짜를 선택하면 해당 날짜에 맞는 대시보드 조회 요청을 해야합니다.
-        - 시각화와 다르게 날짜 검증 필요가 없습니다.
-	 - 검색 CSR 형태로 가능
-	- 부서별 필터링 기능(CSR형태)
-	- 테이블 위에는 검색바, 필터 선택 드롭다운, 대시보드 생성 버튼, 배차 버튼, 새로고침 버튼, 삭제 버튼 필요하며 이건 스크롤에 영향 받지 말고 상단 고정해
-        - 프론트에 테이블형태로 리스트업 될 예정입니다. (컬럼별 필터 기능과 오름차순 정렬도 필요 없습니다.)
-	- 테이블 리스트는 아래의 컬럼 순으로 순차적으로 보여줘야합니다. 또한 실제 보여지는 화면에서는 괄호안의 표기로 표현해주세요
-		선택유무 컬럼 - 체크박스(이 컬럼의 제목은 없어도 됩니다), 
-		type(종류), department(부서), warehouse(출발 허브), driver_name (담당 기사), order_no(order_no), 
-		create_time(생성시간), depart_time(출발 시각), eta(ETA : YYYY-MM-DD HH:MM 형식),
- 		status(배송 상태), region(도착 지역)
-	- 리스트에서 새롭게 데이터를 받을 때 마다 status 데이터를 확인 후 행마다 색을 유저 친화적으로 바꿔야 합니다.
-		status == WAITING : 일반 회색
-		status == IN_PROGRESS : 노란색
-		status == COMPLETE : 초록색
-		status == ISSUE == 빨간색
-	- 리스트에서 status 데이터를 보여줄 때는 아래 조건에 따라 변형해서 보여주세요 (백엔드의 대문자 신경쓰세요)
-		WAITING => 대기
-		IN_PROGRESS => 진행
-		COMPLETE => 완료
-		ISSUE => 이슈
-	- CSR 형태의 페이지 네이션과 필터링
-		최대 50개 행을 볼 수 있고, 필터링이 있는 걸 유지하는 상태로 페이지 이동이 가능해야해
-	- 각 행들의 체크박스는 하나 이상을 클릭할 수 있고 클릭은 선택된 행이며 선택된 행은 UI/UX로 표현해주세요 
-	  선택 유무 컬럼 체크박스를 활용해주세요
-	- 하나이상의 체크 박스를 클릭하게 되면 배차와 삭제를 할 수 있어 선택된게 없다면 선택된 배차가 없습니다 라고 알림을 띄워
-	-status == 대기 인 상태만 삭제, 배차가 가능해야합니다.
-	- 배차 버튼을 누르면 배차할 수 있는 모달창을 띄워
-	- 배차 모달창에서는 현재 선택된 order_no들을 보여줘야합니다.
-	- 배차 모달창에서는 dashboard의 driver_name과 driver_contact을 입력 받아야 하며, driver_contact은 연락처를 입력 받으면 자동으로 뒤에서부터 4개의 숫자마다 -을 넣어 분리되어 확인하기 수월하게 하고 최종적으로는 -을 포함하여 db에 저장해야합니다.
-	- 배차 모달창에서 확인과 취소가 있고 확인을 누르면 배차가 되고 수정된 정보를 적용하는 api를 보내 꼭 driver_name, driver_contact 둘다 입력 받아야합니다 (배차기능)
-	- 하나 이상의 체크박스로 선택된 dashboard는 삭제 버튼 클릭 시 삭제 요청을 보냅니다.
-	- 대시보드 생성 버튼 클릭 시 생성 데이터를 입력 할 수 있는 모달창이 띄워져야합니다
-		- 아래 컬럼이 무조건 입력 받아야 합니다. 각 명칭은 괄호안의 명칭을 사용해주세요 적당한 공간과 길이를 확보하세요
-		- type(종류), order_no(order_no), department(부서), warehouse(출발허브)
-	 	sla(SLA), eta(ETA), postal_code(우편번호), address(도착주소), customer(수령인), contact(연락처), remark(메모)
-		- 여기서 부서는 로그인 되어있는 user의 user_department를 값을 자동으로 입력합니다
-		- ETA 날짜는 24시간 형식을 따라야 해
-		- SLA, type, warehouse와 같이 db에 enum들은 선택할 수 있는 드롭다운으로 해야합니다
+2-1. 디자인 및 구성:
+- 간단하고 깔끔한 로그인 화면 (public 폴더의 logo.png 활용)
+- 사용자 입력 폼: ID 및 비밀번호
+2-2. 기능:
+- 클라이언트 측 입력 검증 수행
+- API 요청: /auth/login 엔드포인트에 JSON 형식으로 user_id와 password 전송
+2-3. 응답 처리:
+- 성공 시: 액세스 토큰과 리프레시 토큰을 수신 후 localStorage에 저장, Dashboard 페이지로 리다이렉션
+- 실패 시: 구체적인 에러 메시지 표시
+2-4. 인터셉터 적용:
+로그인 후 모든 API 요청에 JWT 토큰을 자동 포함
 
-	- 상세 정보 조회 api는 테이블 형태로 된 리스트에서 하나의 행을 클릭하면 
-	  그 행의 dashboard 상세정보를 보여주는 모달창이 띄워질 예정입니다.
-		- 아래 데이터들이 순차적으로 보여져야 합니다. 또한 실제 보여지는 화면에서는 괄호안의 내용을 각 데이터마다 제목으로 만들고 그에 맞는 데이터를 넣어주세요
-		type(종류), department(부서), warehouse(출발 허브), driver_name(담당 기사), driver_contact(기사 연락처), 
-		order_no(order_no), eta(ETA : YYYY-MM-DD HH:MM 형식), status(배송 상태), 
-		create_time(접수 시각), depart_time(출발 시각), complete_time(완료 시각), address(주소),  distance(거리), 
-		duration_time(예상 소요 시간), customer(수령인), contact(연락처), remark(메모)
-	- 상세정보에서도 status 데이터를 보여줄 때는 아래 조건에 따라 변형해서 보여주세요
-		WAITING => 대기
-		IN_PROGRESS => 진행
-		COMPLETE => 완료
-		ISSUE => 이슈
-	- 상세정보에서 수정은 status, remark만 가능한데 따로따로 수정 api 요청을 보내야 합니다
-		요청 시 현재 dashboard_id도 포함해서 보내야 합니다.
-	- 대시보드의 상태, 배차기능, remark 수정 기능 말고는 다른 수정 기능은 필요 없습니다.	
+3. 좌측 사이드바 (내비게이션)
 
-5. 시각화 페이지
-	- 기본 api는 주제 명 : 현재 배송 상황 을 처음 클릭 했을 때 호출해야합니다.
-	- 시각화 페이지는 상단의 옵션을 선택할 수 있는 드롭다운 메뉴가 있습니다.
-	- 각 드롭다운 메뉴는 주제명을 보여주면 되고 주제 명은 아래 리스트 입니다.
-			- 프론트에서 받은 기간을 기준으로 이 기간의 dashboard.eta 컬럼이 맞는 데이터를 가져와
-			총 dashboard의 갯수와 status 별 갯수 및 비율 => 주제 명 : 배송 현황
-			-프론트에서 받은 기간을 기준으로 이 기간의 dashboard.eta 컬럼이 맞는 데이터를 가져와 
-			총 dashboard의 갯수에서 create_time을 24시 시간을 1시간 단위로 나눠 각 시간별 갯수 그래프 
-			=> 주제 명 : 시간별 접수량
-	- 각 메뉴의 2가지 기능은 무조건 날짜 기간을 선택해야하고 그에 맞게 그래프를 그려야 합니다
-	- 날짜 기간을 선택할 수 있는 컴포넌트가 활성화 되어야 합니다. 또한 날짜는 오늘 기준으로 1개월 이내만 선택할 수 있고 벗어날 경우 알림을 띄우세요
-	- 여기서의 날짜는 ETA 컬럼에 적용될 예정입니다. 날짜는 YYYY-MM-DD 형식입니다. 또한 시간값은 고정 00:00 입니다.
-		각 주제는 아래의 그래프 형식으로 구현해주세요
-			- 배송 현황 : 카드별 원그래프
-			- 시간별 접수량 : 막대그래프(각시간별)
+3-1. 표시 정보:
+- 사용자 이름 및 담당 부서 (user 테이블의 user_department), logo.png 활용
+3-2. 메뉴 항목:
+- 배송현황 (Dashboard 페이지)
+- 통계 (Visualization 페이지)
+- 로그아웃: 로그아웃 API 호출 후 localStorage에서 토큰 삭제, 로그인 페이지로 이동
 
+4. Dashboard 페이지 (실시간 배송 현황)
 
-백엔드 요구사항은 아래와 같습니다.
-api 부터 api 데이터 형식 (스키마), service 로직, repository, model 로직을 구축해주세요
-구성하며 필요한 폴더는 저의 검토를 받아주세요
-- db의 enum값을 잘 따르세요 (model은 변동 되면 안됩니다)
+4-1 초기 로드:
+- 로그인 후 기본적으로 오늘 날짜(YYYY-MM-DD)를 기준으로 ETA 컬럼 날짜가 일치하는 dashboard 리스트 데이터 요청
+4-2. 상단 고정 영역: 검색 바, 부서 필터 드롭다운, 대시보드 생성, 배차, 새로고침, 삭제 버튼 (스크롤에 영향 받지 않고 고정)
+- 검색, 부서 필터 기능은 front-side로 구현 , 페이지네이션 (최대 50행) 또한 front-side로 구현
+4-3. 테이블 구성
+컬럼 순서 및 표기:
+체크박스 (선택 여부; 제목 없음)
+type → “종류”
+department → “부서”
+warehouse → “출발 허브”
+driver_name → “담당 기사”
+order_no → “order_no”
+create_time → “생성시간”
+depart_time → “출발 시각”
+eta → “ETA” (YYYY-MM-DD HH:MM 형식)
+status → “배송 상태” (표시 전환: WAITING→대기, IN_PROGRESS→진행, COMPLETE→완료, ISSUE→이슈)
+region → “도착 지역”
+4-4 행의 UI: 각 행은 status 값에 따라 색상 변경 (대기: 회색, 진행: 노란색, 완료: 초록색, 이슈: 빨간색)
+4-5 날짜 선택 기능:
+현재 선택된 날짜(YYYY-MM-DD) 상단 표시, 날짜 클릭 시 달력 컴포넌트 팝업 → 선택한 날짜에 맞게 API 재요청
+4-6 행 선택 및 액션:
+다중 체크박스 선택 (선택된 행은 UI에서 표시)
+4-7 배차 기능:
+선택된 행이 없으면 알림 ("선택된 배차가 없습니다")
+배차는 status가 “대기”인 경우에만 가능
+배차 버튼 클릭 시 모달창 띄움 (모달에 선택된 order_no 목록과 driver_name, driver_contact 입력 필드 제공, driver_contact 입력 시 자동 ‘-’ 삽입 처리)
+확인 시 입력 검증 후 배차 API 호출
+4-8. 삭제 기능:
+선택된 행에 대해 dashboard_id 리스트를 담아 삭제 API 호출 (status “대기”인 경우에만 적용)
+4-9 대시보드 생성 모달:
+입력 필드 (각 필드는 괄호 안의 명칭 사용):
+type (종류)
+order_no (order_no)
+department (부서; 로그인한 사용자의 부서 자동 입력)
+warehouse (출발허브)
+sla (SLA)
+eta (ETA; 24시간 형식)
+postal_code (우편번호)
+address (도착주소)
+customer (수령인)
+contact (연락처)
+remark (메모)
+생성 버튼 클릭 시 생성 API 호출
+4-10. 대시보드 상세 정보 모달:
+테이블 행 클릭 시 해당 dashboard_id 기반 상세 정보 조회 API 호출
+표시 데이터 (각 항목은 괄호 안의 제목 사용):
+type (종류), department (부서), warehouse (출발 허브), driver_name (담당 기사), driver_contact (기사 연락처), order_no (order_no), eta (ETA, YYYY-MM-DD HH:MM), status (배송 상태), create_time (접수 시각), depart_time (출발 시각), complete_time (완료 시각), address (주소), distance (거리), duration_time (예상 소요 시간), customer (수령인), contact (연락처), remark (메모)
+수정 기능:
+상세 정보 모달창 안에서 status와 remark는 각각 별도로 수정할 수 있습니다.
+status는 드롭다운 형식으로 리스트를 보여주세요
+status와 remark는 각각 별도의 수정 API 호출 (dashboard_id 포함)
 
-user 관련 crud 기능
-	backend/config/init_user.py 코드를 기반으로 서버 콘솔창에서 컨트롤 
-	기타 다른 기능 필요 없음
+5. 시각화 페이지 (통계/데이터 분석)
 
-
-로그인 기능
-
-	user_id와 비밀번호를 받아 DB에서 검증
-	비밀번호는 bcrypt 해싱 후 비교
-	액세스 토큰 & 리프레시 토큰 발급
-
-	액세스 토큰 (JWT): 짧은 만료시간 (60분)
-	리프레시 토큰: 긴 만료시간 (7일) → DB에 저장
-	로그인 성공 시 DB에 리프레시 토큰 저장
-	API 요청 시 JWT 인증
-
-	클라이언트가 API 호출 시 헤더에 액세스 토큰 포함
-	액세스 토큰이 유효하면 요청 처리, 만료되었으면 리프레시 토큰 사용
-	토큰 갱신 (Refresh Token 사용)
-
-	액세스 토큰이 만료되면, 저장된 리프레시 토큰을 검증
-	검증 성공 시 새로운 액세스 토큰 발급
-	리프레시 토큰이 만료되었으면 재로그인 필요
-	로그아웃 처리
-
-	리프레시 토큰을 DB에서 삭제하여 무효화
-	
-
-	
-대시보드 기능
-
-	대시보드 생성 시 받는 데이터  
-		- type, order_no, department, warehouse, sla, eta, postal_code, address, customer, contact, remark 
-		- 여기서 department는 현재 로그인 되어있는 user의 department 값을 채워 넣으면 됩니다.
-		- 또한 생성 시 쿼리 트리거  trg_dashboard_before_insert_postal 를 같이 실행 시켜야 하는점 참고하세요
-	
-	대시보드 삭제 기능
-		- 하나이상의 여러개일 수도 있는 대시보드를 삭제할 수 있어야합니다.
-	
-	대시보드 상태 변경
-		- status 컬럼은 기본 waiting 값으로 들어갑니다.
-		- 이 때 상세정보 모달창에서 상태 변경 요청을 할 수 있고 이 요청이 들어오면 status를 업데이트 하고
-		- waiting => in_progress 변경 시 depart_time에 현재 시각
-		- in_progree => complete, issue 변경 시 complete_time 에 현재 시각을 넣는 로직을 구현하세요
-
-	배차 기능
-		- 하나 이상의 dashboard_id 리스트가 동시에 배차 수정 될 수 있습니다.
-		- 요청받은 driver_name, driver_contact을 일치하는 dashboard_id에 맞게 수정해
-
-	대시보드 리스트 조회, 상세정보 조회
-		- 대시보드 는 2가지 api 조회가 필요합니다.
-		- 리스트를 조회, 상세정보 조회 이렇게 2가지 api가 필요합니다
-		- 기본 대시보드 리스트 조회는 ETA컬럼의 날짜별로 리스트 됩니다. 따라서 요청 받는 기본값은 오늘이며, 
-		   날짜별 요청 데이터가 있습니다.
-		- 리스트 조회는 아래 컬럼을 리스트로 데이터를 보내줘야합니다
-			리스트 데이터 
-			type, department, warehouse, driver_name, order_no, create_time, depart_time, eta, status, region
-		- 상세정보 조회는 요청 받은 dashboard_id를 토대로 아래 컬럼을 응답하면 됩니다
-			상세 조회 데이터
-			type, department, warehouse, driver_name, driver_contact, order_no, eta, status, create_time, depart_time, complete_time, address,  distance, duration_time, customer, contact, remark
-
-	- 대시보드 리스트 조회 창에서의 검색 기능과 페이지네이션
-		검색 기능과 페이지 네이션은 CSR로 이루어질 예정입니다.
-		여기서 eta컬럼 날짜별로 리스트업을 띄우게 될겁니다.
-		따라서 리스트 조회에 eta컬럼 날짜별로 리스트 read를 할 수 있어야 합니다.
-		그래서 eta 컬럼 인덱싱을 활용하세요
-		
-	대시보드 수정
-		- 대시보드의 status, 배차기능, remark 수정 기능 말고는 다른 수정 기능은 필요 없습니다.	
-		- 대시보드에서 status와 remark의 수정 호출은 따로따로 호출 됩니다 (각각 호출입니다.)
-		- 
-	- 대시보드 삭제 기능
-		- api 요청에서 날라온 dashboard 에 맞는 여러개의 dashboard들을 삭제합니다.
-		- 하나 이상의 대시보드가 삭제 가능합니다
-시각화 기능
-	mysql에 있는 데이터 기반 시각화 기능
-		pandas를 이용해서 데이터 전처리된 내용을 프론트로 보내야 합니다.
-		현재 mysql 테이블을 활용하여 아래 전처리들을 시행하여 각각 api를 만드세요
-		처음 화면은 '배송현황' 이라는 주제명의 시각화를 보여주세요
-		프론트에서는 드롭다운 선택지로 api들에 접근할 수 있습니다.
-			- 프론트에서 받은 기간을 기준으로 이 기간의 dashboard.eta 컬럼이 맞는 데이터를 가져와
-			총 dashboard의 갯수와 status 별 갯수 및 비율 => 주제 명 : 배송 현황
-			-프론트에서 받은 기간을 기준으로 이 기간의 dashboard.eta 컬럼이 맞는 데이터를 가져와 
-			총 dashboard의 갯수에서 create_time을 24시 시간을 1시간 단위로 나눠 각 시간별 갯수 그래프 
-			=> 주제 명 : 시간별 접수량
-		- 여기서의 날짜는 ETA 컬럼에 적용될 예정입니	다. 날짜는 YYYY-MM-DD 형식입니다. 또한 시간값은 00:00으로 기본 받아야합니다 (날짜 기준으로 기간을 잡을 예정)
-		- 백엔드는 따로 날짜 검증 로직이 필요 없습니다.
-	
+5-1. 초기 상태:
+첫 로드시 “배송 현황” 주제로 API 호출 → 원형 그래프 카드 형태 시각화
+5-2. 옵션 선택:
+상단 드롭다운 메뉴로 “배송 현황” 및 “시간별 접수량” 선택 가능
+날짜 기간 선택: 시작날짜와 종료날짜 각각 선택
+날짜 선택 컴포넌트 활성화, 선택 가능한 기간: 오늘 기준 1개월 이내 (범위 초과 시 알림)
+날짜 형식: YYYY-MM-DD, 시간은 “00:00” 고정
+5-3. API 요청:
+배송 현황: 선택 기간의 dashboard.eta 데이터를 기준으로 전체 건수 및 status별 건수와 비율 산출 → 원형 그래프 데이터 반환
+시간별 접수량: 선택 기간의 dashboard.eta 데이터를 기준, create_time을 1시간 단위로 그룹핑하여 각 시간대별 건수 집계 → 막대그래프 데이터 반환
 
 
-DB 쿼리 트리거 참고
- 
-1. trg_dashboard_before_insert_postal (BEFORE INSERT)
-	역할:
-		dashboard 생성 시, 입력된 postal_code를 기반으로 도시(city), 지역(district), 거리(distance), 소요 시간(duration_time) 값을 자동 설정함.
-	작동 시점:
-		dashboard 테이블에 새로운 레코드가 INSERT될 때.
-	구현 방법:
-		postal_code 테이블에서 데이터를 조회하여 dashboard의 관련 컬럼 값을 업데이트.
+--------------[[백엔드 요구사항 (FastAPI)]--------------
 
+1. 공통 사항
 
-	
-	
+- 기술 스택: FastAPI (Python)
+- 폴더 구조:
+api: API 엔드포인트 (예: /auth, /dashboard, /visualization)
+services: 비즈니스 로직 처리
+repositories: 데이터 접근 로직
+models: MySQL 기반 DB 모델 (Cloud SQL, 인덱스: eta 컬럼, 트리거: trg_dashboard_before_insert_postal)
+schemas: API 요청/응답 JSON 스키마
+- JWT 인증:
+HS256 알고리즘 사용
+액세스 토큰: 60분 만료, 리프레시 토큰: 7일 만료 (리프레시 토큰은 DB에 저장)
+요청/응답: 모두 JSON 형식
+- 배포 환경:
+단일 컨테이너 배포 (GAE, Docker-Desktop)
+네트워크 미들웨어 (CORS, Reverse Proxy 등)는 필요 없음
+모든 패키지 및 라이브러리는 무료 버전만 사용 (유료 라이선스 제외)
+
+2. 인증 및 사용자 관리 (/auth)
+
+2-1. 로그인 API:
+- 요청: JSON 형식으로 user_id와 password 전달
+- 처리:
+bcrypt를 이용하여 비밀번호 해싱 및 비교 후 인증
+인증 성공 시, JWT 액세스 토큰(60분)과 리프레시 토큰(7일) 발급; 리프레시 토큰은 DB에 저장
+- 응답: JSON 형식으로 두 토큰 반환
+2-2 토큰 갱신 API:
+- 요청: 저장된 리프레시 토큰 전달
+- 처리: 리프레시 토큰 유효성 검증 후 새로운 액세스 토큰(필요 시 갱신된 리프레시 토큰) 발급
+- 응답: 새로운 액세스 토큰 반환
+2-3 로그아웃 API:
+- 요청: 로그아웃 요청 (사용자 식별 정보 포함, JSON)
+- 처리: 해당 사용자의 리프레시 토큰을 DB에서 삭제(무효화)
+- 응답: 로그아웃 성공 메시지 반환
+
+2-4 API 인증 유지 (백엔드)
+- 모든 API 엔드포인트에서 요청 헤더의 Authorization: Bearer <토큰>을 FastAPI의 Depends를 활용하여 인증 검증 수행
+- JWT 토큰의 서명, 만료 시간, 유효성을 검사하며, 유효하지 않거나 만료된 경우 401 Unauthorized 응답 반환
+네트워크 미들웨어와의 차이:
+여기서 구현하는 인증 로직은 API 호출 시마다 실행되는 "인증 미들웨어"와 유사하게 동작하지만, 이는 CORS나 Reverse Proxy 같은 네트워크 미들웨어와는 별도임
+
+3. Dashboard 기능 (/dashboard)
+
+3-1. 대시보드 생성 API:
+- 요청: JSON으로 다음 필드 전달:
+type(종류), order_no, department(로그인 사용자 부서 자동 적용), warehouse(출발 허브), sla, eta(24시간 형식), postal_code, address, customer, contact, remark
+- 처리:
+DB에 대시보드 레코드 생성
+생성 시 트리거(trg_dashboard_before_insert_postal) 실행하여 postal_code 기반으로 city, district, distance, duration_time 자동 업데이트
+응답: 생성된 대시보드 정보 JSON 반환
+3-2. 대시보드 삭제 API:
+- 요청: 삭제할 dashboard_id 리스트(JSON)
+- 처리: 여러 대시보드 레코드 삭제
+- 응답: 삭제 성공 여부 반환
+3-3. 대시보드 리스트 조회 API:
+- 요청: dashboard.eta(기본값 오늘, YYYY-MM-DD)에 들어갈 날짜값을 받음 + 검색, 부서 필터 기능은 front-side로 구현 , 페이지네이션 (최대 50행) 또한 front-side로 구현
+- 처리: 조건에 맞는 대시보드 리스트 조회
+- 응답: JSON 형식으로 각 행의 데이터 반환
+반환 컬럼: type, department, warehouse, driver_name, order_no, create_time, depart_time, eta, status, region
+3-3.대시보드 상세 조회 API:
+- 요청: dashboard_id 전달 (JSON)
+- 처리: 해당 dashboard의 상세 정보 조회
+- 응답: JSON으로 상세 데이터 반환
+반환 컬럼: type, department, warehouse, driver_name, driver_contact, order_no, eta, status, create_time, depart_time, complete_time, address, distance, duration_time, customer, contact, remark
+3-4. 대시보드 수정 API:
+- 분리된 수정 요청입니다.
+- 배송 상태(status) 변경: dashboard_id와 변경할 status 값 전달
+(waiting → in_progress 시 depart_time 현재시각으로 업데이트; in_progress → complete 또는 issue 시 complete_time 현재시각으로 업데이트)
+- remark 수정: dashboard_id와 새로운 remark 전달
+- 응답: 각 수정 요청에 대해 성공 여부 반환
+3-5 배차 기능 API:
+- 요청: 선택된 dashboard_id 리스트와 함께 driver_name, driver_contact (연락처는 자동 ‘-’ 포함 형식) 전달
+- 처리: 해당 dashboard의 driver_name과 driver_contact 업데이트 (단, status가 “대기”인 경우에 한함)
+- 응답: 배차 성공 여부 반환
+
+4. 시각화 기능 (/visualization)
+
+4-1. 배송 현황 API:
+- 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.eta 기준 데이터 요청
+- 처리: 해당 기간 내 전체 대시보드 건수 및 status별 건수와 비율 산출
+- 응답: 원형 그래프 데이터에 필요한 JSON (각 상태별 수치 및 비율) 반환
+4-2. 시간별 접수량 API:
+- 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.eta 기준 데이터 요청
+- 처리: create_time을 기준으로 1시간 단위 그룹핑하여 각 시간대별 건수 집계
+- 응답: 막대그래프 데이터에 필요한 JSON (시간별 건수) 반환
+
+5. 응답 및 에러 핸들링 (백엔드)
+
+모든 API 응답은 JSON 형식으로, 성공/실패 여부 및 구체적인 데이터 또는 에러 메시지 반환
+JWT 토큰 관련 오류, 인증 실패, 데이터 유지 오류 발생 시 명확한 에러 코드와 메시지 전송

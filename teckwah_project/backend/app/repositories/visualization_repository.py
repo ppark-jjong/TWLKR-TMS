@@ -1,8 +1,8 @@
 # backend/app/repositories/visualization_repository.py
 
-from datetime import datetime, date
+from datetime import datetime
 from typing import List, Tuple
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, extract
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -14,7 +14,7 @@ class VisualizationRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_status_counts(self, start_date: date, end_date: date) -> List[Tuple[str, int]]:
+    def get_status_counts(self, start_date: datetime, end_date: datetime) -> List[Tuple[str, int]]:
         """기간 내 상태별 대시보드 개수 조회"""
         try:
             log_info("상태별 대시보드 개수 조회", {
@@ -22,17 +22,15 @@ class VisualizationRepository:
                 "end_date": end_date
             })
             
-            start_datetime = datetime.combine(start_date, datetime.min.time())
-            end_datetime = datetime.combine(end_date, datetime.max.time())
-            
+            # SQL 레벨에서 GROUP BY를 사용하여 집계
             result = (self.db.query(
                 Dashboard.status,
                 func.count(Dashboard.dashboard_id).label('count')
             )
             .filter(
                 and_(
-                    Dashboard.eta >= start_datetime,
-                    Dashboard.eta <= end_datetime
+                    Dashboard.eta >= start_date,
+                    Dashboard.eta <= end_date
                 )
             )
             .group_by(Dashboard.status)
@@ -47,7 +45,7 @@ class VisualizationRepository:
                 "end_date": end_date
             })
 
-    def get_hourly_counts(self, start_date: date, end_date: date) -> List[Tuple[int, int]]:
+    def get_hourly_counts(self, start_date: datetime, end_date: datetime) -> List[Tuple[int, int]]:
         """기간 내 시간대별 접수량 조회"""
         try:
             log_info("시간대별 접수량 조회", {
@@ -55,20 +53,18 @@ class VisualizationRepository:
                 "end_date": end_date
             })
             
-            start_datetime = datetime.combine(start_date, datetime.min.time())
-            end_datetime = datetime.combine(end_date, datetime.max.time())
-            
+            # SQL 레벨에서 시간대별 그룹핑 최적화
             result = (self.db.query(
-                func.extract('hour', Dashboard.create_time).label('hour'),
+                extract('hour', Dashboard.create_time).label('hour'),
                 func.count(Dashboard.dashboard_id).label('count')
             )
             .filter(
                 and_(
-                    Dashboard.eta >= start_datetime,
-                    Dashboard.eta <= end_datetime
+                    Dashboard.eta >= start_date,
+                    Dashboard.eta <= end_date
                 )
             )
-            .group_by(func.extract('hour', Dashboard.create_time))
+            .group_by(extract('hour', Dashboard.create_time))
             .order_by('hour')
             .all())
             

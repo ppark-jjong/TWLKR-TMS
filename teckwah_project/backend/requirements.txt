@@ -1,4 +1,4 @@
-# === 공통 필수 패키지 ===
+# === 필수 패키지 ===
 # FastAPI 관련
 fastapi==0.109.0
 pydantic==2.5.3
@@ -14,7 +14,7 @@ mysql-connector-python==8.0.33
 python-jose==3.3.0
 passlib==1.7.4
 python-multipart==0.0.6
-bcrypt==3.2.0  # 버전 조정
+bcrypt==3.2.0
 
 # 유틸리티
 python-dateutil==2.8.2
@@ -22,32 +22,12 @@ python-dotenv==1.0.0
 PyJWT==2.8.0
 cryptography==41.0.7
 
-# === 로컬 개발 환경 패키지 ===
 # 개발 서버
 uvicorn==0.27.0
 
-# 테스트 도구
-pytest==8.0.1
-httpx==0.26.0
-requests==2.31.0
-
-# 디버깅 및 로깅
-loguru==0.7.2
-
-# === 배포 환경 패키지 ===
-# 서버
-gunicorn==21.2.0
-
-# GCP 서비스
-google-cloud-pubsub==2.19.4
-google-cloud-storage==2.14.0
-google-cloud-bigquery==3.17.1
-google-auth==2.27.0
-
 # 데이터 처리
 pandas==2.2.0
-numpy==1.26.4
 openpyxl==3.1.2
 
-# 실시간 처리
-APScheduler==3.10.4 
+# 로깅
+loguru==0.7.2
