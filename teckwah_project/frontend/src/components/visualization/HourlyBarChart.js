@@ -1,70 +1,58 @@
 // frontend/src/components/visualization/HourlyBarChart.js
 import React from 'react';
-import { Card, Typography, Empty } from 'antd';
+import { Typography, Empty } from 'antd';
 import { Column } from '@ant-design/plots';
 import { formatNumber } from '../../utils/Formatter';
 
 const { Title, Text } = Typography;
 
-/**
- * 시간대별 접수량 막대 차트 컴포넌트
- * @param {Object} props
- * @param {Object} props.data - 시각화 데이터
- */
 const HourlyBarChart = ({ data }) => {
-  // 데이터가 없는 경우 처리
-  if (!data || !data.hourly_breakdown || data.hourly_breakdown.length === 0) {
-    return (
-      <Card>
-        <Empty description="데이터가 없습니다" />
-      </Card>
-    );
+  if (!data?.hourly_breakdown?.length) {
+    return <Empty description="데이터가 없습니다" />;
   }
 
-  // 시간대별 데이터 가공
-  const chartData = data.hourly_breakdown.map(item => ({
-    ...item,
-    hour: `${String(item.hour).padStart(2, '0')}:00`,
+  // 0-23시간대 데이터 초기화
+  const chartData = Array.from({ length: 24 }, (_, i) => ({
+    hour: `${String(i).padStart(2, '0')}:00`,
+    count: 0
   }));
 
-  // 차트 설정
+  // 실제 데이터로 업데이트
+  data.hourly_breakdown.forEach(item => {
+    const idx = parseInt(item.hour);
+    if (idx >= 0 && idx < 24) {
+      chartData[idx].count = item.count;
+    }
+  });
+
   const config = {
     data: chartData,
     xField: 'hour',
     yField: 'count',
-    seriesField: undefined,
     color: '#1890ff',
-    columnStyle: {
-      radius: [4, 4, 0, 0],
-    },
     label: {
       position: 'top',
-      formatter: (v) => formatNumber(v.count),
       style: {
         fill: 'rgba(0,0,0,0.65)',
-        fontSize: 12,
       },
+      formatter: (v) => formatNumber(v.count)
     },
     xAxis: {
       label: {
-        autoRotate: false,
-        formatter: (v) => v,
-      },
+        autoRotate: false
+      }
     },
     yAxis: {
       label: {
-        formatter: (v) => formatNumber(v),
-      },
+        formatter: value => formatNumber(value)
+      }
     },
     tooltip: {
       formatter: (datum) => ({
         name: '접수량',
         value: `${formatNumber(datum.count)}건`
-      }),
-    },
-    interactions: [
-      { type: 'element-active' },
-    ],
+      })
+    }
   };
 
   return (

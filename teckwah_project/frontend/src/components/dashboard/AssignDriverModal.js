@@ -5,19 +5,11 @@ import { formatPhoneNumber } from '../../utils/Formatter';
 import { STATUS_TYPES } from '../../utils/Constants';
 import DashboardService from '../../services/DashboardService';
 
-/**
- * 배차 모달 컴포넌트
- * @param {Object} props
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Function} props.onCancel - 취소 핸들러
- * @param {Function} props.onSuccess - 성공 핸들러
- * @param {Array<import('../../types').Dashboard>} props.selectedRows - 선택된 대시보드 목록
- */
 const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = React.useState(false);
 
-  // 전화번호 포맷팅
+  // 연락처 자동 하이픈 처리
   const handlePhoneChange = (e) => {
     const formattedNumber = formatPhoneNumber(e.target.value);
     form.setFieldsValue({ driver_contact: formattedNumber });
@@ -29,9 +21,15 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       const values = await form.validateFields();
       setSubmitting(true);
 
-      const hasNonWaiting = selectedRows.some(row => row.status !== STATUS_TYPES.WAITING);
-      if (hasNonWaiting) {
+      // 배차 가능 상태 검증
+      const nonWaitingItems = selectedRows.filter(row => row.status !== STATUS_TYPES.WAITING);
+      if (nonWaitingItems.length > 0) {
         throw new Error('대기 상태인 항목만 배차할 수 있습니다');
+      }
+
+      // 연락처 형식 검증
+      if (!/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.driver_contact)) {
+        throw new Error('올바른 연락처 형식이 아닙니다');
       }
 
       await DashboardService.assignDriver({
@@ -44,11 +42,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       form.resetFields();
       onSuccess();
     } catch (error) {
-      if (!error.isAxiosError) {
-        message.error(error.message || '배차 처리 중 오류가 발생했습니다');
-        return;
-      }
-      message.error('배차 처리 중 오류가 발생했습니다');
+      message.error(error.message || '배차 처리 중 오류가 발생했습니다');
     } finally {
       setSubmitting(false);
     }

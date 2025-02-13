@@ -10,6 +10,7 @@ from app.schemas.auth_schema import (
     LogoutRequest,
 )
 from app.services.auth_service import AuthService
+from app.repositories.auth_repository import AuthRepository
 from app.config.database import get_db
 from app.utils.logger import log_info, log_error
 
@@ -22,8 +23,9 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     - 인증 성공 시 액세스 토큰(60분)과 리프레시 토큰(7일) 발급
     - 리프레시 토큰은 DB에 저장
     """
-    service = AuthService(db)
     try:
+        repository = AuthRepository(db)
+        service = AuthService(repository)
         return service.authenticate_user(login_data)
     except Exception as e:
         log_error(e, "로그인 실패")
@@ -35,8 +37,9 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
     """토큰 갱신 API
     - 리프레시 토큰으로 새로운 액세스 토큰 발급
     """
-    service = AuthService(db)
     try:
+        repository = AuthRepository(db)
+        service = AuthService(repository)
         return service.refresh_token(request.refresh_token)
     except Exception as e:
         log_error(e, "토큰 갱신 실패")
@@ -48,8 +51,9 @@ async def logout(request: LogoutRequest, db: Session = Depends(get_db)):
     """로그아웃 API
     - 리프레시 토큰 DB에서 삭제
     """
-    service = AuthService(db)
     try:
+        repository = AuthRepository(db)
+        service = AuthService(repository)
         service.logout(request.refresh_token)
         return {"message": "로그아웃되었습니다"}
     except Exception as e:

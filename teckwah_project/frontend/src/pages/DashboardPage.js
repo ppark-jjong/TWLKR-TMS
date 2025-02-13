@@ -7,13 +7,11 @@ import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
 import AssignDriverModal from '../components/dashboard/AssignDriverModal';
 import DashboardDetailModal from '../components/dashboard/DashboardDetailModal';
+import LoadingSpin from '../components/common/LoadingSpin';
 import DashboardService from '../services/DashboardService';
 import { useDashboard } from '../contexts/DashboardContext';
-import AuthService from '../services/AuthService';
+import { useAuth } from '../contexts/AuthContext';
 
-/**
- * 대시보드 페이지 컴포넌트
- */
 const DashboardPage = () => {
   const { 
     dashboards, 
@@ -29,28 +27,19 @@ const DashboardPage = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
-  const user = AuthService.getCurrentUser();
+  const { logout, user } = useAuth();
 
-  // 폴링 설정
-  useEffect(() => {
-    fetchDashboards(selectedDate.toDate());
-    const timer = setInterval(() => {
-      fetchDashboards(selectedDate.toDate());
-    }, 30000); // 30초마다 갱신
-
-    return () => clearInterval(timer);
-  }, [selectedDate, fetchDashboards]);
-
-  // 선택된 대시보드 삭제
+  // 삭제 처리
   const handleDelete = async () => {
     if (selectedRows.length === 0) {
       message.warning('삭제할 항목을 선택해주세요');
       return;
     }
 
-    const hasNonWaiting = selectedRows.some(row => row.status !== 'WAITING');
-    if (hasNonWaiting) {
-      message.error('대기 상태인 항목만 삭제할 수 있습니다');
+    const nonWaitingItems = selectedRows.filter(row => row.status !== 'WAITING');
+    if (nonWaitingItems.length > 0) {
+      const orderNos = nonWaitingItems.map(row => row.order_no).join(', ');
+      message.error(`다음 주문은 대기 상태가 아니어서 삭제할 수 없습니다: ${orderNos}`);
       return;
     }
 
@@ -60,12 +49,13 @@ const DashboardPage = () => {
       message.success('선택한 항목이 삭제되었습니다');
       removeDashboards(dashboardIds);
       setSelectedRows([]);
+      fetchDashboards(); // 삭제 후 대시보드 목록 새로고침
     } catch (error) {
       message.error('삭제 중 오류가 발생했습니다');
     }
   };
 
-  // 대시보드 상세 정보 조회
+  // 상세 정보 조회
   const handleRowClick = async (record) => {
     try {
       const detailData = await DashboardService.getDashboardDetail(record.dashboard_id);
@@ -76,20 +66,33 @@ const DashboardPage = () => {
     }
   };
 
+  const handleDateChange = (date) => {
+    setSelectedDate(date || dayjs());
+    setSelectedRows([]);
+  };
+
+  // 대시보드 생성 후 데이터 새로고침
+  const handleCreateSuccess = () => {
+    fetchDashboards(); // 생성 후 대시보드 목록 새로고침
+  };
+
+  useEffect(() => {
+    fetchDashboards(); // 컴포넌트 마운트 시 대시보드 목록 조회
+  }, []);
+
   return (
-    <Layout.Content>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <div>
+    <Layout.Content style={{ padding: '24px' }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <DatePicker
             value={selectedDate}
-            onChange={setSelectedDate}
-            style={{ marginRight: 8 }}
+            onChange={handleDateChange}
+            allowClear={false}
           />
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => setShowCreateModal(true)}
-            style={{ marginRight: 8 }}
           >
             생성
           </Button>
@@ -97,7 +100,6 @@ const DashboardPage = () => {
             icon={<CarOutlined />}
             onClick={() => setShowAssignModal(true)}
             disabled={selectedRows.length === 0}
-            style={{ marginRight: 8 }}
           >
             배차
           </Button>
@@ -106,35 +108,35 @@ const DashboardPage = () => {
             onClick={handleDelete}
             disabled={selectedRows.length === 0}
             danger
-            style={{ marginRight: 8 }}
           >
             삭제
           </Button>
           <Button
             icon={<ReloadOutlined />}
-            onClick={() => fetchDashboards(selectedDate.toDate())}
+            onClick={fetchDashboards} // 수동 새로고침
           >
             새로고침
           </Button>
         </div>
       </div>
 
-      <DashboardTable
-        dataSource={dashboards}
-        loading={loading}
-        selectedRows={selectedRows}
-        onSelectRows={setSelectedRows}
-        onRowClick={handleRowClick}
-      />
+      {loading ? (
+        <LoadingSpin />
+      ) : (
+        <DashboardTable
+          dataSource={dashboards}
+          selectedRows={selectedRows}
+          onSelectRows={setSelectedRows}
+          onRowClick={handleRowClick}
+        />
+      )}
 
+      {/* 모달 컴포넌트들 */}
       {showCreateModal && (
         <CreateDashboardModal
           visible={showCreateModal}
           onCancel={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false);
-            fetchDashboards(selectedDate.toDate());
-          }}
+          onSuccess={handleCreateSuccess}
           userDepartment={user.user_department}
         />
       )}
@@ -146,7 +148,7 @@ const DashboardPage = () => {
           onSuccess={() => {
             setShowAssignModal(false);
             setSelectedRows([]);
-            fetchDashboards(selectedDate.toDate());
+            fetchDashboards(); // 배차 후 대시보드 목록 새로고침
           }}
           selectedRows={selectedRows}
         />
@@ -160,7 +162,7 @@ const DashboardPage = () => {
             setShowDetailModal(false);
             setSelectedDashboard(null);
           }}
-          onSuccess={() => fetchDashboards(selectedDate.toDate())}
+          onSuccess={() => fetchDashboards()} // 상세 조회 후 대시보드 목록 새로고침
         />
       )}
     </Layout.Content>

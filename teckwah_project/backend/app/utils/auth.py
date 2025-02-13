@@ -4,6 +4,7 @@ from typing import Dict, Optional
 from jose import jwt
 from app.config.settings import get_settings
 from app.utils.logger import log_error
+import bcrypt
 
 settings = get_settings()
 

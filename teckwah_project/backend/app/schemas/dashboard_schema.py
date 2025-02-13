@@ -1,8 +1,9 @@
 # backend/app/schemas/dashboard_schema.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
+import re
 
 
 class DashboardType(str, Enum):
@@ -41,15 +42,27 @@ class SLAType(str, Enum):
 
 class DashboardCreate(BaseModel):
     type: DashboardType
-    order_no: int
+    order_no: int = Field(..., gt=0, description="주문번호는 양의 정수여야 합니다")
     warehouse: Warehouse
     sla: SLAType
     eta: datetime
-    postal_code: str = Field(..., min_length=5, max_length=5)
-    address: str
-    customer: str
+    postal_code: str = Field(..., min_length=5, max_length=5, pattern=r"^\d{5}$")
+    address: str = Field(..., min_length=1)
+    customer: str = Field(..., min_length=1)
     contact: str = Field(..., pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
     remark: Optional[str] = None
+
+    @validator("eta")
+    def validate_eta(cls, v):
+        if v < datetime.now():
+            raise ValueError("ETA는 현재 시간 이후여야 합니다")
+        return v
+
+    @validator("contact")
+    def validate_contact(cls, v):
+        if not re.match(r"^\d{2,3}-\d{3,4}-\d{4}$", v):
+            raise ValueError("연락처 형식이 올바르지 않습니다 (예: 010-1234-5678)")
+        return v
 
 
 class DashboardUpdate(BaseModel):

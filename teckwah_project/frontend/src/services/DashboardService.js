@@ -25,7 +25,7 @@ class DashboardService {
    * @returns {Promise<Object>} 대시보드 상세 정보
    */
   async getDashboardDetail(dashboardId) {
-    const response = await axios.get(`/dashboard/${dashboardId}`);
+    const response = await axios.get(`/dashboards/${dashboardId}`);
     return response.data;
   }
 
@@ -35,7 +35,7 @@ class DashboardService {
    * @returns {Promise<Object>} 생성된 대시보드 정보
    */
   async createDashboard(dashboardData) {
-    const response = await axios.post('/dashboard', dashboardData);
+    const response = await axios.post('/dashboards', dashboardData);
     return response.data;
   }
 
@@ -81,9 +81,18 @@ class DashboardService {
    * @returns {Promise<Object>} 삭제 결과
    */
   async deleteDashboards(dashboardIds) {
-    const response = await axios.delete('/dashboard', {
-      params: { dashboard_ids: dashboardIds }
+    const response = await axios.delete('/dashboards', {
+      data: { dashboard_ids: dashboardIds }
     });
+    return response.data;
+  }
+
+  /**
+   * 대시보드 목록 조회
+   * @returns {Promise<Array>} 대시보드 목록
+   */
+  async getDashboards() {
+    const response = await axios.get('/dashboards');
     return response.data;
   }
 }

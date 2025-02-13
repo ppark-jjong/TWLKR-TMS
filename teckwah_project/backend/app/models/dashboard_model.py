@@ -55,7 +55,9 @@ class Dashboard(Base):
     driver_contact = Column(String(50), nullable=True)
 
     # Relationships
-    postal_code_info = relationship("PostalCode", backref="dashboards")
+    postal_code_info = relationship(
+        "PostalCode", backref="dashboards", lazy="joined", foreign_keys=[postal_code]
+    )
 
     def __repr__(self):
         return f"<Dashboard(id={self.dashboard_id}, order_no={self.order_no}, status={self.status})>"

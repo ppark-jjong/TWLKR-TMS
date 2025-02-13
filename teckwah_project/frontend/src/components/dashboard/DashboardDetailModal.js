@@ -12,14 +12,6 @@ import DashboardService from '../../services/DashboardService';
 
 const { TextArea } = Input;
 
-/**
- * 대시보드 상세 정보 모달 컴포넌트
- * @param {Object} props
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Function} props.onCancel - 취소 핸들러
- * @param {Function} props.onSuccess - 성공 핸들러
- * @param {import('../../types').Dashboard} props.dashboard - 대시보드 데이터
- */
 const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   const [loading, setLoading] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
@@ -27,37 +19,7 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   const [newStatus, setNewStatus] = useState(dashboard.status);
   const [newRemark, setNewRemark] = useState(dashboard.remark);
 
-  // 상태 업데이트
-  const handleStatusUpdate = async () => {
-    try {
-      setLoading(true);
-      await DashboardService.updateStatus(dashboard.dashboard_id, newStatus);
-      message.success('상태가 업데이트되었습니다');
-      setEditingStatus(false);
-      onSuccess();
-    } catch (error) {
-      message.error('상태 업데이트 중 오류가 발생했습니다');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 메모 업데이트
-  const handleRemarkUpdate = async () => {
-    try {
-      setLoading(true);
-      await DashboardService.updateRemark(dashboard.dashboard_id, newRemark);
-      message.success('메모가 업데이트되었습니다');
-      setEditingRemark(false);
-      onSuccess();
-    } catch (error) {
-      message.error('메모 업데이트 중 오류가 발생했습니다');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 상태 옵션 생성 및 상태 변경 가능 여부 체크
+  // 상태 변경 가능 여부 및 옵션 확인
   const getStatusOptions = () => {
     const currentStatus = dashboard.status;
     let allowedStatus = [];
@@ -82,6 +44,36 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
     }));
   };
 
+  // 상태 업데이트 처리
+  const handleStatusUpdate = async () => {
+    try {
+      setLoading(true);
+      await DashboardService.updateStatus(dashboard.dashboard_id, newStatus);
+      message.success('상태가 업데이트되었습니다');
+      setEditingStatus(false);
+      onSuccess();
+    } catch (error) {
+      message.error('상태 업데이트 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 메모 업데이트 처리
+  const handleRemarkUpdate = async () => {
+    try {
+      setLoading(true);
+      await DashboardService.updateRemark(dashboard.dashboard_id, newRemark);
+      message.success('메모가 업데이트되었습니다');
+      setEditingRemark(false);
+      onSuccess();
+    } catch (error) {
+      message.error('메모 업데이트 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal
       title="대시보드 상세 정보"
@@ -100,7 +92,6 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
           {dashboard.driver_contact ? formatPhoneNumber(dashboard.driver_contact) : '-'}
         </Descriptions.Item>
         <Descriptions.Item label="order_no">{dashboard.order_no}</Descriptions.Item>
-        <Descriptions.Item label="ETA">{formatDateTime(dashboard.eta)}</Descriptions.Item>
         
         <Descriptions.Item label="배송 상태" span={2}>
           {editingStatus ? (

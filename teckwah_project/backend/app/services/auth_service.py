@@ -80,6 +80,14 @@ class AuthService:
                     detail="만료되거나 유효하지 않은 토큰입니다",
                 )
 
+            # 토큰 만료 시간 검증 추가
+            if datetime.utcnow() >= token_data.expires_at:
+                self.repository.delete_refresh_token(refresh_token)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="토큰이 만료되었습니다. 다시 로그인해주세요.",
+                )
+
             # 사용자 정보 조회
             user = self.repository.get_user_by_id(token_data.user_id)
             if not user:

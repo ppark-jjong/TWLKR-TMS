@@ -3,22 +3,31 @@ import axios from 'axios';
 import { message } from 'antd';
 import AuthService from '../services/AuthService';
 
-/**
- * Axios 인터셉터 설정
- * - 요청 시 토큰 자동 포함
- * - 401 에러 시 토큰 갱신 후 재시도
- */
 const setupAxiosInterceptors = () => {
+  let isRefreshing = false;
+  let failedQueue = [];
+
+  const processQueue = (error, token = null) => {
+    failedQueue.forEach(prom => {
+      if (error) {
+        prom.reject(error);
+      } else {
+        prom.resolve(token);
+      }
+    });
+    failedQueue = [];
+  };
+
   // 요청 인터셉터
   axios.interceptors.request.use(
-    (config) => {
+    config => {
       const token = AuthService.getAccessToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
       return config;
     },
-    (error) => {
+    error => {
       return Promise.reject(error);
     }
   );
@@ -27,28 +36,56 @@ const setupAxiosInterceptors = () => {
   axios.interceptors.response.use(
     response => response,
     async error => {
-      if (error.response?.status === 401 && !error.config._retry) {
-        error.config._retry = true;
+      const originalRequest = error.config;
+
+      // 401 에러 처리 (토큰 만료)
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        if (isRefreshing) {
+          try {
+            const token = await new Promise((resolve, reject) => {
+              failedQueue.push({ resolve, reject });
+            });
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return axios(originalRequest);
+          } catch (err) {
+            return Promise.reject(err);
+          }
+        }
+
+        originalRequest._retry = true;
+        isRefreshing = true;
+
         try {
-          const refreshToken = localStorage.getItem('refresh_token');
-          const response = await axios.post('/auth/refresh', { refresh_token: refreshToken });
-          const { access_token, refresh_token } = response.data;
+          const newTokens = await AuthService.refreshToken();
+          const { access_token, refresh_token } = newTokens;
           
           localStorage.setItem('access_token', access_token);
           if (refresh_token) {
             localStorage.setItem('refresh_token', refresh_token);
           }
+
+          axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+          processQueue(null, access_token);
           
-          error.config.headers.Authorization = `Bearer ${access_token}`;
-          return axios(error.config);
+          return axios(originalRequest);
         } catch (refreshError) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
+          processQueue(refreshError, null);
+          AuthService.logout();
+          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
           window.location.href = '/login';
           return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
         }
       }
+
+      // 그 외 에러 처리
+      if (error.response?.data?.detail) {
+        message.error(error.response.data.detail);
+      } else {
+        message.error('요청 처리 중 오류가 발생했습니다');
+      }
+      
       return Promise.reject(error);
     }
   );

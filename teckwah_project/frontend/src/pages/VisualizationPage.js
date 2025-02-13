@@ -7,20 +7,18 @@ import HourlyBarChart from '../components/visualization/HourlyBarChart';
 import LoadingSpin from '../components/common/LoadingSpin';
 import VisualizationService from '../services/VisualizationService';
 import { VISUALIZATION_TYPES } from '../utils/Constants';
+import { useAuth } from '../contexts/AuthContext';
 
 const { Content } = Layout;
 const { RangePicker } = DatePicker;
 
-/**
- * 시각화 페이지 컴포넌트
- */
 const VisualizationPage = () => {
   const [vizType, setVizType] = useState(VISUALIZATION_TYPES.DELIVERY_STATUS);
   const [dateRange, setDateRange] = useState([dayjs(), dayjs()]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const { user } = useAuth();
 
-  // 데이터 조회
   const fetchData = async () => {
     if (!dateRange[0] || !dateRange[1]) return;
 
@@ -39,10 +37,14 @@ const VisualizationPage = () => {
 
     try {
       setLoading(true);
+      // 시작일을 00:00:00으로, 종료일을 23:59:59로 설정
+      const startDate = dateRange[0].startOf('day');
+      const endDate = dateRange[1].endOf('day');
+
       const response = await VisualizationService.getVisualizationData(
         vizType,
-        dateRange[0].startOf('day').toDate(),
-        dateRange[1].endOf('day').toDate()
+        startDate.toDate(),
+        endDate.toDate()
       );
       setData(response.data);
     } catch (error) {
@@ -52,16 +54,13 @@ const VisualizationPage = () => {
     }
   };
 
-  // 초기 데이터 로드 및 파라미터 변경 시 재조회
   useEffect(() => {
     fetchData();
   }, [vizType, dateRange]);
 
-  // 시각화 타입 옵션
-  const vizTypeOptions = [
-    { value: VISUALIZATION_TYPES.DELIVERY_STATUS, label: '배송 현황' },
-    { value: VISUALIZATION_TYPES.HOURLY_ORDERS, label: '시간별 접수량' }
-  ];
+  const disabledDate = (current) => {
+    return current && current > dayjs().endOf('day');
+  };
 
   return (
     <Content style={{ padding: '24px' }}>
@@ -71,22 +70,29 @@ const VisualizationPage = () => {
             value={vizType}
             onChange={setVizType}
             style={{ width: 200 }}
-            options={vizTypeOptions}
+            options={[
+              { value: VISUALIZATION_TYPES.DELIVERY_STATUS, label: '배송 현황' },
+              { value: VISUALIZATION_TYPES.HOURLY_ORDERS, label: '시간별 접수량' }
+            ]}
           />
           <RangePicker
             value={dateRange}
             onChange={setDateRange}
-            disabledDate={current => current && current > dayjs().endOf('day')}
+            disabledDate={disabledDate}
             style={{ width: 300 }}
           />
         </div>
 
         {loading ? (
           <LoadingSpin />
-        ) : vizType === VISUALIZATION_TYPES.DELIVERY_STATUS ? (
-          <StatusPieChart data={data} />
         ) : (
-          <HourlyBarChart data={data} />
+          <div style={{ height: 400 }}>
+            {vizType === VISUALIZATION_TYPES.DELIVERY_STATUS ? (
+              <StatusPieChart data={data} />
+            ) : (
+              <HourlyBarChart data={data} />
+            )}
+          </div>
         )}
       </Card>
     </Content>

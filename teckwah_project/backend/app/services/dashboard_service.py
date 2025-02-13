@@ -12,11 +12,23 @@ from app.schemas.dashboard_schema import (
 )
 from app.repositories.dashboard_repository import DashboardRepository
 from app.utils.logger import log_info, log_error
+from app.models.dashboard_model import Dashboard
+from sqlalchemy.orm import Session
 
 
 class DashboardService:
-    def __init__(self, dashboard_repository: DashboardRepository):
-        self.repository = dashboard_repository
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_all_dashboards(self):
+        return self.db.query(Dashboard).all()
+
+    def create_dashboard(self, dashboard_data: DashboardCreate):
+        new_dashboard = Dashboard(**dashboard_data.dict())
+        self.db.add(new_dashboard)
+        self.db.commit()
+        self.db.refresh(new_dashboard)
+        return new_dashboard
 
     def create_dashboard(
         self, data: DashboardCreate, user_department: str
@@ -137,17 +149,20 @@ class DashboardService:
             # 배차 가능 상태 검증
             dashboards = self.repository.get_dashboards_by_ids(assignment.dashboard_ids)
 
-            invalid_dashboards = [
-                d
-                for d in dashboards
-                if d.status != "WAITING" or d.driver_name is not None
-            ]
+            invalid_dashboards = []
+            for dash in dashboards:
+                if dash.status != "WAITING":
+                    invalid_dashboards.append(
+                        f"주문번호 {dash.order_no}: 대기 상태가 아님"
+                    )
+                elif dash.driver_name:
+                    invalid_dashboards.append(f"주문번호 {dash.order_no}: 이미 배차됨")
 
             if invalid_dashboards:
-                invalid_orders = [d.order_no for d in invalid_dashboards]
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"다음 주문은 배차할 수 없습니다: {', '.join(map(str, invalid_orders))}",
+                    detail=f"배차할 수 없는 주문이 있습니다:\n"
+                    + "\n".join(invalid_dashboards),
                 )
 
             # 배차 정보 업데이트

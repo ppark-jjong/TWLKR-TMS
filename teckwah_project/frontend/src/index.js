@@ -8,8 +8,11 @@ import 'antd/dist/reset.css';
 const container = document.getElementById('root');
 const root = createRoot(container);
 
+// 환경에 따라 정적 파일 경로 설정
+const STATIC_URL = process.env.NODE_ENV === 'production' ? '/static/' : '/static/';
+
 root.render(
   <React.StrictMode>
-    <App />
+    <App staticUrl={STATIC_URL} />
   </React.StrictMode>
 );

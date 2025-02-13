@@ -10,9 +10,12 @@ from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
 import logging
+from sqlalchemy.orm import registry
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-
+mapper_registry = registry()
+Base = declarative_base()
 # .env 파일 로드
 load_dotenv()
 
@@ -34,14 +37,24 @@ engine = create_engine(
     pool_pre_ping=True,  # 연결 유효성 검사
     pool_recycle=3600,  # 커넥션 재사용 시간 (1시간)
     pool_size=32,
-    max_overflow=64
+    max_overflow=64,
 )
 
 # 세션 팩토리 생성
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base 클래스 생성 - 모든 모델의 기본 클래스
-Base = declarative_base()
+
+def initialize_models():
+    """모델 초기화 함수"""
+    from app.models import postal_code_model
+    from app.models import user_model
+    from app.models import dashboard_model
+    from app.models import refresh_token_model
+    from app.models import error_log_model
+
+    # 명시적 모델 초기화
+    mapper_registry.configure()
+
 
 @contextmanager
 def transaction(db: Session) -> Generator:
@@ -59,6 +72,7 @@ def transaction(db: Session) -> Generator:
         logger.error(f"Transaction failed: {str(e)}")
         raise
 
+
 def get_db():
     """데이터베이스 세션 제공"""
     db = SessionLocal()
@@ -66,6 +80,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 def get_mysql_connection():
     """MySQL 직접 연결을 위한 커넥션 제공"""
@@ -81,6 +96,7 @@ def get_mysql_connection():
     except Error as e:
         logger.error(f"데이터베이스 연결 오류: {e}")
         return None
+
 
 def execute_query(query, params=None, fetch=False, many=False):
     """
@@ -109,6 +125,7 @@ def execute_query(query, params=None, fetch=False, many=False):
     finally:
         cursor.close()
         connection.close()
+
 
 class DatabaseManager:
     """

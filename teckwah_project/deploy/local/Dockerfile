@@ -1,4 +1,3 @@
-# deploy/local/Dockerfile
 FROM node:18 AS frontend-build
 WORKDIR /frontend
 
@@ -29,18 +28,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 백엔드 코드 복사
 COPY backend/ .
-COPY backend/app/data /app/data  
 
-# Frontend 빌드 결과물 복사
-COPY --from=frontend-build /frontend/build /app/static
+# Frontend 빌드 결과물 복사 (경로 수정)
+COPY --from=frontend-build /frontend/build/* /app/static/
+RUN mkdir -p /app/data /app/logs
 
-# 정적 파일 로고 및 파비콘 복사
-COPY frontend/public/logo.png /app/static/
-COPY frontend/public/favicon.ico /app/static/
-
-# 디렉토리 권한 설정
-RUN mkdir -p /app/data /app/logs && \
-    chmod -R 755 /app/static /app/data /app/logs
+# 실행 권한 설정
+RUN chmod -R 755 /app/static /app/data /app/logs
 
 ENV PYTHONPATH=/app
 

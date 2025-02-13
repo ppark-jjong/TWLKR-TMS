@@ -1,17 +1,18 @@
-# backend/main.py
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.api import auth_router, dashboard_router, visualization_router
 from app.config.settings import get_settings
-from app.config.database import Base, engine
+from app.config.database import engine, Base, initialize_models
 from app.config.excel_to_user import import_users
 from app.config.excel_to_postalcode import import_postal_codes
 from app.utils.logger import log_info, log_error
 
 settings = get_settings()
+initialize_models()
 # 데이터베이스 테이블 생성
 Base.metadata.create_all(bind=engine)
 
@@ -27,15 +28,12 @@ except Exception as e:
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_PREFIX}/openapi.json",
-    docs_url=f"{settings.API_PREFIX}/docs",
-    redoc_url=f"{settings.API_PREFIX}/redoc",
 )
 
-
-# 정적 파일 서빙 (React 빌드 파일)
+# 정적 파일 서빙 설정
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 라우터 등록
+# API 라우터 등록
 app.include_router(auth_router.router, prefix="/auth", tags=["인증"])
 app.include_router(dashboard_router.router, prefix="/dashboard", tags=["대시보드"])
 app.include_router(
@@ -43,8 +41,17 @@ app.include_router(
 )
 
 
+# SPA 라우팅 처리
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if "." in full_path:  # 정적 파일 요청 처리
-        return FileResponse(f"static/{full_path}")
+    # API 요청은 제외
+    if full_path.startswith(("auth/", "dashboard/", "visualization/")):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # 정적 파일 요청 처리
+    static_file = os.path.join("static", full_path)
+    if os.path.isfile(static_file):
+        return FileResponse(static_file)
+
+    # 나머지는 index.html로 라우팅
     return FileResponse("static/index.html")

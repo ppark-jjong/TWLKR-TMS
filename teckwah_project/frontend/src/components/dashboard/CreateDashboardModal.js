@@ -1,27 +1,39 @@
 // frontend/src/components/dashboard/CreateDashboardModal.js
 import React from 'react';
 import { Modal, Form, Input, Select, DatePicker, message } from 'antd';
+import { formatPhoneNumber } from '../../utils/Formatter';
 import DashboardService from '../../services/DashboardService';
+import { 
+  STATUS_TYPES, 
+  WAREHOUSES, 
+  SLA_TYPES 
+} from '../../utils/Constants';
 
 const { Option } = Select;
 
-/**
- * 대시보드 생성 모달 컴포넌트
- * @param {Object} props
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Function} props.onCancel - 취소 핸들러
- * @param {Function} props.onSuccess - 성공 핸들러
- * @param {string} props.userDepartment - 사용자 부서
- */
 const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = React.useState(false);
+  // 전화번호 포맷팅 처리
+  const handlePhoneChange = (e) => {
+    const formattedNumber = formatPhoneNumber(e.target.value);
+    form.setFieldsValue({ contact: formattedNumber });
+  };
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       setLoading(true);
-
+      // 우편번호 5자리 검증
+      if (!/^\d{5}$/.test(values.postal_code)) {
+        message.error('우편번호는 5자리 숫자여야 합니다');
+        return;
+      }
+      // 전화번호 형식 검증
+      if (!/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.contact)) {
+        message.error('올바른 전화번호 형식이 아닙니다');
+        return;
+      }
       // ETA 시간 포맷 변환
       const formattedValues = {
         ...values,
@@ -29,11 +41,20 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
         department: userDepartment
       };
 
-      await DashboardService.createDashboard(formattedValues);
+      const dashboardData = {
+        ...values,
+        department: userDepartment,
+        eta: values.eta.toISOString()
+      };
+
+      await DashboardService.createDashboard(dashboardData);
       message.success('대시보드가 생성되었습니다');
+      form.resetFields();
       onSuccess();
     } catch (error) {
       if (error.isAxiosError) {
+        message.error(error.response.data.detail || '대시보드 생성 중 오류가 발생했습니다');
+      } else {
         message.error('대시보드 생성 중 오류가 발생했습니다');
       }
     } finally {
@@ -49,6 +70,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
       onOk={handleSubmit}
       confirmLoading={loading}
       width={600}
+      maskClosable={false}
     >
       <Form
         form={form}
@@ -61,7 +83,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
         >
           <Select>
             <Option value="DELIVERY">배송</Option>
-            <Option value="RETURN">반품</Option>
+            <Option value="RETURN">회수</Option>
           </Select>
         </Form.Item>
 
