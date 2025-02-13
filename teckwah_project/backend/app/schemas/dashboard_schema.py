@@ -54,7 +54,9 @@ class DashboardCreate(BaseModel):
 
     @validator("eta")
     def validate_eta(cls, v):
-        if v < datetime.now():
+        # timezone 제거하고 naive datetime으로 비교
+        now = datetime.now()
+        if v.replace(tzinfo=None) < now.replace(tzinfo=None):
             raise ValueError("ETA는 현재 시간 이후여야 합니다")
         return v
 
