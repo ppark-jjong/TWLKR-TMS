@@ -25,33 +25,30 @@ const setupAxiosInterceptors = () => {
 
   // 응답 인터셉터
   axios.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      const originalRequest = error.config;
-
-      // 토큰 만료로 인한 401 에러 처리
-      if (error.response?.status === 401 && !originalRequest._retry) {
-        originalRequest._retry = true;
-
+    response => response,
+    async error => {
+      if (error.response?.status === 401 && !error.config._retry) {
+        error.config._retry = true;
         try {
-          // 토큰 갱신 시도
-          await AuthService.refreshToken();
+          const refreshToken = localStorage.getItem('refresh_token');
+          const response = await axios.post('/auth/refresh', { refresh_token: refreshToken });
+          const { access_token, refresh_token } = response.data;
           
-          // 새로운 토큰으로 원래 요청 재시도
-          const token = AuthService.getAccessToken();
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return axios(originalRequest);
+          localStorage.setItem('access_token', access_token);
+          if (refresh_token) {
+            localStorage.setItem('refresh_token', refresh_token);
+          }
+          
+          error.config.headers.Authorization = `Bearer ${access_token}`;
+          return axios(error.config);
         } catch (refreshError) {
-          // 토큰 갱신 실패 시 로그인 페이지로 이동
-          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
           window.location.href = '/login';
           return Promise.reject(refreshError);
         }
       }
-
-      // 기타 에러 처리
-      const errorMessage = error.response?.data?.detail || '요청 처리 중 오류가 발생했습니다';
-      message.error(errorMessage);
       return Promise.reject(error);
     }
   );

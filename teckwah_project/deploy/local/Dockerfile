@@ -32,7 +32,7 @@ COPY backend/ .
 COPY backend/app/data /app/data  
 
 # Frontend 빌드 결과물 복사
-COPY --from=frontend-build /frontend/build/* /app/static/
+COPY --from=frontend-build /frontend/build /app/static
 
 # 정적 파일 로고 및 파비콘 복사
 COPY frontend/public/logo.png /app/static/

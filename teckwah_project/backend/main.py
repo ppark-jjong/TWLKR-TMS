@@ -1,15 +1,15 @@
 # backend/main.py
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api import auth_router, dashboard_router, visualization_router
 from app.config.settings import get_settings
 from app.config.database import Base, engine
 from app.config.excel_to_user import import_users
 from app.config.excel_to_postalcode import import_postal_codes
-from app.utils.logger import Logger
+from app.utils.logger import log_info, log_error
 
 settings = get_settings()
 # 데이터베이스 테이블 생성
@@ -17,12 +17,12 @@ Base.metadata.create_all(bind=engine)
 
 # Excel 데이터 초기화
 try:
-    Logger.info("Excel 데이터 초기화 시작...")
+    log_info("Excel 데이터 초기화 시작...")
     import_postal_codes()
     import_users()
-    Logger.info("Excel 데이터 초기화 완료")
+    log_info("Excel 데이터 초기화 완료")
 except Exception as e:
-    Logger.error(f"Excel 데이터 초기화 중 오류 발생: {str(e)}")
+    log_error(e, "Excel 데이터 초기화 중 오류 발생")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -43,7 +43,8 @@ app.include_router(
 )
 
 
-@app.get("/")
-async def root():
-    """서버 상태 확인용 엔드포인트"""
-    return {"status": "running", "project": settings.PROJECT_NAME, "version": "1.0.0"}
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    if "." in full_path:  # 정적 파일 요청 처리
+        return FileResponse(f"static/{full_path}")
+    return FileResponse("static/index.html")

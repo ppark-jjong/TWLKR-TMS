@@ -61,7 +61,7 @@ def import_users(file_path="/app/data/user.xlsx"):
 
         # 데이터베이스 삽입 쿼리
         insert_query = """
-        INSERT INTO users (user_id, user_password, user_department, user_role)
+        INSERT INTO user (user_id, user_password, user_department, user_role)
         VALUES (%s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             user_password = VALUES(user_password),
@@ -84,7 +84,7 @@ def import_users(file_path="/app/data/user.xlsx"):
 
     except Exception as e:
         # 오류 발생 시 Logger 클래스의 error 메서드 사용
-        Logger.error(f"사용자 데이터 임포트 중 오류 발생: {str(e)}")
+        log_error(e, "사용자 데이터 임포트 중 오류 발생")
         return False
 
 

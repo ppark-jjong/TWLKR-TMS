@@ -71,24 +71,53 @@ class AuthService:
             )
 
     def refresh_token(self, refresh_token: str) -> Token:
-        """토큰 갱신"""
         try:
             # 리프레시 토큰 검증
-            token = self.repository.get_valid_refresh_token(refresh_token)
-            if not token:
+            token_data = self.repository.get_valid_refresh_token(refresh_token)
+            if not token_data:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="토큰이 만료되었습니다",
+                    detail="만료되거나 유효하지 않은 토큰입니다",
+                )
+
+            # 사용자 정보 조회
+            user = self.repository.get_user_by_id(token_data.user_id)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="사용자를 찾을 수 없습니다",
                 )
 
             # 새로운 액세스 토큰 발급
-            user = self.repository.get_user_by_id(token.user_id)
             new_access_token = create_token(
                 user_id=user.user_id,
                 department=user.user_department,
                 role=user.user_role,
                 expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
             )
+
+            # 리프레시 토큰 만료 임박 시 갱신
+            remaining_time = token_data.expires_at - datetime.utcnow()
+            if remaining_time < timedelta(days=1):
+                new_refresh_token = create_token(
+                    user_id=user.user_id,
+                    department=user.user_department,
+                    role=user.user_role,
+                    expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+                    is_refresh_token=True,
+                )
+
+                # DB에 새로운 리프레시 토큰 저장
+                self.repository.store_refresh_token(
+                    user_id=user.user_id,
+                    refresh_token=new_refresh_token,
+                    expires_at=datetime.utcnow()
+                    + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+                )
+
+                return Token(
+                    access_token=new_access_token, refresh_token=new_refresh_token
+                )
 
             return Token(access_token=new_access_token, refresh_token=refresh_token)
 

@@ -15,7 +15,7 @@ def create_user(user_id, password, department, role):
     """사용자 생성"""
     hashed_password = hash_password(password)
     query = """
-        INSERT INTO users (user_id, user_password, user_department, user_role)
+        INSERT INTO user (user_id, user_password, user_department, user_role)
         VALUES (%s, %s, %s, %s)
     """
     params = (user_id, hashed_password, department, role)
@@ -29,7 +29,7 @@ def create_user(user_id, password, department, role):
 
 def delete_user(user_id):
     """사용자 삭제"""
-    query = "DELETE FROM users WHERE user_id = %s"
+    query = "DELETE FROM user WHERE user_id = %s"
     result = execute_query(query, (user_id,))
 
     if result:
@@ -40,7 +40,7 @@ def delete_user(user_id):
 
 def list_users():
     """사용자 목록 조회"""
-    query = "SELECT user_id, user_department, user_role FROM users"
+    query = "SELECT user_id, user_department, user_role FROM user"
     users = execute_query(query, fetch=True)
 
     if users:

@@ -1,6 +1,6 @@
 // frontend/src/App.js
 import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import koKR from 'antd/locale/ko_KR';
 import AppRoutes from './AppRoutes';
@@ -31,7 +31,10 @@ const App = () => {
         <AuthProvider>
           <DashboardProvider>
             <BrowserRouter>
-              <AppRoutes />
+            <Routes>
+                <Route path="/" element={<Navigate to="/login" />} /> 
+                <AppRoutes />
+              </Routes>
             </BrowserRouter>
           </DashboardProvider>
         </AuthProvider>
