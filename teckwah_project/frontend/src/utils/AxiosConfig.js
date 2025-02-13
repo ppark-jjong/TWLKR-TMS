@@ -21,7 +21,7 @@ const setupAxiosInterceptors = () => {
   // 요청 인터셉터
   axios.interceptors.request.use(
     config => {
-      const token = AuthService.getAccessToken();
+      const token = localStorage.getItem('access_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -56,8 +56,13 @@ const setupAxiosInterceptors = () => {
         isRefreshing = true;
 
         try {
-          const newTokens = await AuthService.refreshToken();
-          const { access_token, refresh_token } = newTokens;
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (!refreshToken) {
+            throw new Error('리프레시 토큰이 없습니다');
+          }
+
+          const response = await AuthService.refreshToken(refreshToken);
+          const { access_token, refresh_token } = response;
           
           localStorage.setItem('access_token', access_token);
           if (refresh_token) {
@@ -67,10 +72,13 @@ const setupAxiosInterceptors = () => {
           axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
           processQueue(null, access_token);
           
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
           return axios(originalRequest);
         } catch (refreshError) {
           processQueue(refreshError, null);
-          AuthService.logout();
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
           message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
           window.location.href = '/login';
           return Promise.reject(refreshError);
@@ -79,7 +87,6 @@ const setupAxiosInterceptors = () => {
         }
       }
 
-      // 그 외 에러 처리
       if (error.response?.data?.detail) {
         message.error(error.response.data.detail);
       } else {

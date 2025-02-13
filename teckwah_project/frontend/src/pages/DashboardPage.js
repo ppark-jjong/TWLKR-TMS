@@ -29,6 +29,34 @@ const DashboardPage = () => {
   const [selectedDashboard, setSelectedDashboard] = useState(null);
   const { logout, user } = useAuth();
 
+  // 초기 데이터 로드
+  useEffect(() => {
+    loadDashboardData(selectedDate);
+  }, []);
+
+  // 대시보드 데이터 로드 함수
+  const loadDashboardData = async (date) => {
+    try {
+      await fetchDashboards(date);
+      message.success('대시보드 데이터를 조회했습니다');
+    } catch (error) {
+      message.error('데이터 조회 중 오류가 발생했습니다');
+    }
+  };
+
+  // 날짜 변경 처리
+  const handleDateChange = (date) => {
+    const newDate = date || dayjs();
+    setSelectedDate(newDate);
+    setSelectedRows([]);
+    loadDashboardData(newDate);
+  };
+
+  // 새로고침 처리
+  const handleRefresh = () => {
+    loadDashboardData(selectedDate);
+  };
+
   // 삭제 처리
   const handleDelete = async () => {
     if (selectedRows.length === 0) {
@@ -49,7 +77,7 @@ const DashboardPage = () => {
       message.success('선택한 항목이 삭제되었습니다');
       removeDashboards(dashboardIds);
       setSelectedRows([]);
-      fetchDashboards(); // 삭제 후 대시보드 목록 새로고침
+      handleRefresh();
     } catch (error) {
       message.error('삭제 중 오류가 발생했습니다');
     }
@@ -65,20 +93,6 @@ const DashboardPage = () => {
       message.error('상세 정보 조회 중 오류가 발생했습니다');
     }
   };
-
-  const handleDateChange = (date) => {
-    setSelectedDate(date || dayjs());
-    setSelectedRows([]);
-  };
-
-  // 대시보드 생성 후 데이터 새로고침
-  const handleCreateSuccess = () => {
-    fetchDashboards(); // 생성 후 대시보드 목록 새로고침
-  };
-
-  useEffect(() => {
-    fetchDashboards(); // 컴포넌트 마운트 시 대시보드 목록 조회
-  }, []);
 
   return (
     <Layout.Content style={{ padding: '24px' }}>
@@ -113,7 +127,7 @@ const DashboardPage = () => {
           </Button>
           <Button
             icon={<ReloadOutlined />}
-            onClick={fetchDashboards} // 수동 새로고침
+            onClick={handleRefresh}
           >
             새로고침
           </Button>
@@ -131,12 +145,15 @@ const DashboardPage = () => {
         />
       )}
 
-      {/* 모달 컴포넌트들 */}
       {showCreateModal && (
         <CreateDashboardModal
           visible={showCreateModal}
           onCancel={() => setShowCreateModal(false)}
-          onSuccess={handleCreateSuccess}
+          onSuccess={() => {
+            message.success('대시보드가 생성되었습니다');
+            setShowCreateModal(false);
+            handleRefresh();
+          }}
           userDepartment={user.user_department}
         />
       )}
@@ -146,9 +163,10 @@ const DashboardPage = () => {
           visible={showAssignModal}
           onCancel={() => setShowAssignModal(false)}
           onSuccess={() => {
+            message.success('배차가 완료되었습니다');
             setShowAssignModal(false);
             setSelectedRows([]);
-            fetchDashboards(); // 배차 후 대시보드 목록 새로고침
+            handleRefresh();
           }}
           selectedRows={selectedRows}
         />
@@ -162,7 +180,10 @@ const DashboardPage = () => {
             setShowDetailModal(false);
             setSelectedDashboard(null);
           }}
-          onSuccess={() => fetchDashboards()} // 상세 조회 후 대시보드 목록 새로고침
+          onSuccess={() => {
+            message.success('대시보드가 업데이트되었습니다');
+            handleRefresh();
+          }}
         />
       )}
     </Layout.Content>

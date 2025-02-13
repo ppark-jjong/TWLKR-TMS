@@ -1,22 +1,29 @@
 // frontend/src/services/DashboardService.js
 import axios from 'axios';
 
-/**
- * 대시보드 관련 API 호출을 담당하는 서비스
- */
 class DashboardService {
   /**
    * 대시보드 목록 조회
-   * @param {Date} date - 조회할 날짜
+   * @param {dayjs} date - 조회할 날짜
    * @returns {Promise<Array>} 대시보드 목록
    */
   async getDashboardList(date) {
-    const response = await axios.get('/dashboard/list', {
-      params: {
-        date: date.toISOString()
+    try {
+      const response = await axios.get('/dashboard/list', {
+        params: {
+          date: date.format('YYYY-MM-DD')
+        }
+      });
+      
+      // 데이터가 없는 경우 빈 배열 반환
+      if (!response.data || response.data.length === 0) {
+        return [];
       }
-    });
-    return response.data;
+      
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '대시보드 목록 조회 중 오류가 발생했습니다');
+    }
   }
 
   /**
@@ -25,8 +32,15 @@ class DashboardService {
    * @returns {Promise<Object>} 대시보드 상세 정보
    */
   async getDashboardDetail(dashboardId) {
-    const response = await axios.get(`/dashboards/${dashboardId}`);
-    return response.data;
+    try {
+      const response = await axios.get(`/dashboard/${dashboardId}`);
+      if (!response.data) {
+        throw new Error('대시보드 정보를 찾을 수 없습니다');
+      }
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '대시보드 상세 정보 조회 중 오류가 발생했습니다');
+    }
   }
 
   /**
@@ -35,8 +49,12 @@ class DashboardService {
    * @returns {Promise<Object>} 생성된 대시보드 정보
    */
   async createDashboard(dashboardData) {
-    const response = await axios.post('/dashboards', dashboardData);
-    return response.data;
+    try {
+      const response = await axios.post('/dashboard', dashboardData);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다');
+    }
   }
 
   /**
@@ -46,10 +64,14 @@ class DashboardService {
    * @returns {Promise<Object>} 업데이트된 대시보드 정보
    */
   async updateStatus(dashboardId, status) {
-    const response = await axios.patch(`/dashboard/${dashboardId}/status`, {
-      status
-    });
-    return response.data;
+    try {
+      const response = await axios.patch(`/dashboard/${dashboardId}/status`, {
+        status
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '상태 업데이트 중 오류가 발생했습니다');
+    }
   }
 
   /**
@@ -59,10 +81,14 @@ class DashboardService {
    * @returns {Promise<Object>} 업데이트된 대시보드 정보
    */
   async updateRemark(dashboardId, remark) {
-    const response = await axios.patch(`/dashboard/${dashboardId}/remark`, {
-      remark
-    });
-    return response.data;
+    try {
+      const response = await axios.patch(`/dashboard/${dashboardId}/remark`, {
+        remark
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '메모 업데이트 중 오류가 발생했습니다');
+    }
   }
 
   /**
@@ -71,8 +97,12 @@ class DashboardService {
    * @returns {Promise<Array>} 업데이트된 대시보드 목록
    */
   async assignDriver(driverData) {
-    const response = await axios.post('/dashboard/assign', driverData);
-    return response.data;
+    try {
+      const response = await axios.post('/dashboard/assign', driverData);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다');
+    }
   }
 
   /**
@@ -81,19 +111,14 @@ class DashboardService {
    * @returns {Promise<Object>} 삭제 결과
    */
   async deleteDashboards(dashboardIds) {
-    const response = await axios.delete('/dashboards', {
-      data: { dashboard_ids: dashboardIds }
-    });
-    return response.data;
-  }
-
-  /**
-   * 대시보드 목록 조회
-   * @returns {Promise<Array>} 대시보드 목록
-   */
-  async getDashboards() {
-    const response = await axios.get('/dashboards');
-    return response.data;
+    try {
+      const response = await axios.delete('/dashboard', {
+        data: { dashboard_ids: dashboardIds }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || '대시보드 삭제 중 오류가 발생했습니다');
+    }
   }
 }
 

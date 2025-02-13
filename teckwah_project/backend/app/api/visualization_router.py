@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.schemas.visualization_schema import DateRange, VisualizationResponse
+from app.schemas.visualization_schema import DateRange, VisualizationResponse, ChartType
 from app.services.visualization_service import VisualizationService
 from app.repositories.visualization_repository import VisualizationRepository
 from app.config.database import get_db
@@ -13,7 +13,7 @@ from app.utils.logger import log_error
 router = APIRouter()
 
 
-@router.get("/status", response_model=VisualizationResponse)
+@router.get("/status")
 async def get_delivery_status(
     start_date: str,
     end_date: str,
@@ -26,7 +26,8 @@ async def get_delivery_status(
         service = VisualizationService(repository)
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
-        return service.get_delivery_status(start, end)
+        data = service.get_delivery_status(start, end)
+        return {"type": ChartType.DELIVERY_STATUS, "data": data}
     except Exception as e:
         log_error(e, "배송 현황 데이터 조회 실패")
         raise HTTPException(
@@ -35,7 +36,7 @@ async def get_delivery_status(
         )
 
 
-@router.get("/hourly", response_model=VisualizationResponse)
+@router.get("/hourly")
 async def get_hourly_orders(
     start_date: str,
     end_date: str,
@@ -48,7 +49,8 @@ async def get_hourly_orders(
         service = VisualizationService(repository)
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
-        return service.get_hourly_orders(start, end)
+        data = service.get_hourly_orders(start, end)
+        return {"type": ChartType.HOURLY_ORDERS, "data": data}
     except Exception as e:
         log_error(e, "시간별 접수량 데이터 조회 실패")
         raise HTTPException(

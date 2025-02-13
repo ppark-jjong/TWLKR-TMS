@@ -1,5 +1,5 @@
 // frontend/src/App.js
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import koKR from 'antd/locale/ko_KR';
@@ -7,12 +7,14 @@ import AppRoutes from './AppRoutes';
 import { AuthProvider } from './contexts/AuthContext';
 import { DashboardProvider } from './contexts/DashboardContext';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import setupAxiosInterceptors from './utils/AxiosConfig';
 
-/**
- * 앱의 최상위 컴포넌트
- * BrowserRouter를 최상위에 배치하여 라우팅 컨텍스트 제공
- */
 const App = () => {
+  useEffect(() => {
+    // axios 인터셉터 설정 초기화
+    setupAxiosInterceptors();
+  }, []);
+
   return (
     <ErrorBoundary>
       <BrowserRouter>

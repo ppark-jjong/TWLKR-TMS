@@ -2,40 +2,16 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import AuthService from '../services/AuthService';
 import { useAuth } from '../contexts/AuthContext';
+
 const LoginPage = ({ staticUrl }) => {
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const { login } = useAuth();  // 컴포넌트 최상위 레벨에서 useAuth 사용
 
-  // 로그인 폼 제출
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      // ID 입력값 검증
-      if (!values.user_id.trim()) {
-        throw new Error('아이디를 입력해주세요');
-      }
-      
-      // 비밀번호 입력값 검증
-      if (!values.password || values.password.length < 4) {
-        throw new Error('비밀번호는 4자 이상이어야 합니다');
-      }
-
-      const response = await AuthService.login(values.user_id, values.password);
-      localStorage.setItem('access_token', response.token.access_token);
-      localStorage.setItem('refresh_token', response.token.refresh_token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      
-          // AuthContext 상태 업데이트
-      const { login } = useAuth();
-      await login(response.user);
-
-      message.success('로그인되었습니다');
-      navigate('/dashboard');
-    } catch (error) {
-      message.error(error.response?.data?.detail || error.message || '로그인 중 오류가 발생했습니다');
+      await login(values.user_id, values.password);
     } finally {
       setLoading(false);
     }

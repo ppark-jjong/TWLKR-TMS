@@ -1,9 +1,7 @@
 // frontend/src/services/VisualizationService.js
 import axios from 'axios';
+import { ChartType } from '../utils/Constants';
 
-/**
- * 시각화 관련 API 호출을 담당하는 서비스
- */
 class VisualizationService {
   /**
    * 시각화 데이터 조회
@@ -13,10 +11,13 @@ class VisualizationService {
    * @returns {Promise<Object>} 시각화 데이터
    */
   async getVisualizationData(type, startDate, endDate) {
-    const response = await axios.post(`/visualization/${type}`, {
+    const endpoint = type === ChartType.DELIVERY_STATUS ? 'status' : 'hourly';
+    const params = {
       start_date: startDate.toISOString().split('T')[0],
       end_date: endDate.toISOString().split('T')[0]
-    });
+    };
+
+    const response = await axios.get(`/visualization/${endpoint}`, { params });
     return response.data;
   }
 }

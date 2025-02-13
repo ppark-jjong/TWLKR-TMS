@@ -21,8 +21,6 @@ export const AuthProvider = ({ children }) => {
       } else if (location.pathname !== '/login') {
         navigate('/login');
       }
-    } catch (error) {
-      console.error('인증 초기화 중 오류:', error);
     } finally {
       setLoading(false);
     }
@@ -31,31 +29,32 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
-  const value = {
-    user,
-    loading,
-    login: async (userId, password) => {
-      try {
-        const response = await AuthService.login(userId, password);
-        setUser(response.user);
-        return response;
-      } catch (error) {
-        throw error;
-      }
-    },
-    logout: async () => {
-      try {
-        await AuthService.logout();
-        setUser(null);
-        navigate('/login');
-      } catch (error) {
-        console.error('로그아웃 중 오류:', error);
-        throw error;
-      }
+
+  const loginUser = async (userId, password) => {
+    try {
+      const response = await AuthService.login(userId, password);
+      setUser(response.user);
+      message.success('로그인되었습니다');
+      navigate('/dashboard');
+      return response;
+    } catch (error) {
+      message.error(error.response?.data?.detail || '로그인 중 오류가 발생했습니다');
+      throw error;
     }
   };
 
-  // 로딩 중일 때 표시할 컴포넌트
+  const logoutUser = async () => {
+    try {
+      await AuthService.logout();
+      setUser(null);
+      message.success('로그아웃되었습니다');
+      navigate('/login');
+    } catch (error) {
+      message.error('로그아웃 중 오류가 발생했습니다');
+      throw error;
+    }
+  };
+
   if (loading) {
     return null;
   }
@@ -63,9 +62,9 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider 
       value={{ 
-        user, 
-        login, 
-        logout,
+        user,
+        login: loginUser,
+        logout: logoutUser,
         isAuthenticated: !!user
       }}
     >
