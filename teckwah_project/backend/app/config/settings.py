@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     MYSQL_USER: str = os.getenv("MYSQL_USER")
     MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD")
     MYSQL_DATABASE: str = os.getenv("MYSQL_DATABASE")
+    MYSQL_CHARSET: str = os.getenv("MYSQL_CHARSET")
 
     # JWT 설정
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY")

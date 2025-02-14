@@ -7,23 +7,12 @@ import os
 from app.api import auth_router, dashboard_router, visualization_router
 from app.config.settings import get_settings
 from app.config.database import engine, Base, initialize_models
-from app.config.excel_to_user import import_users
-from app.config.excel_to_postalcode import import_postal_codes
 from app.utils.logger import log_info, log_error
 
 settings = get_settings()
-initialize_models()
+# initialize_models()
 # 데이터베이스 테이블 생성
-Base.metadata.create_all(bind=engine)
-
-# Excel 데이터 초기화
-try:
-    log_info("Excel 데이터 초기화 시작...")
-    import_postal_codes()
-    import_users()
-    log_info("Excel 데이터 초기화 완료")
-except Exception as e:
-    log_error(e, "Excel 데이터 초기화 중 오류 발생")
+# Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

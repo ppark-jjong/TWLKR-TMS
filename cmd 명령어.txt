@@ -1,6 +1,7 @@
 1. 패키지 설치 및 환경 설정 명령어
 
 pip install -r requirements.txt           # 의존성 패키지 설치
+pip install -r /home/user/project/requirements.txt  # 다른 폴더의 requirements.txt 설치
 python -m pip install --upgrade pip       # pip 업그레이드
 python -m venv venv                       # 가상 환경 생성
 venv\Scripts\activate                     # 가상 환경 활성화
