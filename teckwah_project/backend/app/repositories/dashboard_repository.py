@@ -12,14 +12,30 @@ class DashboardRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get_dashboards_by_ids(self, dashboard_ids: List[int]) -> List[Dashboard]:
+        """대시보드 ID 리스트로 여러 대시보드 조회"""
+        try:
+            log_info(f"대시보드 다중 조회: {dashboard_ids}")
+            dashboards = (
+                self.db.query(Dashboard)
+                .filter(Dashboard.dashboard_id.in_(dashboard_ids))
+                .all()
+            )
+            if dashboards:
+                log_info(f"대시보드 다중 조회 성공: {len(dashboards)}건")
+            else:
+                log_info("조회된 대시보드 없음")
+            return dashboards
+        except Exception as e:
+            log_error(e, "대시보드 다중 조회 실패", {"dashboard_ids": dashboard_ids})
+            raise
+
     def get_dashboards_by_date(self, target_date: datetime) -> List[Dashboard]:
         """날짜별 대시보드 조회"""
         try:
             log_info(f"대시보드 조회 시작: {target_date}")
             start_date = target_date.replace(hour=0, minute=0, second=0)
             end_date = target_date.replace(hour=23, minute=59, second=59)
-
-            log_info(f"조회 기간: {start_date} ~ {end_date}")
 
             dashboards = (
                 self.db.query(Dashboard)
@@ -76,24 +92,6 @@ class DashboardRepository:
             self.db.rollback()
             raise
 
-    def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
-        """대시보드 상세 정보 조회"""
-        try:
-            log_info(f"대시보드 상세 조회: {dashboard_id}")
-            dashboard = (
-                self.db.query(Dashboard)
-                .filter(Dashboard.dashboard_id == dashboard_id)
-                .first()
-            )
-            if dashboard:
-                log_info("대시보드 상세 조회 성공")
-            else:
-                log_info("대시보드 데이터 없음")
-            return dashboard
-        except Exception as e:
-            log_error(e, "대시보드 상세 조회 실패", {"dashboard_id": dashboard_id})
-            raise
-
     def update_dashboard_status(
         self, dashboard_id: int, status: str, current_time: datetime
     ) -> Optional[Dashboard]:
@@ -102,11 +100,18 @@ class DashboardRepository:
             log_info(f"상태 업데이트 시작: {dashboard_id} -> {status}")
             dashboard = self.get_dashboard_detail(dashboard_id)
             if dashboard:
+                old_status = dashboard.status
                 dashboard.status = status
-                if status == "IN_PROGRESS":
+
+                # 상태 변경에 따른 시간 처리
+                if status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
                     dashboard.depart_time = current_time
+                    dashboard.complete_time = None
                 elif status in ["COMPLETE", "ISSUE"]:
                     dashboard.complete_time = current_time
+                elif status == "WAITING":
+                    dashboard.depart_time = None
+                    dashboard.complete_time = None
 
                 self.db.commit()
                 self.db.refresh(dashboard)
@@ -143,61 +148,20 @@ class DashboardRepository:
             self.db.rollback()
             raise
 
-    def assign_driver(
-        self, dashboard_ids: List[int], driver_name: str, driver_contact: str
-    ) -> List[Dashboard]:
-        """배차 정보 업데이트"""
+    def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
+        """대시보드 상세 정보 조회"""
         try:
-            log_info(
-                "배차 정보 업데이트 시작",
-                {"dashboard_ids": dashboard_ids, "driver_name": driver_name},
-            )
-            dashboards = (
+            log_info(f"대시보드 상세 조회: {dashboard_id}")
+            dashboard = (
                 self.db.query(Dashboard)
-                .filter(
-                    and_(
-                        Dashboard.dashboard_id.in_(dashboard_ids),
-                        Dashboard.status == "WAITING",
-                    )
-                )
-                .all()
+                .filter(Dashboard.dashboard_id == dashboard_id)
+                .first()
             )
-
-            for dashboard in dashboards:
-                dashboard.driver_name = driver_name
-                dashboard.driver_contact = driver_contact
-
-            self.db.commit()
-            log_info(f"배차 정보 업데이트 완료: {len(dashboards)}건")
-            return dashboards
+            if dashboard:
+                log_info("대시보드 상세 조회 성공")
+            else:
+                log_info("대시보드 데이터 없음")
+            return dashboard
         except Exception as e:
-            log_error(
-                e,
-                "배차 정보 업데이트 실패",
-                {"dashboard_ids": dashboard_ids, "driver_name": driver_name},
-            )
-            self.db.rollback()
-            raise
-
-    def delete_dashboards(self, dashboard_ids: List[int]) -> bool:
-        """대시보드 삭제"""
-        try:
-            log_info(f"대시보드 삭제 시작: {dashboard_ids}")
-            delete_count = (
-                self.db.query(Dashboard)
-                .filter(
-                    and_(
-                        Dashboard.dashboard_id.in_(dashboard_ids),
-                        Dashboard.status == "WAITING",
-                    )
-                )
-                .delete(synchronize_session=False)
-            )
-
-            self.db.commit()
-            log_info(f"대시보드 삭제 완료: {delete_count}건")
-            return True
-        except Exception as e:
-            log_error(e, "대시보드 삭제 실패", {"dashboard_ids": dashboard_ids})
-            self.db.rollback()
+            log_error(e, "대시보드 상세 조회 실패", {"dashboard_id": dashboard_id})
             raise

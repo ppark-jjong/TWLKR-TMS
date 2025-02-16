@@ -4,10 +4,22 @@ import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 
+/**
+ * 로그인 페이지 컴포넌트
+ * @param {Object} props
+ * @param {string} props.staticUrl - 정적 리소스 URL 경로
+ * @returns {React.ReactElement} 로그인 페이지 컴포넌트
+ */
 const LoginPage = ({ staticUrl }) => {
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();  // 컴포넌트 최상위 레벨에서 useAuth 사용
+  const { login } = useAuth();
 
+  /**
+   * 로그인 폼 제출 핸들러
+   * @param {Object} values - 폼 입력값
+   * @param {string} values.user_id - 사용자 ID
+   * @param {string} values.password - 비밀번호
+   */
   const onFinish = async (values) => {
     setLoading(true);
     try {

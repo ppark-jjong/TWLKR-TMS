@@ -1,14 +1,38 @@
 // frontend/src/utils/Constants.js
 
 /**
+ * 종류 표시 텍스트
+ */
+export const TYPE_TEXTS = {
+  DELIVERY: '배송',
+  RETURN: '회수'
+};
+
+/**
+ * 차트 타입 정의
+ */
+export const CHART_TYPES = {
+  DELIVERY_STATUS: 'delivery_status',
+  HOURLY_ORDERS: 'hourly_orders'
+};
+
+/**
+ * 시각화 옵션 정의
+ */
+export const VISUALIZATION_OPTIONS = [
+  { value: CHART_TYPES.DELIVERY_STATUS, label: '배송 현황' },
+  { value: CHART_TYPES.HOURLY_ORDERS, label: '시간별 접수량' }
+];
+
+/**
  * 배송 상태 정의
  */
 export const STATUS_TYPES = {
-    WAITING: 'WAITING',
-    IN_PROGRESS: 'IN_PROGRESS',
-    COMPLETE: 'COMPLETE',
-    ISSUE: 'ISSUE'
-  };
+  WAITING: 'WAITING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETE: 'COMPLETE',
+  ISSUE: 'ISSUE'
+};
 
 /**
  * 배송 상태 표시 텍스트
@@ -42,13 +66,12 @@ export const DEPARTMENTS = {
 /**
  * 창고 위치 정의
  */
-export const WAREHOUSES = {
-  SEOUL: 'SEOUL',
-  BUSAN: 'BUSAN',
-  GWANGJU: 'GWANGJU',
-  DAEJEON: 'DAEJEON'
+export const WAREHOUSE_TEXTS = {
+  SEOUL: '서울',
+  BUSAN: '부산',
+  GWANGJU: '광주',
+  DAEJEON: '대전'
 };
-
 /**
  * SLA 타입 정의
  */
@@ -58,15 +81,6 @@ export const SLA_TYPES = {
   EMC: 'EMC',
   WEWORK: 'WEWORK',
   LENOVO: 'LENOVO',
-  ETC: 'ETC'
-};
-
-export const ChartType = {
-  DELIVERY_STATUS: 'status',
-  HOURLY_ORDERS: 'hourly'
-};
-  
-export const VISUALIZATION_TYPES = {
-  [ChartType.DELIVERY_STATUS]: "배송 현황",
-  [ChartType.HOURLY_ORDERS]: "시간별 접수량",
+  ETC: 'ETC',
+  NBD: 'NBD'
 };

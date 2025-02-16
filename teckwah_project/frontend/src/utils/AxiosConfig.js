@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { message } from 'antd';
 import AuthService from '../services/AuthService';
+import ErrorHandler from './ErrorHandler';
 
 const setupAxiosInterceptors = () => {
   let isRefreshing = false;
@@ -38,7 +39,7 @@ const setupAxiosInterceptors = () => {
     async error => {
       const originalRequest = error.config;
 
-      // 401 에러 처리 (토큰 만료)
+      // 토큰 갱신 시도 중이거나 갱신 요청인 경우 큐에 추가
       if (error.response?.status === 401 && !originalRequest._retry) {
         if (isRefreshing) {
           try {
@@ -79,7 +80,16 @@ const setupAxiosInterceptors = () => {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           localStorage.removeItem('user');
-          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          
+          // 세션 만료 메시지는 한 번만 표시
+          if (!refreshError.handled) {
+            message.error({
+              content: '세션이 만료되었습니다. 다시 로그인해주세요.',
+              key: 'session-expired'
+            });
+            refreshError.handled = true;
+          }
+          
           window.location.href = '/login';
           return Promise.reject(refreshError);
         } finally {
@@ -87,10 +97,9 @@ const setupAxiosInterceptors = () => {
         }
       }
 
-      if (error.response?.data?.detail) {
-        message.error(error.response.data.detail);
-      } else {
-        message.error('요청 처리 중 오류가 발생했습니다');
+      // ErrorHandler를 통한 에러 처리
+      if (!error.handled) {
+        ErrorHandler.handle(error);
       }
       
       return Promise.reject(error);

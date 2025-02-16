@@ -8,7 +8,6 @@ from sqlalchemy import (
     DateTime,
     Text,
     ForeignKey,
-    text,
     Computed,
 )
 from sqlalchemy.orm import relationship
@@ -30,11 +29,14 @@ class Dashboard(Base):
     )
     department = Column(Enum("CS", "HES", "LENOVO"), nullable=False, index=True)
     warehouse = Column(Enum("SEOUL", "BUSAN", "GWANGJU", "DAEJEON"), nullable=False)
-    sla = Column(Enum("XHR", "POX", "EMC", "WEWORK", "LENOVO", "ETC"), nullable=False)
-    eta = Column(DateTime, nullable=False, index=True)
-    create_time = Column(
-        DateTime, server_default=func.now(), nullable=False, index=True
+    sla = Column(
+        Enum(
+            "XHR", "POX", "EMC", "WEWORK", "LENOVO", "ETC", "NBD", name="sla_type_enum"
+        ),
+        nullable=False,
     )
+    eta = Column(DateTime, nullable=False, index=True)
+    create_time = Column(DateTime, server_default=func.now(), nullable=False)
     depart_time = Column(DateTime, nullable=True)
     complete_time = Column(DateTime, nullable=True)
     postal_code = Column(
@@ -48,8 +50,8 @@ class Dashboard(Base):
     distance = Column(Integer, nullable=True)
     duration_time = Column(Integer, nullable=True)
     address = Column(Text, nullable=False)
-    customer = Column(String(255), nullable=False)
-    contact = Column(String(20), nullable=False)
+    customer = Column(String(255), nullable=True)
+    contact = Column(String(20), nullable=True)
     remark = Column(Text, nullable=True)
     driver_name = Column(String(255), nullable=True)
     driver_contact = Column(String(50), nullable=True)

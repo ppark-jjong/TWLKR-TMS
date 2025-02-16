@@ -1,31 +1,75 @@
 // frontend/src/pages/VisualizationPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, Select, DatePicker, Card, message } from 'antd';
+import { Layout, Select, DatePicker, Card, message, Typography } from 'antd';
 import dayjs from 'dayjs';
 import StatusPieChart from '../components/visualization/StatusPieChart';
 import HourlyBarChart from '../components/visualization/HourlyBarChart';
 import LoadingSpin from '../components/common/LoadingSpin';
 import VisualizationService from '../services/VisualizationService';
-import { VISUALIZATION_TYPES } from '../utils/Constants';
+import { CHART_TYPES, VISUALIZATION_OPTIONS } from '../utils/Constants';
 import { useAuth } from '../contexts/AuthContext';
 
 const { Content } = Layout;
 const { RangePicker } = DatePicker;
+const { Text } = Typography;
 
+/**
+ * @typedef {Object} StatusData
+ * @property {string} status - 배송 상태
+ * @property {number} count - 건수
+ * @property {number} percentage - 비율
+ */
+
+/**
+ * @typedef {Object} HourlyData
+ * @property {number} hour - 시간 (0-23)
+ * @property {number} count - 건수
+ */
+
+/**
+ * @typedef {Object} VisualizationData
+ * @property {number} total_count - 전체 건수
+ * @property {StatusData[] | HourlyData[]} data - 시각화 데이터
+ */
+
+/**
+ * 데이터 시각화 페이지 컴포넌트
+ * @returns {React.ReactElement} 시각화 페이지 컴포넌트
+ */
 const VisualizationPage = () => {
-  const [vizType, setVizType] = useState(VISUALIZATION_TYPES.DELIVERY_STATUS);
+  const [vizType, setVizType] = useState(CHART_TYPES.DELIVERY_STATUS);
   const [dateRange, setDateRange] = useState([dayjs(), dayjs()]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [oldestDate, setOldestDate] = useState(null);
   const { user } = useAuth();
 
-  const fetchData = async () => {
-    if (!dateRange[0] || !dateRange[1]) return;
+  useEffect(() => {
+    // 가장 오래된 데이터 날짜 조회
+    const fetchOldestDate = async () => {
+      try {
+        const date = await VisualizationService.getOldestDataDate();
+        setOldestDate(date);
+      } catch (error) {
+        console.error('가장 오래된 데이터 날짜 조회 실패:', error);
+      }
+    };
 
-    // 날짜 범위 검증
-    const days = dateRange[1].diff(dateRange[0], 'days');
-    if (days > 31) {
-      message.error('조회 기간은 1개월을 초과할 수 없습니다');
+    fetchOldestDate();
+  }, []);
+
+  useEffect(() => {
+    if (dateRange[0] && dateRange[1]) {
+      fetchData();
+    }
+  }, [vizType, dateRange]);
+
+  /**
+   * 시각화 데이터 조회
+   */
+  const fetchData = async () => {
+    if (!dateRange[0] || !dateRange[1]) {
+      message.error('날짜를 선택해주세요');
       return;
     }
 
@@ -37,26 +81,23 @@ const VisualizationPage = () => {
 
     try {
       setLoading(true);
-      // 시작일을 00:00:00으로, 종료일을 23:59:59로 설정
-      const startDate = dateRange[0].startOf('day');
-      const endDate = dateRange[1].endOf('day');
-
       const response = await VisualizationService.getVisualizationData(
         vizType,
-        startDate.toDate(),
-        endDate.toDate()
+        dateRange[0].startOf('day').toDate(),
+        dateRange[1].endOf('day').toDate()
       );
-      setData(response.data);
+      setData(response);
     } catch (error) {
-      message.error('데이터 조회 중 오류가 발생했습니다');
+      // 백엔드에서 전달한 에러 메시지 표시
+      if (error.response?.data?.detail) {
+        message.error(error.response.data.detail);
+      } else {
+        message.error('데이터 조회 중 오류가 발생했습니다');
+      }
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchData();
-  }, [vizType, dateRange]);
 
   const disabledDate = (current) => {
     return current && current > dayjs().endOf('day');
@@ -65,15 +106,15 @@ const VisualizationPage = () => {
   return (
     <Content style={{ padding: '24px' }}>
       <Card>
-        <div style={{ marginBottom: 24, display: 'flex', gap: 16 }}>
+        <div style={{ marginBottom: 24, display: 'flex', gap: 16, alignItems: 'center' }}>
           <Select
             value={vizType}
-            onChange={setVizType}
+            onChange={(value) => {
+              setVizType(value);
+              setData(null);
+            }}
             style={{ width: 200 }}
-            options={[
-              { value: VISUALIZATION_TYPES.DELIVERY_STATUS, label: '배송 현황' },
-              { value: VISUALIZATION_TYPES.HOURLY_ORDERS, label: '시간별 접수량' }
-            ]}
+            options={VISUALIZATION_OPTIONS}
           />
           <RangePicker
             value={dateRange}
@@ -81,13 +122,18 @@ const VisualizationPage = () => {
             disabledDate={disabledDate}
             style={{ width: 300 }}
           />
+          {oldestDate && (
+            <Text type="secondary">
+              * {oldestDate}부터 데이터 조회 가능
+            </Text>
+          )}
         </div>
 
         {loading ? (
           <LoadingSpin />
         ) : (
           <div style={{ height: 400 }}>
-            {vizType === VISUALIZATION_TYPES.DELIVERY_STATUS ? (
+            {vizType === CHART_TYPES.DELIVERY_STATUS ? (
               <StatusPieChart data={data} />
             ) : (
               <HourlyBarChart data={data} />

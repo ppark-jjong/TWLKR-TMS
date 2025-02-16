@@ -1,5 +1,6 @@
 // frontend/src/services/AuthService.js
 import axios from 'axios';
+import ErrorHandler from '../utils/ErrorHandler';
 
 class AuthService {
   /**
@@ -20,13 +21,12 @@ class AuthService {
         localStorage.setItem('refresh_token', response.data.token.refresh_token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
-        // axios 기본 헤더 설정
         axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token.access_token}`;
       }
       
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '로그인 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -47,7 +47,6 @@ class AuthService {
           localStorage.setItem('refresh_token', response.data.refresh_token);
         }
         
-        // axios 기본 헤더 업데이트
         axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
         
         return response.data;
@@ -57,7 +56,8 @@ class AuthService {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
-      throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+      // 에러 처리는 인터셉터에서 수행
+      throw error;
     }
   }
 
@@ -81,19 +81,11 @@ class AuthService {
     }
   }
 
-  /**
-   * 현재 로그인한 사용자 정보 반환
-   * @returns {Object|null} 사용자 정보
-   */
   getCurrentUser() {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   }
 
-  /**
-   * 액세스 토큰 반환
-   * @returns {string|null} 액세스 토큰
-   */
   getAccessToken() {
     return localStorage.getItem('access_token');
   }

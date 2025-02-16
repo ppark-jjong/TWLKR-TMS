@@ -6,7 +6,10 @@ import DashboardService from '../../services/DashboardService';
 import { 
   STATUS_TYPES, 
   WAREHOUSES, 
-  SLA_TYPES 
+  SLA_TYPES,
+  TYPE_TEXTS,
+  WAREHOUSE_TEXTS,
+  SLA_TEXTS
 } from '../../utils/Constants';
 
 const { Option } = Select;
@@ -14,9 +17,21 @@ const { Option } = Select;
 const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = React.useState(false);
-  // 전화번호 포맷팅 처리
+
+  // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
-    const formattedNumber = formatPhoneNumber(e.target.value);
+    let value = e.target.value;
+    
+    // 공백 제거
+    value = value.trim();
+    
+    // 숫자만 추출
+    value = value.replace(/[^\d]/g, '');
+    
+    // 하이픈 포함된 형식으로 변환
+    const formattedNumber = formatPhoneNumber(value);
+    
+    // 폼 값 업데이트
     form.setFieldsValue({ contact: formattedNumber });
   };
 
@@ -24,22 +39,18 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
     try {
       const values = await form.validateFields();
       setLoading(true);
+
       // 우편번호 5자리 검증
       if (!/^\d{5}$/.test(values.postal_code)) {
         message.error('우편번호는 5자리 숫자여야 합니다');
         return;
       }
-      // 전화번호 형식 검증
+
+      // 연락처 형식 검증
       if (!/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.contact)) {
         message.error('올바른 전화번호 형식이 아닙니다');
         return;
       }
-      // ETA 시간 포맷 변환
-      const formattedValues = {
-        ...values,
-        eta: values.eta.toISOString(),
-        department: userDepartment
-      };
 
       const dashboardData = {
         ...values,
@@ -53,7 +64,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
       onSuccess();
     } catch (error) {
       if (error.isAxiosError) {
-        message.error(error.response.data.detail || '대시보드 생성 중 오류가 발생했습니다');
+        message.error(error.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다');
       } else {
         message.error('대시보드 생성 중 오류가 발생했습니다');
       }
@@ -82,8 +93,9 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: '종류를 선택해주세요' }]}
         >
           <Select>
-            <Option value="DELIVERY">배송</Option>
-            <Option value="RETURN">회수</Option>
+            {Object.entries(TYPE_TEXTS).map(([key, value]) => (
+              <Option key={key} value={key}>{value}</Option>
+            ))}
           </Select>
         </Form.Item>
 
@@ -101,10 +113,9 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: '출발허브를 선택해주세요' }]}
         >
           <Select>
-            <Option value="SEOUL">서울</Option>
-            <Option value="BUSAN">부산</Option>
-            <Option value="GWANGJU">광주</Option>
-            <Option value="DAEJEON">대전</Option>
+            {Object.entries(WAREHOUSE_TEXTS).map(([key, value]) => (
+              <Option key={key} value={key}>{value}</Option>
+            ))}
           </Select>
         </Form.Item>
 
@@ -114,12 +125,9 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: 'SLA를 선택해주세요' }]}
         >
           <Select>
-            <Option value="XHR">XHR</Option>
-            <Option value="POX">POX</Option>
-            <Option value="EMC">EMC</Option>
-            <Option value="WEWORK">WEWORK</Option>
-            <Option value="LENOVO">LENOVO</Option>
-            <Option value="ETC">기타</Option>
+            {Object.entries(SLA_TEXTS).map(([key, value]) => (
+              <Option key={key} value={key}>{value}</Option>
+            ))}
           </Select>
         </Form.Item>
 
@@ -143,7 +151,13 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
             { pattern: /^\d{5}$/, message: '5자리 숫자로 입력해주세요' }
           ]}
         >
-          <Input maxLength={5} />
+          <Input 
+            maxLength={5}
+            onChange={(e) => {
+              const value = e.target.value.trim().replace(/[^\d]/g, '');
+              form.setFieldsValue({ postal_code: value });
+            }}
+          />
         </Form.Item>
 
         <Form.Item
@@ -151,7 +165,13 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           label="도착주소"
           rules={[{ required: true, message: '주소를 입력해주세요' }]}
         >
-          <Input.TextArea rows={2} />
+          <Input.TextArea 
+            rows={2}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              form.setFieldsValue({ address: value });
+            }}
+          />
         </Form.Item>
 
         <Form.Item
@@ -159,7 +179,12 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           label="수령인"
           rules={[{ required: true, message: '수령인을 입력해주세요' }]}
         >
-          <Input />
+          <Input 
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              form.setFieldsValue({ customer: value });
+            }}
+          />
         </Form.Item>
 
         <Form.Item
@@ -170,14 +195,24 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
             { pattern: /^\d{2,3}-\d{3,4}-\d{4}$/, message: '올바른 연락처 형식으로 입력해주세요 (예: 010-1234-5678)' }
           ]}
         >
-          <Input placeholder="010-1234-5678" />
+          <Input 
+            placeholder="01012345678"
+            onChange={handlePhoneChange}
+            maxLength={13}
+          />
         </Form.Item>
 
         <Form.Item
           name="remark"
           label="메모"
         >
-          <Input.TextArea rows={3} />
+          <Input.TextArea 
+            rows={3}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              form.setFieldsValue({ remark: value });
+            }}
+          />
         </Form.Item>
       </Form>
     </Modal>

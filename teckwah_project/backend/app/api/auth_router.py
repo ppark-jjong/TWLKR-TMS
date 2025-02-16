@@ -48,16 +48,15 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
 
 @router.post("/logout")
 async def logout(request: LogoutRequest, db: Session = Depends(get_db)):
-    """로그아웃 API
-    - 리프레시 토큰 DB에서 삭제
-    """
+    """로그아웃 API"""
     try:
         repository = AuthRepository(db)
         service = AuthService(repository)
-        service.logout(request.refresh_token)
-        return {"message": "로그아웃되었습니다"}
+        success = service.logout(request.refresh_token)
+        return {"success": True, "message": "로그아웃이 완료되었습니다", "data": None}
     except Exception as e:
         log_error(e, "로그아웃 실패")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="로그아웃 처리 중 오류가 발생했습니다",
         )

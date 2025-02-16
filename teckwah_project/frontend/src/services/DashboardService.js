@@ -15,14 +15,9 @@ class DashboardService {
         }
       });
       
-      // 데이터가 없는 경우 빈 배열 반환
-      if (!response.data || response.data.length === 0) {
-        return [];
-      }
-      
-      return response.data;
+      return response.data || [];
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '대시보드 목록 조회 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -39,7 +34,7 @@ class DashboardService {
       }
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '대시보드 상세 정보 조회 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -53,7 +48,7 @@ class DashboardService {
       const response = await axios.post('/dashboard', dashboardData);
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -70,7 +65,7 @@ class DashboardService {
       });
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '상태 업데이트 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -87,7 +82,7 @@ class DashboardService {
       });
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '메모 업데이트 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -101,7 +96,7 @@ class DashboardService {
       const response = await axios.post('/dashboard/assign', driverData);
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다');
+      throw error;
     }
   }
 
@@ -113,11 +108,11 @@ class DashboardService {
   async deleteDashboards(dashboardIds) {
     try {
       const response = await axios.delete('/dashboard', {
-        data: { dashboard_ids: dashboardIds }
+        data: dashboardIds
       });
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.detail || '대시보드 삭제 중 오류가 발생했습니다');
+      throw error;
     }
   }
 }

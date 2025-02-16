@@ -1,9 +1,7 @@
-# backend/app/schemas/dashboard_schema.py
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
-import re
 
 
 class DashboardType(str, Enum):
@@ -38,6 +36,7 @@ class SLAType(str, Enum):
     WEWORK = "WEWORK"
     LENOVO = "LENOVO"
     ETC = "ETC"
+    NBD = "NBD"
 
 
 class DashboardCreate(BaseModel):
@@ -48,22 +47,15 @@ class DashboardCreate(BaseModel):
     eta: datetime
     postal_code: str = Field(..., min_length=5, max_length=5, pattern=r"^\d{5}$")
     address: str = Field(..., min_length=1)
-    customer: str = Field(..., min_length=1)
-    contact: str = Field(..., pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
+    customer: Optional[str] = None
+    contact: Optional[str] = Field(None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
     remark: Optional[str] = None
 
     @validator("eta")
     def validate_eta(cls, v):
-        # timezone 제거하고 naive datetime으로 비교
         now = datetime.now()
         if v.replace(tzinfo=None) < now.replace(tzinfo=None):
             raise ValueError("ETA는 현재 시간 이후여야 합니다")
-        return v
-
-    @validator("contact")
-    def validate_contact(cls, v):
-        if not re.match(r"^\d{2,3}-\d{3,4}-\d{4}$", v):
-            raise ValueError("연락처 형식이 올바르지 않습니다 (예: 010-1234-5678)")
         return v
 
 
@@ -79,13 +71,13 @@ class DashboardResponse(BaseModel):
     type: DashboardType
     department: Department
     warehouse: Warehouse
-    driver_name: Optional[str]
+    driver_name: Optional[str] = None
     order_no: int
     create_time: datetime
-    depart_time: Optional[datetime]
+    depart_time: Optional[datetime] = None
     eta: datetime
     status: DashboardStatus
-    region: Optional[str]
+    region: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -96,20 +88,20 @@ class DashboardDetail(BaseModel):
     type: DashboardType
     department: Department
     warehouse: Warehouse
-    driver_name: Optional[str]
-    driver_contact: Optional[str]
+    driver_name: Optional[str] = None
+    driver_contact: Optional[str] = None
     order_no: int
     eta: datetime
     status: DashboardStatus
     create_time: datetime
-    depart_time: Optional[datetime]
-    complete_time: Optional[datetime]
+    depart_time: Optional[datetime] = None
+    complete_time: Optional[datetime] = None
     address: str
-    distance: Optional[int]
-    duration_time: Optional[int]
-    customer: str
-    contact: str
-    remark: Optional[str]
+    distance: Optional[int] = None
+    duration_time: Optional[int] = None
+    customer: Optional[str] = None
+    contact: Optional[str] = None
+    remark: Optional[str] = None
 
     class Config:
         from_attributes = True

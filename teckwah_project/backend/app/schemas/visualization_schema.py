@@ -6,23 +6,8 @@ from enum import Enum
 
 
 class ChartType(str, Enum):
-    DELIVERY_STATUS = "배송 현황"
-    HOURLY_ORDERS = "시간별 접수량"
-
-
-class DateRange(BaseModel):
-    start_date: date
-    end_date: date
-
-    @validator("end_date")
-    def validate_date_range(cls, v, values):
-        if "start_date" in values:
-            start = values["start_date"]
-            if (v - start).days > 31:
-                raise ValueError("조회 기간은 1개월을 초과할 수 없습니다")
-            if v < start:
-                raise ValueError("종료일은 시작일 이후여야 합니다")
-        return v
+    DELIVERY_STATUS = "delivery_status"
+    HOURLY_ORDERS = "hourly_orders"
 
 
 class StatusData(BaseModel):
@@ -37,15 +22,25 @@ class HourlyData(BaseModel):
 
 
 class DeliveryStatusResponse(BaseModel):
+    type: str = "delivery_status"
     total_count: int
     status_breakdown: List[StatusData]
 
 
 class HourlyOrdersResponse(BaseModel):
+    type: str = "hourly_orders"
     total_count: int
     hourly_breakdown: List[HourlyData]
 
 
-class VisualizationResponse(BaseModel):
-    type: ChartType
-    data: dict
+class DateRange(BaseModel):
+    start_date: date
+    end_date: date
+
+    @validator("end_date")
+    def validate_dates(cls, end_date, values):
+        if "start_date" in values and end_date < values["start_date"]:
+            raise ValueError("종료일은 시작일 이후여야 합니다")
+        if end_date > date.today():
+            raise ValueError("미래 날짜는 조회할 수 없습니다")
+        return end_date

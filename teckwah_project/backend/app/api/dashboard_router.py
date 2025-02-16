@@ -154,9 +154,17 @@ def delete_dashboards(
     try:
         log_info("대시보드 삭제 요청", {"dashboard_ids": dashboard_ids})
         success = service.delete_dashboards(dashboard_ids)
-        message = "선택한 항목이 삭제되었습니다"
-        log_info(message)
-        return {"success": success, "message": message}
+        if success:
+            return {
+                "success": True,
+                "message": "선택한 항목이 삭제되었습니다",
+                "data": {"deleted_ids": dashboard_ids},
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="삭제 처리에 실패했습니다",
+            )
     except Exception as e:
         log_error(e, "대시보드 삭제 실패")
         raise
