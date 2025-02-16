@@ -1,6 +1,6 @@
 // frontend/src/components/visualization/StatusPieChart.js
 import React from 'react';
-import { Card, Typography, Empty } from 'antd';
+import { Typography, Empty } from 'antd';
 import { Pie } from '@ant-design/plots';
 import { STATUS_TEXTS } from '../../utils/Constants';
 import { formatNumber } from '../../utils/Formatter';
@@ -19,27 +19,30 @@ const StatusPieChart = ({ data }) => {
     radius: 0.8,
     label: {
       type: 'outer',
-      content: '{name}\n{percentage}%'
+      content: ({ name, percent }) => `${STATUS_TEXTS[name]}\n${(percent * 100).toFixed(2)}%`
     },
     legend: {
       layout: 'horizontal',
-      position: 'bottom'
+      position: 'bottom',
+      itemName: {
+        formatter: (text) => STATUS_TEXTS[text] || text
+      }
     },
     interactions: [{ type: 'element-active' }],
     tooltip: {
       formatter: (datum) => ({
         name: STATUS_TEXTS[datum.status],
-        value: `${formatNumber(datum.count)}건 (${datum.percentage}%)`
+        value: `${formatNumber(datum.count)}건 (${datum.percentage.toFixed(2)}%)`
       })
     }
   };
 
   return (
-    <div>
-      <Title level={4} style={{ textAlign: 'center', marginBottom: 16 }}>
+    <div style={{ textAlign: 'center' }}>
+      <Title level={4} style={{ marginBottom: 16 }}>
         배송 현황
       </Title>
-      <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
+      <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
         {`총 ${formatNumber(data.total_count)}건`}
       </Text>
       <div style={{ height: 400 }}>

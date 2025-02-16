@@ -34,17 +34,24 @@ const HourlyBarChart = ({ data }) => {
       position: 'top',
       style: {
         fill: 'rgba(0,0,0,0.65)',
+        fontSize: 12
       },
       formatter: (v) => formatNumber(v.count)
     },
     xAxis: {
       label: {
-        autoRotate: false
+        autoRotate: false,
+        style: {
+          fontSize: 12
+        }
       }
     },
     yAxis: {
       label: {
-        formatter: value => formatNumber(value)
+        formatter: value => formatNumber(value),
+        style: {
+          fontSize: 12
+        }
       }
     },
     tooltip: {
@@ -56,11 +63,11 @@ const HourlyBarChart = ({ data }) => {
   };
 
   return (
-    <div>
-      <Title level={4} style={{ textAlign: 'center', marginBottom: 16 }}>
+    <div style={{ textAlign: 'center' }}>
+      <Title level={4} style={{ marginBottom: 16 }}>
         시간대별 접수량
       </Title>
-      <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
+      <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
         {`총 ${formatNumber(data.total_count)}건`}
       </Text>
       <div style={{ height: 400 }}>
