@@ -1,16 +1,25 @@
 // frontend/src/components/dashboard/AssignDriverModal.js
 import React from 'react';
-import { Modal, Form, Input, message } from 'antd';
+import { Modal, Form, Input, message, Typography, Space } from 'antd';
 import { formatPhoneNumber } from '../../utils/Formatter';
 import { STATUS_TYPES } from '../../utils/Constants';
 import DashboardService from '../../services/DashboardService';
+
+const { Text } = Typography;
 
 const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = React.useState(false);
 
+  // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
-    const formattedNumber = formatPhoneNumber(e.target.value);
+    let value = e.target.value;
+    // 공백 제거
+    value = value.trim();
+    // 숫자만 추출
+    value = value.replace(/[^\d]/g, '');
+    // 하이픈 포함된 형식으로 변환
+    const formattedNumber = formatPhoneNumber(value);
     form.setFieldsValue({ driver_contact: formattedNumber });
   };
 
@@ -18,26 +27,34 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
     try {
       const values = await form.validateFields();
       setSubmitting(true);
-  
+
       // 대기 상태가 아닌 항목 검증
       const nonWaitingItems = selectedRows.filter(row => row.status !== STATUS_TYPES.WAITING);
+      
       if (nonWaitingItems.length > 0) {
-        const nonWaitingOrders = nonWaitingItems.map(row => row.order_no).join(', ');
-        message.warning(`다음 주문은 대기 상태가 아니어서 배차할 수 없습니다:\n${nonWaitingOrders}`);
+        const nonWaitingOrders = nonWaitingItems.map(row => 
+          `${row.order_no}(${row.status === STATUS_TYPES.IN_PROGRESS ? '진행' : 
+            row.status === STATUS_TYPES.COMPLETE ? '완료' : '이슈'})`
+        ).join(', ');
+        
+        message.warning(
+          `다음 주문은 대기 상태가 아니어서 배차할 수 없습니다:\n${nonWaitingOrders}\n\n` +
+          '배차하려면 먼저 상태를 대기로 변경해주세요.'
+        );
         return;
       }
-  
+
       // 연락처 형식 검증
       if (!/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.driver_contact)) {
         throw new Error('올바른 연락처 형식이 아닙니다');
       }
-  
+
       await DashboardService.assignDriver({
         dashboard_ids: selectedRows.map(row => row.dashboard_id),
         driver_name: values.driver_name,
         driver_contact: values.driver_contact
       });
-  
+
       message.success('배차가 완료되었습니다');
       form.resetFields();
       onSuccess();
@@ -47,18 +64,39 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       setSubmitting(false);
     }
   };
+
   return (
     <Modal
-      title="배차 정보 입력"
+      title={
+        <Space direction="vertical" size={4}>
+          <Text strong style={{ fontSize: '16px' }}>배차 정보 입력</Text>
+          <Text type="secondary" style={{ fontSize: '14px' }}>
+            선택된 주문: {selectedRows.length}건
+          </Text>
+        </Space>
+      }
       open={visible}
       onCancel={onCancel}
       onOk={handleSubmit}
       confirmLoading={submitting}
       maskClosable={false}
+      width={600}
     >
-      <div style={{ marginBottom: 16 }}>
-        <strong>선택된 주문번호:</strong>
-        <div style={{ marginTop: 8, fontSize: '14px' }}>
+      <div style={{ 
+        marginBottom: 16, 
+        padding: '12px',
+        backgroundColor: '#f5f5f5',
+        borderRadius: '4px'
+      }}>
+        <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+          선택된 주문번호:
+        </Text>
+        <div style={{ 
+          maxHeight: '100px', 
+          overflowY: 'auto',
+          fontSize: '14px',
+          lineHeight: '1.5'
+        }}>
           {selectedRows.map(row => row.order_no).join(', ')}
         </div>
       </div>
@@ -69,7 +107,13 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
           label="기사 이름"
           rules={[{ required: true, message: '기사 이름을 입력해주세요' }]}
         >
-          <Input placeholder="기사 이름을 입력하세요" />
+          <Input 
+            placeholder="기사 이름을 입력하세요"
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              form.setFieldsValue({ driver_name: value });
+            }}
+          />
         </Form.Item>
 
         <Form.Item
@@ -82,7 +126,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
         >
           <Input
             onChange={handlePhoneChange}
-            placeholder="010-1234-5678"
+            placeholder="01012345678"
             maxLength={13}
           />
         </Form.Item>

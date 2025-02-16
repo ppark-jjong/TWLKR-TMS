@@ -4,11 +4,11 @@ import { Modal, Form, Input, Select, DatePicker, message } from 'antd';
 import { formatPhoneNumber } from '../../utils/Formatter';
 import DashboardService from '../../services/DashboardService';
 import { 
-  STATUS_TYPES, 
-  WAREHOUSES, 
-  SLA_TYPES,
+  TYPE_TYPES,
   TYPE_TEXTS,
+  WAREHOUSE_TYPES,
   WAREHOUSE_TEXTS,
+  SLA_TYPES,
   SLA_TEXTS
 } from '../../utils/Constants';
 
@@ -21,17 +21,12 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
   // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
     let value = e.target.value;
-    
     // 공백 제거
     value = value.trim();
-    
     // 숫자만 추출
     value = value.replace(/[^\d]/g, '');
-    
     // 하이픈 포함된 형식으로 변환
     const formattedNumber = formatPhoneNumber(value);
-    
-    // 폼 값 업데이트
     form.setFieldsValue({ contact: formattedNumber });
   };
 
@@ -93,8 +88,8 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: '종류를 선택해주세요' }]}
         >
           <Select>
-            {Object.entries(TYPE_TEXTS).map(([key, value]) => (
-              <Option key={key} value={key}>{value}</Option>
+            {Object.entries(TYPE_TYPES).map(([key, value]) => (
+              <Option key={key} value={value}>{TYPE_TEXTS[key]}</Option>
             ))}
           </Select>
         </Form.Item>
@@ -104,7 +99,12 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           label="order_no"
           rules={[{ required: true, message: 'order_no를 입력해주세요' }]}
         >
-          <Input />
+          <Input 
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              form.setFieldsValue({ order_no: value });
+            }}
+          />
         </Form.Item>
 
         <Form.Item
@@ -113,8 +113,8 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: '출발허브를 선택해주세요' }]}
         >
           <Select>
-            {Object.entries(WAREHOUSE_TEXTS).map(([key, value]) => (
-              <Option key={key} value={key}>{value}</Option>
+            {Object.entries(WAREHOUSE_TYPES).map(([key, value]) => (
+              <Option key={key} value={value}>{WAREHOUSE_TEXTS[key]}</Option>
             ))}
           </Select>
         </Form.Item>
@@ -125,8 +125,8 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: 'SLA를 선택해주세요' }]}
         >
           <Select>
-            {Object.entries(SLA_TEXTS).map(([key, value]) => (
-              <Option key={key} value={key}>{value}</Option>
+            {Object.entries(SLA_TYPES).map(([key, value]) => (
+              <Option key={key} value={value}>{SLA_TEXTS[key]}</Option>
             ))}
           </Select>
         </Form.Item>

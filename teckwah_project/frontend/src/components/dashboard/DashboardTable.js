@@ -4,10 +4,13 @@ import { Table, Tag, Input, Select, Space, Pagination } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { formatDateTime } from '../../utils/Formatter';
 import { 
-  STATUS_COLORS, 
+  STATUS_TYPES,
   STATUS_TEXTS,
-  DEPARTMENTS,
-  TYPE_TEXTS
+  STATUS_COLORS,
+  DEPARTMENT_TYPES,
+  DEPARTMENT_TEXTS,
+  TYPE_TEXTS,
+  WAREHOUSE_TEXTS
 } from '../../utils/Constants';
 
 const { Search } = Input;
@@ -27,17 +30,39 @@ const DashboardTable = ({
 
   // 테이블 헤더 스타일
   const headerStyle = {
-    backgroundColor: '#f5f7fa',
-    color: '#1f1f1f',
+    backgroundColor: '#f7fafc',
+    color: '#1a202c',
     fontWeight: 600,
-    borderBottom: '2px solid #e8e8e8'
+    fontSize: '14px',
+    borderBottom: '2px solid #e2e8f0'
   };
 
-  // 데이터 셀 스타일
+  // 테이블 셀 스타일
   const cellStyle = {
     fontSize: '14px',
-    padding: '12px 16px'
+    padding: '12px 16px',
+    fontWeight: 'normal'
   };
+
+  // 필터링된 데이터
+  const filteredData = useMemo(() => {
+    let filtered = [...dataSource];
+
+    if (searchText) {
+      const searchLower = searchText.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.order_no.toString().includes(searchLower) ||
+        item.customer?.toLowerCase().includes(searchLower) ||
+        (item.driver_name && item.driver_name.toLowerCase().includes(searchLower))
+      );
+    }
+
+    if (departmentFilter) {
+      filtered = filtered.filter(item => item.department === departmentFilter);
+    }
+
+    return filtered;
+  }, [dataSource, searchText, departmentFilter]);
 
   const columns = [
     {
@@ -52,14 +77,14 @@ const DashboardTable = ({
       dataIndex: 'department',
       key: 'department',
       width: 100,
-      render: text => <span style={cellStyle}>{text}</span>
+      render: text => <span style={cellStyle}>{DEPARTMENT_TEXTS[text]}</span>
     },
     {
       title: '출발 허브',
       dataIndex: 'warehouse',
       key: 'warehouse',
       width: 120,
-      render: text => <span style={cellStyle}>{text}</span>
+      render: text => <span style={cellStyle}>{WAREHOUSE_TEXTS[text]}</span>
     },
     {
       title: '담당 기사',
@@ -102,7 +127,14 @@ const DashboardTable = ({
       key: 'status',
       width: 120,
       render: status => (
-        <Tag color={STATUS_COLORS[status]} style={{ padding: '4px 12px', fontSize: '14px' }}>
+        <Tag 
+          color={STATUS_COLORS[status]} 
+          style={{
+            padding: '4px 12px',
+            fontSize: '14px',
+            borderRadius: '4px'
+          }}
+        >
           {STATUS_TEXTS[status]}
         </Tag>
       )
@@ -125,16 +157,15 @@ const DashboardTable = ({
         backgroundColor: '#fff',
         zIndex: 10,
         padding: '16px 0',
-        borderBottom: '1px solid #f0f0f0'
+        borderBottom: '1px solid #e2e8f0'
       }}>
         <div style={{ 
-          marginBottom: 16, 
           display: 'flex', 
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: 16 
         }}>
-          <Space>
+          <Space size="middle">
             <Search
               placeholder="주문번호, 고객명, 기사명 검색"
               allowClear
@@ -147,8 +178,8 @@ const DashboardTable = ({
               style={{ width: 200 }}
               onChange={setDepartmentFilter}
             >
-              {Object.entries(DEPARTMENTS).map(([key, value]) => (
-                <Option key={key} value={value}>{value}</Option>
+              {Object.entries(DEPARTMENT_TYPES).map(([key, value]) => (
+                <Option key={key} value={value}>{DEPARTMENT_TEXTS[key]}</Option>
               ))}
             </Select>
           </Space>
@@ -159,7 +190,7 @@ const DashboardTable = ({
             total={filteredData.length}
             showTotal={(total) => `총 ${total}건`}
             showSizeChanger={false}
-            size="small"
+            size="default"
           />
         </div>
       </div>
@@ -185,18 +216,12 @@ const DashboardTable = ({
           style: {
             cursor: 'pointer',
             backgroundColor: 
-              record.status === 'WAITING' ? '#f5f5f5' :
-              record.status === 'IN_PROGRESS' ? '#fff7e6' :
-              record.status === 'COMPLETE' ? '#f6ffed' :
-              record.status === 'ISSUE' ? '#fff1f0' : 'white'
+              record.status === STATUS_TYPES.WAITING ? '#f7fafc' :
+              record.status === STATUS_TYPES.IN_PROGRESS ? '#fffaf0' :
+              record.status === STATUS_TYPES.COMPLETE ? '#f0fff4' :
+              record.status === STATUS_TYPES.ISSUE ? '#fff5f5' : 'white'
           }
         })}
-        style={{
-          '.ant-table-thead > tr > th': {
-            backgroundColor: '#f5f7fa',
-            fontWeight: 600
-          }
-        }}
       />
     </div>
   );

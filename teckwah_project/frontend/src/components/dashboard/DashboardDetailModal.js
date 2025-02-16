@@ -1,7 +1,13 @@
 // frontend/src/components/dashboard/DashboardDetailModal.js
 import React, { useState } from 'react';
-import { Modal, Descriptions, Select, Input, Button, message, Space, Typography } from 'antd';
-import { STATUS_TYPES, STATUS_TEXTS, TYPE_TEXTS } from '../../utils/Constants';
+import { Modal, Descriptions, Select, Input, Button, message, Space, Typography, Tag } from 'antd';
+import { 
+  STATUS_TYPES,
+  STATUS_TEXTS,
+  STATUS_COLORS,
+  TYPE_TEXTS,
+  WAREHOUSE_TEXTS
+} from '../../utils/Constants';
 import { 
   formatDateTime, 
   formatDistance, 
@@ -13,14 +19,6 @@ import DashboardService from '../../services/DashboardService';
 const { TextArea } = Input;
 const { Text } = Typography;
 
-/**
- * 대시보드 상세 정보 모달 컴포넌트
- * @param {Object} props
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Function} props.onCancel - 취소 핸들러
- * @param {Function} props.onSuccess - 성공 시 콜백
- * @param {Object} props.dashboard - 대시보드 데이터
- */
 const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   const [loading, setLoading] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
@@ -28,23 +26,16 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   const [newStatus, setNewStatus] = useState(dashboard.status);
   const [newRemark, setNewRemark] = useState(dashboard.remark);
 
-  // 상태 변경 가능 여부 및 옵션 확인
+  // 상태 변경 시에도 이전 상태로 돌아갈 수 있도록 수정
   const getStatusOptions = () => {
-    const currentStatus = dashboard.status;
-    let allowedStatus = [];
-
-    // 모든 상태 전환 가능하도록 수정
-    const allStatuses = Object.values(STATUS_TYPES)
-      .filter(status => status !== currentStatus)
+    return Object.values(STATUS_TYPES)
+      .filter(status => status !== newStatus)
       .map(status => ({
         value: status,
         label: STATUS_TEXTS[status]
       }));
-
-    return allStatuses;
   };
 
-  // 상태 업데이트 처리
   const handleStatusUpdate = async () => {
     try {
       setLoading(true);
@@ -52,7 +43,7 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
       message.success('상태가 업데이트되었습니다');
       setEditingStatus(false);
       onSuccess();
-      onCancel(); // 모달 자동 종료
+      onCancel();
     } catch (error) {
       message.error('상태 업데이트 중 오류가 발생했습니다');
     } finally {
@@ -60,7 +51,6 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
     }
   };
 
-  // 메모 업데이트 처리
   const handleRemarkUpdate = async () => {
     try {
       setLoading(true);
@@ -68,7 +58,7 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
       message.success('메모가 업데이트되었습니다');
       setEditingRemark(false);
       onSuccess();
-      onCancel(); // 모달 자동 종료
+      onCancel();
     } catch (error) {
       message.error('메모 업데이트 중 오류가 발생했습니다');
     } finally {
@@ -79,9 +69,9 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   return (
     <Modal
       title={
-        <Space direction="vertical" size={4}>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
           <Text strong style={{ fontSize: '18px' }}>대시보드 상세 정보</Text>
-          <Text strong style={{ fontSize: '20px', color: '#1890ff' }}>
+          <Text strong style={{ fontSize: '24px', color: '#1890ff' }}>
             주문번호: {dashboard.order_no}
           </Text>
         </Space>
@@ -89,20 +79,30 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
       open={visible}
       onCancel={onCancel}
       footer={null}
-      width={900}  
+      width={900}
       maskClosable={false}
     >
-      <Descriptions bordered column={2}>
-        <Descriptions.Item label="종류">{TYPE_TEXTS[dashboard.type] || dashboard.type}</Descriptions.Item>
+      <Descriptions 
+        bordered 
+        column={2}
+        style={{ marginTop: '16px' }}
+      >
+        <Descriptions.Item label="종류">{TYPE_TEXTS[dashboard.type]}</Descriptions.Item>
         <Descriptions.Item label="부서">{dashboard.department}</Descriptions.Item>
-        <Descriptions.Item label="출발 허브">{dashboard.warehouse}</Descriptions.Item>
+        <Descriptions.Item label="출발 허브">{WAREHOUSE_TEXTS[dashboard.warehouse]}</Descriptions.Item>
         <Descriptions.Item label="담당 기사">{dashboard.driver_name || '-'}</Descriptions.Item>
         <Descriptions.Item label="기사 연락처">
           {dashboard.driver_contact ? formatPhoneNumber(dashboard.driver_contact) : '-'}
         </Descriptions.Item>
         
         <Descriptions.Item label="배송 상태" span={2}>
-          <div style={{ display: 'flex', gap: 8, minHeight: '32px', alignItems: 'center' }}>
+          <div style={{ 
+            display: 'flex', 
+            gap: 8, 
+            minHeight: '40px', 
+            alignItems: 'center',
+            width: '100%' 
+          }}>
             {editingStatus ? (
               <Space size="middle">
                 <Select
@@ -112,11 +112,17 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
                   options={getStatusOptions()}
                 />
                 <Button onClick={handleStatusUpdate} loading={loading} type="primary">저장</Button>
-                <Button onClick={() => setEditingStatus(false)}>취소</Button>
+                <Button onClick={() => {
+                  setEditingStatus(false);
+                  setNewStatus(dashboard.status);
+                }}>취소</Button>
               </Space>
             ) : (
               <Space>
-                <Tag color={STATUS_COLORS[dashboard.status]} style={{ padding: '4px 12px' }}>
+                <Tag 
+                  color={STATUS_COLORS[dashboard.status]}
+                  style={{ padding: '4px 12px', fontSize: '14px' }}
+                >
                   {STATUS_TEXTS[dashboard.status]}
                 </Tag>
                 <Button 
@@ -152,7 +158,10 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
               />
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <Button onClick={handleRemarkUpdate} loading={loading} type="primary">저장</Button>
-                <Button onClick={() => setEditingRemark(false)}>취소</Button>
+                <Button onClick={() => {
+                  setEditingRemark(false);
+                  setNewRemark(dashboard.remark);
+                }}>취소</Button>
               </div>
             </div>
           ) : (
