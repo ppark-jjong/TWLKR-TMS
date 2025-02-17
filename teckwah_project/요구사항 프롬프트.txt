@@ -1,222 +1,125 @@
---------------[기본 프로젝트 설명]--------------
-
-1. 프로젝트 명: 배송 실시간 관제 시스템 및 데이터 시각화 서비스
-2. 기술 스택:
-	- 프론트엔드: React (Create React App, JavaScript), Ant Design, jsdoc
-	- 백엔드: FastAPI (Python)
-	- 데이터베이스: MySQL (Cloud SQL), DB 트리거: trg_dashboard_before_insert_postal → 대시보드 생성 시, 입력된 postal_code 값을 기반으로 postal_code 테이블에서 city, district, distance, duration_time 등을 조회하여 자동 업데이트
-3. 배포 환경:
-- 단일 컨테이너 배포 (Google App Engine, Docker-Desktop을 통한 로컬 테스트)
-- 프론트엔드 빌드 결과물(정적 파일)을 백엔드(FastAPI)에서 서빙
-4. 라이선스 및 패키지 정책:
-- GAE 배포 서비스 관련 유료 라이선스를 제외하고, 코드 구축에 사용되는 모든 패키지 및 라이브러리는 무료 버전만 사용
-5. 특징 및 주의 사항:
-- 프론트엔드와 백엔드는 동일 도메인에서 실행되므로 CORS 등 네트워크 미들웨어(Reverse Proxy 등)는 필요 없음
-- 네트워크 미들웨어와는 별개로, 백엔드에서는 API 요청마다 JWT 인증을 위한 "인증 로직"(예: FastAPI의 Depends를 활용한 토큰 검증)을 구현해야 함 (이것은 네트워크 미들웨어와는 다른 개념)
-- 로그인 시 발급받은 JWT 액세스 토큰(60분 만료)과 리프레시 토큰(7일 만료)을 프론트엔드에서 localStorage에 저장하고, 모든 API 호출 시 Axios 인터셉터를 통해 헤더에 자동 포함하도록 구성
+[프로젝트 개요]
+프로젝트 명: 배송 실시간 관제 시스템 및 데이터 시각화 서비스
+배포 환경: 단일 컨테이너 (Google App Engine), 로컬 테스트 시 Docker Desktop
+라이선스: 모든 코드 구축에 사용되는 패키지/라이브러리는 무료 버전 사용 (단, GAE 관련 유료 라이선스 제외)
 
 
---------------[프론트엔드 요구사항]--------------
-
-1. 공통 사항
-
-- 기술 스택: React (Create React App, .js 파일), Ant Design,  jsdoc를 활용하여 함수, 인자, 반환값을 명시하여 타입 오류를 최소화
-- 디자인: 깔끔하고 사용자 친화적인 UI/UX
-- public 폴더의 logo.png, favicorn 활용
-- 토큰 관리: 그인 시 발급받은 JWT 액세스 토큰(60분 만료)과 리프레시 토큰(7일 만료)을 localStorage에 저장, axios 인터셉터를 활용하여 모든 API 요청 시 Authorization: Bearer <토큰> 헤더에 자동 포함
-- 에러 핸들링: 타입 오류, 토큰 유지 오류, 데이터 유지 오류 등 발생 시 구체적 에러 메시지 및 사용자 알림 처리
-- Axios 인터셉터 
-요청 인터셉터:
-모든 API 요청 전, localStorage에서 JWT 액세스 토큰을 읽어 Authorization: Bearer <토큰> 헤더에 자동 포함
-응답 인터셉터:
-401 Unauthorized 응답 발생 시, 자동으로 토큰 갱신 API 호출 후 원래 요청 재시도
-에러 발생 시 구체적 에러 메시지를 사용자에게 알림
-서버 전체 실행, 사용자 UI/UX에는 문제가 없게 작동되어야 함
-
-2. 로그인 페이지
-
-2-1. 디자인 및 구성:
-- 간단하고 깔끔한 로그인 화면 (public 폴더의 logo.png 활용)
-- 사용자 입력 폼: ID 및 비밀번호
-2-2. 기능:
-- 클라이언트 측 입력 검증 수행
-- API 요청: /auth/login 엔드포인트에 JSON 형식으로 user_id와 password 전송
-2-3. 응답 처리:
-- 성공 시: 액세스 토큰과 리프레시 토큰을 수신 후 localStorage에 저장, Dashboard 페이지로 리다이렉션
-- 실패 시: 구체적인 에러 메시지 표시
-2-4. 인터셉터 적용:
-로그인 후 모든 API 요청에 JWT 토큰을 자동 포함
-
-3. 좌측 사이드바 (내비게이션)
-
-3-1. 표시 정보:
-- 사용자 이름 및 담당 부서 (user 테이블의 user_department), logo.png 활용
-3-2. 메뉴 항목:
-- 배송현황 (Dashboard 페이지)
-- 통계 (Visualization 페이지)
-- 로그아웃: 로그아웃 API 호출 후 localStorage에서 토큰 삭제, 로그인 페이지로 이동
-
-4. Dashboard 페이지 (실시간 배송 현황)
-
-4-1 초기 로드:
-- 로그인 후 기본적으로 오늘 날짜(YYYY-MM-DD)를 기준으로 ETA 컬럼 날짜가 일치하는 dashboard 리스트 데이터 api 요청
-4-2. 상단 고정 영역: 검색 바, 부서 필터 드롭다운, 대시보드 생성, 배차, 새로고침, 삭제 버튼 (스크롤에 영향 받지 않고 고정)
-- 검색, 부서 필터 기능은 front-side로 구현 , 페이지네이션 (최대 50행) 또한 front-side로 구현
-- 새로고침 버튼 클릭 시 현재 선택된 날짜의 dashboard 리스트 데이터 api 요청
-4-3. 테이블 구성
-컬럼 순서 및 표기:
-체크박스 (선택 여부; 제목 없음)
-type → “종류”
-department → “부서”
-warehouse → “출발 허브”
-driver_name → “담당 기사”
-order_no → “order_no”
-status → “배송 상태” (표시 전환: WAITING→대기, IN_PROGRESS→진행, COMPLETE→완료, ISSUE→이슈)
-eta → “ETA” (YYYY-MM-DD HH:MM 형식)
-region → “도착 지역”
-depart_time → “출발 시각”
-4-4 행의 UI: 각 행은 status 값에 따라 색상 변경 (대기: 회색, 진행: 노란색, 완료: 초록색, 이슈: 빨간색) => 바로 db에 적용되어야함
-4-5 날짜 선택 기능:
-현재 선택된 날짜(YYYY-MM-DD) 상단 표시, 날짜 클릭 시 달력 컴포넌트 팝업 → 선택한 날짜에 맞게 API 재요청
-4-6 행 선택 및 액션:
-다중 체크박스 선택 (선택된 행은 UI에서 표시)
-4-7 배차 기능:
-선택된 행이 없으면 알림 ("선택된 배차가 없습니다")
-배차는 status가 “대기”인 경우에만 가능, 대기인 경우에는 이미 배차되었어도 계속 수정 가능
-배차 버튼 클릭 시 모달창 띄움 (모달에 선택된 order_no 목록과 driver_name, driver_contact 입력 필드 제공, driver_contact 입력 시 자동 ‘-’ 삽입 처리)
-확인 시 입력 검증 후 배차 API 호출
-
-4-8. 삭제 기능:
-선택된 행에 대해 dashboard_id 리스트를 담아 삭제 API 호출 (status “대기”인 경우에만 적용)
-4-9 대시보드 생성 모달:
-입력 필드 (각 필드는 괄호 안의 명칭 사용):
-type (종류)
-order_no (order_no)
-department (부서; 로그인한 사용자의 부서 자동 입력)
-warehouse (출발허브)
-sla (SLA)
-eta (ETA; 24시간 형식)
-postal_code (우편번호)
-address (도착주소)
-customer (수령인)
-contact (연락처)
-remark (메모)
-생성 버튼 클릭 시 생성 API 호출
-4-10. 대시보드 상세 정보 모달:
-테이블 행 클릭 시 해당 dashboard_id 기반 상세 정보 조회 API 호출
-표시 데이터 (각 항목은 괄호 안의 제목 사용):
-type (종류), department (부서), warehouse (출발 허브), driver_name (담당 기사), driver_contact (기사 연락처), order_no (order_no), eta (ETA, YYYY-MM-DD HH:MM), status (배송 상태), create_time (접수 시각), depart_time (출발 시각), complete_time (완료 시각), address (주소), distance (거리), duration_time (예상 소요 시간), customer (수령인), contact (연락처), remark (메모)
-수정 기능:
-상세 정보 모달창 안에서 status와 remark는 각각 별도로 수정할 수 있습니다.
-status는 드롭다운 형식으로 변경 가능합니다
-status와 remark는 각각 별도의 수정 API 호출 (dashboard_id 포함)
+[기술 스택]
+Frontend: React (Create React App, JavaScript), Ant Design, jsdoc
+Backend: FastAPI (Python)
+Database: MySQL (Cloud SQL)
+특이 사항: DB 트리거 (trg_dashboard_before_insert_postal)를 통해 대시보드 생성 시 postal_code 기반 정보(city, district, distance, duration_time) 자동 업데이트
 
 
+[공통 사항]
+JWT 인증:
+토큰: 액세스 토큰 (60분 만료), 리프레시 토큰 (7일 만료; DB 저장)
+클라이언트: 로그인 시 localStorage에 저장, axios 인터셉터를 통해 모든 API 요청 시 Authorization: Bearer <토큰> 헤더 자동 포함
+서버: 모든 API 엔드포인트에서 FastAPI의 Depends를 활용해 JWT 검증, 만료/유효하지 않은 경우 401 Unauthorized 응답
+응답 형식: 모든 API는 JSON 형식으로 성공/실패 여부 및 구체적인 메시지 반환
+[Frontend 요구사항]
+로그인 페이지
 
-5. 시각화 페이지 (통계/데이터 분석)
+디자인: 간단한 로그인 화면, public 폴더의 logo.png 활용
+기능:
+사용자 입력 (ID, 비밀번호) 및 클라이언트 측 검증
+/auth/login API 요청 후 성공 시 JWT 토큰 저장 및 Dashboard 페이지로 이동
+실패 시 구체적 에러 메시지 표시
+좌측 사이드바 (내비게이션)
 
-5-1. 초기 상태:
-첫 로드시 “배송 현황” 주제로 API 호출 → 원형 그래프 카드 형태 시각화
-5-2. 옵션 선택:
-상단 드롭다운 메뉴로 “배송 현황” 및 “시간별 접수량” 선택 가능
-날짜 기간 선택: 시작날짜와 종료날짜 각각 선택
-날짜 선택 컴포넌트 활성화, 선택 가능한 기간: 오늘 기준 1개월 이내 (범위 초과 시 알림)
-날짜 형식: YYYY-MM-DD, 시간은 “00:00” 고정
-5-3. API 요청:
-배송 현황: 선택 기간의 dashboard.eta 데이터를 기준으로 전체 건수 및 status별 건수와 비율 산출 →  각 건수별 비율을 각 카드형식으로 나누고 각 원그래프 데이터로 필요한 JSON (각 상태별 수치 및 비율) 반환
-원형 그래프 데이터 반환
-시간별 접수량: 선택 기간의 dashboard.create_time 데이터를 기준, create_time을 1시간 단위로 그룹핑하여 각 시간대별 건수 집계 → 막대그래프 데이터 반환
+표시 정보: 사용자 이름, 부서 (user 테이블의 user_department), 로고
+메뉴: 배송현황 (Dashboard), 통계 (Visualization), 로그아웃 (API 호출 후 토큰 삭제 및 로그인 페이지 이동)
+Dashboard 페이지 (실시간 배송 현황)
 
+초기 로드: 오늘 날짜(YYYY-MM-DD) 기준 eta가 일치하는 대시보드 리스트 API 요청
+상단 고정 영역: 검색 바, 부서 필터 드롭다운, 대시보드 생성, 배차, 새로고침, 삭제 버튼
+검색/필터: 프론트엔드 측 구현, 페이지네이션(최대 50행)도 프론트엔드 처리
+테이블 구성:
+컬럼: 체크박스, type(종류), department(부서), warehouse(출발 허브), driver_name(담당 기사), order_no, status(배송 상태; WAITING→대기, IN_PROGRESS→진행, COMPLETE→완료, ISSUE→이슈), eta(YYYY-MM-DD HH:MM), region(도착 지역), depart_time(출발 시각)
+행 UI: 상태별 색상 적용 (대기: 회색, 진행: 노란색, 완료: 초록색, 이슈: 빨간색)
+날짜 선택: 상단에 현재 선택 날짜 표시, 달력 컴포넌트 통해 날짜 변경 시 API 재요청
+행 선택 및 액션:
+배차 기능:
+선택된 행 없으면 알림
+대기 상태인 항목만 배차 가능 (이미 배차된 항목은 수정 가능)
+모달 창 내 선택된 order_no 목록과 driver_name, driver_contact 입력 (연락처 입력 시 자동 ‘-’ 삽입) → 입력 검증 후 배차 API 호출
+삭제 기능: 선택된 행 중 상태가 대기인 경우에 한해 dashboard_id 리스트 기반 삭제 API 호출
+대시보드 생성 모달:
+입력 필드: type, order_no, department (자동 입력), warehouse, sla, eta (24시간 형식), postal_code, address, customer, contact, remark
+생성 버튼 → 생성 API 호출
+대시보드 상세 정보 모달:
+행 클릭 시 dashboard_id 기반 상세 정보 조회 API 호출
+표시 항목: type, department, warehouse, driver_name, driver_contact, order_no, eta, status, create_time, depart_time, complete_time, address, distance, duration_time, customer, contact, remark
+수정 기능: 모달 내에서 status(드롭다운 형식)와 remark 별도 수정 API 호출
+시각화 페이지 (통계/데이터 분석)
 
---------------[[백엔드 요구사항 (FastAPI)]--------------
+초기 상태: “배송 현황” 주제로 API 호출, 원형 그래프 카드 형태 시각화
+옵션 선택:
+상단 드롭다운: “배송 현황” vs “시간별 접수량”
+날짜 기간 선택: 시작일과 종료일 (YYYY-MM-DD, 시간은 “00:00”, 범위는 오늘 기준 1개월 이내 → 범위 초과 시 알림)
+API 요청:
+배송 현황: 선택 기간 내 dashboard.eta 데이터 기반 전체 건수 및 상태별 건수/비율 산출 → 각 상태별 원형 그래프 데이터 반환
+시간별 접수량: 선택 기간 내 dashboard.create_time을 1시간 단위로 그룹핑하여 막대그래프 데이터 반환
+[Backend 요구사항 (FastAPI)]
+프로젝트 구조
 
-1. 공통 사항
-
-- 기술 스택: FastAPI (Python)
-- 폴더 구조:
+폴더:
 api: API 엔드포인트 (예: /auth, /dashboard, /visualization)
 services: 비즈니스 로직 처리
 repositories: 데이터 접근 로직
-models: MySQL 기반 DB 모델 (Cloud SQL, 인덱스: eta 컬럼, 트리거: trg_dashboard_before_insert_postal)
+models: MySQL 기반 DB 모델 (Cloud SQL, 인덱스: eta, 트리거: trg_dashboard_before_insert_postal)
 schemas: API 요청/응답 JSON 스키마
-- JWT 인증:
-HS256 알고리즘 사용
-액세스 토큰: 60분 만료, 리프레시 토큰: 7일 만료 (리프레시 토큰은 DB에 저장)
-요청/응답: 모두 JSON 형식
-- 배포 환경:
-단일 컨테이너 배포 (GAE, Docker-Desktop)
-네트워크 미들웨어 (CORS, Reverse Proxy 등)는 필요 없음
-모든 패키지 및 라이브러리는 무료 버전만 사용 (유료 라이선스 제외)
+인증 및 사용자 관리 (/auth)
 
-2. 인증 및 사용자 관리 (/auth)
+로그인 API:
+요청: JSON 형식으로 user_id와 password 전달
+처리: bcrypt를 통한 비밀번호 해싱 및 비교, 인증 성공 시 JWT 액세스 토큰(60분)과 리프레시 토큰(7일, DB 저장) 발급
+응답: 두 토큰 반환
 
-2-1. 로그인 API:
-- 요청: JSON 형식으로 user_id와 password 전달
-- 처리:
-bcrypt를 이용하여 비밀번호 해싱 및 비교 후 인증
-인증 성공 시, JWT 액세스 토큰(60분)과 리프레시 토큰(7일) 발급; 리프레시 토큰은 DB에 저장
-- 응답: JSON 형식으로 두 토큰 반환
-2-2 토큰 갱신 API:
-- 요청: 저장된 리프레시 토큰 전달
-- 처리: 리프레시 토큰 유효성 검증 후 새로운 액세스 토큰(필요 시 갱신된 리프레시 토큰) 발급
-- 응답: 새로운 액세스 토큰 반환
-2-3 로그아웃 API:
-- 요청: 로그아웃 요청 (사용자 식별 정보 포함, JSON)
-- 처리: 해당 사용자의 리프레시 토큰을 DB에서 삭제(무효화)
-- 응답: 로그아웃 성공 메시지 반환
+토큰 갱신 API:
+요청: 저장된 리프레시 토큰 전달
+처리: 리프레시 토큰 검증 후 새로운 액세스 토큰(필요 시 갱신된 리프레시 토큰) 발급
+응답: 새로운 액세스 토큰 반환
 
-2-4 API 인증 유지 (백엔드)
-- 모든 API 엔드포인트에서 요청 헤더의 Authorization: Bearer <토큰>을 FastAPI의 Depends를 활용하여 인증 검증 수행
-- JWT 토큰의 서명, 만료 시간, 유효성을 검사하며, 유효하지 않거나 만료된 경우 401 Unauthorized 응답 반환
-네트워크 미들웨어와의 차이:
-여기서 구현하는 인증 로직은 API 호출 시마다 실행되는 "인증 미들웨어"와 유사하게 동작하지만, 이는 CORS나 Reverse Proxy 같은 네트워크 미들웨어와는 별도임
+로그아웃 API:
+요청: 사용자 식별 정보 포함 로그아웃 요청
+처리: 해당 사용자의 리프레시 토큰 DB 삭제(무효화)
+응답: 로그아웃 성공 메시지 반환
+인증 미들웨어: 모든 API에서 Authorization 헤더의 JWT 검증 (만료, 위조 시 401 Unauthorized)
 
-3. Dashboard 기능 (/dashboard)
+Dashboard 기능 (/dashboard)
 
-3-1. 대시보드 생성 API:
-- 요청: JSON으로 다음 필드 전달:
-type(종류), order_no, department(로그인 사용자 부서 자동 적용), warehouse(출발 허브), sla, eta(24시간 형식), postal_code, address, customer, contact, remark
-- 처리:
-DB에 대시보드 레코드 생성
-생성 시 트리거(trg_dashboard_before_insert_postal) 실행하여 postal_code 기반으로 city, district, distance, duration_time 자동 업데이트
-응답: 생성된 대시보드 정보 JSON 반환
-3-2. 대시보드 삭제 API:
-- 요청: 삭제할 dashboard_id 리스트(JSON)
-- 처리: 여러 대시보드 레코드 삭제
-- 응답: 삭제 성공 여부 반환
-3-3. 대시보드 리스트 조회 API:
-- 요청: dashboard.eta(기본값 오늘, YYYY-MM-DD)에 들어갈 날짜값을 받음 + 검색, 부서 필터 기능은 front-side로 구현 , 페이지네이션 (최대 50행) 또한 front-side로 구현
-- 처리: 조건에 맞는 대시보드 리스트 조회
-- 응답: JSON 형식으로 각 행의 데이터 반환
-반환 컬럼: type, department, warehouse, driver_name, order_no, depart_time, eta, status, region
-3-3.대시보드 상세 조회 API:
-- 요청: dashboard_id 전달 (JSON)
-- 처리: 해당 dashboard의 상세 정보 조회
-- 응답: JSON으로 상세 데이터 반환
-반환 컬럼: type, department, warehouse, driver_name, driver_contact, order_no, eta, status, create_time, depart_time, complete_time, address, distance, duration_time, customer, contact, remark
-3-4. 대시보드 수정 API:
-- 분리된 수정 요청입니다.
-- 배송 상태(status) 변경: dashboard_id와 변경할 status 값 전달
-(waiting → in_progress 시 depart_time 현재시각으로 업데이트; in_progress → complete 또는 issue 시 complete_time 현재시각으로 업데이트)
-- remark 수정: dashboard_id와 새로운 remark 전달
-- 응답: 각 수정 요청에 대해 성공 여부 반환
-3-5 배차 기능 API:
-- 요청: 선택된 dashboard_id 리스트와 함께 driver_name, driver_contact (연락처는 자동 ‘-’ 포함 형식) 전달
-- 처리: 해당 dashboard의 driver_name과 driver_contact 업데이트 (단, status가 “대기”인 경우에 한함)
-- 응답: 배차 성공 여부 반환
+대시보드 생성 API:
+요청: JSON으로 type, order_no, department(로그인 사용자 부서 자동 입력), warehouse, sla, eta, postal_code, address, customer, contact, remark 전달
+처리: DB에 레코드 생성 → 생성 시 트리거를 통해 postal_code 기반 자동 업데이트
+응답: 생성된 대시보드 정보 반환
+대시보드 삭제 API:
+요청: 삭제할 dashboard_id 리스트(JSON) 전달
+처리: 여러 대시보드 레코드 삭제 (상태 대기인 경우에만)
+대시보드 리스트 조회 API:
+요청: dashboard.eta 기준(기본 오늘, YYYY-MM-DD) 조회, 검색 및 부서 필터는 프론트엔드에서 구현
+응답: type, department, warehouse, driver_name, order_no, depart_time, eta, status, region 등의 데이터 반환
+대시보드 상세 조회 API:
+요청: dashboard_id 전달
+응답: 상세 정보 (type, department, warehouse, driver_name, driver_contact, order_no, eta, status, create_time, depart_time, complete_time, address, distance, duration_time, customer, contact, remark) 반환
+대시보드 수정 API:
+상태 변경: dashboard_id와 변경할 status 전달
+변경 시, waiting → in_progress면 depart_time 업데이트, in_progress → complete/issue면 complete_time 업데이트
+remark 수정: dashboard_id와 새로운 remark 전달 → 별도 API 호출
+배차 기능 API:
+요청: 선택된 dashboard_id 리스트와 driver_name, driver_contact 전달 (상태 대기인 경우만 업데이트)
+응답: 배차 성공 여부 반환
+시각화 기능 (/visualization)
 
-4. 시각화 기능 (/visualization)
+배송 현황 API:
+요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정) 포함
+처리: 선택 기간 내 dashboard.eta 기준 전체 건수 및 상태별 건수/비율 산출
+응답: 카드형 및 원형 그래프에 필요한 JSON 데이터 반환
+시간별 접수량 API:
+요청: 기간 정보 포함
+처리: dashboard.create_time을 기준으로 1시간 단위 그룹핑, 각 시간대별 건수 집계
+응답: 막대그래프 데이터에 필요한 JSON 반환
+에러 핸들링
 
-4-1. 배송 현황 API:
-- 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.eta 기준 데이터 요청
-- 처리: 해당 기간 내 전체 대시보드 건수 및 status별 건수와 비율 산출
-- 응답: 각 건수별 비율을 각 카드형식으로 나누고 각 원그래프 데이터로 필요한 JSON (각 상태별 수치 및 비율) 반환
-4-2. 시간별 접수량 API:
-- 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.create_time 기준 데이터 요청
-- 처리: create_time을 기준으로 1시간 단위 그룹핑하여 각 시간대별 건수 집계
-- 응답: 막대그래프 데이터에 필요한 JSON (시간별 건수) 반환
-
-5. 응답 및 에러 핸들링 (백엔드)
-
-모든 API 응답은 JSON 형식으로, 성공/실패 여부 및 구체적인 데이터 또는 에러 메시지 반환
-JWT 토큰 관련 오류, 인증 실패, 데이터 유지 오류 발생 시 명확한 에러 코드와 메시지 전송
+모든 API는 JSON 형식 응답
+JWT, 인증, 데이터 유지 관련 오류 시 명확한 에러 코드 및 메시지 제공

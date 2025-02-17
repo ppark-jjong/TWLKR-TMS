@@ -29,12 +29,7 @@ class Dashboard(Base):
     )
     department = Column(Enum("CS", "HES", "LENOVO"), nullable=False, index=True)
     warehouse = Column(Enum("SEOUL", "BUSAN", "GWANGJU", "DAEJEON"), nullable=False)
-    sla = Column(
-        Enum(
-            "XHR", "POX", "EMC", "WEWORK", "LENOVO", "ETC", "NBD", name="sla_type_enum"
-        ),
-        nullable=False,
-    )
+    sla = Column(String(10), nullable=False, comment="SLA(10자 이내 문자열)")
     eta = Column(DateTime, nullable=False, index=True)
     create_time = Column(DateTime, server_default=func.now(), nullable=False)
     depart_time = Column(DateTime, nullable=True)
