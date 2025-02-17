@@ -114,7 +114,11 @@ class DriverAssignment(BaseModel):
 
 
 class StatusUpdate(BaseModel):
-    status: DashboardStatus
+    """상태 업데이트 요청 스키마"""
+
+    status: DashboardStatus = Field(
+        ..., description="변경할 상태", example="IN_PROGRESS"
+    )
 
 
 class RemarkUpdate(BaseModel):

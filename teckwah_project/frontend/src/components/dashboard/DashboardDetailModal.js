@@ -1,12 +1,14 @@
 // frontend/src/components/dashboard/DashboardDetailModal.js
 import React, { useState } from 'react';
-import { Modal, Descriptions, Select, Input, Button, message, Space, Typography, Tag } from 'antd';
+import { Modal, Descriptions, Select, Input, Button, Space, Typography, Tag, message } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { 
   STATUS_TYPES,
   STATUS_TEXTS,
   STATUS_COLORS,
   TYPE_TEXTS,
-  WAREHOUSE_TEXTS
+  WAREHOUSE_TEXTS,
+  DEPARTMENT_TEXTS
 } from '../../utils/Constants';
 import { 
   formatDateTime, 
@@ -26,13 +28,12 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   const [newStatus, setNewStatus] = useState(dashboard.status);
   const [newRemark, setNewRemark] = useState(dashboard.remark);
 
-  // 상태 변경 시에도 이전 상태로 돌아갈 수 있도록 수정
   const getStatusOptions = () => {
-    return Object.values(STATUS_TYPES)
-      .filter(status => status !== newStatus)
-      .map(status => ({
-        value: status,
-        label: STATUS_TEXTS[status]
+    return Object.entries(STATUS_TYPES)
+      .filter(([_, value]) => value !== newStatus)
+      .map(([key, value]) => ({
+        value,
+        label: STATUS_TEXTS[key]
       }));
   };
 
@@ -43,7 +44,6 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
       message.success('상태가 업데이트되었습니다');
       setEditingStatus(false);
       onSuccess();
-      onCancel();
     } catch (error) {
       message.error('상태 업데이트 중 오류가 발생했습니다');
     } finally {
@@ -58,7 +58,6 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
       message.success('메모가 업데이트되었습니다');
       setEditingRemark(false);
       onSuccess();
-      onCancel();
     } catch (error) {
       message.error('메모 업데이트 중 오류가 발생했습니다');
     } finally {
@@ -69,46 +68,23 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   return (
     <Modal
       title={
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <Text strong style={{ fontSize: '18px' }}>대시보드 상세 정보</Text>
-          <Text strong style={{ fontSize: '24px', color: '#1890ff' }}>
-            주문번호: {dashboard.order_no}
-          </Text>
-        </Space>
-      }
-      open={visible}
-      onCancel={onCancel}
-      footer={null}
-      width={900}
-      maskClosable={false}
-    >
-      <Descriptions 
-        bordered 
-        column={2}
-        style={{ marginTop: '16px' }}
-      >
-        <Descriptions.Item label="종류">{TYPE_TEXTS[dashboard.type]}</Descriptions.Item>
-        <Descriptions.Item label="부서">{dashboard.department}</Descriptions.Item>
-        <Descriptions.Item label="출발 허브">{WAREHOUSE_TEXTS[dashboard.warehouse]}</Descriptions.Item>
-        <Descriptions.Item label="담당 기사">{dashboard.driver_name || '-'}</Descriptions.Item>
-        <Descriptions.Item label="기사 연락처">
-          {dashboard.driver_contact ? formatPhoneNumber(dashboard.driver_contact) : '-'}
-        </Descriptions.Item>
-        
-        <Descriptions.Item label="배송 상태" span={2}>
-          <div style={{ 
-            display: 'flex', 
-            gap: 8, 
-            minHeight: '40px', 
-            alignItems: 'center',
-            width: '100%' 
-          }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          padding: '12px 0'
+        }}>
+          <Space direction="vertical" size={4}>
+            <Text style={{ fontSize: '14px', color: '#666' }}>주문번호</Text>
+            <Text strong style={{ fontSize: '24px' }}>{dashboard.order_no}</Text>
+          </Space>
+          <Space align="center">
             {editingStatus ? (
-              <Space size="middle">
+              <Space>
                 <Select
                   value={newStatus}
-                  onChange={setNewStatus}
-                  style={{ width: 200 }}
+                  onChange={(value) => setNewStatus(value)}
+                  style={{ width: 120 }}
                   options={getStatusOptions()}
                 />
                 <Button onClick={handleStatusUpdate} loading={loading} type="primary">저장</Button>
@@ -126,29 +102,54 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
                   {STATUS_TEXTS[dashboard.status]}
                 </Tag>
                 <Button 
-                  size="small" 
-                  type="primary" 
-                  ghost
+                  icon={<EditOutlined />}
+                  type="text"
                   onClick={() => setEditingStatus(true)}
-                >
-                  수정
-                </Button>
+                />
               </Space>
             )}
-          </div>
+          </Space>
+        </div>
+      }
+      open={visible}
+      onCancel={onCancel}
+      footer={null}
+      width={800}
+      maskClosable={false}
+      bodyStyle={{ padding: '24px' }}
+    >
+      <Descriptions 
+        column={3}
+        bordered
+        size="small"
+        style={{ marginTop: '24px' }}
+      >
+        <Descriptions.Item label="종류">{TYPE_TEXTS[dashboard.type]}</Descriptions.Item>
+        <Descriptions.Item label="부서">{DEPARTMENT_TEXTS[dashboard.department]}</Descriptions.Item>
+        <Descriptions.Item label="출발 허브">{WAREHOUSE_TEXTS[dashboard.warehouse]}</Descriptions.Item>
+
+        <Descriptions.Item label="담당 기사" span={2}>{dashboard.driver_name || '-'}</Descriptions.Item>
+        <Descriptions.Item label="기사 연락처" span={2}>
+          {formatPhoneNumber(dashboard.driver_contact) || '-'}
         </Descriptions.Item>
 
         <Descriptions.Item label="접수 시각">{formatDateTime(dashboard.create_time)}</Descriptions.Item>
-        <Descriptions.Item label="출발 시각">{formatDateTime(dashboard.depart_time)}</Descriptions.Item>
-        <Descriptions.Item label="완료 시각" span={2}>{formatDateTime(dashboard.complete_time)}</Descriptions.Item>
+        <Descriptions.Item label="출발 시각">{formatDateTime(dashboard.depart_time) || '-'}</Descriptions.Item>
+        <Descriptions.Item label="완료 시각">{formatDateTime(dashboard.complete_time) || '-'}</Descriptions.Item>
 
-        <Descriptions.Item label="주소" span={2}>{dashboard.address}</Descriptions.Item>
+        <Descriptions.Item label="주소" span={3}>{dashboard.address}</Descriptions.Item>
+
         <Descriptions.Item label="거리">{formatDistance(dashboard.distance)}</Descriptions.Item>
-        <Descriptions.Item label="예상 소요 시간">{formatDuration(dashboard.duration_time)}</Descriptions.Item>
-        <Descriptions.Item label="수령인">{dashboard.customer}</Descriptions.Item>
-        <Descriptions.Item label="연락처">{formatPhoneNumber(dashboard.contact)}</Descriptions.Item>
+        <Descriptions.Item label="예상 소요 시간" span={2}>
+          {formatDuration(dashboard.duration_time)}
+        </Descriptions.Item>
 
-        <Descriptions.Item label="메모" span={2}>
+        <Descriptions.Item label="수령인" span={2}>{dashboard.customer}</Descriptions.Item>
+        <Descriptions.Item label="연락처" span={2}>
+          {formatPhoneNumber(dashboard.contact)}
+        </Descriptions.Item>
+
+        <Descriptions.Item label="메모" span={3}>
           {editingRemark ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <TextArea
@@ -168,13 +169,10 @@ const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>{dashboard.remark || '-'}</div>
               <Button 
-                size="small" 
-                type="primary" 
-                ghost
+                icon={<EditOutlined />}
+                type="text"
                 onClick={() => setEditingRemark(true)}
-              >
-                수정
-              </Button>
+              />
             </div>
           )}
         </Descriptions.Item>

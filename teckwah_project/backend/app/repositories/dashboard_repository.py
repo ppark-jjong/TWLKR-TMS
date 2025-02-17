@@ -12,6 +12,21 @@ class DashboardRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
+        """대시보드 상세 정보 조회"""
+        try:
+            log_info(f"대시보드 상세 조회: {dashboard_id}")
+            dashboard = (
+                self.db.query(Dashboard)
+                .filter(Dashboard.dashboard_id == dashboard_id)
+                .first()
+            )
+            log_info("대시보드 상세 조회 완료" if dashboard else "대시보드 데이터 없음")
+            return dashboard
+        except Exception as e:
+            log_error(e, "대시보드 상세 조회 실패", {"dashboard_id": dashboard_id})
+            raise
+
     def get_dashboards_by_ids(self, dashboard_ids: List[int]) -> List[Dashboard]:
         """대시보드 ID 리스트로 여러 대시보드 조회"""
         try:
@@ -21,10 +36,7 @@ class DashboardRepository:
                 .filter(Dashboard.dashboard_id.in_(dashboard_ids))
                 .all()
             )
-            if dashboards:
-                log_info(f"대시보드 다중 조회 성공: {len(dashboards)}건")
-            else:
-                log_info("조회된 대시보드 없음")
+            log_info(f"대시보드 다중 조회 완료: {len(dashboards)}건")
             return dashboards
         except Exception as e:
             log_error(e, "대시보드 다중 조회 실패", {"dashboard_ids": dashboard_ids})
@@ -43,35 +55,35 @@ class DashboardRepository:
                 .order_by(Dashboard.create_time.desc())
                 .all()
             )
-
-            log_info(f"조회된 대시보드 수: {len(dashboards)}")
+            log_info(f"대시보드 조회 완료: {len(dashboards)}건")
             return dashboards
-
         except Exception as e:
-            log_error(
-                e,
-                "대시보드 조회 실패",
-                {
-                    "target_date": target_date,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                },
-            )
+            log_error(e, "대시보드 조회 실패", {"target_date": target_date})
             raise
 
     def get_postal_code_data(self, postal_code: str) -> Optional[PostalCode]:
-        """우편번호 데이터 조회"""
         try:
-            log_info(f"우편번호 데이터 조회: {postal_code}")
+            log_info(f"우편번호 데이터 조회 시작: {postal_code}")
             data = (
                 self.db.query(PostalCode)
                 .filter(PostalCode.postal_code == postal_code)
                 .first()
             )
+
             if data:
-                log_info("우편번호 데이터 조회 성공")
+                log_info(
+                    "우편번호 데이터 조회 성공",
+                    {
+                        "postal_code": data.postal_code,
+                        "city": data.city,
+                        "district": data.district,
+                        "distance": data.distance,
+                        "duration_time": data.duration_time,
+                    },
+                )
             else:
-                log_info("우편번호 데이터 없음")
+                log_info(f"우편번호 데이터 없음: {postal_code}")
+
             return data
         except Exception as e:
             log_error(e, "우편번호 데이터 조회 실패", {"postal_code": postal_code})
@@ -88,9 +100,25 @@ class DashboardRepository:
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
             return dashboard
         except Exception as e:
-            log_error(e, "대시보드 생성 실패", dashboard_data)
             self.db.rollback()
+            log_error(e, "대시보드 생성 실패", dashboard_data)
             raise
+
+    def update_status_with_time(
+        self, dashboard: Dashboard, new_status: str, current_time: datetime
+    ) -> None:
+        """상태 변경에 따른 시간 처리"""
+        old_status = dashboard.status
+        dashboard.status = new_status
+
+        if new_status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
+            dashboard.depart_time = current_time
+            dashboard.complete_time = None
+        elif new_status in ["COMPLETE", "ISSUE"]:
+            dashboard.complete_time = current_time
+        elif new_status == "WAITING":
+            dashboard.depart_time = None
+            dashboard.complete_time = None
 
     def update_dashboard_status(
         self, dashboard_id: int, status: str, current_time: datetime
@@ -100,30 +128,15 @@ class DashboardRepository:
             log_info(f"상태 업데이트 시작: {dashboard_id} -> {status}")
             dashboard = self.get_dashboard_detail(dashboard_id)
             if dashboard:
-                old_status = dashboard.status
-                dashboard.status = status
-
-                # 상태 변경에 따른 시간 처리
-                if status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
-                    dashboard.depart_time = current_time
-                    dashboard.complete_time = None
-                elif status in ["COMPLETE", "ISSUE"]:
-                    dashboard.complete_time = current_time
-                elif status == "WAITING":
-                    dashboard.depart_time = None
-                    dashboard.complete_time = None
-
+                self.update_status_with_time(dashboard, status, current_time)
                 self.db.commit()
                 self.db.refresh(dashboard)
                 log_info("상태 업데이트 완료")
-            return dashboard
+                return dashboard
+            return None
         except Exception as e:
-            log_error(
-                e,
-                "상태 업데이트 실패",
-                {"dashboard_id": dashboard_id, "status": status},
-            )
             self.db.rollback()
+            log_error(e, "상태 업데이트 실패", {"dashboard_id": dashboard_id})
             raise
 
     def update_dashboard_remark(
@@ -138,30 +151,54 @@ class DashboardRepository:
                 self.db.commit()
                 self.db.refresh(dashboard)
                 log_info("메모 업데이트 완료")
-            return dashboard
+                return dashboard
+            return None
         except Exception as e:
-            log_error(
-                e,
-                "메모 업데이트 실패",
-                {"dashboard_id": dashboard_id, "remark": remark},
-            )
             self.db.rollback()
+            log_error(e, "메모 업데이트 실패", {"dashboard_id": dashboard_id})
             raise
 
-    def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
-        """대시보드 상세 정보 조회"""
+    def assign_driver(
+        self, dashboard_ids: List[int], driver_name: str, driver_contact: str
+    ) -> List[Dashboard]:
+        """배차 처리"""
         try:
-            log_info(f"대시보드 상세 조회: {dashboard_id}")
-            dashboard = (
-                self.db.query(Dashboard)
-                .filter(Dashboard.dashboard_id == dashboard_id)
-                .first()
-            )
-            if dashboard:
-                log_info("대시보드 상세 조회 성공")
-            else:
-                log_info("대시보드 데이터 없음")
-            return dashboard
+            log_info("배차 처리 시작", {"dashboard_ids": dashboard_ids})
+            dashboards = self.get_dashboards_by_ids(dashboard_ids)
+            current_time = datetime.now()
+
+            for dashboard in dashboards:
+                if dashboard.status == "WAITING":
+                    dashboard.driver_name = driver_name
+                    dashboard.driver_contact = driver_contact
+                    self.update_status_with_time(dashboard, "IN_PROGRESS", current_time)
+
+            self.db.commit()
+            log_info("배차 처리 완료")
+            return dashboards
         except Exception as e:
-            log_error(e, "대시보드 상세 조회 실패", {"dashboard_id": dashboard_id})
+            self.db.rollback()
+            log_error(e, "배차 처리 실패")
+            raise
+
+    def delete_dashboards(self, dashboard_ids: List[int]) -> bool:
+        """대시보드 삭제"""
+        try:
+            log_info("대시보드 삭제 시작", {"dashboard_ids": dashboard_ids})
+            result = (
+                self.db.query(Dashboard)
+                .filter(
+                    and_(
+                        Dashboard.dashboard_id.in_(dashboard_ids),
+                        Dashboard.status == "WAITING",
+                    )
+                )
+                .delete(synchronize_session=False)
+            )
+            self.db.commit()
+            log_info(f"대시보드 삭제 완료: {result}건")
+            return bool(result)
+        except Exception as e:
+            self.db.rollback()
+            log_error(e, "대시보드 삭제 실패")
             raise

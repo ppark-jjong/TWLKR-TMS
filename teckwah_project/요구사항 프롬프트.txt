@@ -71,21 +71,21 @@ department → “부서”
 warehouse → “출발 허브”
 driver_name → “담당 기사”
 order_no → “order_no”
-create_time → “생성시간”
-depart_time → “출발 시각”
-eta → “ETA” (YYYY-MM-DD HH:MM 형식)
 status → “배송 상태” (표시 전환: WAITING→대기, IN_PROGRESS→진행, COMPLETE→완료, ISSUE→이슈)
+eta → “ETA” (YYYY-MM-DD HH:MM 형식)
 region → “도착 지역”
-4-4 행의 UI: 각 행은 status 값에 따라 색상 변경 (대기: 회색, 진행: 노란색, 완료: 초록색, 이슈: 빨간색)
+depart_time → “출발 시각”
+4-4 행의 UI: 각 행은 status 값에 따라 색상 변경 (대기: 회색, 진행: 노란색, 완료: 초록색, 이슈: 빨간색) => 바로 db에 적용되어야함
 4-5 날짜 선택 기능:
 현재 선택된 날짜(YYYY-MM-DD) 상단 표시, 날짜 클릭 시 달력 컴포넌트 팝업 → 선택한 날짜에 맞게 API 재요청
 4-6 행 선택 및 액션:
 다중 체크박스 선택 (선택된 행은 UI에서 표시)
 4-7 배차 기능:
 선택된 행이 없으면 알림 ("선택된 배차가 없습니다")
-배차는 status가 “대기”인 경우에만 가능
+배차는 status가 “대기”인 경우에만 가능, 대기인 경우에는 이미 배차되었어도 계속 수정 가능
 배차 버튼 클릭 시 모달창 띄움 (모달에 선택된 order_no 목록과 driver_name, driver_contact 입력 필드 제공, driver_contact 입력 시 자동 ‘-’ 삽입 처리)
 확인 시 입력 검증 후 배차 API 호출
+
 4-8. 삭제 기능:
 선택된 행에 대해 dashboard_id 리스트를 담아 삭제 API 호출 (status “대기”인 경우에만 적용)
 4-9 대시보드 생성 모달:
@@ -108,8 +108,10 @@ remark (메모)
 type (종류), department (부서), warehouse (출발 허브), driver_name (담당 기사), driver_contact (기사 연락처), order_no (order_no), eta (ETA, YYYY-MM-DD HH:MM), status (배송 상태), create_time (접수 시각), depart_time (출발 시각), complete_time (완료 시각), address (주소), distance (거리), duration_time (예상 소요 시간), customer (수령인), contact (연락처), remark (메모)
 수정 기능:
 상세 정보 모달창 안에서 status와 remark는 각각 별도로 수정할 수 있습니다.
-status는 드롭다운 형식으로 리스트를 보여주세요
+status는 드롭다운 형식으로 변경 가능합니다
 status와 remark는 각각 별도의 수정 API 호출 (dashboard_id 포함)
+
+
 
 5. 시각화 페이지 (통계/데이터 분석)
 
@@ -121,8 +123,9 @@ status와 remark는 각각 별도의 수정 API 호출 (dashboard_id 포함)
 날짜 선택 컴포넌트 활성화, 선택 가능한 기간: 오늘 기준 1개월 이내 (범위 초과 시 알림)
 날짜 형식: YYYY-MM-DD, 시간은 “00:00” 고정
 5-3. API 요청:
-배송 현황: 선택 기간의 dashboard.eta 데이터를 기준으로 전체 건수 및 status별 건수와 비율 산출 → 원형 그래프 데이터 반환
-시간별 접수량: 선택 기간의 dashboard.eta 데이터를 기준, create_time을 1시간 단위로 그룹핑하여 각 시간대별 건수 집계 → 막대그래프 데이터 반환
+배송 현황: 선택 기간의 dashboard.eta 데이터를 기준으로 전체 건수 및 status별 건수와 비율 산출 →  각 건수별 비율을 각 카드형식으로 나누고 각 원그래프 데이터로 필요한 JSON (각 상태별 수치 및 비율) 반환
+원형 그래프 데이터 반환
+시간별 접수량: 선택 기간의 dashboard.create_time 데이터를 기준, create_time을 1시간 단위로 그룹핑하여 각 시간대별 건수 집계 → 막대그래프 데이터 반환
 
 
 --------------[[백엔드 요구사항 (FastAPI)]--------------
@@ -185,7 +188,7 @@ DB에 대시보드 레코드 생성
 - 요청: dashboard.eta(기본값 오늘, YYYY-MM-DD)에 들어갈 날짜값을 받음 + 검색, 부서 필터 기능은 front-side로 구현 , 페이지네이션 (최대 50행) 또한 front-side로 구현
 - 처리: 조건에 맞는 대시보드 리스트 조회
 - 응답: JSON 형식으로 각 행의 데이터 반환
-반환 컬럼: type, department, warehouse, driver_name, order_no, create_time, depart_time, eta, status, region
+반환 컬럼: type, department, warehouse, driver_name, order_no, depart_time, eta, status, region
 3-3.대시보드 상세 조회 API:
 - 요청: dashboard_id 전달 (JSON)
 - 처리: 해당 dashboard의 상세 정보 조회
@@ -207,9 +210,9 @@ DB에 대시보드 레코드 생성
 4-1. 배송 현황 API:
 - 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.eta 기준 데이터 요청
 - 처리: 해당 기간 내 전체 대시보드 건수 및 status별 건수와 비율 산출
-- 응답: 원형 그래프 데이터에 필요한 JSON (각 상태별 수치 및 비율) 반환
+- 응답: 각 건수별 비율을 각 카드형식으로 나누고 각 원그래프 데이터로 필요한 JSON (각 상태별 수치 및 비율) 반환
 4-2. 시간별 접수량 API:
-- 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.eta 기준 데이터 요청
+- 요청: 기간 정보(시작일, 종료일; YYYY-MM-DD, 시간 “00:00” 고정)를 포함하여, dashboard.create_time 기준 데이터 요청
 - 처리: create_time을 기준으로 1시간 단위 그룹핑하여 각 시간대별 건수 집계
 - 응답: 막대그래프 데이터에 필요한 JSON (시간별 건수) 반환
 

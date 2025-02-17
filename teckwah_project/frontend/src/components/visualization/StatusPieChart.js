@@ -2,10 +2,10 @@
 import React from 'react';
 import { Typography, Empty } from 'antd';
 import { Pie } from '@ant-design/plots';
-import { STATUS_TEXTS } from '../../utils/Constants';
+import { STATUS_TEXTS, STATUS_COLORS } from '../../utils/Constants';
 import { formatNumber } from '../../utils/Formatter';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 const StatusPieChart = ({ data }) => {
   if (!data || !data.status_breakdown || data.status_breakdown.length === 0) {
@@ -17,35 +17,76 @@ const StatusPieChart = ({ data }) => {
     angleField: 'count',
     colorField: 'status',
     radius: 0.8,
+    innerRadius: 0.5,  // 도넛 차트 스타일로 변경
     label: {
       type: 'outer',
-      content: ({ name, percent }) => `${STATUS_TEXTS[name]}\n${(percent * 100).toFixed(2)}%`
+      content: ({ name, percent }) => `${STATUS_TEXTS[name]}\n${(percent * 100).toFixed(1)}%`,
+      style: {
+        fontSize: 14,
+        fontWeight: 500,
+        textAlign: 'center',
+        fill: '#666'  // 라벨 색상을 좀 더 밝게
+      }
     },
     legend: {
       layout: 'horizontal',
       position: 'bottom',
       itemName: {
-        formatter: (text) => STATUS_TEXTS[text] || text
+        formatter: (text) => STATUS_TEXTS[text] || text,
+        style: {
+          fontSize: 14,
+          fill: '#666'
+        }
       }
     },
-    interactions: [{ type: 'element-active' }],
-    tooltip: {
-      formatter: (datum) => ({
-        name: STATUS_TEXTS[datum.status],
-        value: `${formatNumber(datum.count)}건 (${datum.percentage.toFixed(2)}%)`
-      })
+    // 색상 팔레트 수정 - 더 밝은 색상으로
+    color: [
+      '#1890FF',  // 대기
+      '#FFB31A',  // 진행
+      '#52C41A',  // 완료
+      '#FF4D4F'   // 이슈
+    ],
+    statistic: {
+      title: {
+        content: '전체',
+        style: {
+          fontSize: '16px',
+          fontWeight: 500,
+          color: '#666'
+        }
+      },
+      content: {
+        formatter: () => `${formatNumber(data.total_count)}건`,
+        style: {
+          fontSize: '24px',
+          fontWeight: 600,
+          color: '#1890ff'
+        }
+      }
+    },
+    // 호버 효과 개선
+    interactions: [
+      { type: 'element-active' },
+      { type: 'pie-statistic-active' }
+    ],
+    state: {
+      active: {
+        style: {
+          lineWidth: 2,
+          stroke: '#fff',
+          shadowBlur: 10,
+          shadowColor: 'rgba(0,0,0,0.1)'
+        }
+      }
     }
   };
 
   return (
-    <div style={{ textAlign: 'center' }}>
-      <Title level={4} style={{ marginBottom: 16 }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Title level={4} style={{ textAlign: 'center', margin: '0 0 24px', color: '#333' }}>
         배송 현황
       </Title>
-      <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
-        {`총 ${formatNumber(data.total_count)}건`}
-      </Text>
-      <div style={{ height: 400 }}>
+      <div style={{ flex: 1, minHeight: '400px' }}>
         <Pie {...config} />
       </div>
     </div>

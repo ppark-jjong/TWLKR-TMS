@@ -13,12 +13,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
 
   // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
-    let value = e.target.value;
-    // 공백 제거
-    value = value.trim();
-    // 숫자만 추출
-    value = value.replace(/[^\d]/g, '');
-    // 하이픈 포함된 형식으로 변환
+    let value = e.target.value.trim().replace(/[^\d]/g, '');
     const formattedNumber = formatPhoneNumber(value);
     form.setFieldsValue({ driver_contact: formattedNumber });
   };
@@ -32,21 +27,22 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       const nonWaitingItems = selectedRows.filter(row => row.status !== STATUS_TYPES.WAITING);
       
       if (nonWaitingItems.length > 0) {
-        const nonWaitingOrders = nonWaitingItems.map(row => 
-          `${row.order_no}(${row.status === STATUS_TYPES.IN_PROGRESS ? '진행' : 
-            row.status === STATUS_TYPES.COMPLETE ? '완료' : '이슈'})`
-        ).join(', ');
+        const orderNos = nonWaitingItems.map(row => 
+          `${row.order_no} (${row.status === STATUS_TYPES.IN_PROGRESS ? '진행' : 
+          row.status === STATUS_TYPES.COMPLETE ? '완료' : '이슈'})`
+        ).join('\n');
         
-        message.warning(
-          `다음 주문은 대기 상태가 아니어서 배차할 수 없습니다:\n${nonWaitingOrders}\n\n` +
-          '배차하려면 먼저 상태를 대기로 변경해주세요.'
-        );
+        message.error({
+          content: `다음 주문은 대기 상태가 아니어서 배차할 수 없습니다:\n${orderNos}`,
+          duration: 5
+        });
         return;
       }
 
       // 연락처 형식 검증
       if (!/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.driver_contact)) {
-        throw new Error('올바른 연락처 형식이 아닙니다');
+        message.error('올바른 연락처 형식이 아닙니다');
+        return;
       }
 
       await DashboardService.assignDriver({
@@ -59,7 +55,11 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       form.resetFields();
       onSuccess();
     } catch (error) {
-      message.error(error.message || '배차 처리 중 오류가 발생했습니다');
+      if (error.response?.data?.detail) {
+        message.error(error.response.data.detail);
+      } else {
+        message.error('배차 처리 중 오류가 발생했습니다');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -95,7 +95,8 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
           maxHeight: '100px', 
           overflowY: 'auto',
           fontSize: '14px',
-          lineHeight: '1.5'
+          lineHeight: '1.5',
+          fontFamily: 'monospace'
         }}>
           {selectedRows.map(row => row.order_no).join(', ')}
         </div>
@@ -105,14 +106,15 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
         <Form.Item
           name="driver_name"
           label="기사 이름"
-          rules={[{ required: true, message: '기사 이름을 입력해주세요' }]}
+          rules={[
+            { required: true, message: '기사 이름을 입력해주세요' },
+            { whitespace: true, message: '공백만으로는 입력할 수 없습니다' }
+          ]}
         >
           <Input 
             placeholder="기사 이름을 입력하세요"
-            onChange={(e) => {
-              const value = e.target.value.trim();
-              form.setFieldsValue({ driver_name: value });
-            }}
+            maxLength={50}
+            showCount
           />
         </Form.Item>
 
@@ -123,6 +125,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
             { required: true, message: '기사 연락처를 입력해주세요' },
             { pattern: /^\d{2,3}-\d{3,4}-\d{4}$/, message: '올바른 연락처 형식으로 입력해주세요' }
           ]}
+          extra="예시: 010-1234-5678"
         >
           <Input
             onChange={handlePhoneChange}

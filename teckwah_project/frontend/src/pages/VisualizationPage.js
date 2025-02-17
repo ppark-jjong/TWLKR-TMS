@@ -1,12 +1,13 @@
 // frontend/src/pages/VisualizationPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, Select, DatePicker, Card, message, Typography } from 'antd';
+import { Layout, Select, DatePicker, Card, message, Typography, Alert } from 'antd';
 import dayjs from 'dayjs';
 import StatusPieChart from '../components/visualization/StatusPieChart';
 import HourlyBarChart from '../components/visualization/HourlyBarChart';
 import LoadingSpin from '../components/common/LoadingSpin';
 import VisualizationService from '../services/VisualizationService';
 import { CHART_TYPES, VISUALIZATION_OPTIONS } from '../utils/Constants';
+import { formatDateTime } from '../utils/Formatter';
 
 const { Content } = Layout;
 const { RangePicker } = DatePicker;
@@ -14,21 +15,12 @@ const { Text } = Typography;
 
 const VisualizationPage = () => {
   const [vizType, setVizType] = useState(CHART_TYPES.DELIVERY_STATUS);
-  const [dateRange, setDateRange] = useState([dayjs(), dayjs()]);
+  const [dateRange, setDateRange] = useState([dayjs().subtract(7, 'day'), dayjs()]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [oldestDate, setOldestDate] = useState(null);
 
   useEffect(() => {
-    const fetchOldestDate = async () => {
-      try {
-        const date = await VisualizationService.getOldestDataDate();
-        setOldestDate(date);
-      } catch (error) {
-        console.error('가장 오래된 데이터 날짜 조회 실패:', error);
-      }
-    };
-
     fetchOldestDate();
   }, []);
 
@@ -37,6 +29,45 @@ const VisualizationPage = () => {
       fetchData();
     }
   }, [vizType, dateRange]);
+
+  const fetchOldestDate = async () => {
+    try {
+      const date = await VisualizationService.getOldestDataDate();
+      setOldestDate(dayjs(date));
+    } catch (error) {
+      console.error('가장 오래된 데이터 날짜 조회 실패:', error);
+    }
+  };
+
+  // 날짜 선택 제한 로직 개선
+  const disabledDate = (current) => {
+    if (!current || !oldestDate) return false;
+
+    // 미래 날짜 비활성화
+    if (current.isAfter(dayjs(), 'day')) return true;
+
+    // 가장 오래된 데이터 날짜보다 이전 날짜 비활성화
+    if (current.isBefore(oldestDate)) return true;
+
+    // 현재 선택된 날짜 범위 기준으로 1개월 이상 선택 방지
+    if (dateRange[0] && dateRange[1]) {
+      const isStartDate = current.isSame(dateRange[0], 'day');
+      const isEndDate = current.isSame(dateRange[1], 'day');
+      
+      if (!isStartDate && !isEndDate) {
+        // 시작일 기준으로 1개월 이후 날짜 비활성화
+        if (dateRange[0] && current.isAfter(dateRange[0].add(1, 'month'))) {
+          return true;
+        }
+        // 종료일 기준으로 1개월 이전 날짜 비활성화
+        if (dateRange[1] && current.isBefore(dateRange[1].subtract(1, 'month'))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
 
   const fetchData = async () => {
     if (!dateRange[0] || !dateRange[1]) {
@@ -58,23 +89,38 @@ const VisualizationPage = () => {
       );
       setData(response);
     } catch (error) {
-      if (error.response?.data?.detail) {
-        message.error(error.response.data.detail);
-      } else {
-        message.error('데이터 조회 중 오류가 발생했습니다');
-      }
+      message.error(
+        error.response?.data?.detail || '데이터 조회 중 오류가 발생했습니다'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const disabledDate = (current) => {
-    return current && current > dayjs().endOf('day');
-  };
-
   return (
     <Content style={{ padding: '24px' }}>
-      <Card>
+      <Card bordered={false}>
+        <Alert
+          type="info"
+          showIcon
+          message={
+            <div style={{ fontSize: '14px' }}>
+              <Text strong>데이터 조회 가능 기간</Text>
+              <div style={{ marginTop: '4px' }}>
+                {oldestDate && (
+                  <>
+                    {formatDateTime(oldestDate.toDate())} ~ {formatDateTime(dayjs().toDate())}
+                    <Text type="secondary" style={{ marginLeft: '8px' }}>
+                      (최대 1개월)
+                    </Text>
+                  </>
+                )}
+              </div>
+            </div>
+          }
+          style={{ marginBottom: '16px' }}
+        />
+        
         <div style={{ 
           marginBottom: 24, 
           display: 'flex', 
@@ -84,36 +130,32 @@ const VisualizationPage = () => {
         }}>
           <Select
             value={vizType}
-            onChange={(value) => {
-              setVizType(value);
-              setData(null);
-            }}
+            onChange={setVizType}
             style={{ width: 200 }}
             options={VISUALIZATION_OPTIONS}
+            size="large"
           />
           <RangePicker
             value={dateRange}
             onChange={setDateRange}
             disabledDate={disabledDate}
-            style={{ width: 300 }}
+            allowClear={false}
+            style={{ width: 320 }}
+            size="large"
           />
-          {oldestDate && (
-            <Text type="secondary">
-              * {oldestDate}부터 데이터 조회 가능
-            </Text>
-          )}
         </div>
 
         {loading ? (
           <LoadingSpin />
         ) : (
-          <div style={{ height: 400 }}>
-            {vizType === CHART_TYPES.DELIVERY_STATUS ? (
+          <>
+            {vizType === CHART_TYPES.DELIVERY_STATUS && (
               <StatusPieChart data={data} />
-            ) : (
+            )}
+            {vizType === CHART_TYPES.HOURLY_ORDERS && (
               <HourlyBarChart data={data} />
             )}
-          </div>
+          </>
         )}
       </Card>
     </Content>

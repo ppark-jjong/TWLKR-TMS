@@ -40,7 +40,7 @@ const Sidebar = () => {
         <img 
           src="/static/logo.png" 
           alt="Logo" 
-          style={{ height: 32, marginBottom: 16, display: 'block' }} 
+          style={{ width: 130, height: 58, marginBottom: 16, display: 'block' }} 
         />
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <Avatar icon={<UserOutlined />} />

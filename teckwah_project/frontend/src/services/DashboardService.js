@@ -53,16 +53,18 @@ class DashboardService {
   }
 
   /**
-   * 배송 상태 업데이트
+   * 대시보드 상태 업데이트
    * @param {number} dashboardId - 대시보드 ID
-   * @param {string} status - 변경할 상태
+   * @param {Object} statusData - 상태 업데이트 데이터
+   * @param {string} statusData.status - 새로운 상태값 (STATUS_TYPES에 정의된 값)
    * @returns {Promise<Object>} 업데이트된 대시보드 정보
    */
-  async updateStatus(dashboardId, status) {
+  async updateStatus(dashboardId, statusData) {
     try {
-      const response = await axios.patch(`/dashboard/${dashboardId}/status`, {
-        status
-      });
+      const response = await axios.patch(
+        `/dashboard/${dashboardId}/status`,
+        statusData
+      );
       return response.data;
     } catch (error) {
       throw error;
@@ -88,12 +90,18 @@ class DashboardService {
 
   /**
    * 배차 정보 업데이트
-   * @param {Object} driverData - 배차 정보 데이터
-   * @returns {Promise<Array>} 업데이트된 대시보드 목록
+   * @param {Object} driverData 
+   * @param {number[]} driverData.dashboard_ids - 대시보드 ID 목록
+   * @param {string} driverData.driver_name - 기사 이름
+   * @param {string} driverData.driver_contact - 기사 연락처
    */
   async assignDriver(driverData) {
     try {
-      const response = await axios.post('/dashboard/assign', driverData);
+      const response = await axios.post('/dashboard/assign', {
+        dashboard_ids: driverData.dashboard_ids,
+        driver_name: driverData.driver_name,
+        driver_contact: driverData.driver_contact
+      });
       return response.data;
     } catch (error) {
       throw error;

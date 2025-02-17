@@ -11,8 +11,10 @@ import {
   SLA_TYPES,
   SLA_TEXTS
 } from '../../utils/Constants';
+import dayjs from 'dayjs';
 
 const { Option } = Select;
+const { TextArea } = Input;
 
 const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) => {
   const [form] = Form.useForm();
@@ -20,12 +22,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
 
   // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
-    let value = e.target.value;
-    // 공백 제거
-    value = value.trim();
-    // 숫자만 추출
-    value = value.replace(/[^\d]/g, '');
-    // 하이픈 포함된 형식으로 변환
+    let value = e.target.value.trim().replace(/[^\d]/g, '');
     const formattedNumber = formatPhoneNumber(value);
     form.setFieldsValue({ contact: formattedNumber });
   };
@@ -58,14 +55,31 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
       form.resetFields();
       onSuccess();
     } catch (error) {
-      if (error.isAxiosError) {
-        message.error(error.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다');
+      if (error.response?.data?.detail) {
+        message.error(error.response.data.detail);
       } else {
         message.error('대시보드 생성 중 오류가 발생했습니다');
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  // ETA 선택 제한 (현재 시간 이후만 선택 가능)
+  const disabledDate = (current) => {
+    return current && current < dayjs().startOf('day');
+  };
+
+  const disabledTime = (current) => {
+    const now = dayjs();
+    if (current && current.isSame(now, 'day')) {
+      return {
+        disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+        disabledMinutes: (hour) => 
+          hour === now.hour() ? Array.from({ length: now.minute() }, (_, i) => i) : []
+      };
+    }
+    return {};
   };
 
   return (
@@ -81,6 +95,9 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
       <Form
         form={form}
         layout="vertical"
+        initialValues={{
+          eta: dayjs().add(1, 'hour')
+        }}
       >
         <Form.Item
           name="type"
@@ -97,14 +114,12 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
         <Form.Item
           name="order_no"
           label="order_no"
-          rules={[{ required: true, message: 'order_no를 입력해주세요' }]}
+          rules={[
+            { required: true, message: 'order_no를 입력해주세요' },
+            { pattern: /^\d+$/, message: '숫자만 입력 가능합니다' }
+          ]}
         >
-          <Input 
-            onChange={(e) => {
-              const value = e.target.value.trim();
-              form.setFieldsValue({ order_no: value });
-            }}
-          />
+          <Input maxLength={20} />
         </Form.Item>
 
         <Form.Item
@@ -137,8 +152,10 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           rules={[{ required: true, message: 'ETA를 선택해주세요' }]}
         >
           <DatePicker
-            showTime
+            showTime={{ format: 'HH:mm' }}
             format="YYYY-MM-DD HH:mm"
+            disabledDate={disabledDate}
+            disabledTime={disabledTime}
             style={{ width: '100%' }}
           />
         </Form.Item>
@@ -150,41 +167,31 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
             { required: true, message: '우편번호를 입력해주세요' },
             { pattern: /^\d{5}$/, message: '5자리 숫자로 입력해주세요' }
           ]}
+          extra="5자리 숫자로 입력해주세요"
         >
-          <Input 
-            maxLength={5}
-            onChange={(e) => {
-              const value = e.target.value.trim().replace(/[^\d]/g, '');
-              form.setFieldsValue({ postal_code: value });
-            }}
-          />
+          <Input maxLength={5} />
         </Form.Item>
 
         <Form.Item
           name="address"
           label="도착주소"
-          rules={[{ required: true, message: '주소를 입력해주세요' }]}
+          rules={[
+            { required: true, message: '주소를 입력해주세요' },
+            { whitespace: true, message: '공백만으로는 입력할 수 없습니다' }
+          ]}
         >
-          <Input.TextArea 
-            rows={2}
-            onChange={(e) => {
-              const value = e.target.value.trim();
-              form.setFieldsValue({ address: value });
-            }}
-          />
+          <TextArea rows={2} maxLength={200} showCount />
         </Form.Item>
 
         <Form.Item
           name="customer"
           label="수령인"
-          rules={[{ required: true, message: '수령인을 입력해주세요' }]}
+          rules={[
+            { required: true, message: '수령인을 입력해주세요' },
+            { whitespace: true, message: '공백만으로는 입력할 수 없습니다' }
+          ]}
         >
-          <Input 
-            onChange={(e) => {
-              const value = e.target.value.trim();
-              form.setFieldsValue({ customer: value });
-            }}
-          />
+          <Input maxLength={50} showCount />
         </Form.Item>
 
         <Form.Item
@@ -192,12 +199,13 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           label="연락처"
           rules={[
             { required: true, message: '연락처를 입력해주세요' },
-            { pattern: /^\d{2,3}-\d{3,4}-\d{4}$/, message: '올바른 연락처 형식으로 입력해주세요 (예: 010-1234-5678)' }
+            { pattern: /^\d{2,3}-\d{3,4}-\d{4}$/, message: '올바른 연락처 형식으로 입력해주세요' }
           ]}
+          extra="예시: 010-1234-5678"
         >
-          <Input 
-            placeholder="01012345678"
+          <Input
             onChange={handlePhoneChange}
+            placeholder="01012345678"
             maxLength={13}
           />
         </Form.Item>
@@ -206,12 +214,11 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
           name="remark"
           label="메모"
         >
-          <Input.TextArea 
-            rows={3}
-            onChange={(e) => {
-              const value = e.target.value.trim();
-              form.setFieldsValue({ remark: value });
-            }}
+          <TextArea 
+            rows={3} 
+            maxLength={500} 
+            showCount
+            placeholder="추가 메모사항이 있다면 입력해주세요"
           />
         </Form.Item>
       </Form>

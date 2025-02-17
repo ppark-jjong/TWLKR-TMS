@@ -40,7 +40,7 @@ const LoginPage = ({ staticUrl }) => {
       <Card style={{ width: 400 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img 
-            src={`${staticUrl}logo.png`}
+            src={`/static/logo.png`}
             alt="Logo" 
             style={{ height: 64, marginBottom: 16 }} 
           />

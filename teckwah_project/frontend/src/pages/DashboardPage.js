@@ -1,7 +1,6 @@
 // frontend/src/pages/DashboardPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, DatePicker, Button, message } from 'antd';
-import { PlusOutlined, CarOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Layout, message } from 'antd';
 import dayjs from 'dayjs';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
@@ -27,7 +26,7 @@ const DashboardPage = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -38,7 +37,7 @@ const DashboardPage = () => {
   const loadDashboardData = async (date) => {
     try {
       await fetchDashboards(date);
-      message.success('대시보드 데이터를 조회했습니다');
+      message.success('데이터를 조회했습니다');
     } catch (error) {
       message.error('데이터 조회 중 오류가 발생했습니다');
     }
@@ -96,54 +95,19 @@ const DashboardPage = () => {
 
   return (
     <Layout.Content style={{ padding: '24px' }}>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <DatePicker
-            value={selectedDate}
-            onChange={handleDateChange}
-            allowClear={false}
-          />
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setShowCreateModal(true)}
-          >
-            생성
-          </Button>
-          <Button
-            icon={<CarOutlined />}
-            onClick={() => setShowAssignModal(true)}
-            disabled={selectedRows.length === 0}
-          >
-            배차
-          </Button>
-          <Button
-            icon={<DeleteOutlined />}
-            onClick={handleDelete}
-            disabled={selectedRows.length === 0}
-            danger
-          >
-            삭제
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={handleRefresh}
-          >
-            새로고침
-          </Button>
-        </div>
-      </div>
-
-      {loading ? (
-        <LoadingSpin />
-      ) : (
-        <DashboardTable
-          dataSource={dashboards}
-          selectedRows={selectedRows}
-          onSelectRows={setSelectedRows}
-          onRowClick={handleRowClick}
-        />
-      )}
+      <DashboardTable
+        dataSource={dashboards}
+        loading={loading}
+        selectedRows={selectedRows}
+        onSelectRows={setSelectedRows}
+        onRowClick={handleRowClick}
+        onRefresh={handleRefresh}
+        onCreateClick={() => setShowCreateModal(true)}
+        onAssignClick={() => setShowAssignModal(true)}
+        onDeleteClick={handleDelete}
+        selectedDate={selectedDate}
+        onDateChange={handleDateChange}
+      />
 
       {showCreateModal && (
         <CreateDashboardModal

@@ -50,36 +50,46 @@ class DashboardService:
                     "department": user_department,
                     "type": data.type,
                     "order_no": data.order_no,
+                    "postal_code": data.postal_code,
                 },
             )
 
-            # 우편번호 데이터 사전 검증
+            # 우편번호 데이터 조회
             postal_data = self.repository.get_postal_code_data(data.postal_code)
-            if not postal_data:
+
+            # 우편번호 데이터 없을 경우 예외 처리
+            if postal_data is None:
+                log_error(None, f"우편번호 데이터 없음: {data.postal_code}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="유효하지 않은 우편번호입니다",
+                    detail=f"유효하지 않은 우편번호입니다: {data.postal_code}",
                 )
 
+            # 대시보드 데이터 준비
             dashboard_data = data.dict()
             dashboard_data["department"] = user_department
 
-            # 트랜잭션 내에서 생성 및 검증
-            dashboard = self.repository.create_dashboard(dashboard_data)
+            # 우편번호 관련 데이터 명시적 설정
+            dashboard_data["city"] = postal_data.city or ""
+            dashboard_data["district"] = postal_data.district or ""
+            dashboard_data["distance"] = postal_data.distance or 0
+            dashboard_data["duration_time"] = postal_data.duration_time or 0
 
-            # 트리거 작동 결과 검증
-            if not all(
-                [
-                    dashboard.city,
-                    dashboard.district,
-                    dashboard.distance,
-                    dashboard.duration_time,
-                ]
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="우편번호 데이터 매핑 실패",
-                )
+            log_info(
+                "대시보드 생성 데이터",
+                {
+                    "dashboard_data": dashboard_data,
+                    "postal_data": {
+                        "city": postal_data.city,
+                        "district": postal_data.district,
+                        "distance": postal_data.distance,
+                        "duration_time": postal_data.duration_time,
+                    },
+                },
+            )
+
+            # 대시보드 생성
+            dashboard = self.repository.create_dashboard(dashboard_data)
 
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
             return DashboardResponse.model_validate(dashboard)
@@ -90,7 +100,7 @@ class DashboardService:
             log_error(e, "대시보드 생성 실패")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 생성 중 오류가 발생했습니다",
+                detail=f"대시보드 생성 중 오류가 발생했습니다: {str(e)}",
             )
 
     def get_dashboard_detail(self, dashboard_id: int) -> DashboardDetail:
@@ -123,8 +133,10 @@ class DashboardService:
         """상태 업데이트"""
         try:
             log_info(f"상태 업데이트 시작: {dashboard_id} -> {status_update.status}")
+            current_time = datetime.now()
+
             dashboard = self.repository.update_dashboard_status(
-                dashboard_id, status_update.status, datetime.now()
+                dashboard_id, status_update.status, current_time
             )
 
             if not dashboard:
@@ -174,10 +186,10 @@ class DashboardService:
             )
 
     def assign_driver(self, assignment: DriverAssignment) -> List[DashboardResponse]:
-        """배차 처리"""
         try:
             log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
-            # 배차 가능 상태 검증
+
+            # 대기 상태 검증
             dashboards = self.repository.get_dashboards_by_ids(assignment.dashboard_ids)
 
             invalid_dashboards = []
@@ -186,8 +198,6 @@ class DashboardService:
                     invalid_dashboards.append(
                         f"주문번호 {dash.order_no}: 대기 상태가 아님"
                     )
-                elif dash.driver_name:
-                    invalid_dashboards.append(f"주문번호 {dash.order_no}: 이미 배차됨")
 
             if invalid_dashboards:
                 raise HTTPException(
@@ -196,7 +206,7 @@ class DashboardService:
                     + "\n".join(invalid_dashboards),
                 )
 
-            # 배차 정보 업데이트
+            # 배차 정보 업데이트 (status 변경 제외)
             updated_dashboards = self.repository.assign_driver(
                 assignment.dashboard_ids,
                 assignment.driver_name,
