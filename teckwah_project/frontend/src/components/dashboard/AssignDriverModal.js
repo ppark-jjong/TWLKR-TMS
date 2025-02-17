@@ -79,7 +79,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       onCancel={onCancel}
       onOk={handleSubmit}
       confirmLoading={submitting}
-      maskClosable={false}
+      maskClosable={true  }
       width={600}
     >
       <div style={{ 

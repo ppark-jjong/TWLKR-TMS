@@ -165,13 +165,11 @@ class DashboardRepository:
         try:
             log_info("배차 처리 시작", {"dashboard_ids": dashboard_ids})
             dashboards = self.get_dashboards_by_ids(dashboard_ids)
-            current_time = datetime.now()
 
             for dashboard in dashboards:
-                if dashboard.status == "WAITING":
-                    dashboard.driver_name = driver_name
-                    dashboard.driver_contact = driver_contact
-                    self.update_status_with_time(dashboard, "IN_PROGRESS", current_time)
+                # 단순히 운전자 정보만 업데이트
+                dashboard.driver_name = driver_name
+                dashboard.driver_contact = driver_contact
 
             self.db.commit()
             log_info("배차 처리 완료")
