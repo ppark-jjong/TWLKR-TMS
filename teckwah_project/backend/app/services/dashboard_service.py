@@ -1,4 +1,4 @@
-# backend/app/services/dashboard_service.py
+import pytz
 from datetime import datetime
 from typing import List
 from fastapi import HTTPException, status
@@ -12,12 +12,24 @@ from app.schemas.dashboard_schema import (
 )
 from app.repositories.dashboard_repository import DashboardRepository
 from app.utils.logger import log_info, log_error
-from app.models.dashboard_model import Dashboard
 
 
 class DashboardService:
     def __init__(self, repository: DashboardRepository):
         self.repository = repository
+        self.kr_timezone = pytz.timezone("Asia/Seoul")
+        self.allowed_status_transitions = {
+            "WAITING": ["IN_PROGRESS", "CANCEL"],
+            "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
+            "COMPLETE": [],  # 완료 상태에서는 변경 불가
+            "ISSUE": [],  # 이슈 상태에서는 변경 불가
+            "CANCEL": [],  # 취소 상태에서는 변경 불가
+        }
+
+    def validate_status_transition(self, current_status: str, new_status: str) -> bool:
+        """상태 변경 가능 여부 검증"""
+        allowed_transitions = self.allowed_status_transitions.get(current_status, [])
+        return new_status in allowed_transitions
 
     def get_dashboard_list(self, target_date: datetime) -> List[DashboardResponse]:
         """날짜별 대시보드 조회"""
@@ -75,19 +87,6 @@ class DashboardService:
             dashboard_data["distance"] = postal_data.distance or 0
             dashboard_data["duration_time"] = postal_data.duration_time or 0
 
-            log_info(
-                "대시보드 생성 데이터",
-                {
-                    "dashboard_data": dashboard_data,
-                    "postal_data": {
-                        "city": postal_data.city,
-                        "district": postal_data.district,
-                        "distance": postal_data.distance,
-                        "duration_time": postal_data.duration_time,
-                    },
-                },
-            )
-
             # 대시보드 생성
             dashboard = self.repository.create_dashboard(dashboard_data)
 
@@ -100,7 +99,7 @@ class DashboardService:
             log_error(e, "대시보드 생성 실패")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"대시보드 생성 중 오류가 발생했습니다: {str(e)}",
+                detail="대시보드 생성 중 오류가 발생했습니다",
             )
 
     def get_dashboard_detail(self, dashboard_id: int) -> DashboardDetail:
@@ -133,20 +132,42 @@ class DashboardService:
         """상태 업데이트"""
         try:
             log_info(f"상태 업데이트 시작: {dashboard_id} -> {status_update.status}")
-            current_time = datetime.now()
 
-            dashboard = self.repository.update_dashboard_status(
-                dashboard_id, status_update.status, current_time
-            )
-
+            # 현재 대시보드 조회
+            dashboard = self.repository.get_dashboard_detail(dashboard_id)
             if not dashboard:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="대시보드를 찾을 수 없습니다",
                 )
 
+            # 상태 변경 가능 여부 검증
+            if not self.validate_status_transition(
+                dashboard.status, status_update.status
+            ):
+                current_status_text = {
+                    "WAITING": "대기",
+                    "IN_PROGRESS": "진행",
+                    "COMPLETE": "완료",
+                    "ISSUE": "이슈",
+                    "CANCEL": "취소",
+                }.get(dashboard.status)
+
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{current_status_text} 상태에서는 {STATUS_TEXTS[status_update.status]}(으)로 변경할 수 없습니다",
+                )
+
+            # KST 시간대로 현재 시간 설정
+            current_time = datetime.now(self.kr_timezone)
+
+            # 상태 업데이트 수행
+            updated_dashboard = self.repository.update_dashboard_status(
+                dashboard_id, status_update.status, current_time
+            )
+
             log_info("상태 업데이트 완료")
-            return DashboardDetail.model_validate(dashboard)
+            return DashboardDetail.model_validate(updated_dashboard)
 
         except HTTPException:
             raise
@@ -164,7 +185,8 @@ class DashboardService:
         try:
             log_info(f"메모 업데이트 시작: {dashboard_id}")
             dashboard = self.repository.update_dashboard_remark(
-                dashboard_id, remark_update.remark
+                dashboard_id,
+                remark_update.remark,  # RemarkUpdate 스키마의 remark 필드 사용
             )
 
             if not dashboard:

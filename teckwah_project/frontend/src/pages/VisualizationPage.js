@@ -8,7 +8,7 @@ import LoadingSpin from '../components/common/LoadingSpin';
 import VisualizationService from '../services/VisualizationService';
 import { CHART_TYPES, VISUALIZATION_OPTIONS, FONT_STYLES } from '../utils/Constants';
 import { formatDateTime } from '../utils/Formatter';
-import message from '../utils/message';
+import message, { MessageKeys, MessageTemplates } from '../utils/message';
 
 const { Content } = Layout;
 const { RangePicker } = DatePicker;
@@ -32,15 +32,18 @@ const VisualizationPage = () => {
   }, [vizType, dateRange]);
 
   const fetchOldestDate = async () => {
+    const key = MessageKeys.VISUALIZATION.DATE;
     try {
+      message.loading('조회 가능 기간 확인 중...', key);
       const date = await VisualizationService.getOldestDataDate();
       setOldestDate(dayjs(date));
+      message.loadingToSuccess('조회 가능 기간을 확인했습니다', key);
     } catch (error) {
-      console.error('가장 오래된 데이터 날짜 조회 실패:', error);
+      message.loadingToError('조회 가능 기간 확인 중 오류가 발생했습니다', key);
     }
   };
 
-  // 날짜 선택 제한 로직 개선
+  // 날짜 선택 제한 로직
   const disabledDate = (current) => {
     if (!current || !oldestDate) return false;
 
@@ -71,26 +74,31 @@ const VisualizationPage = () => {
   };
 
   const fetchData = async () => {
+    const key = MessageKeys.VISUALIZATION.LOAD;
     if (!dateRange[0] || !dateRange[1]) {
-      message.info('날짜를 선택해주세요');
+      message.warning(MessageTemplates.VISUALIZATION.DATE_INVALID, key);
       return;
     }
 
     if (dateRange[1].isAfter(dayjs(), 'day')) {
-      message.error('미래 날짜는 조회할 수 없습니다');
+      message.warning(MessageTemplates.VISUALIZATION.FUTURE_DATE, key);
       return;
     }
 
     try {
       setLoading(true);
+      message.loading('데이터 조회 중...', key);
+      
       const response = await VisualizationService.getVisualizationData(
         vizType,
         dateRange[0].startOf('day').toDate(),
         dateRange[1].endOf('day').toDate()
       );
+      
       setData(response);
+      message.loadingToSuccess(MessageTemplates.VISUALIZATION.LOAD_SUCCESS, key);
     } catch (error) {
-      message.error('데이터 조회 중 오류가 발생했습니다');
+      message.loadingToError(MessageTemplates.VISUALIZATION.LOAD_FAIL, key);
     } finally {
       setLoading(false);
     }

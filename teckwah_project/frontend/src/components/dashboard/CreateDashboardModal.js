@@ -73,7 +73,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
     if (current && current.isSame(now, 'day')) {
       return {
         disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
-        disabledMinutes: (hour) => 
+        disabledMinutes: (hour) =>
           hour === now.hour() ? Array.from({ length: now.minute() }, (_, i) => i) : []
       };
     }
@@ -82,13 +82,13 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
 
   return (
     <Modal
-      title={<span style={FONT_STYLES.TITLE.MEDIUM}>대시보드 생성</span>}
+      title={<span style={FONT_STYLES.TITLE.LARGE}>대시보드 생성</span>}
       open={visible}
       onCancel={onCancel}
       onOk={handleSubmit}
       confirmLoading={loading}
       width={1000}
-      maskClosable={false}
+      maskClosable={true}
     >
       <Form
         form={form}
@@ -102,19 +102,21 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
             {/* 기본 정보 */}
             <Form.Item
               name="type"
-              label="종류"
+              label={<span style={FONT_STYLES.LABEL}>종류</span>}
               rules={[{ required: true, message: '종류를 선택해주세요' }]}
             >
               <Select style={FONT_STYLES.BODY.MEDIUM}>
                 {Object.entries(TYPE_TYPES).map(([key, value]) => (
-                  <Option key={key} value={value}>{TYPE_TEXTS[key]}</Option>
+                  <Option key={key} value={value}>
+                    {TYPE_TEXTS[key]}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
 
             <Form.Item
               name="order_no"
-              label="주문번호"
+              label={<span style={FONT_STYLES.LABEL}>주문번호</span>}
               rules={[
                 { required: true, message: '주문번호를 입력해주세요' },
                 { pattern: /^\d+$/, message: '숫자만 입력 가능합니다' }
@@ -125,35 +127,37 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
 
             <Form.Item
               name="warehouse"
-              label="출발허브"
+              label={<span style={FONT_STYLES.LABEL}>출발허브</span>}
               rules={[{ required: true, message: '출발허브를 선택해주세요' }]}
             >
               <Select style={FONT_STYLES.BODY.MEDIUM}>
                 {Object.entries(WAREHOUSE_TYPES).map(([key, value]) => (
-                  <Option key={key} value={value}>{WAREHOUSE_TEXTS[key]}</Option>
+                  <Option key={key} value={value}>
+                    {WAREHOUSE_TEXTS[key]}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
 
             <Form.Item
               name="sla"
-              label="SLA"
+              label={<span style={FONT_STYLES.LABEL}>SLA</span>}
               rules={[
                 { required: true, message: 'SLA를 입력해주세요' },
                 { max: 10, message: 'SLA는 10자를 초과할 수 없습니다' },
                 { whitespace: true, message: '공백만으로는 입력할 수 없습니다' }
               ]}
             >
-              <Input 
-                placeholder="SLA를 입력하세요" 
-                maxLength={10} 
-                style={FONT_STYLES.BODY.MEDIUM} 
+              <Input
+                placeholder="SLA를 입력하세요"
+                maxLength={10}
+                style={FONT_STYLES.BODY.MEDIUM}
               />
             </Form.Item>
 
             <Form.Item
               name="eta"
-              label="ETA"
+              label={<span style={FONT_STYLES.LABEL}>ETA</span>}
               rules={[{ required: true, message: 'ETA를 선택해주세요' }]}
             >
               <DatePicker
@@ -161,7 +165,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
                 format="YYYY-MM-DD HH:mm"
                 disabledDate={disabledDate}
                 disabledTime={disabledTime}
-                style={{ width: '100%' }}
+                style={{ width: '100%', ...FONT_STYLES.BODY.MEDIUM }}
                 size="large"
               />
             </Form.Item>
@@ -171,47 +175,47 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
             {/* 배송 정보 */}
             <Form.Item
               name="postal_code"
-              label="우편번호"
+              label={<span style={FONT_STYLES.LABEL}>우편번호</span>}
               rules={[
                 { required: true, message: '우편번호를 입력해주세요' },
                 { pattern: /^\d{5}$/, message: '5자리 숫자로 입력해주세요' }
               ]}
             >
-              <Input 
-                maxLength={5} 
-                placeholder="12345" 
-                style={FONT_STYLES.BODY.MEDIUM} 
+              <Input
+                maxLength={5}
+                placeholder="12345"
+                style={FONT_STYLES.BODY.MEDIUM}
               />
             </Form.Item>
 
             <Form.Item
               name="address"
-              label="도착 주소"
+              label={<span style={FONT_STYLES.LABEL}>도착 주소</span>}
               rules={[
                 { required: true, message: '주소를 입력해주세요' },
                 { whitespace: true, message: '공백만으로는 입력할 수 없습니다' }
               ]}
             >
-              <TextArea 
-                rows={3} 
-                maxLength={200} 
-                showCount 
-                style={FONT_STYLES.BODY.MEDIUM}
+              <TextArea
+                rows={3}
+                maxLength={200}
+                showCount
+                style={{ ...FONT_STYLES.BODY.MEDIUM, resize: 'none' }}
                 placeholder="상세 주소를 입력하세요"
               />
             </Form.Item>
 
             <Form.Item
               name="customer"
-              label="수령인"
+              label={<span style={FONT_STYLES.LABEL}>수령인</span>}
               rules={[
                 { required: true, message: '수령인을 입력해주세요' },
                 { whitespace: true, message: '공백만으로는 입력할 수 없습니다' }
               ]}
             >
-              <Input 
-                maxLength={50} 
-                showCount 
+              <Input
+                maxLength={50}
+                showCount
                 style={FONT_STYLES.BODY.MEDIUM}
                 placeholder="수령인 이름을 입력하세요"
               />
@@ -219,7 +223,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
 
             <Form.Item
               name="contact"
-              label="연락처"
+              label={<span style={FONT_STYLES.LABEL}>연락처</span>}
               rules={[
                 { required: true, message: '연락처를 입력해주세요' },
                 { pattern: /^\d{2,3}-\d{3,4}-\d{4}$/, message: '올바른 연락처 형식으로 입력해주세요' }
@@ -227,7 +231,7 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
             >
               <Input
                 onChange={handlePhoneChange('contact')}
-                placeholder="01012345678"
+                placeholder="010-1234-5678"
                 maxLength={13}
                 style={FONT_STYLES.BODY.MEDIUM}
               />
@@ -235,13 +239,13 @@ const CreateDashboardModal = ({ visible, onCancel, onSuccess, userDepartment }) 
 
             <Form.Item
               name="remark"
-              label="메모"
+              label={<span style={FONT_STYLES.LABEL}>메모</span>}
             >
-              <TextArea 
-                rows={3} 
-                maxLength={500} 
+              <TextArea
+                rows={3}
+                maxLength={500}
                 showCount
-                style={FONT_STYLES.BODY.MEDIUM}
+                style={{ ...FONT_STYLES.BODY.MEDIUM, resize: 'none' }}
                 placeholder="추가 메모사항이 있다면 입력해주세요"
               />
             </Form.Item>

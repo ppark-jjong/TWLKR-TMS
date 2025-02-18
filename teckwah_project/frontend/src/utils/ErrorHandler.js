@@ -1,5 +1,6 @@
 // frontend/src/utils/ErrorHandler.js
-import { MessageKeys, MessageTemplates, showMessage } from './message';
+import { MessageKeys, MessageTemplates } from './message';
+import messageService from './message';
 
 class ErrorHandler {
   static handle(error, context = '') {
@@ -64,7 +65,7 @@ class ErrorHandler {
       }
     }
 
-    showMessage.error(errorMessage, messageKey);
+    messageService.error(errorMessage, messageKey);
     error.handled = true;
 
     // 로깅 또는 모니터링을 위한 추가 처리

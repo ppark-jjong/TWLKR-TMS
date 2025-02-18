@@ -35,7 +35,7 @@ Dashboard 페이지 (실시간 배송 현황)
 상단 고정 영역: 검색 바, 부서 필터 드롭다운, 대시보드 생성, 배차, 새로고침, 삭제 버튼
 검색/필터: 프론트엔드 측 구현, 페이지네이션(최대 50행)도 프론트엔드 처리
 테이블 구성:
-컬럼: 체크박스, type(종류), department(부서), warehouse(출발 허브), driver_name(담당 기사), order_no, status(배송 상태; WAITING→대기, IN_PROGRESS→진행, COMPLETE→완료, ISSUE→이슈), eta(YYYY-MM-DD HH:MM), region(도착 지역), depart_time(출발 시각)
+컬럼: 체크박스, type(종류), department(부서), warehouse(출발 허브), driver_name(담당 기사), order_no, status(배송 상태; WAITING→대기, IN_PROGRESS→진행, COMPLETE→완료, ISSUE→이슈, CANCEL→취소소), eta(YYYY-MM-DD HH:MM), region(도착 지역), depart_time(출발 시각)
 행 UI: 상태별 색상 적용 (대기: 회색, 진행: 노란색, 완료: 초록색, 이슈: 빨간색)
 날짜 선택: 상단에 현재 선택 날짜 표시, 달력 컴포넌트 통해 날짜 변경 시 API 재요청
 행 선택 및 액션:

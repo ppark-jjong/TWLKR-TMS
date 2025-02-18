@@ -1,6 +1,5 @@
-// frontend/src/components/dashboard/DashboardDetailModal.js
-import React, { useState, useEffect } from 'react';
-import { Modal, Typography, Tag, Button, Space, Select, Input, Row, Col, Divider } from 'antd';
+import React, { useState } from 'react';
+import { Modal, Typography, Tag, Button, Space, Select, Input, Row, Col, Divider, message } from 'antd';
 import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { 
   STATUS_TYPES,
@@ -9,7 +8,7 @@ import {
   TYPE_TEXTS,
   WAREHOUSE_TEXTS,
   DEPARTMENT_TEXTS,
-  FONT_STYLES
+  FONT_STYLES 
 } from '../../utils/Constants';
 import { 
   formatDateTime, 
@@ -17,249 +16,302 @@ import {
   formatDuration,
   formatPhoneNumber 
 } from '../../utils/Formatter';
-import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 import DashboardService from '../../services/DashboardService';
-import { useDashboard } from '../../contexts/DashboardContext';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-const DetailItem = ({ label, value, highlight = false }) => (
-  <div style={{ marginBottom: '12px' }}>
-    <Text type="secondary" style={{ ...FONT_STYLES.LABEL, display: 'block', marginBottom: '4px' }}>
-      {label}
-    </Text>
-    <Text strong={highlight} style={highlight ? FONT_STYLES.BODY.LARGE : FONT_STYLES.BODY.MEDIUM}>
-      {value}
-    </Text>
+// 섹션 타이틀 컴포넌트
+const SectionTitle = ({ children }) => (
+  <Title level={5} style={{
+    ...FONT_STYLES.TITLE.SMALL,
+    marginBottom: '16px',
+    color: '#1890ff',
+    borderBottom: '2px solid #1890ff',
+    paddingBottom: '8px'
+  }}>
+    {children}
+  </Title>
+);
+
+// 데이터 표시 컴포넌트
+const InfoItem = ({ label, value, highlight = false }) => (
+  <div style={{ marginBottom: '16px' }}>
+    <div style={{ 
+      display: 'flex', 
+      backgroundColor: '#fafafa',
+      padding: '12px 16px',
+      borderRadius: '6px'
+    }}>
+      <Text style={{ 
+        ...FONT_STYLES.BODY.MEDIUM, 
+        width: '120px', 
+        color: '#666',
+        flexShrink: 0
+      }}>
+        {label}
+      </Text>
+      <Text 
+        strong={highlight} 
+        style={{ 
+          ...FONT_STYLES.BODY.MEDIUM,
+          flex: 1,
+          color: highlight ? '#1890ff' : 'rgba(0, 0, 0, 0.85)'
+        }}
+      >
+        {value || '-'}
+      </Text>
+    </div>
   </div>
 );
 
-const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard: initialDashboard }) => {
+const DashboardDetailModal = ({ visible, onCancel, onSuccess, dashboard }) => {
   const [loading, setLoading] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
   const [editingRemark, setEditingRemark] = useState(false);
-  const [dashboard, setDashboard] = useState(initialDashboard);
-  const { updateDashboard } = useDashboard();
-
-  useEffect(() => {
-    setDashboard(initialDashboard);
-  }, [initialDashboard]);
+  const [currentDashboard, setCurrentDashboard] = useState(dashboard);
 
   const handleStatusUpdate = async (newStatus) => {
-    const key = MessageKeys.DASHBOARD.STATUS;
-    setLoading(true);
-    message.loading(`${STATUS_TEXTS[newStatus]} 상태로 변경 중...`, key);
-
     try {
-      const updatedDashboard = await DashboardService.updateStatus(dashboard.dashboard_id, { 
-        status: newStatus 
-      });
-      
-      // 로컬 상태 및 컨텍스트 업데이트
-      setDashboard(updatedDashboard);
-      updateDashboard(dashboard.dashboard_id, updatedDashboard);
-      setEditingStatus(false);
-      
-      message.loadingToSuccess(
-        MessageTemplates.DASHBOARD.STATUS_SUCCESS(STATUS_TEXTS[newStatus]),
-        key
+      setLoading(true);
+      const updatedDashboard = await DashboardService.updateStatus(
+        dashboard.dashboard_id, 
+        newStatus
       );
+      setCurrentDashboard(updatedDashboard);
+      setEditingStatus(false);
+      message.success(`${STATUS_TEXTS[newStatus]} 상태로 변경되었습니다`);
+      onSuccess();
     } catch (error) {
-      message.loadingToError(MessageTemplates.DASHBOARD.STATUS_FAIL, key);
+      console.error('Status update error:', error.response?.data);
+      message.error(error.response?.data?.detail || '상태 변경 중 오류가 발생했습니다');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRemarkUpdate = async () => {
-    const key = MessageKeys.DASHBOARD.MEMO;
-    setLoading(true);
-    message.loading('메모 업데이트 중...', key);
-
     try {
+      setLoading(true);
       const updatedDashboard = await DashboardService.updateRemark(
         dashboard.dashboard_id,
-        dashboard.remark
+        currentDashboard.remark // 직접 remark 문자열 전달
       );
-      
-      setDashboard(updatedDashboard);
-      updateDashboard(dashboard.dashboard_id, updatedDashboard);
+      setCurrentDashboard(updatedDashboard);
       setEditingRemark(false);
-      
-      message.loadingToSuccess(MessageTemplates.DASHBOARD.MEMO_SUCCESS, key);
+      message.success('메모가 업데이트되었습니다');
+      onSuccess();
     } catch (error) {
-      message.loadingToError(MessageTemplates.DASHBOARD.MEMO_FAIL, key);
-      setDashboard(initialDashboard); // 에러 시 원래 상태로 복구
+      message.error(error.response?.data?.detail || '메모 업데이트 중 오류가 발생했습니다');
+      setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
     } finally {
       setLoading(false);
     }
   };
 
+  // 상태 변경 가능 여부 확인 로직 유지...
+  const getAvailableStatuses = (currentStatus) => {
+    const transitions = {
+      WAITING: ["IN_PROGRESS", "CANCEL"],
+      IN_PROGRESS: ["COMPLETE", "ISSUE", "CANCEL"],
+      COMPLETE: [],
+      ISSUE: [],
+      CANCEL: []
+    };
+
+    return Object.entries(STATUS_TYPES)
+      .filter(([_, value]) => transitions[currentStatus].includes(value))
+      .map(([key, value]) => ({
+        value,
+        label: STATUS_TEXTS[key]
+      }));
+  };
+
   return (
     <Modal
       title={
-        <Text style={FONT_STYLES.TITLE.MEDIUM}>
-          주문번호 {dashboard.order_no} 상세정보
-        </Text>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          padding: '8px 0',
+          marginRight: '48px' // X 버튼과 겹치지 않도록 여백 추가
+        }}>
+          <Text style={{ ...FONT_STYLES.TITLE.LARGE, marginRight: '24px' }}>
+            주문번호: {dashboard.order_no}
+          </Text>
+          <Space size="large">
+            <Tag 
+              color={STATUS_COLORS[currentDashboard.status]} 
+              style={{ 
+                padding: '8px 16px',
+                fontSize: '16px',
+                fontWeight: 600,
+                marginRight: 0
+              }}
+            >
+              {STATUS_TEXTS[currentDashboard.status]}
+            </Tag>
+            {currentDashboard.status !== 'CANCEL' && getAvailableStatuses(currentDashboard.status).length > 0 && (
+              editingStatus ? (
+                <Space.Compact>
+                  <Select
+                    placeholder={STATUS_TEXTS[currentDashboard.status]}
+                    onChange={handleStatusUpdate}
+                    options={getAvailableStatuses(currentDashboard.status)}
+                    disabled={loading}
+                    style={{ width: 150 }}
+                    size="large"
+                  />
+                  <Button 
+                    icon={<CloseOutlined />}
+                    onClick={() => setEditingStatus(false)}
+                    size="large"
+                  />
+                </Space.Compact>
+              ) : (
+                <Button 
+                  icon={<EditOutlined />}
+                  type="primary"
+                  onClick={() => setEditingStatus(true)}
+                  size="large"
+                >
+                  상태 변경
+                </Button>
+              )
+            )}
+          </Space>
+        </div>
       }
       open={visible}
       onCancel={onCancel}
       footer={null}
-      width={1400}
-      style={{ top: 20 }}
+      width={1200}
       bodyStyle={{ 
-        padding: '16px',
-        backgroundColor: 'white',
-        height: 'calc(90vh - 100px)',
-        overflow: 'hidden'
+        maxHeight: 'calc(90vh - 150px)',
+        overflowY: 'auto',
+        padding: '24px'
       }}
     >
-      <div style={{ height: '100%' }}>
-        <Space direction="vertical" size="middle" style={{ width: '100%', height: '100%' }}>
-          <Space size="middle">
-            <Tag color={STATUS_COLORS[dashboard.status]} style={{ 
-              padding: '4px 12px',
-              ...FONT_STYLES.BODY.MEDIUM
-            }}>
-              {STATUS_TEXTS[dashboard.status]}
-            </Tag>
-            {editingStatus ? (
-              <Space.Compact>
-                <Select
-                  value={dashboard.status}
-                  onChange={handleStatusUpdate}
-                  style={{ width: '120px' }}
-                  options={Object.entries(STATUS_TYPES)
-                    .filter(([_, value]) => value !== dashboard.status)
-                    .map(([key, value]) => ({
-                      value,
-                      label: STATUS_TEXTS[key]
-                    }))}
-                  disabled={loading}
-                />
-                <Button 
-                  icon={<CloseOutlined />}
-                  onClick={() => setEditingStatus(false)}
-                />
-              </Space.Compact>
-            ) : (
-              <Button 
-                icon={<EditOutlined />}
-                type="text"
-                onClick={() => setEditingStatus(true)}
-              >
-                상태 변경
-              </Button>
-            )}
-          </Space>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <Row gutter={32}>
+          <Col span={12}>
+            <div style={{ marginBottom: '32px' }}>
+              <SectionTitle>기본 정보</SectionTitle>
+              <InfoItem label="부서" value={DEPARTMENT_TEXTS[currentDashboard.department]} />
+              <InfoItem label="종류" value={TYPE_TEXTS[currentDashboard.type]} />
+              <InfoItem label="출발 허브" value={WAREHOUSE_TEXTS[currentDashboard.warehouse]} />
+              <InfoItem label="SLA" value={currentDashboard.sla} />
+            </div>
 
-          <Row gutter={[24, 24]} style={{ marginTop: '8px' }}>
-            <Col span={8}>
-              <Title level={5} style={{ ...FONT_STYLES.TITLE.SMALL, marginBottom: '12px' }}>
-                기본 정보
-              </Title>
-              <DetailItem label="부서" value={DEPARTMENT_TEXTS[dashboard.department]} />
-              <DetailItem label="출발 허브" value={WAREHOUSE_TEXTS[dashboard.warehouse]} />
-              <DetailItem label="SLA" value={dashboard.sla} />
-            </Col>
+            <div>
+              <SectionTitle>배송 시간</SectionTitle>
+              <InfoItem label="접수 시각" value={formatDateTime(currentDashboard.create_time)} />
+              <InfoItem label="출발 시각" value={formatDateTime(currentDashboard.depart_time)} />
+              <InfoItem label="완료 시각" value={formatDateTime(currentDashboard.complete_time)} />
+              <InfoItem 
+                label="ETA" 
+                value={formatDateTime(currentDashboard.eta)}
+              />
+            </div>
+          </Col>
 
-            <Col span={8}>
-              <Title level={5} style={{ ...FONT_STYLES.TITLE.SMALL, marginBottom: '12px' }}>
-                배송 시간
-              </Title>
-              <DetailItem label="접수 시각" value={formatDateTime(dashboard.create_time)} />
-              <DetailItem label="출발 시각" value={formatDateTime(dashboard.depart_time) || '-'} />
-              <DetailItem label="완료 시각" value={formatDateTime(dashboard.complete_time) || '-'} />
-              <DetailItem label="예상 ETA" value={formatDateTime(dashboard.eta)} />
-            </Col>
-
-            <Col span={8}>
-              <Title level={5} style={{ ...FONT_STYLES.TITLE.SMALL, marginBottom: '12px' }}>
-                기사 정보
-              </Title>
-              <DetailItem 
+          <Col span={12}>
+            <div style={{ marginBottom: '32px' }}>
+              <SectionTitle>배송 담당자</SectionTitle>
+              <InfoItem 
                 label="담당 기사" 
-                value={dashboard.driver_name || '-'} 
-                highlight={!!dashboard.driver_name} 
+                value={currentDashboard.driver_name}
               />
-              <DetailItem 
+              <InfoItem 
                 label="기사 연락처" 
-                value={formatPhoneNumber(dashboard.driver_contact) || '-'} 
-                highlight={!!dashboard.driver_contact} 
+                value={formatPhoneNumber(currentDashboard.driver_contact)}
               />
-            </Col>
-          </Row>
+            </div>
 
-          <Row gutter={[24, 24]}>
-            <Col span={12}>
-              <Title level={5} style={{ ...FONT_STYLES.TITLE.SMALL, marginBottom: '12px' }}>
-                배송 세부사항
-              </Title>
-              <DetailItem label="주소" value={dashboard.address} />
-              <DetailItem label="예상 거리" value={formatDistance(dashboard.distance)} />
-              <DetailItem label="예상 소요시간" value={formatDuration(dashboard.duration_time)} />
-            </Col>
+            <div style={{ marginBottom: '32px' }}>
+              <SectionTitle>배송 세부사항</SectionTitle>
+              <InfoItem label="주소" value={currentDashboard.address} />
+              <InfoItem label="예상 거리" value={formatDistance(currentDashboard.distance)} />
+              <InfoItem label="예상 소요시간" value={formatDuration(currentDashboard.duration_time)} />
+            </div>
 
-            <Col span={12}>
-              <Title level={5} style={{ ...FONT_STYLES.TITLE.SMALL, marginBottom: '12px' }}>
-                수령인 정보 및 메모
-              </Title>
-              <DetailItem label="수령인" value={dashboard.customer || '-'} />
-              <DetailItem label="연락처" value={formatPhoneNumber(dashboard.contact) || '-'} />
-              <div style={{ marginTop: '8px' }}>
-                {editingRemark ? (
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <TextArea
-                      value={dashboard.remark}
-                      onChange={(e) => setDashboard({...dashboard, remark: e.target.value})}
-                      rows={2}
-                      maxLength={500}
-                      showCount
-                      style={FONT_STYLES.BODY.MEDIUM}
-                    />
-                    <Space>
-                      <Button 
-                        type="primary" 
-                        icon={<CheckOutlined />}
-                        onClick={handleRemarkUpdate} 
-                        loading={loading}
-                      >
-                        저장
-                      </Button>
-                      <Button 
-                        icon={<CloseOutlined />}
-                        onClick={() => {
-                          setEditingRemark(false);
-                          setDashboard(initialDashboard);
-                        }}
-                      >
-                        취소
-                      </Button>
-                    </Space>
-                  </Space>
-                ) : (
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'flex-start' 
-                  }}>
-                    <Text style={{ flex: 1, ...FONT_STYLES.BODY.MEDIUM }}>
-                      {dashboard.remark || '메모 없음'}
-                    </Text>
-                    <Button 
-                      icon={<EditOutlined />}
-                      type="text"
-                      onClick={() => setEditingRemark(true)}
-                    >
-                      메모 수정
-                    </Button>
-                  </div>
-                )}
+            <div>
+              <SectionTitle>수령인 정보</SectionTitle>
+              <InfoItem label="수령인" value={currentDashboard.customer} />
+              <InfoItem label="연락처" value={formatPhoneNumber(currentDashboard.contact)} />
+            </div>
+          </Col>
+        </Row>
+
+        <div>
+          <SectionTitle>메모</SectionTitle>
+          {editingRemark ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <TextArea
+                value={currentDashboard.remark}
+                onChange={(e) => setCurrentDashboard({
+                  ...currentDashboard,
+                  remark: e.target.value
+                })}
+                rows={6}
+                maxLength={2000}
+                showCount
+                style={{
+                  ...FONT_STYLES.BODY.MEDIUM,
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '6px'
+                }}
+              />
+              <Space>
+                <Button 
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  onClick={handleRemarkUpdate}
+                  loading={loading}
+                  size="large"
+                >
+                  저장
+                </Button>
+                <Button
+                  icon={<CloseOutlined />}
+                  onClick={() => {
+                    setEditingRemark(false);
+                    setCurrentDashboard(dashboard);
+                  }}
+                  size="large"
+                >
+                  취소
+                </Button>
+              </Space>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ 
+                flex: 1,
+                backgroundColor: '#fafafa',
+                padding: '16px',
+                borderRadius: '6px',
+                minHeight: '120px',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                marginRight: '16px',
+                ...FONT_STYLES.BODY.MEDIUM
+              }}>
+                {currentDashboard.remark || '메모 없음'}
               </div>
-            </Col>
-          </Row>
-        </Space>
+              <Button
+                icon={<EditOutlined />}
+                type="primary"
+                onClick={() => setEditingRemark(true)}
+                size="large"
+              >
+                메모 수정
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );

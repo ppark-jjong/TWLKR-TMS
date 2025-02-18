@@ -1,31 +1,56 @@
-02/05
-- 총 기능 리스트 프롬프트 작성 중
-	- 프론트 기능 리스트 업
-	- 백엔드 기능 리스트 업
-	- 배포환경 상태 리스트 업
-당신은 시니어 풀스택 개발자 + 데이터 엔지니어 입니다. 신중하고 자세한 답변을 제공하며 뛰어난 사고력을 가지고 있습니다
-- 사용자가 질문하면 단계별로 생각하여 계획을 세우고 답변합니다
-- 항상 올바르고, 모범적인 , DRY 원칙(중복을 피하는), 버그 없는 코드를 작성하세요
-- 가독성을 우선하되, 성능도 고려한 코드를 작성하세요
-- 요청한 모든 기능을 완전히 구현하세요
-- 코드는 간결하고 불필요한 설명은 최소화하세요
-- 모르는 경우 모른다고 말하고 추가 조치가 필요하면 이를 언급하세요
-- 별도의 요청이 없으면 모든 응답은 한국어로 응답하세요
-- 사용자가 주니어 개발자 라고 가정하고, 코드에 대한 자세한 설명을 모든 답변에 포함하세요
-
-
-@backend @frontend @deploy
-이미 존재하는 코드와 폴더 파일 구조를 분석하여 이를 기반으로
-위 오류를 해결해주는데
-@.cursorrules 을 따라 정확하게 준수해줘
-이미 있는 코드들을 수정 업데이트 하는 방향으로 가고 
-새롭게 구조나, 로직, 파일, 코드들을 재정의 생성해야할때는 허락을 맡아
-
-
-Teckwah0326!
-
-
-    "@mui/x-date-pickers": "^5.0.0",
-
-
-
+project-root/
+│
+├── backend/                          # 백엔드 관련 코드
+│   ├── app/                          # 애플리케이션 코드
+│   │   ├── api/                      # API 라우터
+│   │   │   ├── auth_router.py        # 인증 관련 API
+│   │   │   ├── dashboard_router.py    # 대시보드 관련 API
+│   │   │   ├── deps.py               # 의존성 주입 및 인증 관련 함수
+│   │   │   ├── visualization_router.py # 시각화 관련 API
+│   │   │   └── __init__.py           # API 패키지 초기화
+│   │   ├── config/                   # 설정 파일
+│   │   │   ├── csv_to_dashboard.py   # CSV 데이터를 대시보드로 변환하는 스크립트
+│   │   │   ├── csv_to_postalcode.py  # CSV 데이터를 우편번호로 변환하는 스크립트
+│   │   │   ├── database.py            # 데이터베이스 연결 및 세션 관리
+│   │   │   ├── init_user.py           # 사용자 초기화 스크립트
+│   │   │   ├── settings.py            # 환경 설정
+│   │   │   └── __init__.py            # config 패키지 초기화
+│   │   ├── models/                   # 데이터베이스 모델
+│   │   │   ├── dashboard_model.py     # 대시보드 모델 정의
+│   │   │   ├── error_log_model.py     # 오류 로그 모델 정의
+│   │   │   ├── postal_code_model.py   # 우편번호 모델 정의
+│   │   │   ├── refresh_token_model.py  # 리프레시 토큰 모델 정의
+│   │   │   ├── user_model.py          # 사용자 모델 정의
+│   │   │   └── __init__.py            # models 패키지 초기화
+│   │   ├── repositories/              # 데이터베이스 접근 레이어
+│   │   │   ├── auth_repository.py      # 인증 관련 데이터베이스 접근
+│   │   │   ├── dashboard_repository.py  # 대시보드 관련 데이터베이스 접근
+│   │   │   ├── visualization_repository.py # 시각화 관련 데이터베이스 접근
+│   │   │   └── __init__.py            # repositories 패키지 초기화
+│   │   ├── schemas/                   # 데이터 스키마 정의
+│   │   │   ├── auth_schema.py         # 인증 관련 스키마
+│   │   │   ├── dashboard_schema.py     # 대시보드 관련 스키마
+│   │   │   ├── visualization_schema.py  # 시각화 관련 스키마
+│   │   │   └── __init__.py            # schemas 패키지 초기화
+│   │   └── main.py                    # 애플리케이션의 진입점
+│   ├── requirements.txt               # 백엔드 의존성 목록
+│   └── .env.local                     # 환경 변수 설정 파일
+│
+├── deploy/                           # 배포 관련 파일
+│   ├── local/                        # 로컬 배포 설정
+│   │   ├── docker-compose.yml        # Docker Compose 설정 파일
+│   │   ├── init-db.sql               # 데이터베이스 초기화 SQL 스크립트
+│   │   └── Dockerfile                 # Dockerfile
+│   └── production/                   # 프로덕션 배포 설정 (필요시 추가)
+│
+└── frontend/                         # 프론트엔드 관련 코드
+    ├── public/                       # 정적 파일 (HTML, 이미지 등)
+    ├── src/                          # 소스 코드
+    │   ├── components/               # 재사용 가능한 컴포넌트
+    │   ├── contexts/                 # React Context API 관련 코드
+    │   ├── pages/                    # 페이지 컴포넌트
+    │   ├── services/                 # API 서비스 호출
+    │   ├── utils/                    # 유틸리티 함수
+    │   ├── App.js                    # 애플리케이션의 루트 컴포넌트
+    │   └── index.js                  # 애플리케이션의 진입점
+    └── package.json                  # 프론트엔드 의존성 목록

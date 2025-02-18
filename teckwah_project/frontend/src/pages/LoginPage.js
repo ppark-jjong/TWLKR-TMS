@@ -5,10 +5,12 @@ import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { FONT_STYLES } from '../utils/Constants';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [form] = Form.useForm();
 
   const onFinish = async (values) => {
@@ -19,8 +21,14 @@ const LoginPage = () => {
     try {
       await login(values.user_id, values.password);
       message.loadingToSuccess(MessageTemplates.AUTH.LOGIN_SUCCESS, key);
+            const returnUrl = localStorage.getItem('returnUrl');
+      if (returnUrl) {
+        localStorage.removeItem('returnUrl');
+        navigate(returnUrl);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
-      // ErrorHandler에서 401 에러에 대한 처리를 하도록 함
       message.loadingToError(MessageTemplates.AUTH.LOGIN_FAIL, key);
     } finally {
       setLoading(false);

@@ -41,27 +41,28 @@ class DashboardService {
     }
   }
 
-  async updateStatus(dashboardId, statusData) {
+  async updateStatus(dashboardId, newStatus) {
     try {
       const response = await axios.patch(
         `/dashboard/${dashboardId}/status`,
-        statusData
+        {
+          status : newStatus 
+        }
       );
       return response.data;
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-status');
       throw error;
     }
   }
 
   async updateRemark(dashboardId, remark) {
     try {
-      const response = await axios.patch(`/dashboard/${dashboardId}/remark`, {
-        remark
-      });
+      const response = await axios.patch(
+        `/dashboard/${dashboardId}/remark`,
+        { remark } 
+      );
       return response.data;
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-remark');
       throw error;
     }
   }
