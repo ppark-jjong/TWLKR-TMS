@@ -7,31 +7,20 @@ import {
   STATUS_TYPES,
   STATUS_TEXTS,
   STATUS_COLORS,
+  STATUS_BG_COLORS,
   DEPARTMENT_TYPES,
   DEPARTMENT_TEXTS,
+  TYPE_TYPES,
   TYPE_TEXTS,
-  WAREHOUSE_TEXTS
+  TYPE_COLORS,
+  WAREHOUSE_TEXTS,
+  FONT_STYLES
 } from '../../utils/Constants';
 import dayjs from 'dayjs';
 
 const { Search } = Input;
 const { Option } = Select;
 
-/**
- * 대시보드 테이블 컴포넌트
- * @param {Object} props - 컴포넌트 속성
- * @param {Array} props.dataSource - 테이블 데이터 소스
- * @param {boolean} props.loading - 로딩 상태
- * @param {dayjs} props.selectedDate - 선택된 날짜
- * @param {Function} props.onDateChange - 날짜 변경 핸들러
- * @param {Array} props.selectedRows - 선택된 행
- * @param {Function} props.onSelectRows - 행 선택 핸들러
- * @param {Function} props.onRowClick - 행 클릭 핸들러
- * @param {Function} props.onRefresh - 새로고침 핸들러
- * @param {Function} props.onCreateClick - 생성 버튼 클릭 핸들러
- * @param {Function} props.onAssignClick - 배차 버튼 클릭 핸들러
- * @param {Function} props.onDeleteClick - 삭제 버튼 클릭 핸들러
- */
 const DashboardTable = ({ 
   dataSource, 
   loading, 
@@ -47,6 +36,7 @@ const DashboardTable = ({
 }) => {
   const [searchText, setSearchText] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState(null);
+  const [typeFilter, setTypeFilter] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
@@ -67,8 +57,12 @@ const DashboardTable = ({
       filtered = filtered.filter(item => item.department === departmentFilter);
     }
 
+    if (typeFilter) {
+      filtered = filtered.filter(item => item.type === typeFilter);
+    }
+
     return filtered;
-  }, [dataSource, searchText, departmentFilter]);
+  }, [dataSource, searchText, departmentFilter, typeFilter]);
 
   // 현재 페이지의 데이터
   const currentPageData = useMemo(() => {
@@ -81,67 +75,93 @@ const DashboardTable = ({
     {
       title: '종류',
       dataIndex: 'type',
+      align: 'center',
       key: 'type',
       width: 80,
       render: text => (
-        <Tag color="blue" style={{ textAlign: 'center', minWidth: '60px' }}>
+        <span style={{ 
+          color: TYPE_COLORS[text],
+          fontWeight: 500,
+          ...FONT_STYLES.BODY.MEDIUM
+        }}>
           {TYPE_TEXTS[text]}
-        </Tag>
-      )
+        </span>
+      ),
+      filters: [
+        { text: '배송', value: 'DELIVERY' },
+        { text: '회수', value: 'RETURN' }
+      ],
+      onFilter: (value, record) => record.type === value
     },
     {
       title: '부서',
       dataIndex: 'department',
+      align: 'center',
       key: 'department',
       width: 80,
-      render: text => <span>{DEPARTMENT_TEXTS[text]}</span>
+      render: text => (
+        <span style={FONT_STYLES.BODY.MEDIUM}>{DEPARTMENT_TEXTS[text]}</span>
+      )
     },
     {
       title: '출발 허브',
       dataIndex: 'warehouse',
+      align: 'center',
       key: 'warehouse',
       width: 100,
-      render: text => <span>{WAREHOUSE_TEXTS[text]}</span>
+      render: text => (
+        <span style={FONT_STYLES.BODY.MEDIUM}>{WAREHOUSE_TEXTS[text]}</span>
+      )
     },
     {
-      title: '담당 기사',
+      title: '배송 담당',
       dataIndex: 'driver_name',
       key: 'driver_name',
+      align: 'center',
       width: 100,
       render: text => (
-        <span style={{ color: text ? 'black' : '#999' }}>
+        <span style={{ 
+          color: text ? 'black' : '#999',
+          ...FONT_STYLES.BODY.MEDIUM 
+        }}>
           {text || '-'}
         </span>
       )
     },
     {
-      title: 'order_no',
+      title: 'order#',
       dataIndex: 'order_no',
       key: 'order_no',
       width: 130,
+      align: 'center',
       render: text => (
-        <Tooltip title={text}>
-          <span style={{ fontFamily: 'monospace' }}>{text}</span>
-        </Tooltip>
+        <span style={FONT_STYLES.BODY.MEDIUM}>{text}</span>
       )
     },
     {
       title: '출발 시각',
       dataIndex: 'depart_time',
+      align: 'center',
       key: 'depart_time',
       width: 150,
       render: text => (
-        <span style={{ color: text ? 'black' : '#999' }}>
+        <span style={{ 
+          color: text ? 'black' : '#999',
+          ...FONT_STYLES.BODY.MEDIUM 
+        }}>
           {formatDateTime(text) || '-'}
         </span>
       )
     },
     {
       title: 'ETA',
+      align: 'center',
       dataIndex: 'eta',
       key: 'eta',
       width: 150,
-      render: text => <span>{formatDateTime(text)}</span>
+      render: text => (
+        <span style={FONT_STYLES.BODY.MEDIUM}>{formatDateTime(text)}</span>
+      )
     },
     {
       title: '배송 상태',
@@ -155,7 +175,8 @@ const DashboardTable = ({
           style={{
             minWidth: '60px',
             textAlign: 'center',
-            fontWeight: 500
+            fontWeight: 500,
+            ...FONT_STYLES.BODY.MEDIUM
           }}
         >
           {STATUS_TEXTS[status]}
@@ -165,12 +186,13 @@ const DashboardTable = ({
     {
       title: '도착 지역',
       dataIndex: 'region',
+      align: 'center',
       key: 'region',
       width: 130,
       ellipsis: true,
       render: text => (
         <Tooltip title={text}>
-          <span>{text}</span>
+          <span style={FONT_STYLES.BODY.MEDIUM}>{text}</span>
         </Tooltip>
       )
     }
@@ -181,11 +203,11 @@ const DashboardTable = ({
       {/* 검색 및 액션 영역 */}
       <div style={{ 
         backgroundColor: '#fff',
-        padding: '24px',
+        padding: '16px',
         borderBottom: '1px solid #f0f0f0',
         display: 'flex',
         flexDirection: 'column',
-        gap: 24
+        gap: 16
       }}>
         {/* 날짜 선택 및 페이지네이션 */}
         <div style={{
@@ -235,6 +257,17 @@ const DashboardTable = ({
                 <Option key={key} value={value}>{DEPARTMENT_TEXTS[key]}</Option>
               ))}
             </Select>
+            <Select
+              allowClear
+              placeholder="종류 선택"
+              style={{ width: 200 }}
+              onChange={setTypeFilter}
+              size="large"
+            >
+              {Object.entries(TYPE_TYPES).map(([key, value]) => (
+                <Option key={key} value={value}>{TYPE_TEXTS[key]}</Option>
+              ))}
+            </Select>
           </Space>
 
           <Space size="middle">
@@ -280,7 +313,7 @@ const DashboardTable = ({
         dataSource={currentPageData}
         loading={loading}
         rowKey="dashboard_id"
-        scroll={{ x: 1200, y: 'calc(100vh - 300px)' }}
+        scroll={{ x: 1200, y: 'calc(100vh - 250px)' }}
         pagination={false}
         rowSelection={{
           selectedRowKeys: selectedRows.map(row => row.dashboard_id),
@@ -290,12 +323,11 @@ const DashboardTable = ({
           onClick: () => onRowClick(record),
           style: {
             cursor: 'pointer',
-            backgroundColor: 
-              record.status === STATUS_TYPES.WAITING ? '#f8fafc' :
-              record.status === STATUS_TYPES.IN_PROGRESS ? '#fff7ed' :
-              record.status === STATUS_TYPES.COMPLETE ? '#f0fdf4' :
-              record.status === STATUS_TYPES.ISSUE ? '#fef2f2' : 'white',
-            transition: 'background-color 0.3s'
+            backgroundColor: STATUS_BG_COLORS[record.status].normal,
+            transition: 'all 0.3s',
+            ':hover': {
+              backgroundColor: STATUS_BG_COLORS[record.status].hover
+            }
           }
         })}
       />

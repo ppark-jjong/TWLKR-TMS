@@ -1,13 +1,14 @@
 // frontend/src/pages/VisualizationPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, Select, DatePicker, Card, message, Typography, Alert } from 'antd';
+import { Layout, Select, DatePicker, Card, Alert, Typography } from 'antd';
 import dayjs from 'dayjs';
 import StatusPieChart from '../components/visualization/StatusPieChart';
 import HourlyBarChart from '../components/visualization/HourlyBarChart';
 import LoadingSpin from '../components/common/LoadingSpin';
 import VisualizationService from '../services/VisualizationService';
-import { CHART_TYPES, VISUALIZATION_OPTIONS } from '../utils/Constants';
+import { CHART_TYPES, VISUALIZATION_OPTIONS, FONT_STYLES } from '../utils/Constants';
 import { formatDateTime } from '../utils/Formatter';
+import message from '../utils/message';
 
 const { Content } = Layout;
 const { RangePicker } = DatePicker;
@@ -71,7 +72,7 @@ const VisualizationPage = () => {
 
   const fetchData = async () => {
     if (!dateRange[0] || !dateRange[1]) {
-      message.error('날짜를 선택해주세요');
+      message.info('날짜를 선택해주세요');
       return;
     }
 
@@ -89,23 +90,21 @@ const VisualizationPage = () => {
       );
       setData(response);
     } catch (error) {
-      message.error(
-        error.response?.data?.detail || '데이터 조회 중 오류가 발생했습니다'
-      );
+      message.error('데이터 조회 중 오류가 발생했습니다');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Content style={{ padding: '24px' }}>
-      <Card bordered={false}>
+    <Content style={{ padding: '12px', backgroundColor: 'white' }}>
+      <Card bordered={false} bodyStyle={{ padding: '16px' }}>
         <Alert
           type="info"
           showIcon
           message={
-            <div style={{ fontSize: '14px' }}>
-              <Text strong>데이터 조회 가능 기간</Text>
+            <div style={FONT_STYLES.BODY.MEDIUM}>
+              <Text strong style={FONT_STYLES.BODY.LARGE}>데이터 조회 가능 기간</Text>
               <div style={{ marginTop: '4px' }}>
                 {oldestDate && (
                   <>
@@ -122,7 +121,7 @@ const VisualizationPage = () => {
         />
         
         <div style={{ 
-          marginBottom: 24, 
+          marginBottom: 16, 
           display: 'flex', 
           gap: 16, 
           alignItems: 'center',

@@ -3,12 +3,13 @@ import React from 'react';
 import { Typography, Empty } from 'antd';
 import { Column } from '@ant-design/plots';
 import { formatNumber } from '../../utils/Formatter';
+import { FONT_STYLES } from '../../utils/Constants';
 
 const { Title } = Typography;
 
 const HourlyBarChart = ({ data }) => {
   if (!data?.hourly_breakdown?.length) {
-    return <Empty description="데이터가 없습니다" />;
+    return <Empty description={<span style={FONT_STYLES.BODY.MEDIUM}>데이터가 없습니다</span>} />;
   }
 
   // 0-23시간대 데이터 초기화
@@ -32,7 +33,7 @@ const HourlyBarChart = ({ data }) => {
     xField: 'hour',
     yField: 'count',
     seriesField: 'type',
-    color: ['#1890FF', '#BAE7FF'],  // 더 밝은 색상으로 변경
+    color: '#1890FF',
     columnStyle: {
       radius: [4, 4, 0, 0],
       shadowColor: 'rgba(0,0,0,0.05)',
@@ -41,8 +42,8 @@ const HourlyBarChart = ({ data }) => {
     label: {
       position: 'top',
       style: {
-        fill: '#666',
-        fontSize: 12
+        ...FONT_STYLES.BODY.SMALL,
+        fill: '#666'
       },
       formatter: (v) => formatNumber(v.count)
     },
@@ -50,8 +51,8 @@ const HourlyBarChart = ({ data }) => {
       label: {
         autoRotate: false,
         style: {
-          fill: '#666',
-          fontSize: 12
+          ...FONT_STYLES.BODY.SMALL,
+          fill: '#666'
         }
       }
     },
@@ -59,8 +60,8 @@ const HourlyBarChart = ({ data }) => {
       label: {
         formatter: value => formatNumber(value),
         style: {
-          fill: '#666',
-          fontSize: 12
+          ...FONT_STYLES.BODY.SMALL,
+          fill: '#666'
         }
       }
     },
@@ -92,8 +93,8 @@ const HourlyBarChart = ({ data }) => {
         offsetX: -20,
         offsetY: -6,
         style: {
+          ...FONT_STYLES.BODY.MEDIUM,
           fill: '#ff4d4f',
-          fontSize: 12,
           fontWeight: 500
         }
       }
@@ -101,12 +102,16 @@ const HourlyBarChart = ({ data }) => {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: 'calc(100vh - 350px)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <Title level={4} style={{ marginBottom: 8, color: '#333' }}>
+        <Title level={4} style={{ 
+          ...FONT_STYLES.TITLE.MEDIUM, 
+          marginBottom: 8, 
+          color: '#333' 
+        }}>
           시간별 접수량
         </Title>
-        <div style={{ fontSize: 14, color: '#666' }}>
+        <div style={{ ...FONT_STYLES.BODY.MEDIUM, color: '#666' }}>
           <div>총 접수량: {formatNumber(data.total_count)}건</div>
           <div>피크 타임: {chartData.reduce((acc, curr) => 
             curr.count > acc.count ? curr : acc

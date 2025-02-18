@@ -35,7 +35,7 @@ const Sidebar = () => {
   };
 
   return (
-    <Sider width={250} theme="light">
+    <Sider width={200} theme="light">
       <div style={{ padding: '24px 16px', borderBottom: '1px solid #f0f0f0' }}>
         <img 
           src="/static/logo.png" 

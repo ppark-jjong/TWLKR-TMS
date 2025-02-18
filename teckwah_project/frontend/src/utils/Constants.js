@@ -1,5 +1,19 @@
 // frontend/src/utils/Constants.js
 
+export const FONT_STYLES = {
+  TITLE: {
+    LARGE: { fontSize: '24px', fontWeight: 600 },
+    MEDIUM: { fontSize: '20px', fontWeight: 600 },
+    SMALL: { fontSize: '16px', fontWeight: 600 }
+  },
+  BODY: {
+    LARGE: { fontSize: '16px', fontWeight: 400 },
+    MEDIUM: { fontSize: '14px', fontWeight: 400 },
+    SMALL: { fontSize: '12px', fontWeight: 400 }
+  },
+  LABEL: { fontSize: '14px', fontWeight: 500 }
+};
+
 /**
  * 배송 타입 정의
  */
@@ -17,13 +31,22 @@ export const TYPE_TEXTS = {
 };
 
 /**
+ * 종류별 색상 정의
+ */
+export const TYPE_COLORS = {
+  DELIVERY: '#1664C0', // 진한 파랑
+  RETURN: '#9C27B0'    // 진한 보라
+};
+
+/**
  * 배송 상태 정의
  */
 export const STATUS_TYPES = {
   WAITING: 'WAITING',
   IN_PROGRESS: 'IN_PROGRESS',
   COMPLETE: 'COMPLETE',
-  ISSUE: 'ISSUE'
+  ISSUE: 'ISSUE',
+  CANCEL: 'CANCEL'
 };
 
 /**
@@ -33,7 +56,8 @@ export const STATUS_TEXTS = {
   WAITING: '대기',
   IN_PROGRESS: '진행',
   COMPLETE: '완료',
-  ISSUE: '이슈'
+  ISSUE: '이슈',
+  CANCEL: '취소'
 };
 
 /**
@@ -43,7 +67,34 @@ export const STATUS_COLORS = {
   WAITING: 'default',
   IN_PROGRESS: 'warning',
   COMPLETE: 'success',
-  ISSUE: 'error'
+  ISSUE: 'error',
+  CANCEL: 'default'
+};
+
+/**
+ * 상태별 배경색 정의
+ */
+export const STATUS_BG_COLORS = {
+  WAITING: {
+    normal: '#F3F6F9',
+    hover: '#E3E8EF'
+  },
+  IN_PROGRESS: {
+    normal: '#FFF4DE',
+    hover: '#FFE2B5'
+  },
+  COMPLETE: {
+    normal: '#E8FDF3',
+    hover: '#C5F5E1'
+  },
+  ISSUE: {
+    normal: '#FFE9E9',
+    hover: '#FFD1D1'
+  },
+  CANCEL: {
+    normal: '#F5F5F5',
+    hover: '#E0E0E0'
+  }
 };
 
 /**
@@ -82,32 +133,6 @@ export const WAREHOUSE_TEXTS = {
   BUSAN: '부산',
   GWANGJU: '광주',
   DAEJEON: '대전'
-};
-
-/**
- * SLA 타입 정의
- */
-export const SLA_TYPES = {
-  XHR: 'XHR',
-  POX: 'POX',
-  EMC: 'EMC',
-  WEWORK: 'WEWORK',
-  LENOVO: 'LENOVO',
-  ETC: 'ETC',
-  NBD: 'NBD'
-};
-
-/**
- * SLA 표시 텍스트
- */
-export const SLA_TEXTS = {
-  XHR: 'XHR',
-  POX: 'POX',
-  EMC: 'EMC',
-  WEWORK: 'WEWORK',
-  LENOVO: 'LENOVO',
-  ETC: '기타',
-  NBD: 'NBD'
 };
 
 /**

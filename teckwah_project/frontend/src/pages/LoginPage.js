@@ -1,29 +1,27 @@
 // frontend/src/pages/LoginPage.js
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, message } from 'antd';
+import { Form, Input, Button, Card } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
+import { FONT_STYLES } from '../utils/Constants';
+import message, { MessageKeys, MessageTemplates } from '../utils/message';
 
-/**
- * 로그인 페이지 컴포넌트
- * @param {Object} props
- * @param {string} props.staticUrl - 정적 리소스 URL 경로
- * @returns {React.ReactElement} 로그인 페이지 컴포넌트
- */
-const LoginPage = ({ staticUrl }) => {
+const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const [form] = Form.useForm();
 
-  /**
-   * 로그인 폼 제출 핸들러
-   * @param {Object} values - 폼 입력값
-   * @param {string} values.user_id - 사용자 ID
-   * @param {string} values.password - 비밀번호
-   */
   const onFinish = async (values) => {
+    const key = MessageKeys.AUTH.LOGIN;
     setLoading(true);
+    message.loading('로그인 중...', key);
+
     try {
       await login(values.user_id, values.password);
+      message.loadingToSuccess(MessageTemplates.AUTH.LOGIN_SUCCESS, key);
+    } catch (error) {
+      // ErrorHandler에서 401 에러에 대한 처리를 하도록 함
+      message.loadingToError(MessageTemplates.AUTH.LOGIN_FAIL, key);
     } finally {
       setLoading(false);
     }
@@ -35,19 +33,20 @@ const LoginPage = ({ staticUrl }) => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: '#f0f2f5'
+      backgroundColor: '#fff'
     }}>
-      <Card style={{ width: 400 }}>
+      <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img 
-            src={`/static/logo.png`}
+            src="/static/logo.png"
             alt="Logo" 
             style={{ height: 64, marginBottom: 16 }} 
           />
-          <h2>배송 실시간 관제 시스템</h2>
+          <h2 style={FONT_STYLES.TITLE.LARGE}>배송 실시간 관제 시스템</h2>
         </div>
         
         <Form
+          form={form}
           name="login"
           onFinish={onFinish}
           autoComplete="off"
@@ -64,6 +63,7 @@ const LoginPage = ({ staticUrl }) => {
               prefix={<UserOutlined />} 
               placeholder="아이디" 
               size="large"
+              style={FONT_STYLES.BODY.MEDIUM}
             />
           </Form.Item>
 
@@ -78,10 +78,11 @@ const LoginPage = ({ staticUrl }) => {
               prefix={<LockOutlined />}
               placeholder="비밀번호"
               size="large"
+              style={FONT_STYLES.BODY.MEDIUM}
             />
           </Form.Item>
 
-          <Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
             <Button 
               type="primary" 
               htmlType="submit" 

@@ -116,7 +116,7 @@ class DashboardRepository:
             dashboard.complete_time = None
         elif new_status in ["COMPLETE", "ISSUE"]:
             dashboard.complete_time = current_time
-        elif new_status == "WAITING":
+        elif new_status in ["WAITING", "CANCEL"]:  # CANCEL 상태 추가
             dashboard.depart_time = None
             dashboard.complete_time = None
 

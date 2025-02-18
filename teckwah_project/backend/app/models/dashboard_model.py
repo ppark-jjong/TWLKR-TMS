@@ -22,7 +22,7 @@ class Dashboard(Base):
     order_no = Column(BigInteger, nullable=False)
     type = Column(Enum("DELIVERY", "RETURN"), nullable=False)
     status = Column(
-        Enum("WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE"),
+        Enum("WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"),
         server_default="WAITING",
         nullable=False,
         index=True,

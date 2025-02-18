@@ -9,6 +9,7 @@ class PostalCode(Base):
     postal_code = Column(String(5), primary_key=True)
     district = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
+    county = Column(String(100), nullable=True)
     distance = Column(Integer, nullable=True)
     duration_time = Column(Integer, nullable=True)
 

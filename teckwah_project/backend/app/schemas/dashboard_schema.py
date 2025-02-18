@@ -14,6 +14,7 @@ class DashboardStatus(str, Enum):
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETE = "COMPLETE"
     ISSUE = "ISSUE"
+    CANCEL = "CANCEL"
 
 
 class Department(str, Enum):
@@ -29,12 +30,13 @@ class Warehouse(str, Enum):
     DAEJEON = "DAEJEON"
 
 
-
 class DashboardCreate(BaseModel):
     type: DashboardType
     order_no: int = Field(..., gt=0, description="주문번호는 양의 정수여야 합니다")
     warehouse: Warehouse
-    sla: str = Field(..., min_length=1, max_length=10, description="10자 이내의 SLA 문자열")
+    sla: str = Field(
+        ..., min_length=1, max_length=10, description="10자 이내의 SLA 문자열"
+    )
     eta: datetime
     postal_code: str = Field(..., min_length=5, max_length=5, pattern=r"^\d{5}$")
     address: str = Field(..., min_length=1)
@@ -48,11 +50,11 @@ class DashboardCreate(BaseModel):
         if v.replace(tzinfo=None) < now.replace(tzinfo=None):
             raise ValueError("ETA는 현재 시간 이후여야 합니다")
         return v
-    
-    @validator('sla')
+
+    @validator("sla")
     def validate_sla(cls, v):
         if not v.strip():
-            raise ValueError('SLA는 비어있을 수 없습니다')
+            raise ValueError("SLA는 비어있을 수 없습니다")
         return v.strip()
 
 

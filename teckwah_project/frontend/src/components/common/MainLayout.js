@@ -5,17 +5,12 @@ import Sidebar from './Sidebar';
 
 const { Content } = Layout;
 
-/**
- * 메인 레이아웃 컴포넌트
- * @param {Object} props
- * @param {React.ReactNode} props.children - 자식 컴포넌트
- */
 const MainLayout = ({ children }) => {
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden', backgroundColor: 'white' }}>
       <Sidebar />
-      <Layout>
-        <Content style={{ margin: '24px 16px', padding: 24, minHeight: 280 }}>
+      <Layout style={{ backgroundColor: 'white' }}>
+        <Content style={{ height: 'calc(100vh - 48px)', overflow: 'hidden' }}>
           {children}
         </Content>
       </Layout>

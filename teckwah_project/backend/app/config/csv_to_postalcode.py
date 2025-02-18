@@ -73,7 +73,7 @@ def execute_query(query, params=None, fetch=False, many=False):
         connection.close()
 
 
-def import_postal_codes(file_path="app/data/postal_code.csv"):
+def import_postal_codes(file_path="backend/app/data/postal_code.csv"):
     """CSV 파일에서 우편번호 데이터를 읽어와 데이터베이스에 삽입"""
     try:
         # CSV 데이터 읽기 (한글 인코딩 고려)
@@ -83,7 +83,14 @@ def import_postal_codes(file_path="app/data/postal_code.csv"):
         return
 
     # 필요한 컬럼만 유지
-    expected_columns = ["postal_code", "duration_time", "distance", "district", "city"]
+    expected_columns = [
+        "postal_code",
+        "duration_time",
+        "distance",
+        "district",
+        "city",
+        "county",
+    ]
     try:
         df = df[expected_columns]
     except Exception as e:
@@ -96,16 +103,20 @@ def import_postal_codes(file_path="app/data/postal_code.csv"):
     )  # 4자리인 경우 앞에 0 추가
     df["duration_time"] = df["duration_time"].fillna(0).astype(int)
     df["distance"] = df["distance"].fillna(0).astype(int)
-
+    # city, county, district가 없을 경우 NULL 처리
+    df["city"] = df["city"].where(pd.notna(df["city"]), None)
+    df["county"] = df["county"].where(pd.notna(df["county"]), None)
+    df["district"] = df["district"].where(pd.notna(df["district"]), None)
     # 데이터베이스 삽입 쿼리
     insert_query = """
-    INSERT INTO postal_code (postal_code, duration_time, distance, district, city)
-    VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO postal_code (postal_code, duration_time, distance, district, city, county)
+    VALUES (%s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE
         duration_time = VALUES(duration_time),
         distance = VALUES(distance),
         district = VALUES(district),
-        city = VALUES(city)
+        city = VALUES(city),
+        county = VALUES(county)
     """
     # DataFrame을 리스트로 변환
     values = df.values.tolist()

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS postal_code (
   postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
   district VARCHAR(100) NULL,
   city VARCHAR(100) NULL,
+  county VARCHAR(100) NULL,
   distance INT NULL,
   duration_time INT NULL
 ) ENGINE=InnoDB
@@ -42,7 +43,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no BIGINT NOT NULL,
   type ENUM('DELIVERY', 'RETURN') NOT NULL,
-  status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE') NOT NULL DEFAULT 'WAITING',
+  status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING',
   department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
   warehouse ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON') NOT NULL,
   sla VARCHAR(10) NOT NULL,
@@ -51,9 +52,10 @@ CREATE TABLE IF NOT EXISTS dashboard (
   depart_time DATETIME NULL,
   complete_time DATETIME NULL,
   postal_code VARCHAR(5) NOT NULL,
-  city VARCHAR(100) NULL,
+  city VARCHAR(100) NULL,  
+  county VARCHAR(100) NULL,
   district VARCHAR(100) NULL,
-  region VARCHAR(255) GENERATED ALWAYS AS (CONCAT(city, '-', district)) STORED,
+  region VARCHAR(255) GENERATED ALWAYS AS (CONCAT(city, ' ', county, ' ', district)) STORED,
   distance INT NULL,
   duration_time INT NULL,
   address TEXT NOT NULL,
@@ -88,6 +90,7 @@ FOR EACH ROW
 BEGIN
   DECLARE v_city VARCHAR(100);
   DECLARE v_district VARCHAR(100);
+  DECLARE v_county VARCHAR(100);
   DECLARE v_distance INT;
   DECLARE v_duration_time INT;
   DECLARE v_error_msg VARCHAR(255);
@@ -98,22 +101,24 @@ BEGIN
   BEGIN
     GET DIAGNOSTICS CONDITION 1 v_error_msg = MESSAGE_TEXT;
     INSERT INTO error_log (error_message, failed_query)
-    VALUES (v_error_msg, CONCAT('postal_code lookup failed for: ', NEW.postal_code));
+    VALUES (v_error_msg, CONCAT('ERROR: postal_code lookup failed for: ', NEW.postal_code));
   END;
 
   -- postal_code 데이터 존재 여부 확인
   SELECT 
     COALESCE(city, ''), 
+    COALESCE(county, ''),
     COALESCE(district, ''), 
     COALESCE(distance, 0), 
     COALESCE(duration_time, 0)
-  INTO v_city, v_district, v_distance, v_duration_time
+  INTO v_city, v_county, v_district, v_distance, v_duration_time
   FROM postal_code
   WHERE postal_code = NEW.postal_code;
 
   -- 조회된 데이터로 자동 업데이트 (NULL 방지)
   IF v_city != '' OR v_district != '' THEN
     SET NEW.city = v_city;
+    SET NEW.county = v_county;
     SET NEW.district = v_district;
   END IF;
 
