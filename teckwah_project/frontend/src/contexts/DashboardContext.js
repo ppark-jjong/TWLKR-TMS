@@ -5,17 +5,12 @@ import DashboardService from '../services/DashboardService';
 
 const DashboardContext = createContext(null);
 
-/**
- * 대시보드 컨텍스트 제공자 컴포넌트
- */
 export const DashboardProvider = ({ children }) => {
   const [dashboards, setDashboards] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pollingInterval, setPollingInterval] = useState(30000); // 30초 기본값
 
-  /**
-   * 대시보드 목록 조회
-   */
+  // 일반 대시보드 목록 조회 (하루 단위)
   const fetchDashboards = useCallback(async (date) => {
     try {
       setLoading(true);
@@ -35,27 +30,34 @@ export const DashboardProvider = ({ children }) => {
     }
   }, [dashboards]);
 
-  /**
-   * 단일 대시보드 업데이트
-   */
+  // 관리자용 대시보드 목록 조회 (기간 단위)
+  const fetchAdminDashboards = useCallback(async (startDate, endDate) => {
+    try {
+      setLoading(true);
+      const data = await DashboardService.getAdminDashboardList(startDate, endDate);
+      setDashboards(data);
+    } catch (error) {
+      message.error('데이터 조회 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 단일 대시보드 업데이트
   const updateDashboard = useCallback((dashboardId, updates) => {
     setDashboards(prev => prev.map(dash => 
       dash.dashboard_id === dashboardId ? { ...dash, ...updates } : dash
     ));
   }, []);
 
-  /**
-   * 여러 대시보드 업데이트
-   */
+  // 여러 대시보드 업데이트
   const updateMultipleDashboards = useCallback((dashboardIds, updates) => {
     setDashboards(prev => prev.map(dash => 
       dashboardIds.includes(dash.dashboard_id) ? { ...dash, ...updates } : dash
     ));
   }, []);
 
-  /**
-   * 대시보드 삭제
-   */
+  // 대시보드 삭제
   const removeDashboards = useCallback((dashboardIds) => {
     setDashboards(prev => prev.filter(dash => 
       !dashboardIds.includes(dash.dashboard_id)
@@ -67,6 +69,7 @@ export const DashboardProvider = ({ children }) => {
     loading,
     pollingInterval,
     fetchDashboards,
+    fetchAdminDashboards,
     updateDashboard,
     updateMultipleDashboards,
     removeDashboards
@@ -79,9 +82,6 @@ export const DashboardProvider = ({ children }) => {
   );
 };
 
-/**
- * 대시보드 컨텍스트 사용 훅
- */
 export const useDashboard = () => {
   const context = useContext(DashboardContext);
   if (!context) {

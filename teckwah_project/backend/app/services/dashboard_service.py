@@ -1,6 +1,7 @@
+# backend/app/services/dashboard_service.py
 import pytz
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 from fastapi import HTTPException, status
 from app.schemas.dashboard_schema import (
     DashboardCreate,
@@ -31,8 +32,10 @@ class DashboardService:
         allowed_transitions = self.allowed_status_transitions.get(current_status, [])
         return new_status in allowed_transitions
 
-    def get_dashboard_list(self, target_date: datetime) -> List[DashboardResponse]:
-        """날짜별 대시보드 조회"""
+    def get_dashboard_list_by_date(
+        self, target_date: datetime
+    ) -> List[DashboardResponse]:
+        """날짜별 대시보드 조회 (일반 사용자용)"""
         try:
             log_info(f"대시보드 목록 조회 시작: {target_date}")
             dashboards = self.repository.get_dashboards_by_date(target_date)
@@ -52,54 +55,29 @@ class DashboardService:
                 detail="대시보드 목록 조회 중 오류가 발생했습니다",
             )
 
-    def create_dashboard(
-        self, data: DashboardCreate, user_department: str
-    ) -> DashboardResponse:
+    def get_dashboard_list_by_date_range(
+        self, start_date: datetime, end_date: datetime
+    ) -> List[DashboardResponse]:
+        """날짜 범위별 대시보드 조회 (관리자용)"""
         try:
-            log_info(
-                "대시보드 생성 시작",
-                {
-                    "department": user_department,
-                    "type": data.type,
-                    "order_no": data.order_no,
-                    "postal_code": data.postal_code,
-                },
+            log_info(f"대시보드 목록 조회 시작: {start_date} ~ {end_date}")
+            dashboards = self.repository.get_dashboards_by_date_range(
+                start_date, end_date
             )
 
-            # 우편번호 데이터 조회
-            postal_data = self.repository.get_postal_code_data(data.postal_code)
+            if not dashboards:
+                log_info("조회된 데이터가 없습니다")
+                return []
 
-            # 우편번호 데이터 없을 경우 예외 처리
-            if postal_data is None:
-                log_error(None, f"우편번호 데이터 없음: {data.postal_code}")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"유효하지 않은 우편번호입니다: {data.postal_code}",
-                )
+            result = [DashboardResponse.model_validate(d) for d in dashboards]
+            log_info(f"대시보드 목록 조회 완료: {len(result)}건")
+            return result
 
-            # 대시보드 데이터 준비
-            dashboard_data = data.dict()
-            dashboard_data["department"] = user_department
-
-            # 우편번호 관련 데이터 명시적 설정
-            dashboard_data["city"] = postal_data.city or ""
-            dashboard_data["district"] = postal_data.district or ""
-            dashboard_data["distance"] = postal_data.distance or 0
-            dashboard_data["duration_time"] = postal_data.duration_time or 0
-
-            # 대시보드 생성
-            dashboard = self.repository.create_dashboard(dashboard_data)
-
-            log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
-            return DashboardResponse.model_validate(dashboard)
-
-        except HTTPException:
-            raise
         except Exception as e:
-            log_error(e, "대시보드 생성 실패")
+            log_error(e, "대시보드 목록 조회 실패")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 생성 중 오류가 발생했습니다",
+                detail="대시보드 목록 조회 중 오류가 발생했습니다",
             )
 
     def get_dashboard_detail(self, dashboard_id: int) -> DashboardDetail:
@@ -126,8 +104,55 @@ class DashboardService:
                 detail="대시보드 상세 조회 중 오류가 발생했습니다",
             )
 
+    def create_dashboard(
+        self, data: DashboardCreate, user_department: str
+    ) -> DashboardResponse:
+        try:
+            log_info(
+                "대시보드 생성 시작",
+                {
+                    "department": user_department,
+                    "type": data.type,
+                    "order_no": data.order_no,
+                },
+            )
+
+            # 우편번호 데이터 조회
+            postal_data = self.repository.get_postal_code_data(data.postal_code)
+            if not postal_data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"유효하지 않은 우편번호입니다: {data.postal_code}",
+                )
+
+            # 대시보드 데이터 준비
+            dashboard_data = data.dict()
+            dashboard_data["department"] = user_department
+            dashboard_data.update(
+                {
+                    "city": postal_data.city or "",
+                    "district": postal_data.district or "",
+                    "distance": postal_data.distance or 0,
+                    "duration_time": postal_data.duration_time or 0,
+                }
+            )
+
+            # 대시보드 생성
+            dashboard = self.repository.create_dashboard(dashboard_data)
+            log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
+            return DashboardResponse.model_validate(dashboard)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            log_error(e, "대시보드 생성 실패")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="대시보드 생성 중 오류가 발생했습니다",
+            )
+
     def update_status(
-        self, dashboard_id: int, status_update: StatusUpdate
+        self, dashboard_id: int, status_update: StatusUpdate, is_admin: bool = False
     ) -> DashboardDetail:
         """상태 업데이트"""
         try:
@@ -141,22 +166,33 @@ class DashboardService:
                     detail="대시보드를 찾을 수 없습니다",
                 )
 
-            # 상태 변경 가능 여부 검증
-            if not self.validate_status_transition(
-                dashboard.status, status_update.status
-            ):
-                current_status_text = {
-                    "WAITING": "대기",
-                    "IN_PROGRESS": "진행",
-                    "COMPLETE": "완료",
-                    "ISSUE": "이슈",
-                    "CANCEL": "취소",
-                }.get(dashboard.status)
+            # 관리자가 아닌 경우 추가 검증
+            if not is_admin:
+                # 배차 담당자 할당 여부 확인
+                if not dashboard.driver_name or not dashboard.driver_contact:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="배차 담당자가 할당되지 않아 상태를 변경할 수 없습니다",
+                    )
 
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"{current_status_text} 상태에서는 {STATUS_TEXTS[status_update.status]}(으)로 변경할 수 없습니다",
-                )
+                # 상태 변경 가능 여부 검증
+                if not self.validate_status_transition(
+                    dashboard.status, status_update.status
+                ):
+                    status_text_map = {
+                        "WAITING": "대기",
+                        "IN_PROGRESS": "진행",
+                        "COMPLETE": "완료",
+                        "ISSUE": "이슈",
+                        "CANCEL": "취소",
+                    }
+                    current_status_text = status_text_map.get(dashboard.status)
+                    new_status_text = status_text_map.get(status_update.status)
+
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"{current_status_text} 상태에서는 {new_status_text}(으)로 변경할 수 없습니다",
+                    )
 
             # KST 시간대로 현재 시간 설정
             current_time = datetime.now(self.kr_timezone)
@@ -185,8 +221,7 @@ class DashboardService:
         try:
             log_info(f"메모 업데이트 시작: {dashboard_id}")
             dashboard = self.repository.update_dashboard_remark(
-                dashboard_id,
-                remark_update.remark,  # RemarkUpdate 스키마의 remark 필드 사용
+                dashboard_id, remark_update.remark
             )
 
             if not dashboard:
@@ -213,7 +248,6 @@ class DashboardService:
 
             # 대기 상태 검증
             dashboards = self.repository.get_dashboards_by_ids(assignment.dashboard_ids)
-
             invalid_dashboards = []
             for dash in dashboards:
                 if dash.status != "WAITING":
@@ -228,7 +262,7 @@ class DashboardService:
                     + "\n".join(invalid_dashboards),
                 )
 
-            # 배차 정보 업데이트 (status 변경 제외)
+            # 배차 정보 업데이트
             updated_dashboards = self.repository.assign_driver(
                 assignment.dashboard_ids,
                 assignment.driver_name,
@@ -257,18 +291,10 @@ class DashboardService:
         """대시보드 삭제"""
         try:
             log_info("대시보드 삭제 시작", {"dashboard_ids": dashboard_ids})
-            # 대기 상태 검증
-            dashboards = self.repository.get_dashboards_by_ids(dashboard_ids)
-            non_waiting = [d for d in dashboards if d.status != "WAITING"]
 
-            if non_waiting:
-                order_nos = [d.order_no for d in non_waiting]
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"다음 주문은 대기 상태가 아니어서 삭제할 수 없습니다: {', '.join(map(str, order_nos))}",
-                )
-
+            # 대기 상태가 아닌 항목 검증 제거 (관리자는 모든 상태 삭제 가능)
             success = self.repository.delete_dashboards(dashboard_ids)
+
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -285,4 +311,15 @@ class DashboardService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="대시보드 삭제 중 오류가 발생했습니다",
+            )
+
+    def get_date_range(self) -> Tuple[datetime, datetime]:
+        """조회 가능한 날짜 범위 조회"""
+        try:
+            return self.repository.get_date_range()
+        except Exception as e:
+            log_error(e, "날짜 범위 조회 실패")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="날짜 범위 조회 중 오류가 발생했습니다",
             )

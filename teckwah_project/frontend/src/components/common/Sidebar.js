@@ -5,34 +5,62 @@ import {
   DashboardOutlined, 
   BarChartOutlined, 
   LogoutOutlined,
-  UserOutlined
+  UserOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
-import AuthService from '../../services/AuthService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Sider } = Layout;
 const { Title } = Typography;
 
-/**
- * 사이드바 네비게이션 컴포넌트
- */
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const user = AuthService.getCurrentUser();
+  const { user, logout } = useAuth();
 
-  /**
-   * 로그아웃 처리
-   */
   const handleLogout = async () => {
     try {
-      await AuthService.logout();
+      await logout();
       message.success('로그아웃되었습니다');
       navigate('/login');
     } catch (error) {
       message.error('로그아웃 중 오류가 발생했습니다');
     }
   };
+
+  const menuItems = [
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: '배송현황',
+      onClick: () => navigate('/dashboard')
+    },
+    {
+      key: '/visualization',
+      icon: <BarChartOutlined />,
+      label: '통계',
+      onClick: () => navigate('/visualization')
+    }
+  ];
+
+  // 관리자인 경우 관리 메뉴 추가
+  if (user?.user_role === 'ADMIN') {
+    menuItems.push({
+      key: '/admin',
+      icon: <SettingOutlined />,
+      label: '관리',
+      onClick: () => navigate('/admin')
+    });
+  }
+
+  // 로그아웃 메뉴 추가
+  menuItems.push({
+    key: 'logout',
+    icon: <LogoutOutlined />,
+    label: '로그아웃',
+    onClick: handleLogout
+  });
 
   return (
     <Sider width={200} theme="light">
@@ -54,26 +82,7 @@ const Sidebar = () => {
       <Menu
         mode="inline"
         selectedKeys={[location.pathname]}
-        items={[
-          {
-            key: '/dashboard',
-            icon: <DashboardOutlined />,
-            label: '배송현황',
-            onClick: () => navigate('/dashboard')
-          },
-          {
-            key: '/visualization',
-            icon: <BarChartOutlined />,
-            label: '통계',
-            onClick: () => navigate('/visualization')
-          },
-          {
-            key: 'logout',
-            icon: <LogoutOutlined />,
-            label: '로그아웃',
-            onClick: handleLogout
-          }
-        ]}
+        items={menuItems}
       />
     </Sider>
   );

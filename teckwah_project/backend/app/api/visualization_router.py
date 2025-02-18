@@ -4,10 +4,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.schemas.visualization_schema import (
-    DateRange,
     DeliveryStatusResponse,
     HourlyOrdersResponse,
-    ChartType,
 )
 from app.services.visualization_service import VisualizationService
 from app.repositories.visualization_repository import VisualizationRepository
@@ -64,24 +62,27 @@ async def get_hourly_orders(
         )
 
 
-@router.get("/oldest-date")
-async def get_oldest_data_date(
+@router.get("/date-range")
+async def get_date_range(
     db: Session = Depends(get_db),
     current_department: str = Depends(get_current_user_department),
 ):
-    """가장 오래된 데이터 날짜 조회 API"""
+    """조회 가능한 날짜 범위 조회 API"""
     try:
         repository = VisualizationRepository(db)
         service = VisualizationService(repository)
         oldest_date = service.get_oldest_data_date()
         return {
             "success": True,
-            "message": "가장 오래된 데이터 날짜 조회 성공",
-            "data": {"oldest_date": oldest_date.strftime("%Y-%m-%d")},
+            "message": "날짜 범위 조회 성공",
+            "data": {
+                "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+                "latest_date": datetime.now().strftime("%Y-%m-%d"),
+            },
         }
     except Exception as e:
-        log_error(e, "가장 오래된 데이터 날짜 조회 실패")
+        log_error(e, "날짜 범위 조회 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터 조회 중 오류가 발생했습니다",
+            detail="날짜 범위 조회 중 오류가 발생했습니다",
         )

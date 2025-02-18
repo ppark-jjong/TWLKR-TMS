@@ -1,19 +1,34 @@
 // frontend/src/services/DashboardService.js
 import axios from 'axios';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
-import ErrorHandler from '../utils/ErrorHandler';
 
 class DashboardService {
+  // 일반 사용자용 대시보드 목록 조회 (하루 단위)
   async getDashboardList(date) {
     try {
+      const formattedDate = date.format('YYYY-MM-DD');
       const response = await axios.get('/dashboard/list', {
         params: {
-          date: date.format('YYYY-MM-DD')
+          date: formattedDate
         }
       });
       return response.data || [];
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-list');
+      throw error;
+    }
+  }
+
+  // 관리자용 대시보드 목록 조회 (기간 단위)
+  async getAdminDashboardList(startDate, endDate) {
+    try {
+      const response = await axios.get('/dashboard/admin/list', {
+        params: {
+          start_date: startDate.format('YYYY-MM-DD'),
+          end_date: endDate.format('YYYY-MM-DD')
+        }
+      });
+      return response.data || [];
+    } catch (error) {
       throw error;
     }
   }
@@ -21,12 +36,8 @@ class DashboardService {
   async getDashboardDetail(dashboardId) {
     try {
       const response = await axios.get(`/dashboard/${dashboardId}`);
-      if (!response.data) {
-        throw new Error('대시보드 정보를 찾을 수 없습니다');
-      }
       return response.data;
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-detail');
       throw error;
     }
   }
@@ -36,17 +47,17 @@ class DashboardService {
       const response = await axios.post('/dashboard', dashboardData);
       return response.data;
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-create');
       throw error;
     }
   }
 
-  async updateStatus(dashboardId, newStatus) {
+  async updateStatus(dashboardId, newStatus, isAdmin = false) {
     try {
       const response = await axios.patch(
         `/dashboard/${dashboardId}/status`,
-        {
-          status : newStatus 
+        { 
+          status: newStatus,
+          is_admin: isAdmin
         }
       );
       return response.data;
@@ -59,7 +70,7 @@ class DashboardService {
     try {
       const response = await axios.patch(
         `/dashboard/${dashboardId}/remark`,
-        { remark } 
+        { remark }
       );
       return response.data;
     } catch (error) {
@@ -76,7 +87,6 @@ class DashboardService {
       });
       return response.data;
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-assign');
       throw error;
     }
   }
@@ -88,7 +98,15 @@ class DashboardService {
       });
       return response.data;
     } catch (error) {
-      ErrorHandler.handle(error, 'dashboard-delete');
+      throw error;
+    }
+  }
+
+  async getDateRange() {
+    try {
+      const response = await axios.get('/dashboard/date-range');
+      return response.data.data;
+    } catch (error) {
       throw error;
     }
   }

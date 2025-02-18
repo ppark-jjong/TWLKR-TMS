@@ -1,4 +1,4 @@
-// frontend/src/pages/DashboardPage.js
+// frontend/src/pages/AdminPage.js
 import React, { useState, useEffect } from 'react';
 import { Layout, DatePicker, Space, Typography } from 'antd';
 import dayjs from 'dayjs';
@@ -13,17 +13,19 @@ import { useAuth } from '../contexts/AuthContext';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
 import { FONT_STYLES } from '../utils/Constants';
 
+const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
-const DashboardPage = () => {
+const AdminPage = () => {
   const { 
     dashboards, 
     loading, 
-    fetchDashboards,
-    updateMultipleDashboards
+    fetchAdminDashboards,
+    updateMultipleDashboards,
+    removeDashboards 
   } = useDashboard();
   
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [dateRange, setDateRange] = useState([dayjs().subtract(7, 'day'), dayjs()]);
   const [selectedRows, setSelectedRows] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -34,7 +36,9 @@ const DashboardPage = () => {
 
   useEffect(() => {
     getDateRange();
-    loadDashboardData(selectedDate);
+    if (dateRange[0] && dateRange[1]) {
+      loadDashboardData(dateRange[0], dateRange[1]);
+    }
   }, []);
 
   const getDateRange = async () => {
@@ -46,26 +50,46 @@ const DashboardPage = () => {
     }
   };
 
-  const loadDashboardData = async (date) => {
+  const loadDashboardData = async (startDate, endDate) => {
     const key = MessageKeys.DASHBOARD.LOAD;
     try {
       message.loading('데이터 조회 중...', key);
-      await fetchDashboards(date);
+      await fetchAdminDashboards(startDate, endDate);
       message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
     } catch (error) {
       message.loadingToError(MessageTemplates.DASHBOARD.LOAD_FAIL, key);
     }
   };
 
-  const handleDateChange = (date) => {
-    const newDate = date || dayjs();
-    setSelectedDate(newDate);
+  const handleDateChange = (dates) => {
+    if (!dates || !dates[0] || !dates[1]) return;
+    setDateRange(dates);
     setSelectedRows([]);
-    loadDashboardData(newDate);
+    loadDashboardData(dates[0], dates[1]);
   };
 
   const handleRefresh = () => {
-    loadDashboardData(selectedDate);
+    loadDashboardData(dateRange[0], dateRange[1]);
+  };
+
+  const handleDelete = async () => {
+    const key = MessageKeys.DASHBOARD.DELETE;
+    if (selectedRows.length === 0) {
+      message.warning('삭제할 항목을 선택해주세요', key);
+      return;
+    }
+
+    try {
+      message.loading('삭제 처리 중...', key);
+      const dashboardIds = selectedRows.map(row => row.dashboard_id);
+      await DashboardService.deleteDashboards(dashboardIds);
+      removeDashboards(dashboardIds);
+      setSelectedRows([]);
+      message.loadingToSuccess(MessageTemplates.DASHBOARD.DELETE_SUCCESS, key);
+      handleRefresh();
+    } catch (error) {
+      message.loadingToError(MessageTemplates.DASHBOARD.DELETE_FAIL, key);
+    }
   };
 
   const handleRowClick = async (record) => {
@@ -92,12 +116,12 @@ const DashboardPage = () => {
       <div style={{ marginBottom: '16px' }}>
         <Space direction="vertical" size={4}>
           <Space size="large">
-            <DatePicker
-              value={selectedDate}
+            <RangePicker
+              value={dateRange}
               onChange={handleDateChange}
               disabledDate={disabledDate}
               allowClear={false}
-              style={{ width: 280 }}
+              style={{ width: 320 }}
               size="large"
             />
             {oldestDate && (
@@ -118,8 +142,9 @@ const DashboardPage = () => {
         onRefresh={handleRefresh}
         onCreateClick={() => setShowCreateModal(true)}
         onAssignClick={() => setShowAssignModal(true)}
-        isAdminPage={false}
-        selectedDate={selectedDate}
+        onDeleteClick={handleDelete}
+        isAdminPage={true}
+        dateRange={dateRange}
       />
 
       {showCreateModal && (
@@ -158,11 +183,11 @@ const DashboardPage = () => {
           onSuccess={() => {
             handleRefresh();
           }}
-          isAdmin={false}
+          isAdmin={true}
         />
       )}
     </Layout.Content>
   );
 };
 
-export default DashboardPage;
+export default AdminPage;

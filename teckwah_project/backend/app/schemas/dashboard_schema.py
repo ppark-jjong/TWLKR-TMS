@@ -1,3 +1,5 @@
+# backend/app/schemas/dashboard_schema.py
+
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from typing import Optional, List
@@ -30,41 +32,52 @@ class Warehouse(str, Enum):
     DAEJEON = "DAEJEON"
 
 
-class DashboardCreate(BaseModel):
-    type: DashboardType
-    order_no: int = Field(..., gt=0, description="주문번호는 양의 정수여야 합니다")
-    warehouse: Warehouse
-    sla: str = Field(
-        ..., min_length=1, max_length=10, description="10자 이내의 SLA 문자열"
-    )
-    eta: datetime
-    postal_code: str = Field(..., min_length=5, max_length=5, pattern=r"^\d{5}$")
-    address: str = Field(..., min_length=1)
-    customer: Optional[str] = None
-    contact: Optional[str] = Field(None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
-    remark: Optional[str] = None
+# 날짜 범위 요청 스키마
+class DateRangeQuery(BaseModel):
+    start_date: str = Field(..., description="시작일 (YYYY-MM-DD)")
+    end_date: str = Field(..., description="종료일 (YYYY-MM-DD)")
 
-    @validator("eta")
-    def validate_eta(cls, v):
-        now = datetime.now()
-        if v.replace(tzinfo=None) < now.replace(tzinfo=None):
-            raise ValueError("ETA는 현재 시간 이후여야 합니다")
-        return v
-
-    @validator("sla")
-    def validate_sla(cls, v):
-        if not v.strip():
-            raise ValueError("SLA는 비어있을 수 없습니다")
-        return v.strip()
+    @validator("start_date", "end_date")
+    def validate_date_format(cls, v):
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+            return v
+        except ValueError:
+            raise ValueError("날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)")
 
 
-class DashboardUpdate(BaseModel):
-    status: Optional[DashboardStatus] = None
-    remark: Optional[str] = None
-    driver_name: Optional[str] = None
-    driver_contact: Optional[str] = None
+# 상태 업데이트 요청 스키마
+class StatusUpdate(BaseModel):
+    status: DashboardStatus
+    is_admin: bool = False
 
 
+# 메모 업데이트 요청 스키마
+class RemarkUpdate(BaseModel):
+    remark: str
+
+
+# 배차 정보 업데이트 요청 스키마
+class DriverAssignment(BaseModel):
+    dashboard_ids: List[int]
+    driver_name: str = Field(..., min_length=1)
+    driver_contact: str = Field(..., pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
+
+
+# 날짜 범위 응답 스키마
+class DateRangeResponse(BaseModel):
+    oldest_date: str
+    latest_date: str
+
+
+# API 응답용 공통 스키마
+class ApiResponse(BaseModel):
+    success: bool
+    message: str
+    data: Optional[dict] = None
+
+
+# 대시보드 응답 스키마
 class DashboardResponse(BaseModel):
     dashboard_id: int
     type: DashboardType
@@ -82,6 +95,7 @@ class DashboardResponse(BaseModel):
         from_attributes = True
 
 
+# 대시보드 상세 정보 응답 스키마
 class DashboardDetail(BaseModel):
     dashboard_id: int
     type: DashboardType
@@ -104,25 +118,3 @@ class DashboardDetail(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-class DriverAssignment(BaseModel):
-    dashboard_ids: List[int]
-    driver_name: str
-    driver_contact: str = Field(..., pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
-
-
-class StatusUpdate(BaseModel):
-    """상태 업데이트 요청 스키마"""
-
-    status: DashboardStatus = Field(
-        ..., description="변경할 상태", example="IN_PROGRESS"
-    )
-
-
-class RemarkUpdate(BaseModel):
-    remark: str
-
-
-class DashboardQuery(BaseModel):
-    date: datetime = Field(..., description="YYYY-MM-DD format date for filtering")

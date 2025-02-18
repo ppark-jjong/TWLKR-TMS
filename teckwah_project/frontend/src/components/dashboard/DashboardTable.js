@@ -1,7 +1,13 @@
 // frontend/src/components/dashboard/DashboardTable.js
 import React, { useState, useMemo } from 'react';
-import { Table, Tag, Input, Select, Space, Button, Tooltip, DatePicker, Pagination } from 'antd';
-import { SearchOutlined, ReloadOutlined, CarOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Table, Tag, Input, Select, Space, Button, Tooltip, Typography } from 'antd';
+import { 
+  SearchOutlined, 
+  ReloadOutlined, 
+  CarOutlined, 
+  DeleteOutlined, 
+  PlusOutlined 
+} from '@ant-design/icons';
 import { formatDateTime } from '../../utils/Formatter';
 import { 
   STATUS_TYPES,
@@ -16,23 +22,22 @@ import {
   WAREHOUSE_TEXTS,
   FONT_STYLES
 } from '../../utils/Constants';
-import dayjs from 'dayjs';
 
 const { Search } = Input;
 const { Option } = Select;
+const { Text } = Typography;
 
 const DashboardTable = ({ 
   dataSource, 
   loading, 
-  selectedDate,
-  onDateChange,
   selectedRows, 
   onSelectRows, 
   onRowClick,
   onRefresh,
   onCreateClick,
   onAssignClick,
-  onDeleteClick
+  onDeleteClick,
+  isAdminPage
 }) => {
   const [searchText, setSearchText] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState(null);
@@ -44,6 +49,7 @@ const DashboardTable = ({
   const filteredData = useMemo(() => {
     let filtered = [...dataSource];
 
+    // 검색어 필터링
     if (searchText) {
       const searchLower = searchText.toLowerCase();
       filtered = filtered.filter(item => 
@@ -53,10 +59,12 @@ const DashboardTable = ({
       );
     }
 
+    // 부서 필터링
     if (departmentFilter) {
       filtered = filtered.filter(item => item.department === departmentFilter);
     }
 
+    // 종류 필터링
     if (typeFilter) {
       filtered = filtered.filter(item => item.type === typeFilter);
     }
@@ -68,7 +76,7 @@ const DashboardTable = ({
   const currentPageData = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
     return filteredData.slice(startIndex, startIndex + pageSize);
-  }, [filteredData, currentPage, pageSize]);
+  }, [filteredData, currentPage]);
 
   // 테이블 컬럼 정의
   const tableColumns = [
@@ -198,9 +206,61 @@ const DashboardTable = ({
     }
   ];
 
+  // 액션 버튼 렌더링
+  const renderActionButtons = () => {
+    const buttons = [
+      <Button
+        key="create"
+        type="primary"
+        icon={<PlusOutlined />}
+        onClick={onCreateClick}
+        size="large"
+      >
+        생성
+      </Button>,
+      <Button
+        key="assign"
+        icon={<CarOutlined />}
+        onClick={onAssignClick}
+        disabled={selectedRows.length === 0}
+        size="large"
+      >
+        배차
+      </Button>
+    ];
+
+    // 관리자 페이지에서만 삭제 버튼 표시
+    if (isAdminPage) {
+      buttons.push(
+        <Button
+          key="delete"
+          icon={<DeleteOutlined />}
+          onClick={onDeleteClick}
+          disabled={selectedRows.length === 0}
+          danger
+          size="large"
+        >
+          삭제
+        </Button>
+      );
+    }
+
+    buttons.push(
+      <Tooltip key="refresh" title="새로고침">
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={onRefresh}
+          size="large"
+        />
+      </Tooltip>
+    );
+
+    return buttons;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* 검색 및 액션 영역 */}
+      {/* 검색 및 필터 영역 */}
       <div style={{ 
         backgroundColor: '#fff',
         padding: '16px',
@@ -209,36 +269,12 @@ const DashboardTable = ({
         flexDirection: 'column',
         gap: 16
       }}>
-        {/* 날짜 선택 및 페이지네이션 */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <DatePicker
-            value={selectedDate}
-            onChange={onDateChange}
-            allowClear={false}
-            style={{ width: 280 }}
-            size="large"
-          />
-          <Pagination
-            current={currentPage}
-            onChange={setCurrentPage}
-            pageSize={pageSize}
-            total={filteredData.length}
-            showTotal={(total) => `총 ${total}건`}
-            showSizeChanger={false}
-          />
-        </div>
-
-        {/* 검색 및 액션 버튼 */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <Space size="large">
+          <Space size="middle">
             <Search
               placeholder="주문번호, 고객명, 기사명 검색"
               allowClear
@@ -252,57 +288,26 @@ const DashboardTable = ({
               style={{ width: 200 }}
               onChange={setDepartmentFilter}
               size="large"
-            >
-              {Object.entries(DEPARTMENT_TYPES).map(([key, value]) => (
-                <Option key={key} value={value}>{DEPARTMENT_TEXTS[key]}</Option>
-              ))}
-            </Select>
+              options={Object.entries(DEPARTMENT_TYPES).map(([key, value]) => ({
+                value: value,
+                label: DEPARTMENT_TEXTS[key]
+              }))}
+            />
             <Select
               allowClear
               placeholder="종류 선택"
               style={{ width: 200 }}
               onChange={setTypeFilter}
               size="large"
-            >
-              {Object.entries(TYPE_TYPES).map(([key, value]) => (
-                <Option key={key} value={value}>{TYPE_TEXTS[key]}</Option>
-              ))}
-            </Select>
+              options={Object.entries(TYPE_TYPES).map(([key, value]) => ({
+                value: value,
+                label: TYPE_TEXTS[key]
+              }))}
+            />
           </Space>
 
           <Space size="middle">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={onCreateClick}
-              size="large"
-            >
-              생성
-            </Button>
-            <Button
-              icon={<CarOutlined />}
-              onClick={onAssignClick}
-              disabled={selectedRows.length === 0}
-              size="large"
-            >
-              배차
-            </Button>
-            <Button
-              icon={<DeleteOutlined />}
-              onClick={onDeleteClick}
-              disabled={selectedRows.length === 0}
-              danger
-              size="large"
-            >
-              삭제
-            </Button>
-            <Tooltip title="새로고침">
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={onRefresh}
-                size="large"
-              />
-            </Tooltip>
+            {renderActionButtons()}
           </Space>
         </div>
       </div>
@@ -314,7 +319,13 @@ const DashboardTable = ({
         loading={loading}
         rowKey="dashboard_id"
         scroll={{ x: 1200, y: 'calc(100vh - 250px)' }}
-        pagination={false}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: filteredData.length,
+          onChange: setCurrentPage,
+          showSizeChanger: false
+        }}
         rowSelection={{
           selectedRowKeys: selectedRows.map(row => row.dashboard_id),
           onChange: (_, rows) => onSelectRows(rows),
