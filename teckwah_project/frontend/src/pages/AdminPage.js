@@ -1,6 +1,6 @@
 // frontend/src/pages/AdminPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, DatePicker, Space, Typography } from 'antd';
+import { Layout, DatePicker, Space, Typography, Pagination } from 'antd';
 import dayjs from 'dayjs';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
@@ -13,55 +13,47 @@ import { useAuth } from '../contexts/AuthContext';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
 import { FONT_STYLES } from '../utils/Constants';
 
-const { RangePicker } = DatePicker;
 const { Text } = Typography;
+const { RangePicker } = DatePicker;
 
 const AdminPage = () => {
   const { 
     dashboards, 
-    loading, 
-    fetchAdminDashboards,
-    updateMultipleDashboards,
-    removeDashboards 
+    loading,
+    updateMultipleDashboards
   } = useDashboard();
   
   const [dateRange, setDateRange] = useState([dayjs().subtract(7, 'day'), dayjs()]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
-  const [oldestDate, setOldestDate] = useState(null);
+  const [availableDateRange, setAvailableDateRange] = useState(null);
   const { user } = useAuth();
+  const pageSize = 50;
 
   useEffect(() => {
-    getDateRange();
     if (dateRange[0] && dateRange[1]) {
       loadDashboardData(dateRange[0], dateRange[1]);
     }
   }, []);
 
-  const getDateRange = async () => {
-    try {
-      const response = await DashboardService.getDateRange();
-      setOldestDate(dayjs(response.oldest_date));
-    } catch (error) {
-      message.error('조회 가능 기간 확인 중 오류가 발생했습니다');
-    }
-  };
-
   const loadDashboardData = async (startDate, endDate) => {
     const key = MessageKeys.DASHBOARD.LOAD;
     try {
       message.loading('데이터 조회 중...', key);
-      await fetchAdminDashboards(startDate, endDate);
+      const response = await DashboardService.getAdminDashboardList(startDate, endDate);
+      setAvailableDateRange(response.date_range);
+      updateMultipleDashboards(response.items);
       message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
     } catch (error) {
       message.loadingToError(MessageTemplates.DASHBOARD.LOAD_FAIL, key);
     }
   };
 
-  const handleDateChange = (dates) => {
+  const handleDateRangeChange = (dates) => {
     if (!dates || !dates[0] || !dates[1]) return;
     setDateRange(dates);
     setSelectedRows([]);
@@ -69,26 +61,8 @@ const AdminPage = () => {
   };
 
   const handleRefresh = () => {
-    loadDashboardData(dateRange[0], dateRange[1]);
-  };
-
-  const handleDelete = async () => {
-    const key = MessageKeys.DASHBOARD.DELETE;
-    if (selectedRows.length === 0) {
-      message.warning('삭제할 항목을 선택해주세요', key);
-      return;
-    }
-
-    try {
-      message.loading('삭제 처리 중...', key);
-      const dashboardIds = selectedRows.map(row => row.dashboard_id);
-      await DashboardService.deleteDashboards(dashboardIds);
-      removeDashboards(dashboardIds);
-      setSelectedRows([]);
-      message.loadingToSuccess(MessageTemplates.DASHBOARD.DELETE_SUCCESS, key);
-      handleRefresh();
-    } catch (error) {
-      message.loadingToError(MessageTemplates.DASHBOARD.DELETE_FAIL, key);
+    if (dateRange[0] && dateRange[1]) {
+      loadDashboardData(dateRange[0], dateRange[1]);
     }
   };
 
@@ -107,34 +81,51 @@ const AdminPage = () => {
 
   // 날짜 선택 제한 로직
   const disabledDate = (current) => {
-    if (!current || !oldestDate) return false;
-    return current.isBefore(oldestDate, 'day') || current.isAfter(dayjs(), 'day');
+    if (!availableDateRange) return false;
+    return current.isBefore(dayjs(availableDateRange.oldest_date)) || 
+           current.isAfter(dayjs(availableDateRange.latest_date));
   };
+
+  // 필터링된 데이터
+  const filteredData = dashboards || [];
 
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>
-        <Space direction="vertical" size={4}>
-          <Space size="large">
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Space size="large" align="center">
             <RangePicker
               value={dateRange}
-              onChange={handleDateChange}
+              onChange={handleDateRangeChange}
               disabledDate={disabledDate}
               allowClear={false}
-              style={{ width: 320 }}
+              style={{ width: 360 }}
               size="large"
             />
-            {oldestDate && (
+            {availableDateRange && (
               <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
-                조회 가능 기간: {oldestDate.format('YYYY-MM-DD')} ~ {dayjs().format('YYYY-MM-DD')}
+                조회 가능 기간: {availableDateRange.oldest_date} ~ {availableDateRange.latest_date}
               </Text>
             )}
           </Space>
-        </Space>
+          <Pagination
+            current={currentPage}
+            onChange={setCurrentPage}
+            pageSize={pageSize}
+            total={filteredData.length}
+            showTotal={(total) => `총 ${total}건`}
+            showSizeChanger={false}
+            style={{ marginBottom: 0 }}
+          />
+        </div>
       </div>
 
       <DashboardTable
-        dataSource={dashboards}
+        dataSource={filteredData}
         loading={loading}
         selectedRows={selectedRows}
         onSelectRows={setSelectedRows}
@@ -142,9 +133,9 @@ const AdminPage = () => {
         onRefresh={handleRefresh}
         onCreateClick={() => setShowCreateModal(true)}
         onAssignClick={() => setShowAssignModal(true)}
-        onDeleteClick={handleDelete}
+        currentPage={currentPage}
+        pageSize={pageSize}
         isAdminPage={true}
-        dateRange={dateRange}
       />
 
       {showCreateModal && (

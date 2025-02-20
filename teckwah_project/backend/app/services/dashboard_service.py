@@ -3,6 +3,7 @@ import pytz
 from datetime import datetime
 from typing import List, Tuple
 from fastapi import HTTPException, status
+
 from app.schemas.dashboard_schema import (
     DashboardCreate,
     DashboardResponse,
@@ -109,20 +110,24 @@ class DashboardService:
     ) -> DashboardResponse:
         try:
             log_info(
-                "대시보드 생성 시작",
-                {
-                    "department": user_department,
-                    "type": data.type,
-                    "order_no": data.order_no,
-                },
+                "대시보드 생성 시작", {"type": data.type, "order_no": data.order_no}
             )
 
             # 우편번호 데이터 조회
             postal_data = self.repository.get_postal_code_data(data.postal_code)
+
+            # 우편번호 데이터가 없거나 선택한 창고에 대한 거리 정보가 없는 경우
             if not postal_data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"유효하지 않은 우편번호입니다: {data.postal_code}",
+                )
+
+            # 선택한 창고와 우편번호의 창고가 일치하지 않는 경우
+            if postal_data.depart_hub != data.warehouse:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"선택한 창고({data.warehouse})에서 해당 우편번호로의 배송 거리 정보가 없습니다",
                 )
 
             # 대시보드 데이터 준비
@@ -137,7 +142,6 @@ class DashboardService:
                 }
             )
 
-            # 대시보드 생성
             dashboard = self.repository.create_dashboard(dashboard_data)
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
             return DashboardResponse.model_validate(dashboard)
@@ -291,8 +295,6 @@ class DashboardService:
         """대시보드 삭제"""
         try:
             log_info("대시보드 삭제 시작", {"dashboard_ids": dashboard_ids})
-
-            # 대기 상태가 아닌 항목 검증 제거 (관리자는 모든 상태 삭제 가능)
             success = self.repository.delete_dashboards(dashboard_ids)
 
             if not success:

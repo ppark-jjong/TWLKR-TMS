@@ -7,12 +7,13 @@ import AppRoutes from './AppRoutes';
 import { AuthProvider } from './contexts/AuthContext';
 import { DashboardProvider } from './contexts/DashboardContext';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import setupAxiosInterceptors from './utils/AxiosConfig';
+import { setupResponseInterceptor, setupRequestInterceptor } from './utils/axiosInterceptor';
 
 const App = () => {
   useEffect(() => {
     // axios 인터셉터 설정 초기화
-    setupAxiosInterceptors();
+    setupRequestInterceptor();
+    setupResponseInterceptor();
   }, []);
 
   return (

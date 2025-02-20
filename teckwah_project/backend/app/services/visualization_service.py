@@ -1,7 +1,7 @@
-# backend/app/services/visualization_service.py
+# visualization_service.py
+import pandas as pd
 from datetime import datetime
 from fastapi import HTTPException, status
-from sqlalchemy import func, and_, extract
 from app.repositories.visualization_repository import VisualizationRepository
 from app.utils.logger import log_error
 
@@ -9,93 +9,155 @@ from app.utils.logger import log_error
 class VisualizationService:
     def __init__(self, repository: VisualizationRepository):
         self.repository = repository
-        self.status_map = {
-            "WAITING": "대기",
-            "IN_PROGRESS": "진행",
-            "COMPLETE": "완료",
-            "ISSUE": "이슈",
-        }
+        self.departments = ["CS", "HES", "LENOVO"]
+        self.status_list = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
 
     def get_delivery_status(self, start_date: datetime, end_date: datetime):
-        """배송 현황 데이터 조회"""
+        """부서별 배송 현황 데이터 조회 및 분석"""
         try:
-            # 상태별 건수 조회
-            status_data = self.repository.get_status_counts(start_date, end_date)
-            total_count = sum(count for _, count in status_data)
+            # 데이터 조회
+            df = pd.DataFrame(
+                self.repository.get_raw_delivery_data(start_date, end_date),
+                columns=["department", "status", "created_at"],
+            )
 
-            if total_count == 0:
+            if df.empty:
                 return {
                     "type": "delivery_status",
                     "total_count": 0,
-                    "status_breakdown": [],
+                    "department_breakdown": {},
                 }
 
-            # 각 상태별 비율 계산
-            status_breakdown = [
-                {
-                    "status": status,
-                    "count": count,
-                    "percentage": round((count / total_count * 100), 2),
-                }
-                for status, count in status_data
-            ]
+            # 부서별 상태 분석
+            status_pivot = pd.pivot_table(
+                df,
+                values="created_at",
+                index="department",
+                columns="status",
+                aggfunc="count",
+                fill_value=0,
+            )
+
+            # 결과 포맷팅
+            department_breakdown = {}
+            for dept in self.departments:
+                if dept in status_pivot.index:
+                    dept_data = status_pivot.loc[dept]
+                    total = dept_data.sum()
+
+                    status_breakdown = []
+                    for status in self.status_list:
+                        count = int(dept_data.get(status, 0))
+                        percentage = round((count / total * 100), 2) if total > 0 else 0
+                        status_breakdown.append(
+                            {"status": status, "count": count, "percentage": percentage}
+                        )
+
+                    department_breakdown[dept] = {
+                        "total": int(total),
+                        "status_breakdown": status_breakdown,
+                    }
+                else:
+                    # 데이터가 없는 부서는 0으로 초기화
+                    department_breakdown[dept] = {
+                        "total": 0,
+                        "status_breakdown": [
+                            {"status": status, "count": 0, "percentage": 0}
+                            for status in self.status_list
+                        ],
+                    }
 
             return {
                 "type": "delivery_status",
-                "total_count": total_count,
-                "status_breakdown": status_breakdown,
+                "total_count": int(df["created_at"].count()),
+                "department_breakdown": department_breakdown,
             }
 
         except Exception as e:
-            log_error(e, "배송 현황 데이터 조회 실패")
+            log_error(e, "배송 현황 데이터 분석 실패")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="배송 현황 데이터 조회 중 오류가 발생했습니다",
+                detail="배송 현황 데이터 분석 중 오류가 발생했습니다",
             )
 
     def get_hourly_orders(self, start_date: datetime, end_date: datetime):
-        """시간별 접수량 데이터 조회"""
+        """부서별 시간대별 접수량 데이터 조회 및 분석"""
         try:
-            # 시간별 접수량 조회
-            hourly_data = self.repository.get_hourly_counts(start_date, end_date)
+            # 데이터 조회
+            df = pd.DataFrame(
+                self.repository.get_raw_hourly_data(start_date, end_date),
+                columns=["department", "created_at"],
+            )
 
-            # 0-23시간대 데이터 초기화
-            hourly_counts = {hour: 0 for hour in range(24)}
+            if df.empty:
+                return {
+                    "type": "hourly_orders",
+                    "total_count": 0,
+                    "department_breakdown": {},
+                }
 
-            # 조회된 데이터로 업데이트
-            for hour, count in hourly_data:
-                hourly_counts[int(hour)] = count
+            # 시간대 추출 및 야간 시간대 처리
+            df["hour"] = df["created_at"].dt.hour
+            df["time_slot"] = df["hour"].apply(
+                lambda x: (
+                    "야간(22-08)" if (x >= 22 or x < 8) else f"{x:02d}-{(x+1):02d}"
+                )
+            )
 
-            total_count = sum(hourly_counts.values())
-            average_count = round(total_count / 24, 2) if total_count > 0 else 0
+            # 시간대별 집계
+            hourly_pivot = pd.pivot_table(
+                df,
+                values="created_at",
+                index="department",
+                columns="time_slot",
+                aggfunc="count",
+                fill_value=0,
+            )
 
-            # 시간별 데이터 포맷팅
-            hourly_breakdown = [
-                {"hour": str(hour), "count": count}
-                for hour, count in sorted(hourly_counts.items())
+            # 정렬을 위한 시간대 리스트 생성
+            time_slots = ["야간(22-08)"] + [
+                f"{h:02d}-{(h+1):02d}" for h in range(8, 22)
             ]
+
+            # 결과 포맷팅
+            department_breakdown = {}
+            for dept in self.departments:
+                if dept in hourly_pivot.index:
+                    dept_data = hourly_pivot.loc[dept]
+
+                    hourly_counts = {}
+                    for slot in time_slots:
+                        hourly_counts[slot] = int(dept_data.get(slot, 0))
+
+                    department_breakdown[dept] = {
+                        "total": int(dept_data.sum()),
+                        "hourly_counts": hourly_counts,
+                    }
+                else:
+                    # 데이터가 없는 부서는 0으로 초기화
+                    department_breakdown[dept] = {
+                        "total": 0,
+                        "hourly_counts": {slot: 0 for slot in time_slots},
+                    }
 
             return {
                 "type": "hourly_orders",
-                "total_count": total_count,
-                "average_count": average_count,
-                "hourly_breakdown": hourly_breakdown,
+                "total_count": int(df["created_at"].count()),
+                "department_breakdown": department_breakdown,
+                "time_slots": [
+                    {
+                        "label": slot,
+                        "start": (
+                            int(slot.split("-")[0]) if slot != "야간(22-08)" else 22
+                        ),
+                    }
+                    for slot in time_slots
+                ],
             }
 
         except Exception as e:
-            log_error(e, "시간별 접수량 데이터 조회 실패")
+            log_error(e, "시간대별 접수량 데이터 분석 실패")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="시간별 접수량 데이터 조회 중 오류가 발생했습니다",
-            )
-
-    def get_oldest_data_date(self) -> datetime:
-        """가장 오래된 데이터 날짜 조회"""
-        try:
-            return self.repository.get_oldest_data_date()
-        except Exception as e:
-            log_error(e, "가장 오래된 데이터 날짜 조회 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="데이터 조회 중 오류가 발생했습니다",
+                detail="시간대별 접수량 데이터 분석 중 오류가 발생했습니다",
             )

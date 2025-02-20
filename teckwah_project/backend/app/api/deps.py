@@ -56,3 +56,10 @@ async def get_current_user_department(
 ) -> str:
     """현재 사용자 부서 정보 추출"""
     return token_data.department
+
+
+async def get_current_user(
+    token_data: TokenData = Depends(verify_token),
+) -> TokenData:
+
+    return token_data

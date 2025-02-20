@@ -1,6 +1,6 @@
 // frontend/src/pages/DashboardPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, DatePicker, Space, Typography } from 'antd';
+import { Layout, DatePicker, Space, Typography, Pagination } from 'antd';
 import dayjs from 'dayjs';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
@@ -18,39 +18,32 @@ const { Text } = Typography;
 const DashboardPage = () => {
   const { 
     dashboards, 
-    loading, 
-    fetchDashboards,
+    loading,
     updateMultipleDashboards
   } = useDashboard();
   
   const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
-  const [oldestDate, setOldestDate] = useState(null);
+  const [dateRange, setDateRange] = useState(null);
   const { user } = useAuth();
+  const pageSize = 50;
 
   useEffect(() => {
-    getDateRange();
     loadDashboardData(selectedDate);
   }, []);
-
-  const getDateRange = async () => {
-    try {
-      const response = await DashboardService.getDateRange();
-      setOldestDate(dayjs(response.oldest_date));
-    } catch (error) {
-      message.error('조회 가능 기간 확인 중 오류가 발생했습니다');
-    }
-  };
 
   const loadDashboardData = async (date) => {
     const key = MessageKeys.DASHBOARD.LOAD;
     try {
       message.loading('데이터 조회 중...', key);
-      await fetchDashboards(date);
+      const response = await DashboardService.getDashboardList(date);
+      setDateRange(response.date_range);
+      updateMultipleDashboards(response.items);
       message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
     } catch (error) {
       message.loadingToError(MessageTemplates.DASHBOARD.LOAD_FAIL, key);
@@ -83,15 +76,23 @@ const DashboardPage = () => {
 
   // 날짜 선택 제한 로직
   const disabledDate = (current) => {
-    if (!current || !oldestDate) return false;
-    return current.isBefore(oldestDate, 'day') || current.isAfter(dayjs(), 'day');
+    if (!dateRange) return false;
+    return current.isBefore(dayjs(dateRange.oldest_date)) || 
+           current.isAfter(dayjs(dateRange.latest_date));
   };
+
+  // 필터링된 데이터
+  const filteredData = dashboards || [];
 
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>
-        <Space direction="vertical" size={4}>
-          <Space size="large">
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Space size="large" align="center">
             <DatePicker
               value={selectedDate}
               onChange={handleDateChange}
@@ -100,17 +101,26 @@ const DashboardPage = () => {
               style={{ width: 280 }}
               size="large"
             />
-            {oldestDate && (
+            {dateRange && (
               <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
-                조회 가능 기간: {oldestDate.format('YYYY-MM-DD')} ~ {dayjs().format('YYYY-MM-DD')}
+                조회 가능 기간: {dateRange.oldest_date} ~ {dateRange.latest_date}
               </Text>
             )}
           </Space>
-        </Space>
+          <Pagination
+            current={currentPage}
+            onChange={setCurrentPage}
+            pageSize={pageSize}
+            total={filteredData.length}
+            showTotal={(total) => `총 ${total}건`}
+            showSizeChanger={false}
+            style={{ marginBottom: 0 }}
+          />
+        </div>
       </div>
 
       <DashboardTable
-        dataSource={dashboards}
+        dataSource={filteredData}
         loading={loading}
         selectedRows={selectedRows}
         onSelectRows={setSelectedRows}
@@ -118,8 +128,9 @@ const DashboardPage = () => {
         onRefresh={handleRefresh}
         onCreateClick={() => setShowCreateModal(true)}
         onAssignClick={() => setShowAssignModal(true)}
+        currentPage={currentPage}
+        pageSize={pageSize}
         isAdminPage={false}
-        selectedDate={selectedDate}
       />
 
       {showCreateModal && (

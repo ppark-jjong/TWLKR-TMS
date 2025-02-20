@@ -1,6 +1,6 @@
 # backend/app/repositories/dashboard_repository.py
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from app.models.dashboard_model import Dashboard
@@ -11,6 +11,69 @@ from app.utils.logger import log_error, log_info
 class DashboardRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_dashboards_by_date_range(
+        self, start: datetime, end: datetime
+    ) -> List[Dashboard]:
+        """날짜 범위로 대시보드 조회하는 내부 메서드"""
+        try:
+            start_time = start.replace(hour=0, minute=0, second=0)
+            end_time = end.replace(hour=23, minute=59, second=59)
+
+            dashboards = (
+                self.db.query(Dashboard)
+                .filter(and_(Dashboard.eta >= start_time, Dashboard.eta <= end_time))
+                .order_by(Dashboard.create_time.desc())
+                .all()
+            )
+            return dashboards
+        except Exception as e:
+            log_error(e, "대시보드 날짜 범위 조회 실패", {"start": start, "end": end})
+            raise
+
+    def get_dashboards_by_date(self, target_date: datetime) -> List[Dashboard]:
+        """하루 단위 대시보드 조회"""
+        try:
+            log_info(f"대시보드 일일 조회 시작: {target_date}")
+            dashboards = self._get_dashboards_by_date_range(target_date, target_date)
+            log_info(f"대시보드 일일 조회 완료: {len(dashboards)}건")
+            return dashboards
+        except Exception as e:
+            log_error(e, "대시보드 일일 조회 실패", {"target_date": target_date})
+            raise
+
+    def get_dashboards_by_date_range(
+        self, start_date: datetime, end_date: datetime
+    ) -> List[Dashboard]:
+        """기간별 대시보드 조회"""
+        try:
+            log_info(f"대시보드 기간별 조회 시작: {start_date} ~ {end_date}")
+            dashboards = self._get_dashboards_by_date_range(start_date, end_date)
+            log_info(f"대시보드 기간별 조회 완료: {len(dashboards)}건")
+            return dashboards
+        except Exception as e:
+            log_error(
+                e,
+                "대시보드 기간별 조회 실패",
+                {"start_date": start_date, "end_date": end_date},
+            )
+            raise
+
+    def get_date_range(self) -> Tuple[datetime, datetime]:
+        """ETA 기준 조회 가능 날짜 범위 조회"""
+        try:
+            result = self.db.query(
+                func.min(Dashboard.eta).label("oldest_date"),
+                func.max(Dashboard.eta).label("latest_date"),
+            ).first()
+
+            oldest_date = result.oldest_date if result.oldest_date else datetime.now()
+            latest_date = result.latest_date if result.latest_date else datetime.now()
+
+            return oldest_date, latest_date
+        except Exception as e:
+            log_error(e, "ETA 날짜 범위 조회 실패")
+            raise
 
     def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
         """대시보드 상세 정보 조회"""
@@ -40,25 +103,6 @@ class DashboardRepository:
             return dashboards
         except Exception as e:
             log_error(e, "대시보드 다중 조회 실패", {"dashboard_ids": dashboard_ids})
-            raise
-
-    def get_dashboards_by_date(self, target_date: datetime) -> List[Dashboard]:
-        """날짜별 대시보드 조회"""
-        try:
-            log_info(f"대시보드 조회 시작: {target_date}")
-            start_date = target_date.replace(hour=0, minute=0, second=0)
-            end_date = target_date.replace(hour=23, minute=59, second=59)
-
-            dashboards = (
-                self.db.query(Dashboard)
-                .filter(and_(Dashboard.eta >= start_date, Dashboard.eta <= end_date))
-                .order_by(Dashboard.create_time.desc())
-                .all()
-            )
-            log_info(f"대시보드 조회 완료: {len(dashboards)}건")
-            return dashboards
-        except Exception as e:
-            log_error(e, "대시보드 조회 실패", {"target_date": target_date})
             raise
 
     def get_postal_code_data(self, postal_code: str) -> Optional[PostalCode]:
@@ -116,7 +160,7 @@ class DashboardRepository:
             dashboard.complete_time = None
         elif new_status in ["COMPLETE", "ISSUE"]:
             dashboard.complete_time = current_time
-        elif new_status in ["WAITING", "CANCEL"]:  # CANCEL 상태 추가
+        elif new_status in ["WAITING", "CANCEL"]:
             dashboard.depart_time = None
             dashboard.complete_time = None
 

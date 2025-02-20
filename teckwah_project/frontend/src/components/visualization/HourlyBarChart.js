@@ -1,43 +1,87 @@
-// frontend/src/components/visualization/HourlyBarChart.js
+// HourlyBarChart.js
 import React from 'react';
-import { Typography, Empty } from 'antd';
+import { Typography, Empty, Card, Row, Col, Statistic } from 'antd';
 import { Column } from '@ant-design/plots';
-import { formatNumber } from '../../utils/Formatter';
+import { ClockCircleOutlined } from '@ant-design/icons';
 import { FONT_STYLES } from '../../utils/Constants';
+import { formatNumber } from '../../utils/Formatter';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
+
+// 부서별 색상 및 스타일 정의
+const DEPARTMENT_THEMES = {
+  'CS': {
+    title: 'CS 부서',
+    color: '#1890FF',
+    backgroundColor: '#E6F7FF',
+    borderColor: '#91D5FF'
+  },
+  'HES': {
+    title: 'HES 부서',
+    color: '#722ED1',
+    backgroundColor: '#F9F0FF',
+    borderColor: '#B37FEB'
+  },
+  'LENOVO': {
+    title: 'LENOVO 부서',
+    color: '#13C2C2',
+    backgroundColor: '#E6FFFB',
+    borderColor: '#87E8DE'
+  }
+};
+
+const TIME_PERIODS = {
+  NIGHT: { label: '야간(22-08)', color: '#722ED1' },
+  DAY: { label: '주간(08-22)', color: '#1890FF' }
+};
 
 const HourlyBarChart = ({ data }) => {
-  if (!data?.hourly_breakdown?.length) {
+  if (!data?.department_breakdown) {
     return <Empty description={<span style={FONT_STYLES.BODY.MEDIUM}>데이터가 없습니다</span>} />;
   }
 
-  // 0-23시간대 데이터 초기화
-  const chartData = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${String(i).padStart(2, '0')}:00`,
-    count: 0,
-    orderCount: 0
-  }));
+  // 차트 데이터 가공
+  const chartData = Object.entries(data.department_breakdown).flatMap(([dept, deptData]) => 
+    Object.entries(deptData.hourly_counts).map(([timeSlot, count]) => ({
+      timeSlot,
+      department: DEPARTMENT_THEMES[dept].title,
+      count,
+      color: DEPARTMENT_THEMES[dept].color,
+      period: timeSlot === '야간(22-08)' ? TIME_PERIODS.NIGHT.label : TIME_PERIODS.DAY.label
+    }))
+  );
 
-  // 실제 데이터로 업데이트
-  data.hourly_breakdown.forEach(item => {
-    const idx = parseInt(item.hour);
-    if (idx >= 0 && idx < 24) {
-      chartData[idx].count = item.count;
-      chartData[idx].orderCount = item.count;
-    }
+  // 부서별 통계 계산
+  const departmentStats = Object.entries(data.department_breakdown).map(([dept, deptData]) => {
+    const nightCount = deptData.hourly_counts['야간(22-08)'] || 0;
+    const dayCount = Object.entries(deptData.hourly_counts)
+      .filter(([slot]) => slot !== '야간(22-08)')
+      .reduce((sum, [_, count]) => sum + count, 0);
+
+    const totalCount = nightCount + dayCount;
+    const avgPerHour = totalCount > 0 ? Math.round((totalCount / 24) * 10) / 10 : 0;
+
+    return {
+      department: dept,
+      title: DEPARTMENT_THEMES[dept].title,
+      totalCount,
+      nightCount,
+      dayCount,
+      avgPerHour,
+      ...DEPARTMENT_THEMES[dept]
+    };
   });
 
   const config = {
     data: chartData,
-    xField: 'hour',
+    isGroup: true,
+    xField: 'timeSlot',
     yField: 'count',
-    seriesField: 'type',
-    color: '#1890FF',
+    seriesField: 'department',
+    groupField: 'period',
+    color: Object.values(DEPARTMENT_THEMES).map(theme => theme.color),
     columnStyle: {
-      radius: [4, 4, 0, 0],
-      shadowColor: 'rgba(0,0,0,0.05)',
-      shadowBlur: 4
+      radius: [4, 4, 0, 0]
     },
     label: {
       position: 'top',
@@ -45,11 +89,10 @@ const HourlyBarChart = ({ data }) => {
         ...FONT_STYLES.BODY.SMALL,
         fill: '#666'
       },
-      formatter: (v) => formatNumber(v.count)
+      formatter: (v) => v.count > 0 ? formatNumber(v.count) : ''
     },
     xAxis: {
       label: {
-        autoRotate: false,
         style: {
           ...FONT_STYLES.BODY.SMALL,
           fill: '#666'
@@ -65,62 +108,107 @@ const HourlyBarChart = ({ data }) => {
         }
       }
     },
-    tooltip: {
-      formatter: (datum) => ({
-        name: '접수량',
-        value: `${formatNumber(datum.count)}건`
-      })
-    },
-    meta: {
-      hour: { alias: '시간' },
-      count: { alias: '접수량' }
-    },
-    annotations: [
-      {
-        type: 'line',
-        start: ['min', data.average_count],
-        end: ['max', data.average_count],
+    legend: {
+      position: 'top',
+      itemName: {
         style: {
-          stroke: '#ff4d4f',
-          lineDash: [4, 4],
-          opacity: 0.5
-        }
-      },
-      {
-        type: 'text',
-        position: ['max', data.average_count],
-        content: `평균: ${formatNumber(data.average_count)}건`,
-        offsetX: -20,
-        offsetY: -6,
-        style: {
-          ...FONT_STYLES.BODY.MEDIUM,
-          fill: '#ff4d4f',
-          fontWeight: 500
+          ...FONT_STYLES.BODY.MEDIUM
         }
       }
-    ]
+    },
+    animation: {
+      appear: {
+        animation: 'wave-in',
+        duration: 1000
+      }
+    },
+    minColumnWidth: 20,
+    maxColumnWidth: 40,
+    columnBackground: {
+      style: {
+        fill: '#f0f0f0'
+      }
+    }
   };
 
   return (
-    <div style={{ height: 'calc(100vh - 350px)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ textAlign: 'center' }}>
         <Title level={4} style={{ 
           ...FONT_STYLES.TITLE.MEDIUM, 
-          marginBottom: 8, 
-          color: '#333' 
+          margin: '0 0 16px' 
         }}>
-          시간별 접수량
+          시간대별 접수량
         </Title>
-        <div style={{ ...FONT_STYLES.BODY.MEDIUM, color: '#666' }}>
-          <div>총 접수량: {formatNumber(data.total_count)}건</div>
-          <div>피크 타임: {chartData.reduce((acc, curr) => 
-            curr.count > acc.count ? curr : acc
-          ).hour} ({formatNumber(Math.max(...chartData.map(d => d.count)))}건)</div>
+        
+        <Row gutter={16} justify="center">
+          <Col>
+            <Card size="small">
+              <Statistic
+                title="전체 접수 건수"
+                value={formatNumber(data.total_count)}
+                suffix="건"
+                valueStyle={{ color: '#1890FF' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      </div>
+
+      <Row gutter={[16, 16]}>
+        {departmentStats.map(stat => (
+          <Col span={8} key={stat.department}>
+            <Card
+              size="small"
+              style={{
+                backgroundColor: stat.backgroundColor,
+                borderColor: stat.borderColor
+              }}
+            >
+              <Row gutter={16} align="middle">
+                <Col span={12}>
+                  <Statistic
+                    title={
+                      <Text strong style={{ ...FONT_STYLES.BODY.MEDIUM, color: stat.color }}>
+                        {stat.title}
+                      </Text>
+                    }
+                    value={stat.totalCount}
+                    suffix="건"
+                    valueStyle={{ color: stat.color }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
+                      주간: {formatNumber(stat.dayCount)}건
+                    </Text>
+                    <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
+                      야간: {formatNumber(stat.nightCount)}건
+                    </Text>
+                    <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
+                      <ClockCircleOutlined /> 시간당 평균: {formatNumber(stat.avgPerHour)}건
+                    </Text>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Card
+        bordered={false}
+        style={{
+          borderRadius: '12px',
+          background: '#fff',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}
+      >
+        <div style={{ height: 400 }}>
+          <Column {...config} />
         </div>
-      </div>
-      <div style={{ flex: 1, minHeight: '400px' }}>
-        <Column {...config} />
-      </div>
+      </Card>
     </div>
   );
 };
