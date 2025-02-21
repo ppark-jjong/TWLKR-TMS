@@ -46,14 +46,60 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def initialize_models():
     """모델 초기화 함수"""
-    from app.models import postal_code_model
-    from app.models import user_model
-    from app.models import dashboard_model
-    from app.models import refresh_token_model
-    from app.models import error_log_model
+    from app.models import (
+        postal_code_model,
+        user_model,
+        dashboard_model,
+        refresh_token_model,
+        error_log_model,
+    )
+
+    # PostalCode와 PostalCodeDetail 모델이 먼저 초기화되도록 순서 지정
+    PostalCode = postal_code_model.PostalCode
+    PostalCodeDetail = postal_code_model.PostalCodeDetail
+    Dashboard = dashboard_model.Dashboard
 
     # 명시적 모델 초기화
     mapper_registry.configure()
+
+
+def execute_query(query, params=None, fetch=False, many=False):
+    """
+    MySQL 쿼리 실행을 위한 유틸리티 함수
+    에러 로깅 추가
+    """
+    connection = get_mysql_connection()
+    if not connection:
+        return None
+
+    try:
+        cursor = connection.cursor()
+        if many:
+            cursor.executemany(query, params)
+        else:
+            cursor.execute(query, params)
+
+        if fetch:
+            result = cursor.fetchall()
+            return result
+
+        connection.commit()
+        return cursor.rowcount
+    except Error as e:
+        # 에러 로그 테이블에 기록
+        error_query = """
+            INSERT INTO error_log (error_message, failed_query)
+            VALUES (%s, %s)
+        """
+        try:
+            cursor.execute(error_query, (str(e), query))
+            connection.commit()
+        except Error:
+            pass  # 에러 로깅 실패는 무시
+        return None
+    finally:
+        cursor.close()
+        connection.close()
 
 
 def get_db():
@@ -80,35 +126,6 @@ def get_mysql_connection():
     except Error as e:
         logger.error(f"데이터베이스 연결 오류: {e}")
         return None
-
-
-def execute_query(query, params=None, fetch=False, many=False):
-    """
-    MySQL 쿼리 실행을 위한 유틸리티 함수
-    """
-    connection = get_mysql_connection()
-    if not connection:
-        return None
-
-    try:
-        cursor = connection.cursor()
-        if many:
-            cursor.executemany(query, params)
-        else:
-            cursor.execute(query, params)
-
-        if fetch:
-            result = cursor.fetchall()
-            return result
-
-        connection.commit()
-        return cursor.rowcount
-    except Error as e:
-        logger.error(f"쿼리 실행 오류: {e}")
-        return None
-    finally:
-        cursor.close()
-        connection.close()
 
 
 class DatabaseManager:

@@ -1,10 +1,10 @@
-# backend/app/api/dashboard_router.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.schemas.dashboard_schema import (
+    DashboardCreate,
     DashboardListResponse,
     DashboardDetailResponse,
     DashboardListData,
@@ -12,21 +12,23 @@ from app.schemas.dashboard_schema import (
     RemarkUpdate,
     DriverAssignment,
     AdminDashboardListResponse,
-    DashboardCreate,
+    DashboardResponse,
 )
-from app.schemas.common_schema import DashboardListResponse, DateRangeInfo
+from app.schemas.common_schema import BaseResponse, DateRangeInfo
 from app.services.dashboard_service import DashboardService
 from app.config.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, check_admin_access
 from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
+from app.repositories.dashboard_repository import DashboardRepository
 
 router = APIRouter()
 
 
 def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     """DashboardService 의존성 주입"""
-    return DashboardService(db)
+    repository = DashboardRepository(db)
+    return DashboardService(repository)  # Repository 객체를 전달
 
 
 @router.get("/list", response_model=DashboardListResponse)
@@ -40,31 +42,47 @@ async def get_dashboard_list(
         log_info(f"대시보드 목록 조회 요청: {date}")
         target_date = datetime.strptime(date, "%Y-%m-%d")
 
-        items = service.get_dashboard_list(target_date)
+        items = service.get_dashboard_list_by_date(target_date)
         oldest_date, latest_date = service.get_date_range()
 
-        response_data = DashboardListData(
-            date_range=DateRangeInfo(
-                oldest_date=oldest_date.strftime("%Y-%m-%D"),
-                latest_date=latest_date.strftime("%Y-%m-%d"),
-            ),
-            items=items,
-        )
+        message = "데이터를 조회했습니다" if items else "조회된 데이터가 없습니다"
 
         return DashboardListResponse(
-            success=True, message="데이터를 성공적으로 조회했습니다", data=response_data
+            success=True,
+            message=message,
+            data=DashboardListData(
+                date_range=DateRangeInfo(
+                    oldest_date=oldest_date.strftime("%Y-%m-%d"),
+                    latest_date=latest_date.strftime("%Y-%m-%d"),
+                ),
+                items=items,
+            ),
         )
     except ValueError as e:
         log_error(e, "날짜 형식 오류")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+        return DashboardListResponse(
+            success=False,
+            message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+            data=DashboardListData(
+                date_range=DateRangeInfo(
+                    oldest_date=datetime.now().strftime("%Y-%m-%d"),
+                    latest_date=datetime.now().strftime("%Y-%m-%d"),
+                ),
+                items=[],
+            ),
         )
     except Exception as e:
         log_error(e, "대시보드 목록 조회 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="대시보드 목록 조회 중 오류가 발생했습니다",
+        return DashboardListResponse(
+            success=True,
+            message="조회된 데이터가 없습니다",
+            data=DashboardListData(
+                date_range=DateRangeInfo(
+                    oldest_date=datetime.now().strftime("%Y-%m-%d"),
+                    latest_date=datetime.now().strftime("%Y-%m-%d"),
+                ),
+                items=[],
+            ),
         )
 
 
@@ -73,14 +91,9 @@ async def get_admin_dashboard_list(
     start_date: str,
     end_date: str,
     service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(check_admin_access),
 ):
     """관리자 대시보드 목록 조회 API"""
-    if current_user.role != "ADMIN":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="관리자만 접근할 수 있습니다"
-        )
-
     try:
         log_info(f"관리자 대시보드 목록 조회 요청: {start_date} ~ {end_date}")
         start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -88,6 +101,8 @@ async def get_admin_dashboard_list(
 
         items = service.get_dashboard_list_by_date_range(start, end)
         oldest_date, latest_date = service.get_date_range()
+
+        message = "데이터를 조회했습니다" if items else "조회된 데이터가 없습니다"
 
         response_data = DashboardListData(
             date_range=DateRangeInfo(
@@ -98,19 +113,33 @@ async def get_admin_dashboard_list(
         )
 
         return AdminDashboardListResponse(
-            success=True, message="데이터를 성공적으로 조회했습니다", data=response_data
+            success=True, message=message, data=response_data
         )
     except ValueError as e:
         log_error(e, "날짜 형식 오류")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+        return AdminDashboardListResponse(
+            success=False,
+            message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+            data=DashboardListData(
+                date_range=DateRangeInfo(
+                    oldest_date=datetime.now().strftime("%Y-%m-%d"),
+                    latest_date=datetime.now().strftime("%Y-%m-%d"),
+                ),
+                items=[],
+            ),
         )
     except Exception as e:
         log_error(e, "관리자 대시보드 목록 조회 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="대시보드 목록 조회 중 오류가 발생했습니다",
+        return AdminDashboardListResponse(
+            success=True,
+            message="조회된 데이터가 없습니다",
+            data=DashboardListData(
+                date_range=DateRangeInfo(
+                    oldest_date=datetime.now().strftime("%Y-%m-%d"),
+                    latest_date=datetime.now().strftime("%Y-%m-%d"),
+                ),
+                items=[],
+            ),
         )
 
 
@@ -220,16 +249,10 @@ async def assign_driver(
 async def delete_dashboards(
     dashboard_ids: List[int],
     service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(check_admin_access),  # 관리자 권한 체크
 ):
     """대시보드 삭제 API"""
     try:
-        if current_user.role != "ADMIN":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="관리자만 삭제할 수 있습니다",
-            )
-
         log_info("대시보드 삭제 요청", {"dashboard_ids": dashboard_ids})
         success = service.delete_dashboards(dashboard_ids)
 
@@ -245,28 +268,4 @@ async def delete_dashboards(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="대시보드 삭제 중 오류가 발생했습니다",
-        )
-
-
-@router.get("/date-range", response_model=BaseResponse[DateRangeInfo])
-async def get_date_range(
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
-):
-    """조회 가능한 날짜 범위 조회 API"""
-    try:
-        oldest_date, latest_date = service.get_date_range()
-        return BaseResponse(
-            success=True,
-            message="날짜 범위 조회 성공",
-            data=DateRangeInfo(
-                oldest_date=oldest_date.strftime("%Y-%m-%d"),
-                latest_date=latest_date.strftime("%Y-%m-%d"),
-            ),
-        )
-    except Exception as e:
-        log_error(e, "날짜 범위 조회 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="날짜 범위 조회 중 오류가 발생했습니다",
         )

@@ -1,5 +1,5 @@
 # backend/app/schemas/visualization_schema.py
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import date
 from enum import Enum
@@ -19,14 +19,6 @@ class StatusData(BaseModel):
     percentage: float
 
 
-class TimeSlot(BaseModel):
-    """시간대 정보"""
-
-    label: str
-    start: int
-    end: Optional[int] = None
-
-
 class DepartmentStatusData(BaseModel):
     """부서별 상태 데이터"""
 
@@ -42,13 +34,20 @@ class DepartmentHourlyData(BaseModel):
     average_per_hour: float
 
 
+class TimeSlot(BaseModel):
+    """시간대 정보"""
+
+    label: str
+    start: int
+    end: Optional[int] = None
+
+
 class DeliveryStatusData(BaseModel):
     """배송 현황 전체 데이터"""
 
     type: str = "delivery_status"
     total_count: int
     department_breakdown: Dict[str, DepartmentStatusData]
-    date_range: DateRangeInfo
 
 
 class HourlyOrdersData(BaseModel):
@@ -59,7 +58,6 @@ class HourlyOrdersData(BaseModel):
     average_count: float
     department_breakdown: Dict[str, DepartmentHourlyData]
     time_slots: List[TimeSlot]
-    date_range: DateRangeInfo
 
 
 class DeliveryStatusResponse(BaseResponse[DeliveryStatusData]):
@@ -72,21 +70,6 @@ class HourlyOrdersResponse(BaseResponse[HourlyOrdersData]):
     """시간대별 접수량 응답"""
 
     pass
-
-
-class DateRange(BaseModel):
-    """조회 기간"""
-
-    start_date: date
-    end_date: date
-
-    @validator("end_date")
-    def validate_dates(cls, end_date, values):
-        if "start_date" in values and end_date < values["start_date"]:
-            raise ValueError("종료일은 시작일 이후여야 합니다")
-        if end_date > date.today():
-            raise ValueError("미래 날짜는 조회할 수 없습니다")
-        return end_date
 
 
 class VisualizationDateRangeResponse(BaseResponse[DateRangeInfo]):

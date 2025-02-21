@@ -1,185 +1,100 @@
-// VisualizationPage.js
+// frontend/src/pages/VisualizationPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, Select, DatePicker, Card, Typography, Space, Alert } from 'antd';
-import { BarChartOutlined, PieChartOutlined } from '@ant-design/icons';
+import { Layout, Select, DatePicker, Card, Space } from 'antd';
 import dayjs from 'dayjs';
+import { CHART_TYPES } from '../utils/Constants';
+import DateRangeInfo from '../components/common/DateRangeInfo';
 import StatusPieCharts from '../components/visualization/StatusPieChart';
 import HourlyBarChart from '../components/visualization/HourlyBarChart';
-import LoadingSpin from '../components/common/LoadingSpin';
 import VisualizationService from '../services/VisualizationService';
-import DashboardService from '../services/DashboardService';
-import { CHART_TYPES, FONT_STYLES } from '../utils/Constants';
-import message, { MessageKeys, MessageTemplates } from '../utils/message';
+import message from '../utils/message';
 
-const { Content } = Layout;
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
-
-const chartTypeOptions = [
-  { 
-    value: CHART_TYPES.DELIVERY_STATUS, 
-    label: '부서별 배송 현황',
-    icon: <PieChartOutlined />
-  },
-  { 
-    value: CHART_TYPES.HOURLY_ORDERS, 
-    label: '시간대별 접수량',
-    icon: <BarChartOutlined />
-  }
-];
 
 const VisualizationPage = () => {
-  const [vizType, setVizType] = useState(CHART_TYPES.DELIVERY_STATUS);
-  const [dateRange, setDateRange] = useState([dayjs().subtract(7, 'day'), dayjs()]);
+  const [chartType, setChartType] = useState(CHART_TYPES.DELIVERY_STATUS);
+  const [dateRange, setDateRange] = useState([
+    dayjs().subtract(7, 'day'),
+    dayjs(),
+  ]);
+  const [availableDateRange, setAvailableDateRange] = useState(null);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
-  const [dateRangeInfo, setDateRangeInfo] = useState(null);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
-    getDateRange();
-  }, []);
-
-  useEffect(() => {
+    loadDateRange();
     if (dateRange[0] && dateRange[1]) {
-      fetchData();
+      loadVisualizationData();
     }
-  }, [vizType, dateRange]);
+  }, [chartType, dateRange]);
 
-  const getDateRange = async () => {
+  const loadDateRange = async () => {
     try {
-      const response = await DashboardService.getDateRange();
-      setDateRangeInfo(response.data);
+      setLoading(true);
+      const result = await VisualizationService.getDateRange();
+      setAvailableDateRange(result.data);
     } catch (error) {
-      message.error('조회 가능 기간 확인 중 오류가 발생했습니다');
+      console.error('Failed to load date range:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchData = async () => {
-    if (!dateRange[0] || !dateRange[1]) {
-      message.warning('날짜를 선택해주세요');
-      return;
-    }
-
-    setError(null);
-    setLoading(true);
-    
+  const loadVisualizationData = async () => {
     try {
+      setLoading(true);
       const response = await VisualizationService.getVisualizationData(
-        vizType,
-        dateRange[0].startOf('day').toDate(),
-        dateRange[1].endOf('day').toDate()
+        chartType,
+        dateRange[0],
+        dateRange[1]
       );
-      
       setData(response);
-      message.success('데이터를 조회했습니다');
     } catch (error) {
-      setError('데이터 조회 중 오류가 발생했습니다. 다시 시도해주세요.');
       message.error('데이터 조회 중 오류가 발생했습니다');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <Content style={{ padding: '24px', backgroundColor: 'white' }}>
-      <Card 
-        bordered={false} 
-        bodyStyle={{ padding: '24px' }}
-        className="visualization-card"
-      >
-        <div style={{ 
-          marginBottom: 24, 
-          display: 'flex', 
-          flexDirection: 'column',
-          gap: 16
-        }}>
-          <Space size="large" align="center" style={{ 
-            display: 'flex',
-            justifyContent: 'space-between'
-          }}>
-            <Space size="middle">
-              <Select
-                value={vizType}
-                onChange={setVizType}
-                style={{ width: 200 }}
-                options={chartTypeOptions}
-                optionLabelProp="label"
-                size="large"
-                optionRender={(option) => (
-                  <Space>
-                    {option.data.icon}
-                    <span style={FONT_STYLES.BODY.MEDIUM}>{option.data.label}</span>
-                  </Space>
-                )}
-              />
-              <RangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                style={{ width: 320 }}
-                size="large"
-              />
-            </Space>
-            
-            {dateRangeInfo && (
-              <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
-                조회 가능 기간: {dateRangeInfo.oldest_date} ~ {dateRangeInfo.latest_date}
-              </Text>
-            )}
-          </Space>
+  const handleDateRangeChange = (dates) => {
+    if (!dates || !dates[0] || !dates[1]) return;
+    setDateRange(dates);
+  };
 
-          {error && (
-            <Alert
-              message="오류"
-              description={error}
-              type="error"
-              showIcon
+  return (
+    <Layout.Content style={{ padding: '24px', backgroundColor: 'white' }}>
+      <Card bordered={false}>
+        <div style={{ marginBottom: '24px' }}>
+          <Space size="large" align="center">
+            <Select
+              value={chartType}
+              onChange={setChartType}
+              style={{ width: 200 }}
+              size="large"
+              options={[
+                { value: CHART_TYPES.DELIVERY_STATUS, label: '배송 현황' },
+                { value: CHART_TYPES.HOURLY_ORDERS, label: '시간별 접수량' },
+              ]}
             />
-          )}
+            <RangePicker
+              value={dateRange}
+              onChange={handleDateRangeChange}
+              style={{ width: 320 }}
+              size="large"
+            />
+            <DateRangeInfo dateRange={availableDateRange} loading={loading} />
+          </Space>
         </div>
 
-        <div className="visualization-content" style={{
-          background: '#fafafa',
-          borderRadius: '8px',
-          padding: '24px',
-          minHeight: 'calc(100vh - 300px)',
-          transition: 'all 0.3s ease'
-        }}>
-          {loading ? (
-            <LoadingSpin />
+        <div className="visualization-content">
+          {chartType === CHART_TYPES.DELIVERY_STATUS ? (
+            <StatusPieCharts data={data} loading={loading} />
           ) : (
-            <>
-              {vizType === CHART_TYPES.DELIVERY_STATUS && (
-                <StatusPieCharts data={data} />
-              )}
-              {vizType === CHART_TYPES.HOURLY_ORDERS && (
-                <HourlyBarChart data={data} />
-              )}
-            </>
+            <HourlyBarChart data={data} loading={loading} />
           )}
         </div>
       </Card>
-
-      <style jsx global>{`
-        .visualization-card {
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .visualization-card .ant-card-body {
-          padding: 24px !important;
-        }
-
-        .visualization-content {
-          box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .ant-select-item-option-content {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-      `}</style>
-    </Content>
+    </Layout.Content>
   );
 };
 
