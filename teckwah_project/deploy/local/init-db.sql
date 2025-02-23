@@ -48,15 +48,6 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 에러 로깅용 error_log 테이블 생성
-CREATE TABLE IF NOT EXISTS error_log (
-  log_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  error_message TEXT NOT NULL,
-  failed_query VARCHAR(255) NOT NULL,
-  logged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB
-  DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
 
 -- 7. 대시보드 정보를 저장할 dashboard 테이블 생성
 CREATE TABLE IF NOT EXISTS dashboard (
