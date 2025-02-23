@@ -44,13 +44,22 @@ async def get_delivery_status(
         end = datetime.strptime(end_date, "%Y-%m-%d")
 
         data = service.get_delivery_status(start, end)
+        oldest_date, latest_date = service.get_date_range()
         message = (
             "데이터를 조회했습니다"
             if data.total_count > 0
             else "조회된 데이터가 없습니다"
         )
 
-        return DeliveryStatusResponse(success=True, message=message, data=data)
+        return DeliveryStatusResponse(
+            success=True,
+            message=message,
+            data=data,
+            date_range=DateRangeInfo(
+                oldest_date=oldest_date.strftime("%Y-%m-%d"),
+                latest_date=latest_date.strftime("%Y-%m-%d"),
+            ),
+        )
     except ValueError as e:
         log_error(e, "날짜 형식 오류")
         return DeliveryStatusResponse(

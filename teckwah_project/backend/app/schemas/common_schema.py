@@ -6,14 +6,6 @@ from pydantic.generics import GenericModel
 T = TypeVar("T")
 
 
-class BaseResponse(GenericModel, Generic[T]):
-    """기본 API 응답 스키마"""
-
-    success: bool = True
-    message: str
-    data: Optional[T] = None
-
-
 class ErrorDetail(BaseModel):
     """에러 상세 정보 스키마"""
 
@@ -35,3 +27,11 @@ class DateRangeInfo(BaseModel):
 
     oldest_date: str
     latest_date: str
+
+
+class BaseResponse(GenericModel, Generic[T]):
+    """기본 API 응답 스키마"""
+
+    success: bool = True
+    message: str
+    date_range: Optional[DateRangeInfo] = None

@@ -45,7 +45,7 @@
 ## 데이터베이스 및 데이터 관리
 
 - **핫 데이터:**  
-  - MySQL 기반, NCP의 **Cloud DB for MySQL** 사용  
+  - MySQL 기반, Cloud SQL 사용용
   - 최근 1개월 데이터 유지, eta 컬럼 인덱스 적용
 
 - **콜드 데이터:**  
@@ -55,9 +55,9 @@
 ## 배포 및 테스트 환경
 
 - **운영 환경:**  
-  - NCP **클라우드 서버(Compute Instance)** 또는 **NCP 컨테이너 서비스(CCE)** 활용  
-  - 단일 컨테이너 배포 또는 다중 컨테이너 클러스터 구성 가능  
-  - HTTPS/SSL 구성은 NCP Cloud Load Balancer 또는 인스턴스 내 Let's Encrypt 적용
+  - GAE 사용
+  - 단일 컨테이너 배포
+  - HTTPS/SSL 구성은 GAE 자동 적용
 
 - **로컬 테스트 환경:**  
   - Docker-desktop (운영 환경과 동일한 단일 컨테이너 구성)
@@ -141,13 +141,13 @@ teckwah_project/
 ## 5.2. 구축
 
 - **인프라:**  
-  - 단일 컨테이너 배포 방식을 기본으로 하며, NCP 클라우드 서버 또는 컨테이너 서비스(CCE)에서 운영  
-  - Dockerfile을 사용하여 로컬 및 NCP에 맞게 빌드  
+  - 단일 컨테이너 배포 방식을 기본으로 하며, GAE 서버 운영영  
+  - Dockerfile을 사용하여 로컬 및 GAE에  맞게 빌드  
   - 환경 변수 파일 관리 (`.env.local`, `.env.production`)
 
 - **데이터베이스:**  
   - 로컬: MySQL 도커 컨테이너 (호스트: mysql, 포트: 3306, DB: delivery_system, 사용자: root/비밀번호: 1234)  
-  - NCP 운영 환경: Cloud DB for MySQL 사용  
+  - Cloud SQL MySQL 사용  
   - `init-db.sql`을 통해 스키마 및 트리거 자동 적용
 
 ## 5.3. 테스트 환경
@@ -160,12 +160,7 @@ teckwah_project/
 ## 5.4. 배포
 
 - **대상:**  
-  - NCP 클라우드 서버 또는 NCP 컨테이너 서비스(CCE)를 통한 단일 컨테이너 배포
-
-- **프로세스:**  
-  - 로컬 테스트 → 스테이징 테스트 → NCP 운영 배포  
-  - 운영 환경에서는 NCP Cloud DB for MySQL 연결 (환경 변수를 통해 관리)  
-  - HTTPS/SSL 구성은 NCP Cloud Load Balancer 설정 또는 인스턴스 내에서 직접 구성
+  - GAE 서버 배포포
 
 ---
 

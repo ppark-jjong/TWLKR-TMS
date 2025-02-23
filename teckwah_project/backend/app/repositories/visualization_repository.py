@@ -14,7 +14,7 @@ class VisualizationRepository:
     def get_raw_delivery_data(
         self, start_date: datetime, end_date: datetime
     ) -> List[Tuple]:
-        """배송 현황 raw 데이터 조회"""
+        """배송 현황 raw 데이터 조회 (ETA 기준)"""
         try:
             result = (
                 self.db.query(
@@ -31,16 +31,11 @@ class VisualizationRepository:
     def get_raw_hourly_data(
         self, start_date: datetime, end_date: datetime
     ) -> List[Tuple]:
-        """시간대별 접수량 raw 데이터 조회"""
+        """시간대별 접수량 raw 데이터 조회 (ETA 기준으로 데이터를 가져온 후 create_time으로 분석)"""
         try:
             result = (
                 self.db.query(Dashboard.department, Dashboard.create_time)
-                .filter(
-                    and_(
-                        Dashboard.create_time >= start_date,
-                        Dashboard.create_time <= end_date,
-                    )
-                )
+                .filter(and_(Dashboard.eta >= start_date, Dashboard.eta <= end_date))
                 .all()
             )
             return result
@@ -49,11 +44,11 @@ class VisualizationRepository:
             raise
 
     def get_date_range(self) -> Tuple[datetime, datetime]:
-        """조회 가능한 날짜 범위 조회"""
+        """조회 가능한 날짜 범위 조회 (ETA 기준)"""
         try:
             result = self.db.query(
-                func.min(Dashboard.create_time).label("oldest_date"),
-                func.max(Dashboard.create_time).label("latest_date"),
+                func.min(Dashboard.eta).label("oldest_date"),
+                func.max(Dashboard.eta).label("latest_date"),
             ).first()
 
             oldest_date = result.oldest_date if result.oldest_date else datetime.now()

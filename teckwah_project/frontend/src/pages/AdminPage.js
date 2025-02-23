@@ -8,12 +8,10 @@ import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
 import AssignDriverModal from '../components/dashboard/AssignDriverModal';
 import DashboardDetailModal from '../components/dashboard/DashboardDetailModal';
 import DateRangeInfo from '../components/common/DateRangeInfo';
-import LoadingSpin from '../components/common/LoadingSpin';
 import DashboardService from '../services/DashboardService';
 import { useDashboard } from '../contexts/DashboardContext';
 import { useAuth } from '../contexts/AuthContext';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
-import { FONT_STYLES } from '../utils/Constants';
 
 const { RangePicker } = DatePicker;
 
@@ -33,26 +31,8 @@ const AdminPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const { user } = useAuth();
-  const { dashboards, updateMultipleDashboards, removeDashboards } =
-    useDashboard();
+  const { dashboards, updateMultipleDashboards, removeDashboards } = useDashboard();
   const pageSize = 50;
-
-  // 초기 데이터 로드
-  useEffect(() => {
-    loadDateRange();
-    loadDashboardData(dateRange[0], dateRange[1]);
-  }, []);
-
-  // 날짜 범위 로드
-  const loadDateRange = async () => {
-    try {
-      const response = await DashboardService.getDateRange();
-      setAvailableDateRange(response);
-    } catch (error) {
-      console.error('Failed to load date range:', error);
-      message.error('조회 가능 기간을 불러오는데 실패했습니다');
-    }
-  };
 
   // 대시보드 데이터 로드
   const loadDashboardData = async (startDate, endDate) => {
@@ -61,11 +41,12 @@ const AdminPage = () => {
       setLoading(true);
       message.loading('데이터 조회 중...', key);
 
-      const response = await DashboardService.getAdminDashboardList(
+      const { items, dateRange: newDateRange } = await DashboardService.getAdminDashboardList(
         startDate,
         endDate
       );
-      updateMultipleDashboards(response.items);
+      updateMultipleDashboards(items);
+      setAvailableDateRange(newDateRange);
 
       message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
     } catch (error) {
@@ -74,6 +55,11 @@ const AdminPage = () => {
       setLoading(false);
     }
   };
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    loadDashboardData(dateRange[0], dateRange[1]);
+  }, []);
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (dates) => {
@@ -109,9 +95,7 @@ const AdminPage = () => {
     const key = MessageKeys.DASHBOARD.DETAIL;
     try {
       message.loading('상세 정보 조회 중...', key);
-      const detailData = await DashboardService.getDashboardDetail(
-        record.dashboard_id
-      );
+      const detailData = await DashboardService.getDashboardDetail(record.dashboard_id);
       setSelectedDashboard(detailData);
       setShowDetailModal(true);
       message.loadingToSuccess('상세 정보를 조회했습니다', key);
@@ -194,6 +178,7 @@ const AdminPage = () => {
         isAdminPage={true}
       />
 
+      {/* Modals */}
       {showCreateModal && (
         <CreateDashboardModal
           visible={showCreateModal}
@@ -218,6 +203,7 @@ const AdminPage = () => {
           selectedRows={selectedRows}
         />
       )}
+
       {showDetailModal && selectedDashboard && (
         <DashboardDetailModal
           visible={showDetailModal}
@@ -226,9 +212,7 @@ const AdminPage = () => {
             setShowDetailModal(false);
             setSelectedDashboard(null);
           }}
-          onSuccess={() => {
-            handleRefresh();
-          }}
+          onSuccess={handleRefresh}
           isAdmin={true}
         />
       )}

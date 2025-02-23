@@ -1,6 +1,7 @@
-# visualization_service.py
+# backend/app/services/visualization_service.py
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import List, Tuple
 from fastapi import HTTPException, status
 from app.repositories.visualization_repository import VisualizationRepository
 from app.utils.logger import log_error
@@ -15,10 +16,10 @@ class VisualizationService:
     def get_delivery_status(self, start_date: datetime, end_date: datetime):
         """부서별 배송 현황 데이터 조회 및 분석"""
         try:
-            # 데이터 조회
+            # 데이터 조회 (ETA 기준으로 데이터 조회)
             df = pd.DataFrame(
                 self.repository.get_raw_delivery_data(start_date, end_date),
-                columns=["department", "status", "created_at"],
+                columns=["department", "status", "create_time"],
             )
 
             if df.empty:
@@ -40,7 +41,7 @@ class VisualizationService:
             # 부서별 상태 분석
             status_pivot = pd.pivot_table(
                 df,
-                values="created_at",
+                values="create_time",
                 index="department",
                 columns="status",
                 aggfunc="count",
@@ -67,7 +68,6 @@ class VisualizationService:
                         "status_breakdown": status_breakdown,
                     }
                 else:
-                    # 데이터가 없는 부서는 0으로 초기화
                     department_breakdown[dept] = {
                         "total": 0,
                         "status_breakdown": [
@@ -78,7 +78,7 @@ class VisualizationService:
 
             return {
                 "type": "delivery_status",
-                "total_count": int(df["created_at"].count()),
+                "total_count": int(df["create_time"].count()),
                 "department_breakdown": department_breakdown,
             }
 
@@ -102,10 +102,10 @@ class VisualizationService:
     def get_hourly_orders(self, start_date: datetime, end_date: datetime):
         """부서별 시간대별 접수량 데이터 조회 및 분석"""
         try:
-            # 데이터 조회
+            # 데이터 조회 (ETA 기준으로 데이터 조회)
             df = pd.DataFrame(
                 self.repository.get_raw_hourly_data(start_date, end_date),
-                columns=["department", "created_at"],
+                columns=["department", "create_time"],
             )
 
             if df.empty:
@@ -134,8 +134,8 @@ class VisualizationService:
                     ],
                 }
 
-            # 시간대 추출 및 야간 시간대 처리
-            df["hour"] = df["created_at"].dt.hour
+            # create_time 기준으로 시간대 분석
+            df["hour"] = df["create_time"].dt.hour
             df["time_slot"] = df["hour"].apply(
                 lambda x: (
                     "야간(22-08)" if (x >= 22 or x < 8) else f"{x:02d}-{(x+1):02d}"
@@ -145,7 +145,7 @@ class VisualizationService:
             # 시간대별 집계
             hourly_pivot = pd.pivot_table(
                 df,
-                values="created_at",
+                values="create_time",
                 index="department",
                 columns="time_slot",
                 aggfunc="count",
@@ -172,15 +172,19 @@ class VisualizationService:
                         "hourly_counts": hourly_counts,
                     }
                 else:
-                    # 데이터가 없는 부서는 0으로 초기화
                     department_breakdown[dept] = {
                         "total": 0,
                         "hourly_counts": {slot: 0 for slot in time_slots},
                     }
 
+            total_count = int(df["create_time"].count())
+            days_between = (end_date - start_date).days + 1
+            average_count = round(total_count / max(days_between, 1), 1)
+
             return {
                 "type": "hourly_orders",
-                "total_count": int(df["created_at"].count()),
+                "total_count": total_count,
+                "average_count": average_count,
                 "department_breakdown": department_breakdown,
                 "time_slots": [
                     {
@@ -219,3 +223,13 @@ class VisualizationService:
                     for slot in time_slots
                 ],
             }
+
+    def get_date_range(self) -> Tuple[datetime, datetime]:
+        """조회 가능한 날짜 범위 조회 (ETA 기준)"""
+        try:
+            oldest_date, latest_date = self.repository.get_date_range()
+            return oldest_date, latest_date
+        except Exception as e:
+            log_error(e, "날짜 범위 조회 실패")
+            now = datetime.now()
+            return now - timedelta(days=30), now

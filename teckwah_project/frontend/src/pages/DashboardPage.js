@@ -8,7 +8,6 @@ import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
 import AssignDriverModal from '../components/dashboard/AssignDriverModal';
 import DashboardDetailModal from '../components/dashboard/DashboardDetailModal';
 import DateRangeInfo from '../components/common/DateRangeInfo';
-import LoadingSpin from '../components/common/LoadingSpin';
 import DashboardService from '../services/DashboardService';
 import { useDashboard } from '../contexts/DashboardContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,23 +30,6 @@ const DashboardPage = () => {
   const { dashboards, updateMultipleDashboards } = useDashboard();
   const pageSize = 50;
 
-  // 초기 데이터 로드
-  useEffect(() => {
-    loadDateRange();
-    loadDashboardData(selectedDate);
-  }, []);
-
-  // 날짜 범위 로드
-  const loadDateRange = async () => {
-    try {
-      const response = await DashboardService.getDateRange();
-      setDateRange(response);
-    } catch (error) {
-      console.error('Failed to load date range:', error);
-      message.error('조회 가능 기간을 불러오는데 실패했습니다');
-    }
-  };
-
   // 대시보드 데이터 로드
   const loadDashboardData = async (date) => {
     const key = MessageKeys.DASHBOARD.LOAD;
@@ -55,8 +37,9 @@ const DashboardPage = () => {
       setLoading(true);
       message.loading('데이터 조회 중...', key);
 
-      const response = await DashboardService.getDashboardList(date);
-      updateMultipleDashboards(response.items);
+      const { items, dateRange: newDateRange } = await DashboardService.getDashboardList(date);
+      updateMultipleDashboards(items);
+      setDateRange(newDateRange);
 
       message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
     } catch (error) {
@@ -65,6 +48,11 @@ const DashboardPage = () => {
       setLoading(false);
     }
   };
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    loadDashboardData(selectedDate);
+  }, []);
 
   // 날짜 변경 핸들러
   const handleDateChange = (date) => {
@@ -84,9 +72,7 @@ const DashboardPage = () => {
     const key = MessageKeys.DASHBOARD.DETAIL;
     try {
       message.loading('상세 정보 조회 중...', key);
-      const detailData = await DashboardService.getDashboardDetail(
-        record.dashboard_id
-      );
+      const detailData = await DashboardService.getDashboardDetail(record.dashboard_id);
       setSelectedDashboard(detailData);
       setShowDetailModal(true);
       message.loadingToSuccess('상세 정보를 조회했습니다', key);

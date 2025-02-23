@@ -63,43 +63,6 @@ def initialize_models():
     mapper_registry.configure()
 
 
-def execute_query(query, params=None, fetch=False, many=False):
-    """
-    MySQL 쿼리 실행을 위한 유틸리티 함수
-    에러 로깅 추가
-    """
-    connection = get_mysql_connection()
-    if not connection:
-        return None
-
-    try:
-        cursor = connection.cursor()
-        if many:
-            cursor.executemany(query, params)
-        else:
-            cursor.execute(query, params)
-
-        if fetch:
-            result = cursor.fetchall()
-            return result
-
-        connection.commit()
-        return cursor.rowcount
-    except Error as e:
-        # 에러 로그 테이블에 기록
-        error_query = """
-            INSERT INTO error_log (error_message, failed_query)
-            VALUES (%s, %s)
-        """
-        try:
-            cursor.execute(error_query, (str(e), query))
-            connection.commit()
-        except Error:
-            pass  # 에러 로깅 실패는 무시
-        return None
-    finally:
-        cursor.close()
-        connection.close()
 
 
 def get_db():
