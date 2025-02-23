@@ -1,11 +1,13 @@
 // frontend/src/pages/DashboardPage.js
 import React, { useState, useEffect } from 'react';
-import { Layout, DatePicker, Space, Typography, Pagination } from 'antd';
+import { Layout, DatePicker, Space, Button, Tooltip } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
 import AssignDriverModal from '../components/dashboard/AssignDriverModal';
 import DashboardDetailModal from '../components/dashboard/DashboardDetailModal';
+import DateRangeInfo from '../components/common/DateRangeInfo';
 import LoadingSpin from '../components/common/LoadingSpin';
 import DashboardService from '../services/DashboardService';
 import { useDashboard } from '../contexts/DashboardContext';
@@ -13,43 +15,58 @@ import { useAuth } from '../contexts/AuthContext';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
 import { FONT_STYLES } from '../utils/Constants';
 
-const { Text } = Typography;
-
 const DashboardPage = () => {
-  const { 
-    dashboards, 
-    loading,
-    updateMultipleDashboards
-  } = useDashboard();
-  
+  // 상태 관리
   const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [currentPage, setCurrentPage] = useState(1);
+  const [dateRange, setDateRange] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [selectedRows, setSelectedRows] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
-  const [dateRange, setDateRange] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const { user } = useAuth();
+  const { dashboards, updateMultipleDashboards } = useDashboard();
   const pageSize = 50;
 
+  // 초기 데이터 로드
   useEffect(() => {
+    loadDateRange();
     loadDashboardData(selectedDate);
   }, []);
 
-  const loadDashboardData = async (date) => {
-    const key = MessageKeys.DASHBOARD.LOAD;
+  // 날짜 범위 로드
+  const loadDateRange = async () => {
     try {
-      message.loading('데이터 조회 중...', key);
-      const response = await DashboardService.getDashboardList(date);
-      setDateRange(response.date_range);
-      updateMultipleDashboards(response.items);
-      message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
+      const response = await DashboardService.getDateRange();
+      setDateRange(response);
     } catch (error) {
-      message.loadingToError(MessageTemplates.DASHBOARD.LOAD_FAIL, key);
+      console.error('Failed to load date range:', error);
+      message.error('조회 가능 기간을 불러오는데 실패했습니다');
     }
   };
 
+  // 대시보드 데이터 로드
+  const loadDashboardData = async (date) => {
+    const key = MessageKeys.DASHBOARD.LOAD;
+    try {
+      setLoading(true);
+      message.loading('데이터 조회 중...', key);
+
+      const response = await DashboardService.getDashboardList(date);
+      updateMultipleDashboards(response.items);
+
+      message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
+    } catch (error) {
+      message.loadingToError(MessageTemplates.DASHBOARD.LOAD_FAIL, key);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 날짜 변경 핸들러
   const handleDateChange = (date) => {
     const newDate = date || dayjs();
     setSelectedDate(newDate);
@@ -57,15 +74,19 @@ const DashboardPage = () => {
     loadDashboardData(newDate);
   };
 
+  // 새로고침 핸들러
   const handleRefresh = () => {
     loadDashboardData(selectedDate);
   };
 
+  // 행 클릭 핸들러
   const handleRowClick = async (record) => {
     const key = MessageKeys.DASHBOARD.DETAIL;
     try {
       message.loading('상세 정보 조회 중...', key);
-      const detailData = await DashboardService.getDashboardDetail(record.dashboard_id);
+      const detailData = await DashboardService.getDashboardDetail(
+        record.dashboard_id
+      );
       setSelectedDashboard(detailData);
       setShowDetailModal(true);
       message.loadingToSuccess('상세 정보를 조회했습니다', key);
@@ -74,62 +95,60 @@ const DashboardPage = () => {
     }
   };
 
-  // 날짜 선택 제한 로직
-  const disabledDate = (current) => {
-    if (!dateRange) return false;
-    return current.isBefore(dayjs(dateRange.oldest_date)) || 
-           current.isAfter(dayjs(dateRange.latest_date));
-  };
-
-  // 필터링된 데이터
-  const filteredData = dashboards || [];
-
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <Space size="large" align="center">
+        <Space
+          size="large"
+          align="center"
+          style={{ width: '100%', justifyContent: 'space-between' }}
+        >
+          <Space size="middle">
             <DatePicker
               value={selectedDate}
               onChange={handleDateChange}
-              disabledDate={disabledDate}
-              allowClear={false}
               style={{ width: 280 }}
               size="large"
             />
-            {dateRange && (
-              <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
-                조회 가능 기간: {dateRange.oldest_date} ~ {dateRange.latest_date}
-              </Text>
-            )}
+            <DateRangeInfo dateRange={dateRange} loading={loading} />
           </Space>
-          <Pagination
-            current={currentPage}
-            onChange={setCurrentPage}
-            pageSize={pageSize}
-            total={filteredData.length}
-            showTotal={(total) => `총 ${total}건`}
-            showSizeChanger={false}
-            style={{ marginBottom: 0 }}
-          />
-        </div>
+
+          <Space size="middle">
+            <Button
+              type="primary"
+              onClick={() => setShowCreateModal(true)}
+              size="large"
+            >
+              신규 등록
+            </Button>
+            <Button
+              onClick={() => setShowAssignModal(true)}
+              disabled={selectedRows.length === 0}
+              size="large"
+            >
+              배차
+            </Button>
+            <Tooltip title="새로고침">
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleRefresh}
+                size="large"
+              />
+            </Tooltip>
+          </Space>
+        </Space>
       </div>
 
       <DashboardTable
-        dataSource={filteredData}
+        dataSource={dashboards}
         loading={loading}
         selectedRows={selectedRows}
         onSelectRows={setSelectedRows}
         onRowClick={handleRowClick}
         onRefresh={handleRefresh}
-        onCreateClick={() => setShowCreateModal(true)}
-        onAssignClick={() => setShowAssignModal(true)}
         currentPage={currentPage}
         pageSize={pageSize}
+        onPageChange={setCurrentPage}
         isAdminPage={false}
       />
 

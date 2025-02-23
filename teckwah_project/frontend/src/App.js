@@ -1,5 +1,5 @@
 // frontend/src/App.js
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import koKR from 'antd/locale/ko_KR';
@@ -7,15 +7,12 @@ import AppRoutes from './AppRoutes';
 import { AuthProvider } from './contexts/AuthContext';
 import { DashboardProvider } from './contexts/DashboardContext';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import { setupResponseInterceptor, setupRequestInterceptor } from './utils/axiosInterceptor';
+import setupAxiosInterceptors from './utils/AxiosConfig';
+
+// axios 인터셉터 설정 초기화
+setupAxiosInterceptors();
 
 const App = () => {
-  useEffect(() => {
-    // axios 인터셉터 설정 초기화
-    setupRequestInterceptor();
-    setupResponseInterceptor();
-  }, []);
-
   return (
     <ErrorBoundary>
       <BrowserRouter>

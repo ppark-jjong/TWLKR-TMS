@@ -1,5 +1,6 @@
 import pandas as pd
 import mysql.connector
+import os
 
 # ============================
 # 데이터베이스 설정 (로컬 MySQL)
@@ -10,19 +11,6 @@ MYSQL_HOST = "localhost"  # 로컬 MySQL 서버 주소
 MYSQL_PORT = 3306  # MySQL 포트 (보통 3306)
 MYSQL_DATABASE = "delivery_system"  # 데이터베이스 이름
 MYSQL_CHARSET = "utf8mb4"  # 문자셋
-
-# Cloud SQL Proxy를 사용할 경우, 아래 주석을 참고하세요.
-# MYSQL_HOST = '127.0.0.1'
-# 그리고 mysql.connector.connect() 호출 시 unix_socket 인자를 사용합니다.
-# 예:
-# connection = mysql.connector.connect(
-#     host='127.0.0.1',
-#     user=MYSQL_USER,
-#     password=MYSQL_PASSWORD,
-#     database=MYSQL_DATABASE,
-#     unix_socket='/cloudsql/your-instance-connection-name',
-#     charset=MYSQL_CHARSET
-# )
 
 
 def get_mysql_connection():
@@ -35,9 +23,6 @@ def get_mysql_connection():
             database=MYSQL_DATABASE,
             port=MYSQL_PORT,
             charset=MYSQL_CHARSET,
-            # Cloud SQL Proxy 사용 시 아래 주석 해제:
-            # host='127.0.0.1',
-            # unix_socket='/cloudsql/your-instance-connection-name',
         )
         return connection
     except mysql.connector.Error as e:
@@ -73,60 +58,71 @@ def execute_query(query, params=None, fetch=False, many=False):
         connection.close()
 
 
-def import_postal_codes(file_path="backend/app/data/postal_code.csv"):
-    """CSV 파일에서 우편번호 데이터를 읽어와 데이터베이스에 삽입"""
+def import_csv_to_table(file_path, table_name, column_mapping):
+    """
+    CSV 파일을 읽고 데이터베이스 테이블에 삽입
+    - file_path: CSV 파일 경로
+    - table_name: 삽입할 테이블 이름
+    - column_mapping: CSV 컬럼 -> DB 컬럼 매핑 (dict 형식)
+    """
     try:
-        # CSV 데이터 읽기 (한글 인코딩 고려)
         df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
     except Exception as e:
         print(f"CSV 파일 읽기 실패: {e}")
         return
 
-    # 필요한 컬럼만 유지
-    expected_columns = [
-        "postal_code",
-        "duration_time",
-        "distance",
-        "district",
-        "city",
-        "county",
-    ]
-    try:
-        df = df[expected_columns]
-    except Exception as e:
-        print(f"필요한 컬럼이 존재하지 않습니다: {e}")
-        return
+    # 컬럼 매핑 적용
+    df = df[list(column_mapping.keys())]
+    df.rename(columns=column_mapping, inplace=True)
+    df = df.where(pd.notna(df), None)
 
-    # 데이터 타입 변환
-    df["postal_code"] = (
-        df["postal_code"].astype(str).str.zfill(5)
-    )  # 4자리인 경우 앞에 0 추가
-    df["duration_time"] = df["duration_time"].fillna(0).astype(int)
-    df["distance"] = df["distance"].fillna(0).astype(int)
-    # city, county, district가 없을 경우 NULL 처리
-    df["city"] = df["city"].where(pd.notna(df["city"]), None)
-    df["county"] = df["county"].where(pd.notna(df["county"]), None)
-    df["district"] = df["district"].where(pd.notna(df["district"]), None)
-    # 데이터베이스 삽입 쿼리
-    insert_query = """
-    INSERT INTO postal_code (postal_code, duration_time, distance, district, city, county)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    ON DUPLICATE KEY UPDATE
-        duration_time = VALUES(duration_time),
-        distance = VALUES(distance),
-        district = VALUES(district),
-        city = VALUES(city),
-        county = VALUES(county)
-    """
-    # DataFrame을 리스트로 변환
+    # 데이터베이스 삽입 쿼리 생성
+    columns = ", ".join(df.columns)
+    placeholders = ", ".join(["%s"] * len(df.columns))
+    insert_query = f"""
+    INSERT INTO {table_name} ({columns})
+    VALUES ({placeholders})
+    ON DUPLICATE KEY UPDATE 
+    """ + ", ".join(
+        [f"{col} = VALUES({col})" for col in df.columns]
+    )
+
+    # DataFrame을 리스트로 변환하여 삽입
     values = df.values.tolist()
     result = execute_query(insert_query, values, many=True)
 
     if result is not None:
-        print(f"총 {len(df)}개의 행이 삽입되었습니다.")
+        print(f"{table_name} 테이블에 총 {len(df)}개의 행이 삽입되었습니다.")
     else:
-        print("데이터 삽입 실패")
+        print(f"{table_name} 테이블 데이터 삽입 실패")
 
 
 if __name__ == "__main__":
-    import_postal_codes()
+    # CSV 파일과 테이블 매핑
+    csv_table_mappings = {
+        "backend/app/data/postal_code.csv": {
+            "table": "postal_code",
+            "mapping": {
+                "postal_code": "postal_code",
+                "city": "city",
+                "county": "county",
+                "district": "district",
+            },
+        },
+        "backend/app/data/postal_code_detail.csv": {
+            "table": "postal_code_detail",
+            "mapping": {
+                "postal_code": "postal_code",
+                "warehouse": "warehouse",
+                "distance": "distance",
+                "duration_time": "duration_time",
+            },
+        },
+    }
+
+    for file_path, table_info in csv_table_mappings.items():
+        if os.path.exists(file_path):
+            print(f"{file_path} -> {table_info['table']} 테이블에 삽입 중...")
+            import_csv_to_table(file_path, table_info["table"], table_info["mapping"])
+        else:
+            print(f"파일이 존재하지 않음: {file_path}")

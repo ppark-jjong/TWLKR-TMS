@@ -1,58 +1,61 @@
 // frontend/src/pages/LoginPage.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
-import { FONT_STYLES } from '../utils/Constants';
-import message, { MessageKeys, MessageTemplates } from '../utils/message';
 import { useNavigate } from 'react-router-dom';
+import { FONT_STYLES } from '../utils/Constants';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [form] = Form.useForm();
 
-  const onFinish = async (values) => {
-    const key = MessageKeys.AUTH.LOGIN;
-    setLoading(true);
-    message.loading('로그인 중...', key);
+  // 이미 인증된 사용자는 대시보드로 리다이렉트
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
+  const onFinish = async (values) => {
+    setLoading(true);
     try {
       await login(values.user_id, values.password);
-      message.loadingToSuccess(MessageTemplates.AUTH.LOGIN_SUCCESS, key);
-            const returnUrl = localStorage.getItem('returnUrl');
-      if (returnUrl) {
-        localStorage.removeItem('returnUrl');
-        navigate(returnUrl);
-      } else {
-        navigate('/dashboard');
-      }
     } catch (error) {
-      message.loadingToError(MessageTemplates.AUTH.LOGIN_FAIL, key);
+      // 에러 처리는 AuthContext에서 처리됨
+      form.setFields([
+        {
+          name: 'password',
+          errors: ['아이디 또는 비밀번호를 확인해주세요'],
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ 
-      height: '100vh',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#fff'
-    }}>
+    <div
+      style={{
+        height: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+      }}
+    >
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <img 
+          <img
             src="/static/logo.png"
-            alt="Logo" 
-            style={{ height: 64, marginBottom: 16 }} 
+            alt="Logo"
+            style={{ height: 64, marginBottom: 16 }}
           />
           <h2 style={FONT_STYLES.TITLE.LARGE}>배송 실시간 관제 시스템</h2>
         </div>
-        
+
         <Form
           form={form}
           name="login"
@@ -64,12 +67,12 @@ const LoginPage = () => {
             name="user_id"
             rules={[
               { required: true, message: '아이디를 입력해주세요' },
-              { whitespace: true, message: '공백은 허용되지 않습니다' }
+              { whitespace: true, message: '공백은 허용되지 않습니다' },
             ]}
           >
-            <Input 
-              prefix={<UserOutlined />} 
-              placeholder="아이디" 
+            <Input
+              prefix={<UserOutlined />}
+              placeholder="아이디"
               size="large"
               style={FONT_STYLES.BODY.MEDIUM}
             />
@@ -79,7 +82,7 @@ const LoginPage = () => {
             name="password"
             rules={[
               { required: true, message: '비밀번호를 입력해주세요' },
-              { min: 4, message: '비밀번호는 4자 이상이어야 합니다' }
+              { min: 4, message: '비밀번호는 4자 이상이어야 합니다' },
             ]}
           >
             <Input.Password
@@ -91,10 +94,10 @@ const LoginPage = () => {
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0 }}>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              block 
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
               size="large"
               loading={loading}
             >

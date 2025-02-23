@@ -25,7 +25,16 @@ class VisualizationService:
                 return {
                     "type": "delivery_status",
                     "total_count": 0,
-                    "department_breakdown": {},
+                    "department_breakdown": {
+                        dept: {
+                            "total": 0,
+                            "status_breakdown": [
+                                {"status": status, "count": 0, "percentage": 0}
+                                for status in self.status_list
+                            ],
+                        }
+                        for dept in self.departments
+                    },
                 }
 
             # 부서별 상태 분석
@@ -75,10 +84,20 @@ class VisualizationService:
 
         except Exception as e:
             log_error(e, "배송 현황 데이터 분석 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="배송 현황 데이터 분석 중 오류가 발생했습니다",
-            )
+            return {
+                "type": "delivery_status",
+                "total_count": 0,
+                "department_breakdown": {
+                    dept: {
+                        "total": 0,
+                        "status_breakdown": [
+                            {"status": status, "count": 0, "percentage": 0}
+                            for status in self.status_list
+                        ],
+                    }
+                    for dept in self.departments
+                },
+            }
 
     def get_hourly_orders(self, start_date: datetime, end_date: datetime):
         """부서별 시간대별 접수량 데이터 조회 및 분석"""
@@ -90,10 +109,29 @@ class VisualizationService:
             )
 
             if df.empty:
+                time_slots = ["야간(22-08)"] + [
+                    f"{h:02d}-{(h+1):02d}" for h in range(8, 22)
+                ]
                 return {
                     "type": "hourly_orders",
                     "total_count": 0,
-                    "department_breakdown": {},
+                    "average_count": 0,
+                    "department_breakdown": {
+                        dept: {
+                            "total": 0,
+                            "hourly_counts": {slot: 0 for slot in time_slots},
+                        }
+                        for dept in self.departments
+                    },
+                    "time_slots": [
+                        {
+                            "label": slot,
+                            "start": (
+                                int(slot.split("-")[0]) if slot != "야간(22-08)" else 22
+                            ),
+                        }
+                        for slot in time_slots
+                    ],
                 }
 
             # 시간대 추출 및 야간 시간대 처리
@@ -157,7 +195,27 @@ class VisualizationService:
 
         except Exception as e:
             log_error(e, "시간대별 접수량 데이터 분석 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="시간대별 접수량 데이터 분석 중 오류가 발생했습니다",
-            )
+            time_slots = ["야간(22-08)"] + [
+                f"{h:02d}-{(h+1):02d}" for h in range(8, 22)
+            ]
+            return {
+                "type": "hourly_orders",
+                "total_count": 0,
+                "average_count": 0,
+                "department_breakdown": {
+                    dept: {
+                        "total": 0,
+                        "hourly_counts": {slot: 0 for slot in time_slots},
+                    }
+                    for dept in self.departments
+                },
+                "time_slots": [
+                    {
+                        "label": slot,
+                        "start": (
+                            int(slot.split("-")[0]) if slot != "야간(22-08)" else 22
+                        ),
+                    }
+                    for slot in time_slots
+                ],
+            }

@@ -30,14 +30,6 @@ class ErrorResponse(BaseModel):
     error: Optional[ErrorDetail] = None
 
 
-class PaginationResponse(BaseModel):
-    """페이지네이션 응답 스키마"""
-
-    total: int
-    page: int
-    size: int
-
-
 class DateRangeInfo(BaseModel):
     """날짜 범위 정보"""
 
