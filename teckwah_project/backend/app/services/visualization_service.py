@@ -1,11 +1,10 @@
-# backend/app/services/visualization_service.py
+# visualization_service.py
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import List, Tuple
-from fastapi import HTTPException, status
+from typing import Tuple
 from app.repositories.visualization_repository import VisualizationRepository
+from app.utils.datetime_helper import KST
 from app.utils.logger import log_error
-
 
 class VisualizationService:
     def __init__(self, repository: VisualizationRepository):
@@ -14,12 +13,14 @@ class VisualizationService:
         self.status_list = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
 
     def get_delivery_status(self, start_date: datetime, end_date: datetime):
-        """부서별 배송 현황 데이터 조회 및 분석"""
+        """부서별 배송 현황 데이터 조회 및 분석
+        (ETA 기준으로 데이터 조회, create_time으로 분석)
+        """
         try:
-            # 데이터 조회 (ETA 기준으로 데이터 조회)
+            # 데이터 조회 (ETA 기준)
             df = pd.DataFrame(
                 self.repository.get_raw_delivery_data(start_date, end_date),
-                columns=["department", "status", "create_time"],
+                columns=["department", "status", "create_time"]
             )
 
             if df.empty:
@@ -38,7 +39,7 @@ class VisualizationService:
                     },
                 }
 
-            # 부서별 상태 분석
+            # 부서별 상태 분석 (create_time 기준)
             status_pivot = pd.pivot_table(
                 df,
                 values="create_time",
@@ -100,12 +101,14 @@ class VisualizationService:
             }
 
     def get_hourly_orders(self, start_date: datetime, end_date: datetime):
-        """부서별 시간대별 접수량 데이터 조회 및 분석"""
+        """부서별 시간대별 접수량 데이터 조회 및 분석
+        (ETA 기준으로 데이터 조회, create_time으로 분석)
+        """
         try:
-            # 데이터 조회 (ETA 기준으로 데이터 조회)
+            # 데이터 조회 (ETA 기준으로 데이터를 가져옴)
             df = pd.DataFrame(
                 self.repository.get_raw_hourly_data(start_date, end_date),
-                columns=["department", "create_time"],
+                columns=["department", "create_time"]
             )
 
             if df.empty:
@@ -228,8 +231,13 @@ class VisualizationService:
         """조회 가능한 날짜 범위 조회 (ETA 기준)"""
         try:
             oldest_date, latest_date = self.repository.get_date_range()
-            return oldest_date, latest_date
+            if not oldest_date or not latest_date:
+                now = datetime.now(KST)
+                return now - timedelta(days=30), now
+            
+            return oldest_date.astimezone(KST), latest_date.astimezone(KST)
+            
         except Exception as e:
             log_error(e, "날짜 범위 조회 실패")
-            now = datetime.now()
+            now = datetime.now(KST)
             return now - timedelta(days=30), now
