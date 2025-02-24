@@ -1,9 +1,10 @@
 // frontend/src/contexts/AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { message } from 'antd';
+import { message } from '../utils/message';
 import axios from 'axios';
 import AuthService from '../services/AuthService';
+import { login as apiLogin } from '../services/AuthService';
 
 const AuthContext = createContext(null);
 
@@ -52,24 +53,15 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, [navigate, location.pathname]);
 
-  const login = async (userId, password) => {
+  const login = async (credentials) => {
+    setLoading(true);
     try {
-      const response = await AuthService.login(userId, password);
-      setUser(response.user);
-
-      // 저장된 returnUrl이 있으면 해당 위치로, 없으면 대시보드로
-      const returnUrl = localStorage.getItem('returnUrl');
-      const redirectTo = returnUrl || '/dashboard';
-      localStorage.removeItem('returnUrl');
-
-      navigate(redirectTo);
-      message.success('로그인되었습니다');
-      return response;
+      await apiLogin(credentials);
     } catch (error) {
-      message.error(
-        error.response?.data?.detail || '로그인 중 오류가 발생했습니다'
-      );
+      message.error(error.message);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,6 +90,7 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         isAuthenticated: !!user,
+        loading,
       }}
     >
       {children}

@@ -54,7 +54,10 @@ async def login(
 
     except Exception as e:
         log_error(e, "로그인 실패")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="로그인에 실패했습니다. 사용자 ID 또는 비밀번호를 확인하세요.",
+        )
 
 
 @router.get("/check-session")
