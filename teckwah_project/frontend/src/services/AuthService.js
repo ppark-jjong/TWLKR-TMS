@@ -1,6 +1,5 @@
 // frontend/src/services/AuthService.js
 import axios from 'axios';
-import jwt_decode from 'jwt-decode';
 
 class AuthService {
   getCurrentUser() {
@@ -8,54 +7,26 @@ class AuthService {
       const userStr = localStorage.getItem('user');
       return userStr ? JSON.parse(userStr) : null;
     } catch (error) {
-      this.clearAuthData();
+      localStorage.removeItem('user');
       return null;
-    }
-  }
-
-  getAccessToken() {
-    return localStorage.getItem('access_token');
-  }
-
-  getRefreshToken() {
-    return localStorage.getItem('refresh_token');
-  }
-
-  setTokens(accessToken, refreshToken) {
-    localStorage.setItem('access_token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
-    }
-    axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-  }
-
-  clearAuthData() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
-  }
-
-  isTokenExpired(token) {
-    if (!token) return true;
-    try {
-      const decoded = jwt_decode(token);
-      return decoded.exp * 1000 < Date.now();
-    } catch {
-      return true;
     }
   }
 
   async login(userId, password) {
     try {
-      const response = await axios.post('/auth/login', {
-        user_id: userId,
-        user_password: password,
-      });
+      const response = await axios.post(
+        '/auth/login',
+        {
+          user_id: userId,
+          user_password: password,
+        },
+        {
+          withCredentials: true, // 쿠키를 받기 위해 필요
+        }
+      );
 
-      const { token, user } = response.data;
-      this.setTokens(token.access_token, token.refresh_token);
-      localStorage.setItem('user', JSON.stringify(user));
+      // 사용자 정보만 localStorage에 저장
+      localStorage.setItem('user', JSON.stringify(response.data.user));
 
       return response.data;
     } catch (error) {
@@ -66,20 +37,16 @@ class AuthService {
     }
   }
 
-  async refreshToken(refreshToken) {
+  async refreshToken() {
     try {
-      const response = await axios.post('/auth/refresh', {
-        refresh_token: refreshToken,
-      });
-
-      if (response.data.token) {
-        this.setTokens(
-          response.data.token.access_token,
-          response.data.token.refresh_token
-        );
-        return response.data.token;
-      }
-      throw new Error('토큰 갱신 실패');
+      const response = await axios.post(
+        '/auth/refresh',
+        {},
+        {
+          withCredentials: true, // 쿠키 전송을 위해 필요
+        }
+      );
+      return response.data;
     } catch (error) {
       this.clearAuthData();
       throw error;
@@ -88,17 +55,22 @@ class AuthService {
 
   async logout() {
     try {
-      const refreshToken = this.getRefreshToken();
-      if (refreshToken) {
-        await axios.post('/auth/logout', {
-          refresh_token: refreshToken,
-        });
-      }
+      await axios.post(
+        '/auth/logout',
+        {},
+        {
+          withCredentials: true,
+        }
+      );
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       this.clearAuthData();
     }
+  }
+
+  clearAuthData() {
+    localStorage.removeItem('user');
   }
 }
 

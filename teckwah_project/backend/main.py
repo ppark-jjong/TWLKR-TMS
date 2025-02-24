@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,13 +6,8 @@ import os
 
 from app.api import auth_router, dashboard_router, visualization_router
 from app.config.settings import get_settings
-from app.config.database import engine, Base, initialize_models
-from app.utils.logger import log_info, log_error
 
 settings = get_settings()
-# initialize_models()
-# 데이터베이스 테이블 생성
-# Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

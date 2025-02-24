@@ -87,43 +87,38 @@
 
 # 4. 프로젝트 폴더 구조
 
-예시 구조 (필요 시 추가 허락 후 수정):
 teckwah_project/
-├── frontend/
-│   ├── public/                # 정적 파일 (logo, favicon 등)
-│   ├── src/
-│   │   ├── components/        # 재사용 UI 컴포넌트 (ex. common, dashboard)
-│   │   ├── pages/             # 페이지 단위 컴포넌트 (Auth, Dashboard, Visualization 등)
-│   │   ├── services/          # API 호출 및 비즈니스 로직 서비스
-│   │   ├── contexts/
-│   │   ├── utils/             # 공통 유틸리티/헬퍼 함수
-│   │   ├── App.js             # 메인 App 컴포넌트 (라우터 포함)
-│   │   ├── index.js           # 애플리케이션 진입점
-│   │   └── AppRoutes.js       # 라우트 설정 (React Router 사용)
-│   └── package.json
-│
-├── backend/
-│   ├── app/
-│   │   ├── api/               # API 엔드포인트 (ex. /auth, /dashboard, /visualization)
-│   │   ├── config/            # 설정 파일
-│   │   ├── data/              # 초기 데이터 파일
-│   │   ├── models/            # DB 모델 (Cloud DB for MySQL 기반)
-│   │   ├── repositories/      # 데이터 접근 로직
-│   │   ├── schemas/           # API 요청/응답 스키마
-│   │   ├── services/          # 비즈니스 로직
-│   │   └── utils/             # 유틸리티 모듈
-│   ├── static/                # 정적 파일
-│   ├── main.py                # FastAPI 메인 앱
-│   └── requirements.txt       # Python 패키지 의존성
-│
-└── deploy/
-    └── local/                 # 로컬 개발 환경 설정
-        ├── Dockerfile         # FastAPI + MySQL 컨테이너
-        ├── docker-compose     # 도커 컴포즈 설정
-        ├── .env.local         # 로컬 환경 변수
-        └── init-db.sql        # DB 초기화 스크립트 (스키마, 테이블, 트리거 생성 등)
-
-
+├── backend/                   # 백엔드 관련 코드
+│   ├── app/                   # 애플리케이션 관련 코드
+│   │   ├── api/               # API 라우터 및 엔드포인트
+│   │   ├── config/            # 설정 및 초기화 관련 코드
+│   │   ├── models/            # 데이터베이스 모델 정의
+│   │   ├── repositories/       # 데이터베이스 접근 레이어
+│   │   ├── schemas/           # 데이터 검증 및 직렬화 스키마
+│   │   ├── services/          # 비즈니스 로직 및 서비스 레이어
+│   │   └── utils/             # 유틸리티 함수 및 헬퍼
+│   ├── requirements.txt       # 프로젝트 의존성 목록
+│   └── main.py                # FastAPI 애플리케이션의 진입점
+├── deploy/                    # 배포 관련 파일
+│   ├── local/                 # 로컬 개발 환경 설정
+│   │   ├── .env.local         # 환경 변수 설정 파일
+│   │   ├── docker-compose.yml  # Docker Compose 설정 파일
+│   │   ├── Dockerfile          # Docker 이미지 빌드를 위한 Dockerfile
+│   │   └── init-db.sql        # 데이터베이스 초기화 SQL 스크립트
+├── frontend/                  # 프론트엔드 관련 코드
+│   ├── public/                # 정적 파일
+│   ├── src/                   # 소스 코드
+│   │   ├── App.js             # 애플리케이션의 메인 컴포넌트
+│   │   ├── AppRoutes.js       # 애플리케이션의 라우팅 설정
+│   │   ├── components/        # 재사용 가능한 UI 컴포넌트
+│   │   ├── contexts/          # React Context API 관련 코드
+│   │   ├── pages/             # 페이지 컴포넌트
+│   │   ├── services/          # API 호출 및 비즈니스 로직
+│   │   ├── utils/             # 유틸리티 함수 및 상수
+│   │   ├── index.js           # 애플리케이션의 진입점
+│   │   └── package.json       # 프로젝트 의존성 및 스크립트
+├── 룰 프롬프트.txt           # 프로젝트 규칙 관련 문서
+└── 요구사항 프롬프트.md      # 프로젝트 요구사항 관련 문서
 
 
 ---

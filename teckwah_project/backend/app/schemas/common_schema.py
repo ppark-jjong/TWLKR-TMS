@@ -1,7 +1,6 @@
 # backend/app/schemas/common_schema.py
 from typing import TypeVar, Generic, Optional, Any
 from pydantic import BaseModel
-from pydantic.generics import GenericModel
 
 T = TypeVar("T")
 
@@ -29,7 +28,7 @@ class DateRangeInfo(BaseModel):
     latest_date: str
 
 
-class BaseResponse(GenericModel, Generic[T]):
+class BaseResponse(BaseModel, Generic[T]):
     """기본 API 응답 스키마"""
 
     success: bool = True

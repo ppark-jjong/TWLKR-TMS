@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { message } from 'antd';
 import DashboardService from '../services/DashboardService';
-import { useAuth } from './AuthContext';
+import { MessageKeys, MessageTemplates } from '../utils/message';
 
 const DashboardContext = createContext(null);
 
@@ -23,15 +23,12 @@ const POLLING_INTERVALS = {
 export const DashboardProvider = ({ children }) => {
   const [dashboards, setDashboards] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(
     POLLING_INTERVALS.DEFAULT
   );
-  const [lastUpdate, setLastUpdate] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const [availableDateRange, setAvailableDateRange] = useState(null);
   const pollingTimeoutRef = useRef(null);
-  const { user } = useAuth();
-
-  // 메모리 누수 방지를 위한 마운트 상태 추적
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -41,6 +38,39 @@ export const DashboardProvider = ({ children }) => {
         clearTimeout(pollingTimeoutRef.current);
       }
     };
+  }, []);
+
+  const fetchDashboards = useCallback(async (date) => {
+    const key = MessageKeys.DASHBOARD.LOAD;
+    try {
+      setLoading(true);
+      message.loading('데이터 조회 중...', key);
+
+      const response = await DashboardService.getDashboardList(date);
+
+      if (!mountedRef.current) return;
+
+      setDashboards(response.items);
+      setAvailableDateRange(response.date_range);
+      setLastRefresh(new Date());
+
+      if (response.items.length === 0) {
+        message.info(MessageTemplates.DATA.LOAD_EMPTY, key);
+      } else {
+        message.success(MessageTemplates.DATA.LOAD_SUCCESS, key);
+      }
+
+      return response;
+    } catch (error) {
+      if (mountedRef.current) {
+        message.error(MessageTemplates.DATA.LOAD_ERROR, key);
+      }
+      throw error;
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
   }, []);
 
   const startPolling = useCallback(
@@ -61,18 +91,17 @@ export const DashboardProvider = ({ children }) => {
           if (hasChanges) {
             setDashboards(response.items);
             setPollingInterval(POLLING_INTERVALS.ACTIVE);
-            setLastUpdate(new Date());
+            setLastRefresh(new Date());
           } else {
             setPollingInterval(POLLING_INTERVALS.IDLE);
           }
 
-          pollingTimeoutRef.current = setTimeout(poll, pollingInterval);
+          pollingTimeoutRef.current = setTimeout(() => poll(), pollingInterval);
         } catch (error) {
           console.error('Polling error:', error);
           if (mountedRef.current) {
-            setError(error);
             pollingTimeoutRef.current = setTimeout(
-              poll,
+              () => poll(),
               POLLING_INTERVALS.DEFAULT
             );
           }
@@ -91,38 +120,12 @@ export const DashboardProvider = ({ children }) => {
     }
   }, []);
 
-  // 일반 대시보드 목록 조회 (하루 단위)
-  const fetchDashboards = useCallback(
-    async (date) => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await DashboardService.getDashboardList(date);
-
-        if (!mountedRef.current) return;
-
-        setDashboards(response.items);
-        setLastUpdate(new Date());
-        startPolling(date);
-      } catch (error) {
-        if (mountedRef.current) {
-          setError(error);
-          message.error('데이터 조회 중 오류가 발생했습니다');
-        }
-      } finally {
-        if (mountedRef.current) {
-          setLoading(false);
-        }
-      }
-    },
-    [startPolling]
-  );
-
-  // 관리자용 대시보드 목록 조회 (기간 단위)
   const fetchAdminDashboards = useCallback(async (startDate, endDate) => {
+    const key = MessageKeys.DASHBOARD.LOAD;
     try {
       setLoading(true);
-      setError(null);
+      message.loading('데이터 조회 중...', key);
+
       const response = await DashboardService.getAdminDashboardList(
         startDate,
         endDate
@@ -131,12 +134,21 @@ export const DashboardProvider = ({ children }) => {
       if (!mountedRef.current) return;
 
       setDashboards(response.items);
-      setLastUpdate(new Date());
+      setAvailableDateRange(response.date_range);
+      setLastRefresh(new Date());
+
+      if (response.items.length === 0) {
+        message.info(MessageTemplates.DATA.LOAD_EMPTY, key);
+      } else {
+        message.success(MessageTemplates.DATA.LOAD_SUCCESS, key);
+      }
+
+      return response;
     } catch (error) {
       if (mountedRef.current) {
-        setError(error);
-        message.error('데이터 조회 중 오류가 발생했습니다');
+        message.error(MessageTemplates.DATA.LOAD_ERROR, key);
       }
+      throw error;
     } finally {
       if (mountedRef.current) {
         setLoading(false);
@@ -144,7 +156,6 @@ export const DashboardProvider = ({ children }) => {
     }
   }, []);
 
-  // 단일 대시보드 업데이트
   const updateDashboard = useCallback((dashboardId, updates) => {
     setDashboards((prev) => {
       const newDashboards = prev.map((dash) =>
@@ -152,10 +163,9 @@ export const DashboardProvider = ({ children }) => {
       );
       return newDashboards;
     });
-    setLastUpdate(new Date());
+    setLastRefresh(new Date());
   }, []);
 
-  // 여러 대시보드 업데이트
   const updateMultipleDashboards = useCallback((dashboardIds, updates) => {
     setDashboards((prev) => {
       const newDashboards = prev.map((dash) =>
@@ -165,40 +175,31 @@ export const DashboardProvider = ({ children }) => {
       );
       return newDashboards;
     });
-    setLastUpdate(new Date());
+    setLastRefresh(new Date());
   }, []);
 
-  // 대시보드 삭제
   const removeDashboards = useCallback((dashboardIds) => {
     setDashboards((prev) =>
       prev.filter((dash) => !dashboardIds.includes(dash.dashboard_id))
     );
-    setLastUpdate(new Date());
-  }, []);
-
-  // 폴링 설정 업데이트
-  const updatePollingSettings = useCallback((newInterval) => {
-    setPollingInterval(newInterval);
+    setLastRefresh(new Date());
   }, []);
 
   useEffect(() => {
-    return () => {
-      stopPolling();
-    };
+    return () => stopPolling();
   }, [stopPolling]);
 
   const value = {
     dashboards,
     loading,
-    error,
     pollingInterval,
-    lastUpdate,
+    lastRefresh,
+    availableDateRange,
     fetchDashboards,
     fetchAdminDashboards,
     updateDashboard,
     updateMultipleDashboards,
     removeDashboards,
-    updatePollingSettings,
     startPolling,
     stopPolling,
   };
