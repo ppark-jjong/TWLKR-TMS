@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.schemas.dashboard_schema import (
     DashboardCreate,
-    DashboardListResponse,
-    DashboardDetailResponse,
+    DashboardResponse,
+    DashboardDetail,
     DashboardListData,
     StatusUpdate,
     RemarkUpdate,
@@ -22,11 +22,13 @@ from app.repositories.dashboard_repository import DashboardRepository
 
 router = APIRouter()
 
+
 def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     repository = DashboardRepository(db)
     return DashboardService(repository)
 
-@router.get("/list", response_model=DashboardListResponse)
+
+@router.get("/list", response_model=DashboardResponse)
 async def get_dashboard_list(
     date: str,
     service: DashboardService = Depends(get_dashboard_service),
@@ -46,19 +48,22 @@ async def get_dashboard_list(
             items=items,
         )
 
-        return DashboardListResponse(
+        return DashboardResponse(
             success=True,
-            message="조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다",
+            message=(
+                "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
+            ),
             data=response_data,
         )
     except Exception as e:
         log_error(e, "대시보드 목록 조회 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터 조회 중 오류가 발생했습니다"
+            detail="데이터 조회 중 오류가 발생했습니다",
         )
 
-@router.get("/admin/list", response_model=DashboardListResponse)
+
+@router.get("/admin/list", response_model=DashboardResponse)
 async def get_admin_dashboard_list(
     start_date: str,
     end_date: str,
@@ -79,19 +84,22 @@ async def get_admin_dashboard_list(
             items=items,
         )
 
-        return DashboardListResponse(
+        return DashboardResponse(
             success=True,
-            message="조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다",
+            message=(
+                "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
+            ),
             data=response_data,
         )
     except Exception as e:
         log_error(e, "관리자 대시보드 목록 조회 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터 조회 중 오류가 발생했습니다"
+            detail="데이터 조회 중 오류가 발생했습니다",
         )
 
-@router.post("", response_model=DashboardDetailResponse)
+
+@router.post("", response_model=DashboardResponse)
 async def create_dashboard(
     dashboard: DashboardCreate,
     service: DashboardService = Depends(get_dashboard_service),
@@ -100,10 +108,8 @@ async def create_dashboard(
     """대시보드 생성 API"""
     try:
         result = service.create_dashboard(dashboard, current_user.department)
-        return DashboardDetailResponse(
-            success=True,
-            message="대시보드가 생성되었습니다",
-            data=result
+        return DashboardResponse(
+            success=True, message="대시보드가 생성되었습니다", data=result
         )
     except HTTPException:
         raise
@@ -111,10 +117,11 @@ async def create_dashboard(
         log_error(e, "대시보드 생성 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="대시보드 생성 중 오류가 발생했습니다"
+            detail="대시보드 생성 중 오류가 발생했습니다",
         )
 
-@router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
+
+@router.patch("/{dashboard_id}/status", response_model=DashboardResponse)
 async def update_status(
     dashboard_id: int,
     status_update: StatusUpdate,
@@ -124,10 +131,10 @@ async def update_status(
     """상태 업데이트 API"""
     try:
         result = service.update_status(dashboard_id, status_update)
-        return DashboardDetailResponse(
+        return DashboardResponse(
             success=True,
             message=f"{status_update.status} 상태로 변경되었습니다",
-            data=result
+            data=result,
         )
     except HTTPException:
         raise
@@ -135,8 +142,9 @@ async def update_status(
         log_error(e, "상태 업데이트 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="상태 업데이트 중 오류가 발생했습니다"
+            detail="상태 업데이트 중 오류가 발생했습니다",
         )
+
 
 @router.post("/assign", response_model=BaseResponse[List[DashboardResponse]])
 async def assign_driver(
@@ -147,16 +155,12 @@ async def assign_driver(
     """배차 정보 업데이트 API"""
     try:
         result = service.assign_driver(assignment)
-        return BaseResponse(
-            success=True,
-            message="배차가 완료되었습니다",
-            data=result
-        )
+        return BaseResponse(success=True, message="배차가 완료되었습니다", data=result)
     except HTTPException:
         raise
     except Exception as e:
         log_error(e, "배차 처리 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="배차 처리 중 오류가 발생했습니다"
+            detail="배차 처리 중 오류가 발생했습니다",
         )

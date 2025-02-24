@@ -59,9 +59,9 @@ def execute_query(query, params=None, fetch=False, many=False):
         connection.close()
 
 
-def import_csv_to_postal_code(file_path):
+def import_csv_to_postal_code_detail(file_path):
     """
-    CSV 파일을 읽고 postal_code 테이블에 삽입
+    CSV 파일을 읽고 postal_code_detail 테이블에 삽입
     """
     try:
         df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
@@ -70,35 +70,38 @@ def import_csv_to_postal_code(file_path):
         return
 
     # NaN 값을 처리 (문자열 컬럼 -> "", 숫자형 컬럼 -> 0)
-    df.fillna({"city": "", "county": "", "district": ""}, inplace=True)
+    df.fillna({"warehouse": ""}, inplace=True)
+    df["distance"] = df["distance"].fillna(0).astype(int)
+    df["duration_time"] = df["duration_time"].fillna(0).astype(int)
 
     # postal_code 값을 5자리로 변환 (4자리면 앞에 '0' 추가)
     df["postal_code"] = df["postal_code"].astype(str).str.zfill(5)
 
     # 데이터베이스 삽입 쿼리 생성
     insert_query = """
-    INSERT INTO postal_code (postal_code, city, county, district)
+    INSERT INTO postal_code_detail (postal_code, warehouse, distance, duration_time)
     VALUES (%s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE 
-        city = VALUES(city), 
-        county = VALUES(county), 
-        district = VALUES(district)
+        distance = VALUES(distance), 
+        duration_time = VALUES(duration_time)
     """
 
     # DataFrame을 리스트로 변환하여 삽입
-    values = df[["postal_code", "city", "county", "district"]].values.tolist()
+    values = df[
+        ["postal_code", "warehouse", "distance", "duration_time"]
+    ].values.tolist()
     result = execute_query(insert_query, values, many=True)
 
     if result is not None:
-        print(f"postal_code 테이블에 총 {len(df)}개의 데이터가 삽입되었습니다.")
+        print(f"postal_code_detail 테이블에 총 {len(df)}개의 데이터가 삽입되었습니다.")
     else:
-        print(f"postal_code 테이블 데이터 삽입 실패")
+        print(f"postal_code_detail 테이블 데이터 삽입 실패")
 
 
 if __name__ == "__main__":
-    file_path = "backend/app/data/postal_code.csv"
+    file_path = "backend/app/data/postal_code_detail.csv"
     if os.path.exists(file_path):
-        print(f"{file_path} -> postal_code 테이블에 삽입 중...")
-        import_csv_to_postal_code(file_path)
+        print(f"{file_path} -> postal_code_detail 테이블에 삽입 중...")
+        import_csv_to_postal_code_detail(file_path)
     else:
         print(f"파일이 존재하지 않음: {file_path}")

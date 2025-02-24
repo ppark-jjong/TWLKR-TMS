@@ -1,5 +1,6 @@
 // frontend/src/services/AuthService.js
 import axios from 'axios';
+import jwt_decode from 'jwt-decode';
 
 class AuthService {
   getCurrentUser() {
@@ -7,13 +8,42 @@ class AuthService {
       const userStr = localStorage.getItem('user');
       return userStr ? JSON.parse(userStr) : null;
     } catch (error) {
-      this.logout();
+      this.clearAuthData();
       return null;
     }
   }
 
   getAccessToken() {
     return localStorage.getItem('access_token');
+  }
+
+  getRefreshToken() {
+    return localStorage.getItem('refresh_token');
+  }
+
+  setTokens(accessToken, refreshToken) {
+    localStorage.setItem('access_token', accessToken);
+    if (refreshToken) {
+      localStorage.setItem('refresh_token', refreshToken);
+    }
+    axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  clearAuthData() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    delete axios.defaults.headers.common['Authorization'];
+  }
+
+  isTokenExpired(token) {
+    if (!token) return true;
+    try {
+      const decoded = jwt_decode(token);
+      return decoded.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
   }
 
   async login(userId, password) {
@@ -23,20 +53,15 @@ class AuthService {
         user_password: password,
       });
 
-      // 로그인 성공 시 토큰 및 사용자 정보 저장
       const { token, user } = response.data;
-      localStorage.setItem('access_token', token.access_token);
-      localStorage.setItem('refresh_token', token.refresh_token);
+      this.setTokens(token.access_token, token.refresh_token);
       localStorage.setItem('user', JSON.stringify(user));
-
-      // axios 기본 헤더 설정
-      axios.defaults.headers.common[
-        'Authorization'
-      ] = `Bearer ${token.access_token}`;
 
       return response.data;
     } catch (error) {
-      console.error('Login error:', error.response?.data || error);
+      if (error.response?.status === 401) {
+        throw new Error('아이디 또는 비밀번호가 잘못되었습니다');
+      }
       throw error;
     }
   }
@@ -48,39 +73,31 @@ class AuthService {
       });
 
       if (response.data.token) {
-        localStorage.setItem('access_token', response.data.token.access_token);
-        if (response.data.token.refresh_token) {
-          localStorage.setItem(
-            'refresh_token',
-            response.data.token.refresh_token
-          );
-        }
-
-        axios.defaults.headers.common[
-          'Authorization'
-        ] = `Bearer ${response.data.token.access_token}`;
+        this.setTokens(
+          response.data.token.access_token,
+          response.data.token.refresh_token
+        );
+        return response.data.token;
       }
-
-      return response.data.token;
+      throw new Error('토큰 갱신 실패');
     } catch (error) {
-      console.error('Token refresh error:', error);
+      this.clearAuthData();
       throw error;
     }
   }
 
   async logout() {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = this.getRefreshToken();
       if (refreshToken) {
         await axios.post('/auth/logout', {
           refresh_token: refreshToken,
         });
       }
+    } catch (error) {
+      console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      delete axios.defaults.headers.common['Authorization'];
+      this.clearAuthData();
     }
   }
 }

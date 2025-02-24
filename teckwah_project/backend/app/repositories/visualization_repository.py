@@ -1,10 +1,12 @@
-# visualization_repository.py
+# backend/app/repositories/visualization_repository.py
 from datetime import datetime
 from typing import List, Tuple
 from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from app.models.dashboard_model import Dashboard
 from app.utils.logger import log_error
+
 
 class VisualizationRepository:
     def __init__(self, db: Session):
@@ -13,43 +15,32 @@ class VisualizationRepository:
     def get_raw_delivery_data(
         self, start_date: datetime, end_date: datetime
     ) -> List[Tuple]:
-        """배송 현황 raw 데이터 조회 (ETA 기준으로 조회)"""
+        """배송 현황 raw 데이터 조회 (ETA 기준으로 데이터 범위 필터링)"""
         try:
             result = (
                 self.db.query(
-                    Dashboard.department, 
-                    Dashboard.status, 
-                    Dashboard.create_time
+                    Dashboard.department, Dashboard.status, Dashboard.create_time
                 )
-                .filter(and_(
-                    Dashboard.eta >= start_date,
-                    Dashboard.eta <= end_date
-                ))
+                .filter(and_(Dashboard.eta >= start_date, Dashboard.eta <= end_date))
                 .all()
             )
             return result
-        except Exception as e:
+        except SQLAlchemyError as e:
             log_error(e, "배송 현황 데이터 조회 실패")
             raise
 
     def get_raw_hourly_data(
         self, start_date: datetime, end_date: datetime
     ) -> List[Tuple]:
-        """시간대별 접수량 raw 데이터 조회 (ETA 기준으로 조회)"""
+        """시간대별 접수량 raw 데이터 조회 (ETA 기준으로 데이터 범위 필터링)"""
         try:
             result = (
-                self.db.query(
-                    Dashboard.department,
-                    Dashboard.create_time
-                )
-                .filter(and_(
-                    Dashboard.eta >= start_date,
-                    Dashboard.eta <= end_date
-                ))
+                self.db.query(Dashboard.department, Dashboard.create_time)
+                .filter(and_(Dashboard.eta >= start_date, Dashboard.eta <= end_date))
                 .all()
             )
             return result
-        except Exception as e:
+        except SQLAlchemyError as e:
             log_error(e, "시간대별 접수량 데이터 조회 실패")
             raise
 
@@ -62,6 +53,6 @@ class VisualizationRepository:
             ).first()
 
             return result.oldest_date, result.latest_date
-        except Exception as e:
+        except SQLAlchemyError as e:
             log_error(e, "날짜 범위 조회 실패")
             raise
