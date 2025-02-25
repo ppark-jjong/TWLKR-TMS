@@ -1,4 +1,9 @@
 // frontend/src/pages/DashboardPage.js
+<<<<<<< HEAD
+import React, { useState, useEffect } from 'react';
+import { Layout, DatePicker, Space, Button, Tooltip } from 'antd';
+import { ReloadOutlined, PlusOutlined, CarOutlined } from '@ant-design/icons';
+=======
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Layout,
@@ -11,6 +16,7 @@ import {
   Result,
 } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
+>>>>>>> main
 import dayjs from 'dayjs';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
@@ -38,7 +44,8 @@ const DashboardPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const { user } = useAuth();
-  const { dashboards, updateMultipleDashboards } = useDashboard();
+  const { dashboards, updateMultipleDashboards, fetchDashboards } =
+    useDashboard();
   const pageSize = 50;
 
   // 대시보드 데이터 로드
@@ -73,12 +80,51 @@ const DashboardPage = () => {
 
   // 초기 데이터 로드
   useEffect(() => {
+<<<<<<< HEAD
+    console.log('DashboardPage 마운트');
+    loadDateRange();
+    loadDashboardData(selectedDate);
+  }, []);
+
+  // 날짜 범위 로드
+  const loadDateRange = async () => {
+    try {
+      console.log('날짜 범위 로드 시작');
+      const response = await DashboardService.getDateRange();
+      console.log('날짜 범위 응답:', response);
+      setDateRange(response);
+    } catch (error) {
+      console.error('날짜 범위 로드 실패:', error);
+      message.error('조회 가능 기간을 불러오는데 실패했습니다');
+    }
+  };
+
+  // 대시보드 데이터 로드
+  const loadDashboardData = async (date) => {
+    const key = MessageKeys.DASHBOARD.LOAD;
+    try {
+      setLoading(true);
+      message.loading('데이터 조회 중...', key);
+      console.log('대시보드 데이터 조회 시작:', date.format('YYYY-MM-DD'));
+
+      await fetchDashboards(date);
+      message.loadingToSuccess(MessageTemplates.DASHBOARD.LOAD_SUCCESS, key);
+    } catch (error) {
+      console.error('대시보드 데이터 로드 실패:', error);
+      message.loadingToError(MessageTemplates.DASHBOARD.LOAD_FAIL, key);
+    } finally {
+      setLoading(false);
+    }
+  };
+=======
     loadDashboardData(selectedDate);
   }, [loadDashboardData, selectedDate]);
+>>>>>>> main
 
   // 날짜 변경 핸들러
   const handleDateChange = (date) => {
     const newDate = date || dayjs();
+    console.log('날짜 변경:', newDate.format('YYYY-MM-DD'));
     setSelectedDate(newDate);
     setSelectedRows([]);
     loadDashboardData(newDate);
@@ -86,6 +132,7 @@ const DashboardPage = () => {
 
   // 새로고침 핸들러
   const handleRefresh = () => {
+    console.log('새로고침 요청');
     loadDashboardData(selectedDate);
   };
 
@@ -94,6 +141,8 @@ const DashboardPage = () => {
     const key = MessageKeys.DASHBOARD.DETAIL;
     try {
       message.loading('상세 정보 조회 중...', key);
+      console.log('행 클릭:', record);
+
       const detailData = await DashboardService.getDashboardDetail(
         record.dashboard_id
       );
@@ -101,6 +150,28 @@ const DashboardPage = () => {
       setShowDetailModal(true);
       message.success('상세 정보를 조회했습니다', key);
     } catch (error) {
+<<<<<<< HEAD
+      console.error('상세 정보 조회 실패:', error);
+      message.loadingToError(MessageTemplates.DASHBOARD.DETAIL_FAIL, key);
+    }
+  };
+
+  // 대시보드 생성 성공 핸들러
+  const handleCreateSuccess = () => {
+    console.log('대시보드 생성 성공');
+    setShowCreateModal(false);
+    handleRefresh();
+  };
+
+  // 배차 성공 핸들러
+  const handleAssignSuccess = () => {
+    console.log('배차 성공');
+    setShowAssignModal(false);
+    setSelectedRows([]);
+    handleRefresh();
+  };
+
+=======
       ErrorHandler.handle(error, 'dashboard-detail');
     }
   };
@@ -136,6 +207,7 @@ const DashboardPage = () => {
     );
   }
 
+>>>>>>> main
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>
@@ -158,6 +230,7 @@ const DashboardPage = () => {
           <Space size="middle">
             <Button
               type="primary"
+              icon={<PlusOutlined />}
               onClick={() => setShowCreateModal(true)}
               size="large"
               disabled={loading}
@@ -165,6 +238,7 @@ const DashboardPage = () => {
               신규 등록
             </Button>
             <Button
+              icon={<CarOutlined />}
               onClick={() => setShowAssignModal(true)}
               disabled={selectedRows.length === 0 || loading}
               size="large"
@@ -214,24 +288,35 @@ const DashboardPage = () => {
       {showCreateModal && (
         <CreateDashboardModal
           visible={showCreateModal}
+<<<<<<< HEAD
+          onCancel={() => setShowCreateModal(false)}
+          onSuccess={handleCreateSuccess}
+          userDepartment={user?.user_department}
+=======
           onCancel={handleCloseModals}
           onSuccess={() => {
             handleCloseModals();
             handleRefresh();
           }}
           userDepartment={user.user_department}
+>>>>>>> main
         />
       )}
 
       {showAssignModal && (
         <AssignDriverModal
           visible={showAssignModal}
+<<<<<<< HEAD
+          onCancel={() => setShowAssignModal(false)}
+          onSuccess={handleAssignSuccess}
+=======
           onCancel={handleCloseModals}
           onSuccess={() => {
             handleCloseModals();
             setSelectedRows([]);
             handleRefresh();
           }}
+>>>>>>> main
           selectedRows={selectedRows}
         />
       )}
