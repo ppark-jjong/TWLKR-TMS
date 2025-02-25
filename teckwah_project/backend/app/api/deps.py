@@ -1,5 +1,6 @@
+# backend/app/api/deps.py
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Cookie, Header
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -14,20 +15,19 @@ from app.schemas.dashboard_schema import StatusUpdate
 settings = get_settings()
 
 
-async def get_token_from_header(request: Request) -> str:
-    """요청 헤더에서 토큰 추출"""
-    authorization = request.headers.get("Authorization")
+async def get_current_user(
+    authorization: str = Header(None, alias="Authorization")
+) -> TokenData:
+    """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="인증 토큰이 필요합니다",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return authorization.split(" ")[1]
 
+    token = authorization.split(" ")[1]
 
-async def verify_token(token: str = Depends(get_token_from_header)) -> TokenData:
-    """토큰 검증 및 페이로드 추출"""
     try:
         payload = jwt.decode(
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
@@ -52,7 +52,7 @@ async def verify_token(token: str = Depends(get_token_from_header)) -> TokenData
         )
 
 
-async def check_admin_access(current_user: TokenData = Depends(verify_token)):
+async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
     """관리자 권한 체크"""
     if current_user.role != "ADMIN":
         raise HTTPException(
@@ -100,17 +100,3 @@ async def validate_status_change(
         )
 
     return True
-
-
-async def get_current_user_department(
-    token_data: TokenData = Depends(verify_token),
-) -> str:
-    """현재 사용자 부서 정보 추출"""
-    return token_data.department
-
-
-async def get_current_user(
-    token_data: TokenData = Depends(verify_token),
-) -> TokenData:
-    """현재 사용자 정보 추출"""
-    return token_data

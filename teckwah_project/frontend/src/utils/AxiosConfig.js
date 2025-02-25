@@ -1,9 +1,13 @@
 // frontend/src/utils/AxiosConfig.js
 import axios from 'axios';
-import { message } from './message';
-import { MessageTemplates } from './message';
+import message from './message';
+import { MessageTemplates, MessageKeys } from './message';
 import AuthService from '../services/AuthService';
 
+// 진행중인 요청을 추적하는 객체
+const pendingRequests = {};
+
+// 토큰 갱신 상태 관리
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -18,39 +22,182 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-const axiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
-});
+// 에러 타입에 따른 메시지 처리
+const handleErrorResponse = (error) => {
+  // 이미 처리된 에러
+  if (error.handled) return Promise.reject(error);
 
-const setupAxiosInterceptors = () => {
-  // 요청 인터셉터
-  axiosInstance.interceptors.request.use(
-    (config) => {
-      // 요청 전 처리
-      return config;
-    },
-    (error) => {
-      message.error('요청 중 오류가 발생했습니다.'); // 에러 메시지 처리
+  if (error.response) {
+    const { status, data } = error.response;
+
+    // 401 (인증 실패) - 토큰 갱신 로직은 별도 처리
+    if (status === 401 && !error.config._retry) {
+      return Promise.reject(error); // 아래 토큰 갱신 로직에서 처리
+    }
+
+    // 403 (권한 없음)
+    if (status === 403) {
+      message.error('접근 권한이 없습니다', MessageKeys.AUTH.PERMISSION);
       return Promise.reject(error);
     }
+
+    // 404 (리소스 없음)
+    if (status === 404) {
+      message.error('요청한 데이터를 찾을 수 없습니다');
+      return Promise.reject(error);
+    }
+
+    // 422 (유효성 검사 오류)
+    if (status === 422 && Array.isArray(data.detail)) {
+      const errorMessage = data.detail.map((err) => err.msg).join('\n');
+      message.error(errorMessage);
+      return Promise.reject(error);
+    }
+
+    // 500 (서버 오류)
+    if (status >= 500) {
+      message.error(MessageTemplates.ERROR.SERVER, 'server-error');
+      return Promise.reject(error);
+    }
+
+    // 기타 에러 응답
+    const errorMessage = data?.detail || '오류가 발생했습니다';
+    message.error(errorMessage);
+    error.handled = true;
+    return Promise.reject(error);
+  }
+
+  // 네트워크 에러
+  if (error.request) {
+    message.error(MessageTemplates.ERROR.NETWORK, 'network-error');
+    error.handled = true;
+    return Promise.reject(error);
+  }
+
+  // 기타 에러
+  message.error('오류가 발생했습니다');
+  error.handled = true;
+  return Promise.reject(error);
+};
+
+const setupAxiosInterceptors = () => {
+  // axios 기본 설정
+  axios.defaults.baseURL = '/'; // 동일 도메인에서 실행하므로 루트 경로 설정
+  axios.defaults.withCredentials = true; // 모든 요청에 쿠키 포함
+  axios.defaults.timeout = 20000; // 20초 타임아웃 설정
+
+  // 요청 인터셉터
+  axios.interceptors.request.use(
+    (config) => {
+      // 액세스 토큰 확인 및 헤더 추가
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      // 요청 트래킹을 위한 ID 생성
+      const requestId = `${config.method}-${config.url}-${Date.now()}`;
+      config.requestId = requestId;
+
+      // 진행중인 요청 목록에 추가
+      pendingRequests[requestId] = true;
+
+      return config;
+    },
+    (error) => Promise.reject(error)
   );
 
   // 응답 인터셉터
-  axiosInstance.interceptors.response.use(
+  axios.interceptors.response.use(
     (response) => {
-      return response;
-    },
-    (error) => {
-      if (error.response) {
-        message.error(
-          error.response.data.detail || '서버 오류가 발생했습니다.'
-        ); // 에러 메시지 처리
-      } else {
-        message.error('네트워크 오류가 발생했습니다.'); // 네트워크 오류 처리
+      // 요청 완료 후 목록에서 제거
+      if (response.config.requestId) {
+        delete pendingRequests[response.config.requestId];
       }
-      return Promise.reject(error);
+
+      // 응답 데이터 검증 추가
+      if (response.data) {
+        return response;
+      }
+      return Promise.reject(new Error('Empty response data'));
+    },
+    async (error) => {
+      // 요청 완료 후 목록에서 제거
+      if (error.config?.requestId) {
+        delete pendingRequests[error.config.requestId];
+      }
+
+      // 토큰 만료 처리
+      if (error.response?.status === 401 && !error.config._retry) {
+        if (isRefreshing) {
+          // 토큰 갱신 중인 경우 대기 후 재시도
+          try {
+            await new Promise((resolve, reject) => {
+              failedQueue.push({ resolve, reject });
+            });
+            return axios(error.config);
+          } catch (err) {
+            return handleErrorResponse(err);
+          }
+        }
+
+        error.config._retry = true;
+        isRefreshing = true;
+
+        try {
+          // 토큰 갱신 시도
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (!refreshToken) {
+            throw new Error('No refresh token available');
+          }
+
+          const response = await AuthService.refreshToken();
+
+          // 갱신된 토큰으로 원래 요청 재시도
+          error.config.headers.Authorization = `Bearer ${localStorage.getItem(
+            'access_token'
+          )}`;
+          processQueue(null);
+          return axios(error.config);
+        } catch (refreshError) {
+          processQueue(refreshError, null);
+          message.error(
+            '세션이 만료되었습니다. 다시 로그인해주세요',
+            MessageKeys.AUTH.SESSION_EXPIRED
+          );
+          AuthService.clearAuthData();
+
+          // 현재 페이지가 로그인 페이지가 아닌 경우만 리다이렉트
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+
+      return handleErrorResponse(error);
     }
   );
+
+  // 전역 에러 핸들링
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason && event.reason.isAxiosError) {
+      const error = event.reason;
+      if (!error.handled) {
+        handleErrorResponse(error);
+      }
+    }
+  });
+};
+
+// 진행 중인 모든 요청 취소
+export const cancelAllPendingRequests = () => {
+  Object.keys(pendingRequests).forEach((requestId) => {
+    delete pendingRequests[requestId];
+  });
 };
 
 export default setupAxiosInterceptors;

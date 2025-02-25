@@ -14,16 +14,19 @@ import {
 import { formatDateTime } from '../../utils/Formatter';
 
 const DashboardTable = ({
-  dataSource,
-  loading,
-  selectedRows,
-  onSelectRows,
-  onRowClick,
-  currentPage,
-  pageSize,
-  onPageChange,
-  isAdminPage,
+  dataSource = [],
+  loading = false,
+  selectedRows = [],
+  onSelectRows = () => {},
+  onRowClick = () => {},
+  currentPage = 1,
+  pageSize = 50,
+  onPageChange = () => {},
+  isAdminPage = false,
 }) => {
+  // 안전한 데이터 소스 확인
+  const safeDataSource = Array.isArray(dataSource) ? dataSource : [];
+
   const columns = [
     {
       title: '종류',
@@ -33,12 +36,12 @@ const DashboardTable = ({
       render: (text) => (
         <span
           style={{
-            color: TYPE_COLORS[text],
+            color: TYPE_COLORS[text] || '#666',
             fontWeight: 500,
             ...FONT_STYLES.BODY.MEDIUM,
           }}
         >
-          {TYPE_TEXTS[text]}
+          {TYPE_TEXTS[text] || text}
         </span>
       ),
     },
@@ -48,7 +51,9 @@ const DashboardTable = ({
       align: 'center',
       width: 80,
       render: (text) => (
-        <span style={FONT_STYLES.BODY.MEDIUM}>{DEPARTMENT_TEXTS[text]}</span>
+        <span style={FONT_STYLES.BODY.MEDIUM}>
+          {DEPARTMENT_TEXTS[text] || text}
+        </span>
       ),
     },
     {
@@ -57,7 +62,9 @@ const DashboardTable = ({
       align: 'center',
       width: 100,
       render: (text) => (
-        <span style={FONT_STYLES.BODY.MEDIUM}>{WAREHOUSE_TEXTS[text]}</span>
+        <span style={FONT_STYLES.BODY.MEDIUM}>
+          {WAREHOUSE_TEXTS[text] || text}
+        </span>
       ),
     },
     {
@@ -115,7 +122,7 @@ const DashboardTable = ({
       width: 100,
       render: (status) => (
         <Tag
-          color={STATUS_COLORS[status]}
+          color={STATUS_COLORS[status] || 'default'}
           style={{
             minWidth: '60px',
             textAlign: 'center',
@@ -123,7 +130,7 @@ const DashboardTable = ({
             ...FONT_STYLES.BODY.MEDIUM,
           }}
         >
-          {STATUS_TEXTS[status]}
+          {STATUS_TEXTS[status] || status}
         </Tag>
       ),
     },
@@ -144,7 +151,7 @@ const DashboardTable = ({
   return (
     <Table
       columns={columns}
-      dataSource={dataSource}
+      dataSource={safeDataSource}
       rowKey="dashboard_id"
       loading={loading}
       size="middle"
@@ -152,7 +159,7 @@ const DashboardTable = ({
       pagination={{
         current: currentPage,
         pageSize: pageSize,
-        total: dataSource?.length || 0,
+        total: safeDataSource?.length || 0,
         onChange: onPageChange,
         showSizeChanger: false,
         showTotal: (total) => `총 ${total}건`,

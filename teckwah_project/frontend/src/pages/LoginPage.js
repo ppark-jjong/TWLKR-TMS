@@ -31,9 +31,12 @@ const LoginPage = () => {
     message.loading('로그인 중...', 'login');
 
     try {
-      await AuthService.login(values.user_id, values.password);
+      // 요구사항에 맞게 login 함수 호출 (AuthContext에서 제공)
+      await login(values.user_id, values.password);
+      // login 함수 내에서 리다이렉트 처리됨
     } catch (err) {
-      setError(message.error(ErrorHandler.handle(err, 'login')));
+      console.error('Login error:', err);
+
       form.setFields([
         {
           name: 'password',

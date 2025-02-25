@@ -1,16 +1,18 @@
 // frontend/src/contexts/AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { message } from '../utils/message';
 import axios from 'axios';
 import AuthService from '../services/AuthService';
-import { login as apiLogin } from '../services/AuthService';
+import message from '../utils/message';
+import ErrorHandler from '../utils/ErrorHandler';
+import { MessageKeys } from '../utils/message';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authChecking, setAuthChecking] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,28 +20,49 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        setAuthChecking(true);
         const currentUser = AuthService.getCurrentUser();
 
         if (!currentUser) {
-          // 로그인 페이지가 아닌 경우에만 리다이렉트
           if (location.pathname !== '/login') {
             localStorage.setItem('returnUrl', location.pathname);
             navigate('/login');
           }
+          setLoading(false);
+          setAuthChecking(false);
           return;
         }
 
         // 세션 유효성 확인
         try {
-          // 백엔드에서 세션 체크 (401 응답 시 자동으로 refresh 시도)
-          await axios.get('/auth/check-session', { withCredentials: true });
+          const token = localStorage.getItem('access_token');
+          if (!token) {
+            throw new Error('No token available');
+          }
+
+          await axios.get('/auth/check-session', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
           setUser(currentUser);
         } catch (error) {
-          // 세션 체크 실패 시 (refresh 실패 포함) 로그인 페이지로
-          AuthService.clearAuthData();
-          if (location.pathname !== '/login') {
-            localStorage.setItem('returnUrl', location.pathname);
-            navigate('/login');
+          // 세션 체크 실패 시 토큰 갱신 시도
+          try {
+            await AuthService.refreshToken();
+            setUser(currentUser);
+          } catch (refreshError) {
+            // 갱신 실패 시 로그인 페이지로
+            console.error('Token refresh failed:', refreshError);
+            AuthService.clearAuthData();
+            if (location.pathname !== '/login') {
+              localStorage.setItem('returnUrl', location.pathname);
+              message.warning(
+                '세션이 만료되었습니다. 다시 로그인해주세요.',
+                MessageKeys.AUTH.SESSION_EXPIRED
+              );
+              navigate('/login');
+            }
           }
         }
       } catch (error) {
@@ -47,40 +70,76 @@ export const AuthProvider = ({ children }) => {
         AuthService.clearAuthData();
       } finally {
         setLoading(false);
+        setAuthChecking(false);
       }
     };
 
     initAuth();
   }, [navigate, location.pathname]);
 
-  const login = async (credentials) => {
-    setLoading(true);
+  const login = async (userId, password) => {
     try {
-      await apiLogin(credentials);
+      const response = await AuthService.login(userId, password);
+      // 사용자 정보 설정
+      setUser(response.user);
+
+      // 저장된 returnUrl이 있으면 해당 위치로, 없으면 대시보드로
+      const returnUrl = localStorage.getItem('returnUrl');
+      const redirectTo = returnUrl || '/dashboard';
+      localStorage.removeItem('returnUrl');
+
+      navigate(redirectTo);
+      message.success('로그인되었습니다', MessageKeys.AUTH.LOGIN);
+      return response;
     } catch (error) {
-      message.error(error.message);
+      // ErrorHandler를 통한 일관된 에러 처리
+      ErrorHandler.handle(error, 'login');
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = async () => {
+    message.loading('로그아웃 중...', MessageKeys.AUTH.LOGOUT);
     try {
       await AuthService.logout();
       setUser(null);
-      message.success('로그아웃되었습니다');
+      message.success('로그아웃되었습니다', MessageKeys.AUTH.LOGOUT);
       navigate('/login');
     } catch (error) {
       // 로그아웃 실패 시에도 클라이언트 상태는 초기화
       setUser(null);
-      message.error('로그아웃 중 오류가 발생했습니다');
+      ErrorHandler.handle(error, 'logout');
+      navigate('/login');
+    }
+  };
+
+  // 인증 데이터 초기화 및 리다이렉트 헬퍼 함수
+  const resetAuthAndRedirect = () => {
+    AuthService.clearAuthData();
+    setUser(null);
+
+    if (location.pathname !== '/login') {
+      localStorage.setItem('returnUrl', location.pathname);
       navigate('/login');
     }
   };
 
   if (loading) {
-    return null;
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          flexDirection: 'column',
+          gap: '16px',
+        }}
+      >
+        <div className="loading-spinner"></div>
+        <p>인증 정보 확인 중...</p>
+      </div>
+    );
   }
 
   return (
@@ -90,7 +149,8 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         isAuthenticated: !!user,
-        loading,
+        authChecking,
+        resetAuthAndRedirect,
       }}
     >
       {children}

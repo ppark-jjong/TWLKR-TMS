@@ -6,6 +6,7 @@ export const MessageTypes = {
   ERROR: 'error',
   INFO: 'info',
   WARNING: 'warning',
+  LOADING: 'loading',
 };
 
 export const MessageKeys = {
@@ -14,6 +15,8 @@ export const MessageKeys = {
     LOGOUT: 'auth-logout',
     SESSION: 'auth-session',
     SESSION_EXPIRED: 'auth-session-expired',
+    PERMISSION: 'auth-permission',
+    TOKEN_REFRESH: 'auth-token-refresh',
   },
   DASHBOARD: {
     LOAD: 'dashboard-load',
@@ -65,6 +68,7 @@ export const MessageTemplates = {
     POSTAL_FORMAT: '올바른 우편번호 형식이 아닙니다',
     INVALID_DATE: '올바른 날짜를 선택해주세요',
     FUTURE_DATE: '미래 날짜는 선택할 수 없습니다',
+    NUMERIC_ONLY: '숫자만 입력 가능합니다',
   },
 
   // 네트워크/서버 오류
@@ -83,25 +87,32 @@ export const MessageTemplates = {
   },
 };
 
-class MessageService {
-  static messageQueue = new Map();
+// 활성 메시지 관리
+const activeMessages = new Map();
 
+// 중복 메시지 방지 및 대기열 관리
+class MessageService {
   constructor() {
-    this.defaultDuration = {
+    // 메시지 타입별 기본 지속 시간 (초)
+    this.defaultDurations = {
       [MessageTypes.SUCCESS]: 2,
       [MessageTypes.ERROR]: 3,
       [MessageTypes.INFO]: 2,
       [MessageTypes.WARNING]: 3,
+      [MessageTypes.LOADING]: 0, // 0은 수동으로 닫을 때까지 유지
     };
   }
 
+  /**
+   * 메시지 표시 기본 메서드
+   */
   show(type, content, key, duration) {
-    // 이전 메시지가 있다면 제거
-    if (key && MessageService.messageQueue.has(key)) {
+    // 이미 표시 중인 메시지가 있으면 제거
+    if (key && activeMessages.has(key)) {
       message.destroy(key);
     }
 
-    const finalDuration = duration ?? this.defaultDuration[type];
+    const finalDuration = duration ?? this.defaultDurations[type];
 
     message[type]({
       content,
@@ -109,62 +120,101 @@ class MessageService {
       duration: finalDuration,
       onClose: () => {
         if (key) {
-          MessageService.messageQueue.delete(key);
+          activeMessages.delete(key);
         }
       },
     });
 
     if (key) {
-      MessageService.messageQueue.set(key, true);
+      activeMessages.set(key, type);
     }
   }
 
+  /**
+   * 성공 메시지
+   */
   success(content, key) {
     this.show(MessageTypes.SUCCESS, content, key);
   }
 
+  /**
+   * 에러 메시지
+   */
   error(content, key) {
     this.show(MessageTypes.ERROR, content, key);
   }
 
+  /**
+   * 정보 메시지
+   */
   info(content, key) {
     this.show(MessageTypes.INFO, content, key);
   }
 
+  /**
+   * 경고 메시지
+   */
   warning(content, key) {
     this.show(MessageTypes.WARNING, content, key);
   }
 
+  /**
+   * 로딩 메시지
+   */
   loading(content, key) {
-    message.loading({
-      content,
-      key,
-      duration: 0,
-    });
+    this.show(MessageTypes.LOADING, content, key);
   }
 
+  /**
+   * 로딩에서 성공으로 상태 전환
+   */
   loadingToSuccess(content, key) {
-    this.loading('처리 중...', key);
-    setTimeout(() => {
+    if (key && activeMessages.has(key)) {
+      message.success({
+        content,
+        key,
+        duration: this.defaultDurations[MessageTypes.SUCCESS],
+      });
+      activeMessages.set(key, MessageTypes.SUCCESS);
+    } else {
       this.success(content, key);
-    }, 500);
+    }
   }
 
+  /**
+   * 로딩에서 에러로 상태 전환
+   */
   loadingToError(content, key) {
-    this.loading('처리 중...', key);
-    setTimeout(() => {
+    if (key && activeMessages.has(key)) {
+      message.error({
+        content,
+        key,
+        duration: this.defaultDurations[MessageTypes.ERROR],
+      });
+      activeMessages.set(key, MessageTypes.ERROR);
+    } else {
       this.error(content, key);
-    }, 500);
+    }
   }
 
+  /**
+   * 특정 메시지 혹은 모든 메시지 제거
+   */
   destroy(key) {
     if (key) {
       message.destroy(key);
-      MessageService.messageQueue.delete(key);
+      activeMessages.delete(key);
     } else {
       message.destroy();
-      MessageService.messageQueue.clear();
+      activeMessages.clear();
     }
+  }
+
+  /**
+   * 모든 활성 메시지 목록 조회
+   */
+  getActiveMessages() {
+    return Array.from(activeMessages.keys());
   }
 }
 

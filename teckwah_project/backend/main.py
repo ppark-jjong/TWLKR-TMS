@@ -1,7 +1,7 @@
-from fastapi import FastAPI
+# main.py
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 import os
 
 from app.api import auth_router, dashboard_router, visualization_router
@@ -28,10 +28,6 @@ app.include_router(
 # SPA 라우팅 처리
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    # API 요청은 제외
-    if full_path.startswith(("auth/", "dashboard/", "visualization/")):
-        raise HTTPException(status_code=404, detail="Not found")
-
     # 정적 파일 요청 처리
     static_file = os.path.join("static", full_path)
     if os.path.isfile(static_file):

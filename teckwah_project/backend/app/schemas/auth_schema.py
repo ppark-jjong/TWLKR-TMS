@@ -85,6 +85,9 @@ class LoginResponse(BaseModel):
     token: Token
     user: UserResponse
 
+    class Config:
+        from_attributes = True
+
 
 class ApiResponse(BaseModel):
     """공통 API 응답 스키마"""

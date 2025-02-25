@@ -1,7 +1,8 @@
 # backend/app/api/dashboard_router.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
+
 from app.schemas.dashboard_schema import (
     DashboardCreate,
     DashboardResponse,
@@ -10,7 +11,6 @@ from app.schemas.dashboard_schema import (
     StatusUpdate,
     RemarkUpdate,
     DriverAssignment,
-    DashboardResponse,
 )
 from app.schemas.common_schema import BaseResponse, DateRangeInfo
 from app.services.dashboard_service import DashboardService
@@ -28,7 +28,7 @@ def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     return DashboardService(repository)
 
 
-@router.get("/list", response_model=DashboardResponse)
+@router.get("/list")
 async def get_dashboard_list(
     date: str,
     service: DashboardService = Depends(get_dashboard_service),
@@ -40,21 +40,27 @@ async def get_dashboard_list(
         items = service.get_dashboard_list_by_date(date)
         oldest_date, latest_date = service.get_date_range()
 
-        response_data = DashboardListData(
-            date_range=DateRangeInfo(
-                oldest_date=oldest_date.strftime("%Y-%m-%d"),
-                latest_date=latest_date.strftime("%Y-%m-%d"),
-            ),
-            items=items,
-        )
+        # 명시적으로 사전 형태로 응답 데이터 구성
+        date_range_dict = {
+            "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+            "latest_date": latest_date.strftime("%Y-%m-%d"),
+        }
 
-        return DashboardResponse(
-            success=True,
-            message=(
+        # 아이템 목록을 사전 형태로 변환
+        items_list = [item.dict() for item in items]
+
+        response_data = {
+            "items": items_list,
+            "date_range": date_range_dict,
+        }
+
+        return {
+            "success": True,
+            "message": (
                 "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
             ),
-            data=response_data,
-        )
+            "data": response_data,
+        }
     except Exception as e:
         log_error(e, "대시보드 목록 조회 실패")
         raise HTTPException(
@@ -63,7 +69,7 @@ async def get_dashboard_list(
         )
 
 
-@router.get("/admin/list", response_model=DashboardResponse)
+@router.get("/admin/list")
 async def get_admin_dashboard_list(
     start_date: str,
     end_date: str,
@@ -76,21 +82,27 @@ async def get_admin_dashboard_list(
         items = service.get_dashboard_list_by_date_range(start_date, end_date)
         oldest_date, latest_date = service.get_date_range()
 
-        response_data = DashboardListData(
-            date_range=DateRangeInfo(
-                oldest_date=oldest_date.strftime("%Y-%m-%d"),
-                latest_date=latest_date.strftime("%Y-%m-%d"),
-            ),
-            items=items,
-        )
+        # 명시적으로 사전 형태로 응답 데이터 구성
+        date_range_dict = {
+            "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+            "latest_date": latest_date.strftime("%Y-%m-%d"),
+        }
 
-        return DashboardResponse(
-            success=True,
-            message=(
+        # 아이템 목록을 사전 형태로 변환
+        items_list = [item.dict() for item in items]
+
+        response_data = {
+            "items": items_list,
+            "date_range": date_range_dict,
+        }
+
+        return {
+            "success": True,
+            "message": (
                 "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
             ),
-            data=response_data,
-        )
+            "data": response_data,
+        }
     except Exception as e:
         log_error(e, "관리자 대시보드 목록 조회 실패")
         raise HTTPException(
@@ -99,7 +111,7 @@ async def get_admin_dashboard_list(
         )
 
 
-@router.post("", response_model=DashboardResponse)
+@router.post("")
 async def create_dashboard(
     dashboard: DashboardCreate,
     service: DashboardService = Depends(get_dashboard_service),
@@ -108,9 +120,11 @@ async def create_dashboard(
     """대시보드 생성 API"""
     try:
         result = service.create_dashboard(dashboard, current_user.department)
-        return DashboardResponse(
-            success=True, message="대시보드가 생성되었습니다", data=result
-        )
+        return {
+            "success": True,
+            "message": "대시보드가 생성되었습니다",
+            "data": result.dict(),
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -121,7 +135,7 @@ async def create_dashboard(
         )
 
 
-@router.patch("/{dashboard_id}/status", response_model=DashboardResponse)
+@router.patch("/{dashboard_id}/status")
 async def update_status(
     dashboard_id: int,
     status_update: StatusUpdate,
@@ -131,11 +145,11 @@ async def update_status(
     """상태 업데이트 API"""
     try:
         result = service.update_status(dashboard_id, status_update)
-        return DashboardResponse(
-            success=True,
-            message=f"{status_update.status} 상태로 변경되었습니다",
-            data=result,
-        )
+        return {
+            "success": True,
+            "message": f"{status_update.status} 상태로 변경되었습니다",
+            "data": result.dict(),
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -146,7 +160,7 @@ async def update_status(
         )
 
 
-@router.post("/assign", response_model=BaseResponse[List[DashboardResponse]])
+@router.post("/assign")
 async def assign_driver(
     assignment: DriverAssignment,
     service: DashboardService = Depends(get_dashboard_service),
@@ -155,7 +169,11 @@ async def assign_driver(
     """배차 정보 업데이트 API"""
     try:
         result = service.assign_driver(assignment)
-        return BaseResponse(success=True, message="배차가 완료되었습니다", data=result)
+        return {
+            "success": True,
+            "message": "배차가 완료되었습니다",
+            "data": [item.dict() for item in result],
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -163,4 +181,29 @@ async def assign_driver(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="배차 처리 중 오류가 발생했습니다",
+        )
+
+
+@router.patch("/{dashboard_id}/remark")
+async def update_remark(
+    dashboard_id: int,
+    remark_update: RemarkUpdate,
+    service: DashboardService = Depends(get_dashboard_service),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """메모 업데이트 API"""
+    try:
+        result = service.update_remark(dashboard_id, remark_update.remark)
+        return {
+            "success": True,
+            "message": "메모가 업데이트되었습니다",
+            "data": result.dict(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(e, "메모 업데이트 실패")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="메모 업데이트 중 오류가 발생했습니다",
         )
