@@ -1,7 +1,7 @@
 # backend/app/api/dashboard_router.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, datetime
 
 from app.schemas.dashboard_schema import (
     DashboardCreate,
@@ -37,7 +37,6 @@ async def get_dashboard_list(
     """대시보드 목록 조회 API - ETA 기준 하루 단위"""
     try:
         log_info(f"대시보드 목록 조회 요청: {date}")
-<<<<<<< HEAD
         try:
             target_date = datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
@@ -56,9 +55,7 @@ async def get_dashboard_list(
 
         # 대시보드 목록 조회 (ETA 기준)
         items = service.get_dashboard_list_by_date(target_date)
-=======
-        items = service.get_dashboard_list_by_date(date)
->>>>>>> main
+
         oldest_date, latest_date = service.get_date_range()
 
         # 명시적으로 사전 형태로 응답 데이터 구성
@@ -80,7 +77,6 @@ async def get_dashboard_list(
             "message": (
                 "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
             ),
-<<<<<<< HEAD
         )
     except Exception as e:
         log_error(e, "대시보드 목록 조회 실패")
@@ -94,15 +90,6 @@ async def get_dashboard_list(
                 ),
                 items=[],
             ),
-=======
-            "data": response_data,
-        }
-    except Exception as e:
-        log_error(e, "대시보드 목록 조회 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터 조회 중 오류가 발생했습니다",
->>>>>>> main
         )
 
 
@@ -116,7 +103,6 @@ async def get_admin_dashboard_list(
     """관리자 대시보드 목록 조회 API"""
     try:
         log_info(f"관리자 대시보드 목록 조회 요청: {start_date} ~ {end_date}")
-<<<<<<< HEAD
         try:
             start = datetime.strptime(start_date, "%Y-%m-%d")
             end = datetime.strptime(end_date, "%Y-%m-%d")
@@ -135,9 +121,6 @@ async def get_admin_dashboard_list(
             )
 
         items = service.get_dashboard_list_by_date_range(start, end)
-=======
-        items = service.get_dashboard_list_by_date_range(start_date, end_date)
->>>>>>> main
         oldest_date, latest_date = service.get_date_range()
 
         # 명시적으로 사전 형태로 응답 데이터 구성
@@ -149,7 +132,6 @@ async def get_admin_dashboard_list(
         # 아이템 목록을 사전 형태로 변환
         items_list = [item.dict() for item in items]
 
-<<<<<<< HEAD
         return AdminDashboardListResponse(
             success=True, message=message, data=response_data
         )
@@ -165,25 +147,6 @@ async def get_admin_dashboard_list(
                 ),
                 items=[],
             ),
-=======
-        response_data = {
-            "items": items_list,
-            "date_range": date_range_dict,
-        }
-
-        return {
-            "success": True,
-            "message": (
-                "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
-            ),
-            "data": response_data,
-        }
-    except Exception as e:
-        log_error(e, "관리자 대시보드 목록 조회 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터 조회 중 오류가 발생했습니다",
->>>>>>> main
         )
 
 
@@ -220,7 +183,6 @@ async def update_status(
 ):
     """상태 업데이트 API"""
     try:
-<<<<<<< HEAD
         log_info(f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}")
         result = service.update_status(
             dashboard_id,
@@ -233,16 +195,6 @@ async def update_status(
             message=f"{status_update.status} 상태로 변경되었습니다",
             data=result,
         )
-=======
-        result = service.update_status(dashboard_id, status_update)
-        return {
-            "success": True,
-            "message": f"{status_update.status} 상태로 변경되었습니다",
-            "data": result.dict(),
-        }
-    except HTTPException:
-        raise
->>>>>>> main
     except Exception as e:
         log_error(e, "상태 업데이트 실패")
         raise HTTPException(

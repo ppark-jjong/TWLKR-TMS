@@ -81,7 +81,6 @@ class DashboardRepository:
     def get_dashboard_by_id(self, dashboard_id: int) -> Optional[Dashboard]:
         """대시보드 단일 조회"""
         try:
-<<<<<<< HEAD
             result = self.db.query(
                 func.min(Dashboard.eta).label("oldest_date"),
                 func.max(Dashboard.eta).label("latest_date"),
@@ -100,8 +99,6 @@ class DashboardRepository:
         """대시보드 상세 정보 조회"""
         try:
             log_info(f"대시보드 상세 조회: {dashboard_id}")
-=======
->>>>>>> main
             return (
                 self.db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
