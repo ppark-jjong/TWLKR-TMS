@@ -14,6 +14,7 @@ const AuthService = {
       const userStr = localStorage.getItem('user');
       return userStr ? JSON.parse(userStr) : null;
     } catch (error) {
+      console.error('사용자 정보 파싱 오류:', error);
       localStorage.removeItem('user');
       return null;
     }
@@ -27,11 +28,22 @@ const AuthService = {
    */
   login: async (user_id, password) => {
     try {
+      console.log('로그인 요청:', user_id);
+      // 요청 데이터 구조 로깅
+      const requestData = {
+        user_id,
+        password,
+      };
+      console.log('로그인 요청 데이터:', requestData);
+
       // 백엔드 요구사항에 맞는 요청 본문 구조
       const response = await axios.post('/auth/login', {
         user_id,
         password,
       });
+
+      // 응답 로깅 (디버깅용)
+      console.log('로그인 응답:', response.data);
 
       // 응답에서 토큰과 사용자 정보 추출하여 저장
       if (response.data && response.data.token) {
@@ -40,10 +52,14 @@ const AuthService = {
           'refresh_token',
           response.data.token.refresh_token
         );
+      } else {
+        console.error('로그인 응답에 토큰 정보가 없습니다');
       }
 
       if (response.data && response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
+      } else {
+        console.error('로그인 응답에 사용자 정보가 없습니다');
       }
 
       return response.data;
@@ -52,14 +68,16 @@ const AuthService = {
       throw error;
     }
   },
-
   /**
    * 토큰 갱신
    * 서버에 토큰 갱신 요청을 보내고 새 토큰을 받음
+   * @param {string} refreshToken - 리프레시 토큰
+   * @returns {Promise} - 갱신된 토큰 정보
    */
-  refreshToken: async () => {
+  refreshToken: async (refreshToken) => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
+      console.log('토큰 갱신 요청');
+
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
@@ -82,7 +100,6 @@ const AuthService = {
       return response.data;
     } catch (error) {
       console.error('Token refresh error:', error);
-      AuthService.clearAuthData();
       throw error;
     }
   },
@@ -94,7 +111,9 @@ const AuthService = {
   logout: async () => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
-      await axios.post('/auth/logout', { refresh_token: refreshToken });
+      if (refreshToken) {
+        await axios.post('/auth/logout', { refresh_token: refreshToken });
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

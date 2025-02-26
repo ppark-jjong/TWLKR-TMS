@@ -150,3 +150,73 @@ export const VISUALIZATION_OPTIONS = [
   { value: CHART_TYPES.DELIVERY_STATUS, label: '배송 현황' },
   { value: CHART_TYPES.HOURLY_ORDERS, label: '시간별 접수량' },
 ];
+
+// 시각화 페이지 색상 테마 추가 (새로운 코드)
+export const VISUALIZATION_COLORS = {
+  // 상태별 파스텔톤 색상 (파이 차트 및 카드에 사용)
+  STATUS: {
+    WAITING: '#BAE7FF', // 파스텔 블루
+    IN_PROGRESS: '#FFE2B5', // 파스텔 옐로우/오렌지
+    COMPLETE: '#C5F5E1', // 파스텔 그린
+    ISSUE: '#FFD1D1', // 파스텔 레드
+    CANCEL: '#D9D9D9', // 라이트 그레이
+  },
+  // 부서별 색상 테마
+  DEPARTMENT: {
+    CS: {
+      primary: '#1890FF', // 메인 색상
+      secondary: '#BAE7FF', // 보조 색상
+      background: '#E6F7FF', // 배경 색상
+      border: '#91D5FF', // 테두리 색상
+    },
+    HES: {
+      primary: '#722ED1', // 메인 색상
+      secondary: '#D3ADF7', // 보조 색상
+      background: '#F9F0FF', // 배경 색상
+      border: '#B37FEB', // 테두리 색상
+    },
+    LENOVO: {
+      primary: '#13C2C2', // 메인 색상
+      secondary: '#87E8DE', // 보조 색상
+      background: '#E6FFFB', // 배경 색상
+      border: '#87E8DE', // 테두리 색상
+    },
+  },
+  // 시간대 구분 색상
+  TIME_PERIODS: {
+    NIGHT: {
+      label: '야간(22-08)',
+      color: '#722ED1', // 보라색 (야간 표시)
+    },
+    DAY: {
+      label: '주간(08-22)',
+      color: '#1890FF', // 파란색 (주간 표시)
+    },
+  },
+};
+
+// 차트 공통 스타일 테마
+export const CHART_THEME = {
+  fontFamily: "'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+  fontSize: 12,
+  colors: ['#1890FF', '#722ED1', '#13C2C2', '#52C41A', '#FAAD14', '#F5222D'],
+  paddings: [20, 20, 20, 20],
+  background: {
+    color: '#fff',
+  },
+  label: {
+    style: {
+      fontSize: 12,
+      fill: '#666',
+    },
+  },
+  legend: {
+    position: 'bottom',
+    itemName: {
+      style: {
+        fontSize: 12,
+        fill: '#333',
+      },
+    },
+  },
+};

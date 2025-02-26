@@ -47,11 +47,16 @@ const handleErrorResponse = (error) => {
       return Promise.reject(error);
     }
 
-    // 422 (유효성 검사 오류)
+    // 422 (유효성 검사 오류) 처리 개선
     if (status === 422 && Array.isArray(data.detail)) {
       const errorMessage = data.detail.map((err) => err.msg).join('\n');
       message.error(errorMessage);
-      return Promise.reject(error);
+      return Promise.reject({ ...error, handled: true });
+    } else if (status === 422) {
+      // 단일 에러 메시지 처리
+      const errorMessage = data?.detail || '입력값 검증에 실패했습니다';
+      message.error(errorMessage);
+      return Promise.reject({ ...error, handled: true });
     }
 
     // 500 (서버 오류)
@@ -127,15 +132,30 @@ const setupAxiosInterceptors = () => {
         delete pendingRequests[error.config.requestId];
       }
 
+      // 디버깅 로깅 추가
+      if (error.response) {
+        console.error('응답 에러:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('요청 에러:', error.request);
+      } else {
+        console.error('기타 에러:', error.message);
+      }
+
       // 토큰 만료 처리
       if (error.response?.status === 401 && !error.config._retry) {
         if (isRefreshing) {
           // 토큰 갱신 중인 경우 대기 후 재시도
           try {
-            await new Promise((resolve, reject) => {
+            return new Promise((resolve, reject) => {
               failedQueue.push({ resolve, reject });
-            });
-            return axios(error.config);
+            })
+              .then((token) => {
+                error.config.headers.Authorization = `Bearer ${token}`;
+                return axios(error.config);
+              })
+              .catch((err) => {
+                return Promise.reject(err);
+              });
           } catch (err) {
             return handleErrorResponse(err);
           }
@@ -151,13 +171,12 @@ const setupAxiosInterceptors = () => {
             throw new Error('No refresh token available');
           }
 
-          const response = await AuthService.refreshToken();
+          const response = await AuthService.refreshToken(refreshToken);
 
           // 갱신된 토큰으로 원래 요청 재시도
-          error.config.headers.Authorization = `Bearer ${localStorage.getItem(
-            'access_token'
-          )}`;
-          processQueue(null);
+          const newToken = localStorage.getItem('access_token');
+          error.config.headers.Authorization = `Bearer ${newToken}`;
+          processQueue(null, newToken);
           return axios(error.config);
         } catch (refreshError) {
           processQueue(refreshError, null);
@@ -169,6 +188,8 @@ const setupAxiosInterceptors = () => {
 
           // 현재 페이지가 로그인 페이지가 아닌 경우만 리다이렉트
           if (!window.location.pathname.includes('/login')) {
+            // 현재 URL 저장
+            localStorage.setItem('returnUrl', window.location.pathname);
             window.location.href = '/login';
           }
 

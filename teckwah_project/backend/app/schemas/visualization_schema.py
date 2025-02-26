@@ -1,4 +1,5 @@
-# backend/app/schemas/visualization_schema.py
+# backend/app/schemas/visualization_schema.py (수정)
+
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 from enum import Enum
@@ -62,15 +63,17 @@ class DeliveryStatusResponse(BaseResponse):
     """배송 현황 응답"""
 
     data: Optional[DeliveryStatusData] = None
+    date_range: Optional[Dict[str, str]] = None
 
 
 class HourlyOrdersResponse(BaseResponse):
     """시간대별 접수량 응답"""
 
     data: Optional[HourlyOrdersData] = None
+    date_range: Optional[Dict[str, str]] = None
 
 
 class VisualizationDateRangeResponse(BaseResponse):
     """시각화 날짜 범위 응답"""
 
-    data: Optional[Dict[str, str]] = None
+    date_range: Optional[Dict[str, str]] = None

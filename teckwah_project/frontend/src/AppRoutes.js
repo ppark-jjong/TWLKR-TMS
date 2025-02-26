@@ -10,8 +10,27 @@ import { useAuth } from './contexts/AuthContext';
 import message from './utils/message';
 
 const AppRoutes = () => {
-  const { user } = useAuth();
+  const { user, authChecking } = useAuth();
   const location = useLocation();
+
+  // 로딩 중일 때 렌더링할 내용
+  if (authChecking) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          flexDirection: 'column',
+          gap: '16px',
+        }}
+      >
+        <div className="loading-spinner"></div>
+        <p>인증 정보 확인 중...</p>
+      </div>
+    );
+  }
 
   // 인증이 필요한 라우트를 위한 래퍼 컴포넌트
   const PrivateRoute = ({ children }) => {

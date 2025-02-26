@@ -1,4 +1,5 @@
-# backend/app/services/visualization_service.py
+# backend/app/services/visualization_service.py (수정)
+
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Tuple, Dict, Any, List
@@ -24,7 +25,7 @@ class VisualizationService:
         try:
             log_info(f"배송 현황 데이터 조회 시작: {start_date} ~ {end_date}")
 
-            # 데이터 조회
+            # 데이터 조회 - create_time 기준으로 변경
             raw_data = self.repository.get_raw_delivery_data(start_date, end_date)
 
             # 데이터가 없는 경우 빈 결과 반환
@@ -127,7 +128,7 @@ class VisualizationService:
         try:
             log_info(f"시간대별 접수량 데이터 조회 시작: {start_date} ~ {end_date}")
 
-            # 데이터 조회
+            # 데이터 조회 - create_time 기준
             raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
 
             # 시간대 정의 (주간: 08-22시 1시간 단위, 야간: 22-08시 통합)

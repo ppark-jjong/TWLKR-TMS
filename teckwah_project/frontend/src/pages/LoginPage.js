@@ -8,7 +8,6 @@ import { FONT_STYLES } from '../utils/Constants';
 import ErrorHandler from '../utils/ErrorHandler';
 import message from '../utils/message';
 import LoadingSpin from '../components/common/LoadingSpin';
-import AuthService from '../services/AuthService';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
@@ -32,17 +31,31 @@ const LoginPage = () => {
 
     try {
       // 요구사항에 맞게 login 함수 호출 (AuthContext에서 제공)
-      await login(values.user_id, values.password);
+      // 명확한 필드명 사용 (user_id, password)
+      const result = await login(values.user_id, values.password);
+      console.log('로그인 성공:', result);
+
+      // 성공 메시지
+      message.success('로그인되었습니다');
+
       // login 함수 내에서 리다이렉트 처리됨
     } catch (err) {
       console.error('Login error:', err);
 
+      // 에러 메시지 개선
+      const errorMessage =
+        err.response?.data?.detail ||
+        '로그인에 실패했습니다. 다시 시도해주세요.';
+
+      setError(errorMessage);
       form.setFields([
         {
           name: 'password',
-          errors: ['아이디 또는 비밀번호를 확인해주세요'],
+          errors: [errorMessage],
         },
       ]);
+
+      message.error(errorMessage);
     } finally {
       setLoading(false);
       message.destroy('login');
@@ -60,7 +73,7 @@ const LoginPage = () => {
       }}
     >
       {loading && <LoadingSpin />}
-      {error && <div className="error">{error}</div>}
+
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img

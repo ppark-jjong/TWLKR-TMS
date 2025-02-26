@@ -25,7 +25,7 @@ class UserLogin(BaseModel):
     """로그인 요청 스키마"""
 
     user_id: str
-    user_password: str
+    password: str
 
 
 class Token(BaseModel):

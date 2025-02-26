@@ -25,13 +25,36 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     - 리프레시 토큰은 DB에 저장
     """
     try:
+        # 요청 데이터 로깅
+        log_info(f"로그인 요청 데이터: {login_data.dict()}")
+
         repository = AuthRepository(db)
         service = AuthService(repository)
+
+        # verify AttributeError
+        if not hasattr(service, "authenticate_user"):
+            log_error(
+                None,
+                f"AuthService에 authenticate_user 메서드가 없습니다. 가용 메서드: {dir(service)}",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="인증 서비스 구성 오류",
+            )
+
         login_response = service.authenticate_user(login_data)
 
-        # 응답 구조 확인 - LoginResponse 스키마에 맞게 반환
+        # 응답 로깅
+        log_info(f"로그인 성공 응답: user_id={login_data.user_id}")
+
         return login_response
 
+    except HTTPException as e:
+        # 기존 HTTP 예외 전파
+        log_error(
+            e, f"로그인 실패: HTTP 예외", {"status": e.status_code, "detail": e.detail}
+        )
+        raise
     except Exception as e:
         log_error(e, "로그인 실패")
         raise HTTPException(

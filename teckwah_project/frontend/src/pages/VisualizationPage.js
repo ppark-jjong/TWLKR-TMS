@@ -1,6 +1,7 @@
-// frontend/src/pages/VisualizationPage.js
+// frontend/src/pages/VisualizationPage.js (수정)
+
 import React, { useState, useEffect } from 'react';
-import { Layout, Select, DatePicker, Card, Space } from 'antd';
+import { Layout, Select, DatePicker, Card, Space, Spin, Alert } from 'antd';
 import dayjs from 'dayjs';
 import { PieChartOutlined, BarChartOutlined } from '@ant-design/icons';
 import { CHART_TYPES, VISUALIZATION_OPTIONS } from '../utils/Constants';
@@ -22,6 +23,30 @@ const VisualizationPage = () => {
   const [availableDateRange, setAvailableDateRange] = useState(null);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  // 날짜 범위 조회
+  const fetchDateRange = async () => {
+    try {
+      const response = await VisualizationService.getDateRange();
+      if (response && response.success) {
+        setAvailableDateRange(response.date_range);
+
+        // 서버에서 받은 날짜 범위로 초기 선택 설정
+        const oldest = dayjs(response.date_range.oldest_date);
+        const latest = dayjs(response.date_range.latest_date);
+
+        // 최근 7일 또는 가능한 최대 범위 설정
+        const start =
+          latest.diff(oldest, 'day') > 7 ? latest.subtract(7, 'day') : oldest;
+
+        setDateRange([start, latest]);
+      }
+    } catch (err) {
+      console.error('날짜 범위 조회 실패:', err);
+      setError('날짜 범위 조회 중 오류가 발생했습니다');
+    }
+  };
 
   // 데이터 로드 함수
   const loadVisualizationData = async () => {
@@ -30,8 +55,10 @@ const VisualizationPage = () => {
     const key = MessageKeys.VISUALIZATION.LOAD;
     try {
       setLoading(true);
+      setError(null);
       message.loading('데이터 조회 중...', key);
 
+      // 선택된 차트 유형에 따라 API 호출
       let response;
       if (chartType === CHART_TYPES.DELIVERY_STATUS) {
         response = await VisualizationService.getDeliveryStatus(
@@ -45,37 +72,43 @@ const VisualizationPage = () => {
         );
       }
 
-      if (response) {
+      if (response && response.success) {
         setData(response.data);
-        setAvailableDateRange(response.date_range);
+
+        // 최신 날짜 범위 정보가 있으면 업데이트
+        if (response.date_range) {
+          setAvailableDateRange(response.date_range);
+        }
 
         if (!response.data.total_count) {
           message.info('해당 기간에 데이터가 없습니다', key);
         } else {
           message.loadingToSuccess('데이터를 조회했습니다', key);
         }
+      } else {
+        setError('데이터 조회에 실패했습니다');
+        message.loadingToError('데이터 조회 중 오류가 발생했습니다', key);
       }
     } catch (error) {
       console.error(`${chartType} 데이터 조회 실패:`, error);
+      setError('데이터 조회 중 오류가 발생했습니다');
       message.loadingToError('데이터 조회 중 오류가 발생했습니다', key);
     } finally {
       setLoading(false);
     }
   };
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 및 날짜 범위 조회
   useEffect(() => {
-    if (dateRange[0] && dateRange[1]) {
-      loadVisualizationData();
-    }
-  }, [chartType]);
+    fetchDateRange();
+  }, []);
 
-  // 날짜 범위 변경 시 데이터 다시 로드
+  // 차트 타입이나 날짜 범위 변경 시 데이터 로드
   useEffect(() => {
     if (dateRange[0] && dateRange[1]) {
       loadVisualizationData();
     }
-  }, [dateRange]);
+  }, [chartType, dateRange]);
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (dates) => {
@@ -91,6 +124,11 @@ const VisualizationPage = () => {
     setDateRange(dates);
   };
 
+  // 차트 타입 변경 핸들러
+  const handleChartTypeChange = (value) => {
+    setChartType(value);
+  };
+
   return (
     <Layout.Content style={{ padding: '24px', backgroundColor: 'white' }}>
       <Card bordered={false}>
@@ -98,7 +136,7 @@ const VisualizationPage = () => {
           <Space size="large" align="center">
             <Select
               value={chartType}
-              onChange={setChartType}
+              onChange={handleChartTypeChange}
               style={{ width: 200 }}
               size="large"
               options={VISUALIZATION_OPTIONS.map((option) => ({
@@ -114,6 +152,7 @@ const VisualizationPage = () => {
                   </Space>
                 ),
               }))}
+              disabled={loading}
             />
             <RangePicker
               value={dateRange}
@@ -127,19 +166,30 @@ const VisualizationPage = () => {
           </Space>
         </div>
 
+        {error && (
+          <Alert
+            message="오류"
+            description={error}
+            type="error"
+            showIcon
+            style={{ marginBottom: '16px' }}
+          />
+        )}
+
         <div className="visualization-content">
-          {chartType === CHART_TYPES.DELIVERY_STATUS ? (
-            <StatusPieCharts
-              data={data}
-              loading={loading}
-              dateRange={dateRange}
-            />
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '50px 0' }}>
+              <Spin size="large" />
+              <div style={{ marginTop: '16px' }}>데이터 로딩 중...</div>
+            </div>
           ) : (
-            <HourlyBarChart
-              data={data}
-              loading={loading}
-              dateRange={dateRange}
-            />
+            <>
+              {chartType === CHART_TYPES.DELIVERY_STATUS ? (
+                <StatusPieCharts data={data} dateRange={dateRange} />
+              ) : (
+                <HourlyBarChart data={data} dateRange={dateRange} />
+              )}
+            </>
           )}
         </div>
       </Card>
