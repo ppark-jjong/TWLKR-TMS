@@ -1,5 +1,5 @@
 # backend/app/schemas/common_schema.py
-from typing import TypeVar, Generic, Optional, Any
+from typing import TypeVar, Generic, Optional, Any, Dict
 from pydantic import BaseModel
 
 T = TypeVar("T")
@@ -10,7 +10,7 @@ class ErrorDetail(BaseModel):
 
     code: str
     detail: str
-    fields: Optional[dict] = None
+    fields: Optional[Dict[str, Any]] = None
 
 
 class ErrorResponse(BaseModel):
@@ -33,4 +33,5 @@ class BaseResponse(BaseModel, Generic[T]):
 
     success: bool = True
     message: str
-    date_range: Optional[DateRangeInfo] = None
+    data: Optional[T] = None
+    date_range: Optional[Dict[str, str]] = None

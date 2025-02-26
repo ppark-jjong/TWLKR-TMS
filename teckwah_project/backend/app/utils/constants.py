@@ -37,6 +37,36 @@ STATUS_TRANSITIONS = {
     "CANCEL": [],
 }
 
+# 상태 표시 텍스트
+STATUS_TEXT_MAP = {
+    "WAITING": "대기",
+    "IN_PROGRESS": "진행",
+    "COMPLETE": "완료",
+    "ISSUE": "이슈",
+    "CANCEL": "취소",
+}
+
+# 타입 표시 텍스트
+TYPE_TEXT_MAP = {
+    "DELIVERY": "배송",
+    "RETURN": "회수",
+}
+
+# 창고 표시 텍스트
+WAREHOUSE_TEXT_MAP = {
+    "SEOUL": "서울",
+    "BUSAN": "부산",
+    "GWANGJU": "광주",
+    "DAEJEON": "대전",
+}
+
+# 부서 표시 텍스트
+DEPARTMENT_TEXT_MAP = {
+    "CS": "CS",
+    "HES": "HES",
+    "LENOVO": "LENOVO",
+}
+
 # 데이터 없음 vs 오류 메시지
 MESSAGES = {
     "DATA": {
@@ -52,4 +82,16 @@ MESSAGES = {
         "ASSIGN_SUCCESS": "배차가 완료되었습니다",
         "ASSIGN_ERROR": "배차 처리 중 오류가 발생했습니다",
     },
+    "VALIDATION": {
+        "REQUIRED": "{field}은(는) 필수 항목입니다",
+        "INVALID_CONTACT": "올바른 연락처 형식이 아닙니다",
+        "INVALID_POSTAL": "올바른 우편번호 형식이 아닙니다",
+        "FUTURE_ETA": "ETA는 현재 시간 이후여야 합니다",
+    },
 }
+
+
+# 차트 타입
+class ChartType(str, Enum):
+    DELIVERY_STATUS = "delivery_status"
+    HOURLY_ORDERS = "hourly_orders"

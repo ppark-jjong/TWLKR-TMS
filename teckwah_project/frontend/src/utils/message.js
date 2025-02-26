@@ -198,6 +198,22 @@ class MessageService {
   }
 
   /**
+   * 로딩에서 정보로 상태 전환
+   */
+  loadingToInfo(content, key) {
+    if (key && activeMessages.has(key)) {
+      message.info({
+        content,
+        key,
+        duration: this.defaultDurations[MessageTypes.INFO],
+      });
+      activeMessages.set(key, MessageTypes.INFO);
+    } else {
+      this.info(content, key);
+    }
+  }
+
+  /**
    * 특정 메시지 혹은 모든 메시지 제거
    */
   destroy(key) {

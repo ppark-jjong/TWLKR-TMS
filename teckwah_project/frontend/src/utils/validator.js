@@ -2,6 +2,11 @@
 import dayjs from 'dayjs';
 import { MessageTemplates } from './message';
 
+/**
+ * 연락처 형식 검증
+ * @param {string} contact - 검증할 연락처
+ * @returns {string|undefined} - 에러 메시지 또는 undefined
+ */
 export const validateContact = (contact) => {
   if (!contact) return undefined;
   return /^\d{2,3}-\d{3,4}-\d{4}$/.test(contact)
@@ -9,6 +14,11 @@ export const validateContact = (contact) => {
     : MessageTemplates.VALIDATION.CONTACT_FORMAT;
 };
 
+/**
+ * 우편번호 형식 검증
+ * @param {string} postalCode - 검증할 우편번호
+ * @returns {string|undefined} - 에러 메시지 또는 undefined
+ */
 export const validatePostalCode = (postalCode) => {
   if (!postalCode) return undefined;
   return /^\d{5}$/.test(postalCode)
@@ -16,6 +26,11 @@ export const validatePostalCode = (postalCode) => {
     : MessageTemplates.VALIDATION.POSTAL_FORMAT;
 };
 
+/**
+ * ETA 시간 검증 (현재 이후인지)
+ * @param {dayjs} eta - 검증할 ETA 시간
+ * @returns {string|undefined} - 에러 메시지 또는 undefined
+ */
 export const validateEta = (eta) => {
   if (!eta) return undefined;
   return eta.isBefore(dayjs())
@@ -23,6 +38,12 @@ export const validateEta = (eta) => {
     : undefined;
 };
 
+/**
+ * 필수 입력값 검증
+ * @param {any} value - 검증할 값
+ * @param {string} fieldName - 필드 이름
+ * @returns {string|undefined} - 에러 메시지 또는 undefined
+ */
 export const validateRequired = (value, fieldName) => {
   if (!value || (typeof value === 'string' && !value.trim())) {
     return MessageTemplates.VALIDATION.REQUIRED_FIELD(fieldName);
@@ -30,6 +51,11 @@ export const validateRequired = (value, fieldName) => {
   return undefined;
 };
 
+/**
+ * 대시보드 생성/수정 폼 검증
+ * @param {Object} values - 폼 값
+ * @returns {Object} - 필드별 에러 메시지
+ */
 export const validateDashboardForm = (values) => {
   const errors = {};
 
@@ -43,6 +69,7 @@ export const validateDashboardForm = (values) => {
     postal_code: '우편번호',
     address: '주소',
     customer: '수령인',
+    contact: '연락처',
   };
 
   Object.entries(requiredFields).forEach(([field, label]) => {
@@ -66,9 +93,19 @@ export const validateDashboardForm = (values) => {
     if (etaError) errors.eta = etaError;
   }
 
+  // 주문번호는 숫자만 입력 가능
+  if (values.order_no && !/^\d+$/.test(values.order_no)) {
+    errors.order_no = MessageTemplates.VALIDATION.NUMERIC_ONLY;
+  }
+
   return errors;
 };
 
+/**
+ * 배차 정보 폼 검증
+ * @param {Object} values - 폼 값
+ * @returns {Object} - 필드별 에러 메시지
+ */
 export const validateAssignmentForm = (values) => {
   const errors = {};
 

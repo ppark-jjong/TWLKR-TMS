@@ -1,10 +1,39 @@
 # backend/app/schemas/dashboard_schema.py
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .common_schema import BaseResponse, DateRangeInfo
-from app.utils.constants import DeliveryType, DeliveryStatus, Department, Warehouse
-from app.utils.datetime_helper import KST
+from enum import Enum
+
+
+# 배송 타입 정의
+class DeliveryType(str, Enum):
+    DELIVERY = "DELIVERY"
+    RETURN = "RETURN"
+
+
+# 배송 상태 정의
+class DeliveryStatus(str, Enum):
+    WAITING = "WAITING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETE = "COMPLETE"
+    ISSUE = "ISSUE"
+    CANCEL = "CANCEL"
+
+
+# 부서 정의
+class Department(str, Enum):
+    CS = "CS"
+    HES = "HES"
+    LENOVO = "LENOVO"
+
+
+# 창고 정의
+class Warehouse(str, Enum):
+    SEOUL = "SEOUL"
+    BUSAN = "BUSAN"
+    GWANGJU = "GWANGJU"
+    DAEJEON = "DAEJEON"
 
 
 # 기본 대시보드 필드
@@ -35,16 +64,13 @@ class DashboardCreate(DashboardBase):
 class DashboardResponse(DashboardBase):
     dashboard_id: int
     department: Department
+    status: DeliveryStatus
     driver_name: Optional[str] = None
     create_time: datetime
     depart_time: Optional[datetime] = None
-    status: DeliveryStatus
     region: Optional[str] = None
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={datetime: lambda v: v.astimezone(KST).isoformat()},
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 # 상세 응답 (기본 응답 확장)
@@ -52,24 +78,43 @@ class DashboardDetail(DashboardResponse):
     driver_contact: Optional[str] = None
     complete_time: Optional[datetime] = None
     address: str
+    postal_code: str
     distance: Optional[int] = None
     duration_time: Optional[int] = None
     customer: Optional[str] = None
     contact: Optional[str] = None
     remark: Optional[str] = None
+    city: Optional[str] = None
+    county: Optional[str] = None
+    district: Optional[str] = None
+    sla: str
 
 
 # 목록 데이터
 class DashboardListData(BaseModel):
     items: List[DashboardResponse]
-    date_range: DateRangeInfo
+    date_range: Dict[str, str]
 
-    model_config = ConfigDict(from_attributes=True)
+
+# 목록 응답
+class DashboardListResponse(BaseResponse):
+    data: Optional[Dict[str, Any]] = None
+
+
+# 관리자 목록 응답
+class AdminDashboardListResponse(BaseResponse):
+    data: Optional[Dict[str, Any]] = None
+
+
+# 상세 응답
+class DashboardDetailResponse(BaseResponse):
+    data: Optional[DashboardDetail] = None
 
 
 # 상태 변경
 class StatusUpdate(BaseModel):
     status: DeliveryStatus = Field(description="변경할 상태")
+    is_admin: bool = Field(default=False, description="관리자 권한 사용 여부")
 
 
 # 메모 변경

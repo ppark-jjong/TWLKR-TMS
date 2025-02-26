@@ -3,7 +3,9 @@ import pytz
 from datetime import datetime, timedelta
 from typing import Tuple
 
-KST = pytz.timezone('Asia/Seoul')
+# 한국 시간대 상수
+KST = pytz.timezone("Asia/Seoul")
+
 
 def convert_to_kst(dt: datetime) -> datetime:
     """UTC datetime을 KST datetime으로 변환"""
@@ -11,16 +13,26 @@ def convert_to_kst(dt: datetime) -> datetime:
         dt = pytz.utc.localize(dt)
     return dt.astimezone(KST)
 
+
 def get_current_time() -> datetime:
     """현재 시간을 KST로 반환"""
     return datetime.now(KST)
 
+
 def get_date_range(date_str: str) -> Tuple[datetime, datetime]:
     """날짜 문자열로부터 해당 일자의 시작과 끝 시간을 KST datetime으로 반환"""
-    base_date = datetime.strptime(date_str, "%Y-%m-%d")
-    start_time = KST.localize(base_date.replace(hour=0, minute=0, second=0, microsecond=0))
-    end_time = KST.localize(base_date.replace(hour=23, minute=59, second=59, microsecond=999999))
-    return start_time, end_time
+    try:
+        base_date = datetime.strptime(date_str, "%Y-%m-%d")
+        start_time = KST.localize(
+            base_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        )
+        end_time = KST.localize(
+            base_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        )
+        return start_time, end_time
+    except ValueError as e:
+        raise ValueError(f"날짜 형식 오류: {date_str}. YYYY-MM-DD 형식이어야 합니다.")
+
 
 def get_date_range_from_datetime(dt: datetime) -> Tuple[datetime, datetime]:
     """datetime으로부터 해당 일자의 시작과 끝 시간을 KST datetime으로 반환"""
@@ -28,4 +40,39 @@ def get_date_range_from_datetime(dt: datetime) -> Tuple[datetime, datetime]:
         dt = KST.localize(dt)
     else:
         dt = dt.astimezone(KST)
-    return get_date_range(dt.strftime("%Y-%m-%d"))
+
+    date_str = dt.strftime("%Y-%m-%d")
+    return get_date_range(date_str)
+
+
+def get_days_between(start_date: datetime, end_date: datetime) -> int:
+    """두 날짜 사이의 일수 계산"""
+    if start_date.tzinfo is None:
+        start_date = KST.localize(start_date)
+    if end_date.tzinfo is None:
+        end_date = KST.localize(end_date)
+
+    # 같은 시간대로 맞추기
+    start_date = start_date.astimezone(KST)
+    end_date = end_date.astimezone(KST)
+
+    # 날짜 부분만 추출하여 계산
+    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 차이 계산 (+1은 시작일 포함)
+    delta = end_date - start_date
+    return delta.days + 1
+
+
+def format_kst_datetime(dt: datetime, format_str: str = "%Y-%m-%d %H:%M") -> str:
+    """KST datetime을 지정된 형식의 문자열로 변환"""
+    if dt is None:
+        return ""
+
+    if dt.tzinfo is None:
+        dt = KST.localize(dt)
+    else:
+        dt = dt.astimezone(KST)
+
+    return dt.strftime(format_str)

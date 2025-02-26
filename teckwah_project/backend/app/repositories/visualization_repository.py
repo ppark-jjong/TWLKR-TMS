@@ -1,8 +1,9 @@
-# visualization_repository.py
+# backend/app/repositories/visualization_repository.py
 from datetime import datetime
 from typing import List, Tuple, Dict, Any, Union
 from sqlalchemy import func, and_, extract
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from app.models.dashboard_model import Dashboard
 from app.utils.logger import log_error, log_info
 
@@ -18,18 +19,14 @@ class VisualizationRepository:
         try:
             log_info(f"배송 현황 데이터 조회: {start_date} ~ {end_date}")
 
-            # 하루 단위로 조회 (00:00:00 ~ 23:59:59)
-            start_time = start_date.replace(hour=0, minute=0, second=0)
-            end_time = end_date.replace(hour=23, minute=59, second=59)
-
             result = (
                 self.db.query(
                     Dashboard.department, Dashboard.status, Dashboard.create_time
                 )
                 .filter(
                     and_(
-                        Dashboard.create_time >= start_time,
-                        Dashboard.create_time <= end_time,
+                        Dashboard.create_time >= start_date,
+                        Dashboard.create_time <= end_date,
                     )
                 )
                 .all()
@@ -37,7 +34,7 @@ class VisualizationRepository:
 
             log_info(f"배송 현황 데이터 조회 결과: {len(result)}건")
             return result
-        except Exception as e:
+        except SQLAlchemyError as e:
             log_error(e, "배송 현황 데이터 조회 실패")
             raise
 
@@ -48,16 +45,12 @@ class VisualizationRepository:
         try:
             log_info(f"시간대별 접수량 데이터 조회: {start_date} ~ {end_date}")
 
-            # 하루 단위로 조회 (00:00:00 ~ 23:59:59)
-            start_time = start_date.replace(hour=0, minute=0, second=0)
-            end_time = end_date.replace(hour=23, minute=59, second=59)
-
             result = (
                 self.db.query(Dashboard.department, Dashboard.create_time)
                 .filter(
                     and_(
-                        Dashboard.create_time >= start_time,
-                        Dashboard.create_time <= end_time,
+                        Dashboard.create_time >= start_date,
+                        Dashboard.create_time <= end_date,
                     )
                 )
                 .all()
@@ -65,7 +58,7 @@ class VisualizationRepository:
 
             log_info(f"시간대별 접수량 데이터 조회 결과: {len(result)}건")
             return result
-        except Exception as e:
+        except SQLAlchemyError as e:
             log_error(e, "시간대별 접수량 데이터 조회 실패")
             raise
 
@@ -73,6 +66,7 @@ class VisualizationRepository:
         """조회 가능한 날짜 범위 조회 - create_time 기준"""
         try:
             log_info("조회 가능 날짜 범위 조회")
+
             result = self.db.query(
                 func.min(Dashboard.create_time).label("oldest_date"),
                 func.max(Dashboard.create_time).label("latest_date"),
@@ -83,7 +77,8 @@ class VisualizationRepository:
 
             log_info(f"조회 가능 날짜 범위: {oldest_date} ~ {latest_date}")
             return oldest_date, latest_date
-        except Exception as e:
+
+        except SQLAlchemyError as e:
             log_error(e, "날짜 범위 조회 실패")
             raise
 
@@ -92,16 +87,12 @@ class VisualizationRepository:
         try:
             log_info(f"데이터 존재 여부 확인: {start_date} ~ {end_date}")
 
-            # 하루 단위로 조회 (00:00:00 ~ 23:59:59)
-            start_time = start_date.replace(hour=0, minute=0, second=0)
-            end_time = end_date.replace(hour=23, minute=59, second=59)
-
             count = (
                 self.db.query(func.count(Dashboard.dashboard_id))
                 .filter(
                     and_(
-                        Dashboard.create_time >= start_time,
-                        Dashboard.create_time <= end_time,
+                        Dashboard.create_time >= start_date,
+                        Dashboard.create_time <= end_date,
                     )
                 )
                 .scalar()
@@ -110,6 +101,7 @@ class VisualizationRepository:
             has_data = count > 0
             log_info(f"데이터 존재 여부: {has_data} (건수: {count})")
             return has_data
-        except Exception as e:
+
+        except SQLAlchemyError as e:
             log_error(e, "데이터 존재 여부 확인 실패")
             return False

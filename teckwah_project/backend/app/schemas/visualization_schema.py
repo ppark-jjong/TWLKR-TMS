@@ -1,7 +1,6 @@
 # backend/app/schemas/visualization_schema.py
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
-from datetime import date
 from enum import Enum
 from .common_schema import BaseResponse, DateRangeInfo
 
@@ -59,25 +58,19 @@ class HourlyOrdersData(BaseModel):
     time_slots: List[TimeSlot]
 
 
-class DeliveryStatusResponse(BaseResponse[DeliveryStatusData]):
+class DeliveryStatusResponse(BaseResponse):
     """배송 현황 응답"""
 
-    pass
+    data: Optional[DeliveryStatusData] = None
 
 
-class HourlyOrdersResponse(BaseResponse[HourlyOrdersData]):
+class HourlyOrdersResponse(BaseResponse):
     """시간대별 접수량 응답"""
 
-    pass
+    data: Optional[HourlyOrdersData] = None
 
 
-class VisualizationDateRangeResponse(BaseResponse[DateRangeInfo]):
+class VisualizationDateRangeResponse(BaseResponse):
     """시각화 날짜 범위 응답"""
 
-    pass
-
-
-class DataCheckResponse(BaseResponse[Dict[str, bool]]):
-    """데이터 존재 여부 응답"""
-
-    pass
+    data: Optional[Dict[str, str]] = None
