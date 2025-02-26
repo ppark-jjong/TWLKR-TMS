@@ -1,13 +1,7 @@
-<<<<<<< HEAD
 import re
 import pytz
 from datetime import datetime, timezone, timedelta
 from typing import List, Tuple, Optional
-=======
-# backend/app/services/dashboard_service.py
-from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
->>>>>>> main
 from fastapi import HTTPException, status
 from app.repositories.dashboard_repository import DashboardRepository
 from app.schemas.dashboard_schema import (
@@ -33,7 +27,6 @@ class DashboardService:
             start_time, end_time = get_date_range(date)
             dashboards = self.repository.get_dashboards_by_date(start_time, end_time)
 
-<<<<<<< HEAD
             # 우편번호 형식 검증 (5자리 숫자)
             if not data.postal_code.isdigit() or len(data.postal_code) != 5:
                 raise HTTPException(
@@ -81,8 +74,6 @@ class DashboardService:
             log_info(f"대시보드 목록 조회 시작: {target_date}")
             # ETA 기준으로 데이터 조회
             dashboards = self.repository.get_dashboards_by_date(target_date)
-=======
->>>>>>> main
             log_info(f"대시보드 목록 조회 완료: {len(dashboards)}건")
             return [DashboardResponse.model_validate(d) for d in dashboards]
 
@@ -188,7 +179,6 @@ class DashboardService:
     def assign_driver(self, assignment: DriverAssignment) -> List[DashboardResponse]:
         """배차 처리"""
         try:
-<<<<<<< HEAD
             log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
 
             # 대기 상태 검증
@@ -206,9 +196,6 @@ class DashboardService:
 
             # 배차 정보 업데이트
             updated_dashboards = self.repository.assign_driver(
-=======
-            updated = self.repository.assign_driver(
->>>>>>> main
                 assignment.dashboard_ids,
                 assignment.driver_name,
                 assignment.driver_contact,

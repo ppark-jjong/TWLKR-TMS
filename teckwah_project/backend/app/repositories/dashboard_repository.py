@@ -13,7 +13,6 @@ class DashboardRepository:
     def __init__(self, db: Session):
         self.db = db
 
-<<<<<<< HEAD
     def get_dashboards_by_date(self, target_date: datetime) -> List[Dashboard]:
         """하루 단위 대시보드 조회 - ETA 날짜 기준"""
         try:
@@ -27,17 +26,6 @@ class DashboardRepository:
                 self.db.query(Dashboard)
                 .filter(and_(Dashboard.eta >= start_time, Dashboard.eta <= end_time))
                 .order_by(Dashboard.eta.asc())  # ETA 기준 오름차순 정렬
-=======
-    def get_dashboards_by_date(
-        self, start_time: datetime, end_time: datetime
-    ) -> List[Dashboard]:
-        """하루 단위 대시보드 조회 (ETA 기준)"""
-        try:
-            result = (
-                self.db.query(Dashboard)
-                .filter(and_(Dashboard.eta >= start_time, Dashboard.eta <= end_time))
-                .order_by(Dashboard.eta.asc())
->>>>>>> main
                 .all()
             )
             return result if result else []
@@ -49,7 +37,6 @@ class DashboardRepository:
     def get_dashboards_by_date_range(
         self, start_time: datetime, end_time: datetime
     ) -> List[Dashboard]:
-<<<<<<< HEAD
         """기간별 대시보드 조회 - ETA 날짜 기준"""
         try:
             # 시작일자 00:00:00 ~ 종료일자 23:59:59
@@ -62,14 +49,6 @@ class DashboardRepository:
                 self.db.query(Dashboard)
                 .filter(and_(Dashboard.eta >= start_time, Dashboard.eta <= end_time))
                 .order_by(Dashboard.eta.asc())  # ETA 기준 오름차순 정렬
-=======
-        """기간별 대시보드 조회 (ETA 기준)"""
-        try:
-            result = (
-                self.db.query(Dashboard)
-                .filter(and_(Dashboard.eta >= start_time, Dashboard.eta <= end_time))
-                .order_by(Dashboard.eta.asc())
->>>>>>> main
                 .all()
             )
             return result if result else []
@@ -155,7 +134,6 @@ class DashboardRepository:
             log_error(e, "대시보드 생성 실패", dashboard_data)
             raise
 
-<<<<<<< HEAD
     def update_status_with_time(
         self, dashboard: Dashboard, new_status: str, current_time: datetime
     ) -> None:
@@ -173,8 +151,6 @@ class DashboardRepository:
             dashboard.depart_time = None
             dashboard.complete_time = None
 
-=======
->>>>>>> main
     def update_dashboard_status(
         self, dashboard_id: int, status: str, current_time: datetime
     ) -> Optional[Dashboard]:
@@ -228,7 +204,6 @@ class DashboardRepository:
     def get_date_range(self) -> Tuple[datetime, datetime]:
         """ETA 기준 조회 가능 날짜 범위"""
         try:
-<<<<<<< HEAD
             # 관리자는 모든 상태의 대시보드 삭제 가능
             result = (
                 self.db.query(Dashboard)
@@ -237,15 +212,6 @@ class DashboardRepository:
             )
             self.db.commit()
             return bool(result)
-=======
-            result = self.db.query(
-                func.min(Dashboard.eta).label("oldest_date"),
-                func.max(Dashboard.eta).label("latest_date"),
-            ).first()
-
-            return result.oldest_date, result.latest_date
-
->>>>>>> main
         except SQLAlchemyError as e:
             log_error(e, "날짜 범위 조회 실패")
             raise

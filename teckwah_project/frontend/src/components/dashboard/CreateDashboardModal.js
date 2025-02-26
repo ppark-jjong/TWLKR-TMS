@@ -1,22 +1,7 @@
 // frontend/src/components/dashboard/CreateDashboardModal.js
-<<<<<<< HEAD
-import React from 'react';
-import {
-  Modal,
-  Form,
-  Input,
-  Select,
-  DatePicker,
-  Row,
-  Col,
-  message as antMessage,
-} from 'antd';
-import { formatPhoneNumber } from '../../utils/Formatter';
-import DashboardService from '../../services/DashboardService';
-=======
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Row, Col } from 'antd';
->>>>>>> main
+import DashboardService from '../../services/DashboardService';
 import {
   TYPE_TYPES,
   TYPE_TEXTS,
@@ -24,9 +9,9 @@ import {
   WAREHOUSE_TEXTS,
   FONT_STYLES,
 } from '../../utils/Constants';
-import { formatPhoneNumber } from '../../utils/Formatter';
-import DashboardService from '../../services/DashboardService';
 import { validateDashboardForm } from '../../utils/validator';
+import { formatPhoneNumber } from '../../utils/Formatter';
+import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -42,7 +27,7 @@ const CreateDashboardModal = ({
   const [submitting, setSubmitting] = useState(false);
 
   // 폼 초기화
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       form.resetFields();
       form.setFieldsValue({
@@ -58,30 +43,31 @@ const CreateDashboardModal = ({
   };
 
   const handleSubmit = async () => {
+    const key = MessageKeys.DASHBOARD.CREATE;
     try {
       const values = await form.validateFields();
+      setSubmitting(true);
+      message.loading('대시보드 생성 중...', key);
 
-<<<<<<< HEAD
       console.log('대시보드 생성 요청 데이터:', values);
 
       // 우편번호 5자리 검증
       if (!/^\d{5}$/.test(values.postal_code)) {
         message.error('올바른 우편번호가 아닙니다', key);
-        setLoading(false);
+        setSubmitting(false);
         return;
       }
 
       // 연락처 형식 검증
       if (values.contact && !/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.contact)) {
         message.error('올바른 연락처 형식이 아닙니다', key);
-        setLoading(false);
+        setSubmitting(false);
         return;
       }
 
       // 대시보드 데이터 준비
       const dashboardData = {
         ...values,
-        department: userDepartment,
         // ISO 형식으로 날짜 변환
         eta: values.eta.toISOString(),
       };
@@ -97,35 +83,11 @@ const CreateDashboardModal = ({
       const errorDetail =
         error.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다';
       message.loadingToError(errorDetail, key);
-=======
-      // 추가 유효성 검증
-      const errors = validateDashboardForm(values);
-      if (Object.keys(errors).length > 0) {
-        form.setFields(
-          Object.entries(errors).map(([name, error]) => ({
-            name,
-            errors: error ? [error] : [],
-          }))
-        );
-        return;
-      }
-
-      setSubmitting(true);
-
-      await DashboardService.createDashboard({
-        ...values,
-        department: userDepartment,
-      });
-
-      form.resetFields();
-      onSuccess();
->>>>>>> main
     } finally {
       setSubmitting(false);
     }
   };
 
-<<<<<<< HEAD
   // ETA 선택 제한 (현재 시간 이후만 선택 가능)
   const disabledDate = (current) => {
     return current && current < dayjs().startOf('day');
@@ -145,8 +107,6 @@ const CreateDashboardModal = ({
     return {};
   };
 
-=======
->>>>>>> main
   return (
     <Modal
       title={<span style={FONT_STYLES.TITLE.LARGE}>대시보드 생성</span>}
@@ -160,13 +120,9 @@ const CreateDashboardModal = ({
       <Form
         form={form}
         layout="vertical"
-<<<<<<< HEAD
         initialValues={{
           eta: dayjs().add(1, 'hour'),
         }}
-=======
-        initialValues={{ eta: dayjs().add(1, 'hour') }}
->>>>>>> main
       >
         <Row gutter={24}>
           <Col span={12}>
@@ -212,7 +168,6 @@ const CreateDashboardModal = ({
             <Form.Item
               name="sla"
               label={<span style={FONT_STYLES.LABEL}>SLA</span>}
-<<<<<<< HEAD
               rules={[
                 { required: true, message: 'SLA를 입력해주세요' },
                 { max: 10, message: 'SLA는 10자를 초과할 수 없습니다' },
@@ -221,9 +176,6 @@ const CreateDashboardModal = ({
                   message: '공백만으로는 입력할 수 없습니다',
                 },
               ]}
-=======
-              rules={[{ required: true, message: 'SLA를 입력해주세요' }]}
->>>>>>> main
             >
               <Input maxLength={10} style={FONT_STYLES.BODY.MEDIUM} />
             </Form.Item>
@@ -238,6 +190,8 @@ const CreateDashboardModal = ({
                 format="YYYY-MM-DD HH:mm"
                 style={{ width: '100%', ...FONT_STYLES.BODY.MEDIUM }}
                 size="large"
+                disabledDate={disabledDate}
+                disabledTime={disabledTime}
               />
             </Form.Item>
           </Col>
@@ -246,14 +200,10 @@ const CreateDashboardModal = ({
             <Form.Item
               name="postal_code"
               label={<span style={FONT_STYLES.LABEL}>우편번호</span>}
-<<<<<<< HEAD
               rules={[
                 { required: true, message: '우편번호를 입력해주세요' },
                 { pattern: /^\d{5}$/, message: '5자리 숫자로 입력해주세요' },
               ]}
-=======
-              rules={[{ required: true, message: '우편번호를 입력해주세요' }]}
->>>>>>> main
             >
               <Input maxLength={5} style={FONT_STYLES.BODY.MEDIUM} />
             </Form.Item>
@@ -261,7 +211,6 @@ const CreateDashboardModal = ({
             <Form.Item
               name="address"
               label={<span style={FONT_STYLES.LABEL}>도착 주소</span>}
-<<<<<<< HEAD
               rules={[
                 { required: true, message: '주소를 입력해주세요' },
                 {
@@ -269,9 +218,6 @@ const CreateDashboardModal = ({
                   message: '공백만으로는 입력할 수 없습니다',
                 },
               ]}
-=======
-              rules={[{ required: true, message: '주소를 입력해주세요' }]}
->>>>>>> main
             >
               <TextArea
                 rows={3}
@@ -284,7 +230,6 @@ const CreateDashboardModal = ({
             <Form.Item
               name="customer"
               label={<span style={FONT_STYLES.LABEL}>수령인</span>}
-<<<<<<< HEAD
               rules={[
                 { required: true, message: '수령인을 입력해주세요' },
                 {
@@ -292,9 +237,6 @@ const CreateDashboardModal = ({
                   message: '공백만으로는 입력할 수 없습니다',
                 },
               ]}
-=======
-              rules={[{ required: true, message: '수령인을 입력해주세요' }]}
->>>>>>> main
             >
               <Input maxLength={50} style={FONT_STYLES.BODY.MEDIUM} />
             </Form.Item>
@@ -302,7 +244,6 @@ const CreateDashboardModal = ({
             <Form.Item
               name="contact"
               label={<span style={FONT_STYLES.LABEL}>연락처</span>}
-<<<<<<< HEAD
               rules={[
                 { required: true, message: '연락처를 입력해주세요' },
                 {
@@ -310,8 +251,6 @@ const CreateDashboardModal = ({
                   message: '올바른 연락처 형식으로 입력해주세요',
                 },
               ]}
-=======
->>>>>>> main
             >
               <Input
                 onChange={handlePhoneChange}

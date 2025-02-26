@@ -1,10 +1,9 @@
 # backend/app/schemas/visualization_schema.py
 from pydantic import BaseModel
-from typing import List, Dict, Optional
-from datetime import datetime
+from typing import List, Dict, Optional, Any
+from datetime import date
 from enum import Enum
 from .common_schema import BaseResponse, DateRangeInfo
-from app.utils.datetime_helper import KST
 
 
 class ChartType(str, Enum):
@@ -49,21 +48,15 @@ class DeliveryStatusData(BaseModel):
     total_count: int
     department_breakdown: Dict[str, DepartmentStatusData]
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.astimezone(KST).isoformat()}
-
 
 class HourlyOrdersData(BaseModel):
     """시간대별 접수량 전체 데이터"""
 
     type: str = "hourly_orders"
     total_count: int
-    average_count: float
+    average_count: Optional[float] = 0
     department_breakdown: Dict[str, DepartmentHourlyData]
     time_slots: List[TimeSlot]
-
-    class Config:
-        json_encoders = {datetime: lambda v: v.astimezone(KST).isoformat()}
 
 
 class DeliveryStatusResponse(BaseResponse[DeliveryStatusData]):
@@ -74,5 +67,17 @@ class DeliveryStatusResponse(BaseResponse[DeliveryStatusData]):
 
 class HourlyOrdersResponse(BaseResponse[HourlyOrdersData]):
     """시간대별 접수량 응답"""
+
+    pass
+
+
+class VisualizationDateRangeResponse(BaseResponse[DateRangeInfo]):
+    """시각화 날짜 범위 응답"""
+
+    pass
+
+
+class DataCheckResponse(BaseResponse[Dict[str, bool]]):
+    """데이터 존재 여부 응답"""
 
     pass

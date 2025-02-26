@@ -11,10 +11,7 @@ import {
   Row,
   Col,
   Divider,
-<<<<<<< HEAD
   Tooltip,
-=======
->>>>>>> main
 } from 'antd';
 import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import {
@@ -30,18 +27,15 @@ import {
   formatDateTime,
   formatDistance,
   formatDuration,
-<<<<<<< HEAD
   formatPhoneNumber,
-=======
->>>>>>> main
 } from '../../utils/Formatter';
 import DashboardService from '../../services/DashboardService';
+import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { confirm } = Modal;
 
-<<<<<<< HEAD
 // 섹션 타이틀 컴포넌트
 const SectionTitle = ({ children }) => (
   <Title
@@ -58,8 +52,6 @@ const SectionTitle = ({ children }) => (
   </Title>
 );
 
-=======
->>>>>>> main
 // 정보 표시 컴포넌트
 const InfoItem = ({ label, value, highlight = false }) => (
   <div style={{ marginBottom: '16px' }}>
@@ -95,7 +87,6 @@ const InfoItem = ({ label, value, highlight = false }) => (
   </div>
 );
 
-<<<<<<< HEAD
 const DashboardDetailModal = ({
   visible,
   dashboard,
@@ -104,16 +95,11 @@ const DashboardDetailModal = ({
   isAdmin,
 }) => {
   const [loading, setLoading] = useState(false);
-=======
-const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
->>>>>>> main
   const [editingStatus, setEditingStatus] = useState(false);
   const [editingRemark, setEditingRemark] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [currentDashboard, setCurrentDashboard] = useState(dashboard);
   const [selectedStatus, setSelectedStatus] = useState(null);
 
-<<<<<<< HEAD
   // 상태 변경 가능 여부 확인
   const canChangeStatus = () => {
     if (isAdmin) return true;
@@ -121,7 +107,7 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
   };
 
   // 상태 변경 가능한 상태 목록 가져오기
-  const getAvailableStatuses = (currentStatus) => {
+  const getAvailableStatuses = () => {
     // 관리자는 모든 상태로 변경 가능
     if (isAdmin) {
       return Object.entries(STATUS_TYPES).map(([key, value]) => ({
@@ -140,7 +126,9 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
     };
 
     return Object.entries(STATUS_TYPES)
-      .filter(([_, value]) => transitions[currentStatus].includes(value))
+      .filter(([_, value]) =>
+        transitions[currentDashboard.status]?.includes(value)
+      )
       .map(([key, value]) => ({
         value,
         label: STATUS_TEXTS[key],
@@ -156,7 +144,10 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
 
     // 관리자 상태 변경 확인 모달
     let timeChangeMessage = '';
-    if (newStatus === 'IN_PROGRESS' && dashboard.status !== 'IN_PROGRESS') {
+    if (
+      newStatus === 'IN_PROGRESS' &&
+      currentDashboard.status !== 'IN_PROGRESS'
+    ) {
       timeChangeMessage = '• depart_time이 현재 시간으로 설정됩니다.';
     } else if (['COMPLETE', 'ISSUE'].includes(newStatus)) {
       timeChangeMessage = '• complete_time이 현재 시간으로 설정됩니다.';
@@ -187,12 +178,11 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
   };
 
   const handleStatusUpdate = async (newStatus) => {
-=======
-  const handleStatusChange = async (newStatus) => {
->>>>>>> main
+    const key = MessageKeys.DASHBOARD.STATUS;
     try {
       setLoading(true);
-<<<<<<< HEAD
+      message.loading('상태 변경 중...', key);
+
       console.log(
         '상태 변경 요청:',
         dashboard.dashboard_id,
@@ -205,29 +195,31 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
         newStatus,
         isAdmin
       );
+
       setCurrentDashboard(updatedDashboard);
-=======
-      await DashboardService.updateStatus(dashboard.dashboard_id, newStatus);
->>>>>>> main
       setEditingStatus(false);
+      message.loadingToSuccess(
+        `${STATUS_TEXTS[newStatus]} 상태로 변경되었습니다`,
+        key
+      );
       onSuccess();
-<<<<<<< HEAD
     } catch (error) {
       console.error('상태 변경 실패:', error);
-      message.error(
-        error.response?.data?.detail || '상태 변경 중 오류가 발생했습니다'
+      message.loadingToError(
+        error.response?.data?.detail || '상태 변경 중 오류가 발생했습니다',
+        key
       );
-=======
->>>>>>> main
     } finally {
       setLoading(false);
     }
   };
 
   const handleRemarkUpdate = async () => {
+    const key = MessageKeys.DASHBOARD.MEMO;
     try {
       setLoading(true);
-<<<<<<< HEAD
+      message.loading('메모 업데이트 중...', key);
+
       console.log(
         '메모 업데이트 요청:',
         dashboard.dashboard_id,
@@ -235,102 +227,29 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
       );
 
       const updatedDashboard = await DashboardService.updateRemark(
-=======
-      await DashboardService.updateRemark(
->>>>>>> main
         dashboard.dashboard_id,
         currentDashboard.remark
       );
+
       setEditingRemark(false);
+      message.loadingToSuccess('메모가 업데이트되었습니다', key);
       onSuccess();
-<<<<<<< HEAD
     } catch (error) {
       console.error('메모 업데이트 실패:', error);
-      message.error(
-        error.response?.data?.detail || '메모 업데이트 중 오류가 발생했습니다'
+      message.loadingToError(
+        error.response?.data?.detail || '메모 업데이트 중 오류가 발생했습니다',
+        key
       );
       setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
-=======
->>>>>>> main
     } finally {
       setLoading(false);
     }
   };
 
-<<<<<<< HEAD
   // 상태 변경 선택 처리
-  const handleStatusSelect = (value) => {
+  const handleStatusChange = (value) => {
     setSelectedStatus(value);
     confirmStatusChange(value);
-  };
-
-  // 상태 변경 버튼 렌더링
-  const renderStatusChangeButton = () => {
-    const availableStatuses = getAvailableStatuses(currentDashboard.status);
-
-    // 상태 변경이 불가능한 경우 (일반 사용자 & 배차 미할당)
-    if (!canChangeStatus() && !isAdmin) {
-      return (
-        <Tooltip title="배차 담당자 할당 후 상태 변경이 가능합니다">
-          <Button icon={<EditOutlined />} disabled>
-            상태 변경
-          </Button>
-        </Tooltip>
-      );
-    }
-
-    // 일반 사용자이고 변경 가능한 상태가 없는 경우
-    if (availableStatuses.length === 0 && !isAdmin) {
-      return null;
-    }
-
-    return editingStatus ? (
-      <Space.Compact>
-        <Select
-          placeholder={STATUS_TEXTS[currentDashboard.status]}
-          onChange={handleStatusSelect}
-          options={availableStatuses}
-          disabled={loading}
-          style={{ width: 150 }}
-          size="large"
-        />
-        <Button
-          icon={<CloseOutlined />}
-          onClick={() => setEditingStatus(false)}
-          size="large"
-        />
-      </Space.Compact>
-    ) : (
-      <Button
-        icon={<EditOutlined />}
-        type="primary"
-        onClick={() => setEditingStatus(true)}
-        size="large"
-      >
-        상태 변경
-      </Button>
-    );
-=======
-  // 상태 변경 가능한 상태 목록
-  const getAvailableStatuses = () => {
-    // 상태 변경 규칙
-    const transitions = {
-      WAITING: ['IN_PROGRESS', 'CANCEL'],
-      IN_PROGRESS: ['COMPLETE', 'ISSUE', 'CANCEL'],
-      COMPLETE: [],
-      ISSUE: [],
-      CANCEL: [],
-    };
-
-    return Object.entries(STATUS_TYPES)
-      .filter(([_, value]) =>
-        transitions[currentDashboard.status].includes(value)
-      )
-      .map(([key, value]) => ({
-        value,
-        label: STATUS_TEXTS[key],
-      }));
->>>>>>> main
   };
 
   return (
@@ -360,32 +279,7 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
             >
               {STATUS_TEXTS[currentDashboard.status]}
             </Tag>
-            {editingStatus ? (
-              <Space.Compact>
-                <Select
-                  placeholder={STATUS_TEXTS[currentDashboard.status]}
-                  onChange={handleStatusChange}
-                  options={getAvailableStatuses()}
-                  disabled={loading}
-                  style={{ width: 150 }}
-                  size="large"
-                />
-                <Button
-                  icon={<CloseOutlined />}
-                  onClick={() => setEditingStatus(false)}
-                  size="large"
-                />
-              </Space.Compact>
-            ) : (
-              <Button
-                icon={<EditOutlined />}
-                onClick={() => setEditingStatus(true)}
-                disabled={!currentDashboard.driver_name}
-                size="large"
-              >
-                상태 변경
-              </Button>
-            )}
+            {renderStatusChangeButton()}
           </Space>
         </div>
       }
@@ -393,20 +287,15 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
       onCancel={onCancel}
       footer={null}
       width={1200}
-<<<<<<< HEAD
       bodyStyle={{
         maxHeight: 'calc(90vh - 150px)',
         overflowY: 'auto',
         padding: '24px',
       }}
-=======
-      maskClosable={false}
->>>>>>> main
     >
       <div style={{ padding: '24px' }}>
         <Row gutter={32}>
           <Col span={12}>
-<<<<<<< HEAD
             <div style={{ marginBottom: '32px' }}>
               <SectionTitle>기본 정보</SectionTitle>
               <InfoItem
@@ -481,82 +370,6 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
                 value={formatPhoneNumber(currentDashboard.contact)}
               />
             </div>
-=======
-            <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
-              기본 정보
-            </Title>
-            <InfoItem
-              label="부서"
-              value={DEPARTMENT_TEXTS[currentDashboard.department]}
-            />
-            <InfoItem label="종류" value={TYPE_TEXTS[currentDashboard.type]} />
-            <InfoItem
-              label="출발 허브"
-              value={WAREHOUSE_TEXTS[currentDashboard.warehouse]}
-            />
-            <InfoItem label="SLA" value={currentDashboard.sla} />
-
-            <Divider />
-
-            <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
-              배송 시간
-            </Title>
-            <InfoItem
-              label="접수 시각"
-              value={formatDateTime(currentDashboard.create_time)}
-            />
-            <InfoItem
-              label="출발 시각"
-              value={formatDateTime(currentDashboard.depart_time)}
-            />
-            <InfoItem
-              label="완료 시각"
-              value={formatDateTime(currentDashboard.complete_time)}
-            />
-            <InfoItem
-              label="ETA"
-              value={formatDateTime(currentDashboard.eta)}
-              highlight={true}
-            />
-          </Col>
-
-          <Col span={12}>
-            <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
-              배송 담당자
-            </Title>
-            <InfoItem
-              label="담당 기사"
-              value={currentDashboard.driver_name}
-              highlight={true}
-            />
-            <InfoItem
-              label="기사 연락처"
-              value={currentDashboard.driver_contact}
-            />
-
-            <Divider />
-
-            <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
-              배송 세부사항
-            </Title>
-            <InfoItem label="주소" value={currentDashboard.address} />
-            <InfoItem
-              label="예상 거리"
-              value={formatDistance(currentDashboard.distance)}
-            />
-            <InfoItem
-              label="예상 소요시간"
-              value={formatDuration(currentDashboard.duration_time)}
-            />
-
-            <Divider />
-
-            <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
-              수령인 정보
-            </Title>
-            <InfoItem label="수령인" value={currentDashboard.customer} />
-            <InfoItem label="연락처" value={currentDashboard.contact} />
->>>>>>> main
           </Col>
         </Row>
 
@@ -646,6 +459,54 @@ const DashboardDetailModal = ({ visible, dashboard, onCancel, onSuccess }) => {
       </div>
     </Modal>
   );
+
+  // 상태 변경 버튼 렌더링
+  function renderStatusChangeButton() {
+    const availableStatuses = getAvailableStatuses();
+
+    // 상태 변경이 불가능한 경우 (일반 사용자 & 배차 미할당)
+    if (!canChangeStatus() && !isAdmin) {
+      return (
+        <Tooltip title="배차 담당자 할당 후 상태 변경이 가능합니다">
+          <Button icon={<EditOutlined />} disabled>
+            상태 변경
+          </Button>
+        </Tooltip>
+      );
+    }
+
+    // 일반 사용자이고 변경 가능한 상태가 없는 경우
+    if (availableStatuses.length === 0 && !isAdmin) {
+      return null;
+    }
+
+    return editingStatus ? (
+      <Space.Compact>
+        <Select
+          placeholder={STATUS_TEXTS[currentDashboard.status]}
+          onChange={handleStatusChange}
+          options={availableStatuses}
+          disabled={loading}
+          style={{ width: 150 }}
+          size="large"
+        />
+        <Button
+          icon={<CloseOutlined />}
+          onClick={() => setEditingStatus(false)}
+          size="large"
+        />
+      </Space.Compact>
+    ) : (
+      <Button
+        icon={<EditOutlined />}
+        type="primary"
+        onClick={() => setEditingStatus(true)}
+        size="large"
+      >
+        상태 변경
+      </Button>
+    );
+  }
 };
 
 export default DashboardDetailModal;

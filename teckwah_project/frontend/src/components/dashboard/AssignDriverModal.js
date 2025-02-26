@@ -5,6 +5,7 @@ import { formatPhoneNumber } from '../../utils/Formatter';
 import { FONT_STYLES } from '../../utils/Constants';
 import DashboardService from '../../services/DashboardService';
 import { validateAssignmentForm } from '../../utils/validator';
+import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 
 const { Text } = Typography;
 
@@ -19,8 +20,11 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
   };
 
   const handleSubmit = async () => {
+    const key = MessageKeys.DASHBOARD.ASSIGN;
     try {
       const values = await form.validateFields();
+      setSubmitting(true);
+      message.loading('배차 처리 중...', key);
 
       // 추가 유효성 검증
       const errors = validateAssignmentForm(values);
@@ -31,19 +35,33 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
             errors: error ? [error] : [],
           }))
         );
+        message.loadingToError('입력 정보를 확인해주세요', key);
+        setSubmitting(false);
         return;
       }
 
-      setSubmitting(true);
-
-      await DashboardService.assignDriver({
-        dashboard_ids: selectedRows.map((row) => row.dashboard_id),
+      // 선택된 대시보드 ID 추출
+      const dashboardIds = selectedRows.map((row) => row.dashboard_id);
+      console.log('배차 처리 요청:', {
+        dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
       });
 
+      await DashboardService.assignDriver({
+        dashboard_ids: dashboardIds,
+        driver_name: values.driver_name,
+        driver_contact: values.driver_contact,
+      });
+
+      message.loadingToSuccess('배차가 완료되었습니다', key);
       form.resetFields();
       onSuccess();
+    } catch (error) {
+      console.error('배차 처리 실패:', error);
+      const errorMessage =
+        error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다';
+      message.loadingToError(errorMessage, key);
     } finally {
       setSubmitting(false);
     }
@@ -117,7 +135,14 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
         <Form.Item
           name="driver_contact"
           label={<span style={FONT_STYLES.LABEL}>배송 담당 연락처</span>}
-          rules={[{ required: true, message: '연락처를 입력해주세요' }]}
+          rules={[
+            { required: true, message: '연락처를 입력해주세요' },
+            {
+              pattern: /^\d{2,3}-\d{3,4}-\d{4}$/,
+              message:
+                '올바른 연락처 형식으로 입력해주세요 (예: 010-1234-5678)',
+            },
+          ]}
         >
           <Input
             onChange={handlePhoneChange}
