@@ -73,11 +73,11 @@ const CreateDashboardModal = ({
       };
 
       await DashboardService.createDashboard(dashboardData);
-      message.loadingToSuccess('대시보드가 생성되었습니다', key);
+      message.loadingToSuccess('배차가 생성되었습니다', key);
       form.resetFields();
       onSuccess();
     } catch (error) {
-      console.error('대시보드 생성 오류:', error);
+      console.error('배차 생성 오류:', error);
 
       // 구체적인 에러 메시지 추출
       const errorDetail =

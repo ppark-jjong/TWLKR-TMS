@@ -67,22 +67,7 @@ const DashboardTable = ({
         </span>
       ),
     },
-    {
-      title: '배송 담당',
-      dataIndex: 'driver_name',
-      align: 'center',
-      width: 100,
-      render: (text) => (
-        <span
-          style={{
-            color: text ? 'black' : '#999',
-            ...FONT_STYLES.BODY.MEDIUM,
-          }}
-        >
-          {text || '-'}
-        </span>
-      ),
-    },
+
     {
       title: 'order#',
       dataIndex: 'order_no',
@@ -113,6 +98,22 @@ const DashboardTable = ({
       width: 150,
       render: (text) => (
         <span style={FONT_STYLES.BODY.MEDIUM}>{formatDateTime(text)}</span>
+      ),
+    },
+    {
+      title: '배송 담당',
+      dataIndex: 'driver_name',
+      align: 'center',
+      width: 100,
+      render: (text) => (
+        <span
+          style={{
+            color: text ? 'black' : '#999',
+            ...FONT_STYLES.BODY.MEDIUM,
+          }}
+        >
+          {text || '-'}
+        </span>
       ),
     },
     {
