@@ -14,6 +14,7 @@ from app.schemas.dashboard_schema import (
     DriverAssignment,
     AdminDashboardListResponse,
     DashboardDetailResponse,
+    FieldsUpdate,
 )
 from app.schemas.common_schema import BaseResponse, DateRangeInfo
 from app.services.dashboard_service import DashboardService
@@ -160,7 +161,7 @@ async def create_dashboard(
 ):
     """대시보드 생성 API"""
     try:
-        log_info(f"대시보드 생성 요청: {dashboard.dict()}")
+        log_info(f"대시보드 생성 요청: {dashboard.model_dump()}")
         result = service.create_dashboard(dashboard, current_user.department)
         return DashboardDetailResponse(
             success=True,
@@ -209,12 +210,15 @@ async def update_status(
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """상태 업데이트 API"""
+    """상태 업데이트 API (낙관적 락 적용)"""
     try:
-        log_info(f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}")
+        log_info(
+            f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}, 버전: {status_update.version}"
+        )
         result = service.update_status(
             dashboard_id,
             status_update.status,
+            status_update.version,
             is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
         )
 
@@ -223,7 +227,14 @@ async def update_status(
             message=f"{status_update.status} 상태로 변경되었습니다",
             data=result,
         )
-    except HTTPException:
+    except HTTPException as e:
+        # 409 Conflict (낙관적 락 충돌) 처리
+        if e.status_code == status.HTTP_409_CONFLICT:
+            return DashboardDetailResponse(
+                success=False,
+                message="다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                data=None,
+            )
         raise
     except Exception as e:
         log_error(e, "상태 업데이트 실패")
@@ -240,16 +251,25 @@ async def update_remark(
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """메모 업데이트 API"""
+    """메모 업데이트 API (낙관적 락 적용)"""
     try:
-        log_info(f"메모 업데이트 요청: {dashboard_id}")
-        result = service.update_remark(dashboard_id, remark_update.remark)
+        log_info(f"메모 업데이트 요청: {dashboard_id}, 버전: {remark_update.version}")
+        result = service.update_remark(
+            dashboard_id, remark_update.remark, remark_update.version
+        )
         return DashboardDetailResponse(
             success=True,
             message="메모가 업데이트되었습니다",
             data=result,
         )
-    except HTTPException:
+    except HTTPException as e:
+        # 409 Conflict (낙관적 락 충돌) 처리
+        if e.status_code == status.HTTP_409_CONFLICT:
+            return DashboardDetailResponse(
+                success=False,
+                message="다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                data=None,
+            )
         raise
     except Exception as e:
         log_error(e, "메모 업데이트 실패")
@@ -259,22 +279,62 @@ async def update_remark(
         )
 
 
+@router.patch("/{dashboard_id}/fields", response_model=DashboardDetailResponse)
+async def update_fields(
+    dashboard_id: int,
+    fields_update: FieldsUpdate,
+    service: DashboardService = Depends(get_dashboard_service),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """필드 업데이트 API (낙관적 락 적용)"""
+    try:
+        log_info(f"필드 업데이트 요청: {dashboard_id}, 버전: {fields_update.version}")
+        result = service.update_dashboard_fields(dashboard_id, fields_update)
+        return DashboardDetailResponse(
+            success=True,
+            message="필드가 업데이트되었습니다",
+            data=result,
+        )
+    except HTTPException as e:
+        # 409 Conflict (낙관적 락 충돌) 처리
+        if e.status_code == status.HTTP_409_CONFLICT:
+            return DashboardDetailResponse(
+                success=False,
+                message="다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                data=None,
+            )
+        raise
+    except Exception as e:
+        log_error(e, "필드 업데이트 실패")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="필드 업데이트 중 오류가 발생했습니다",
+        )
+
+
 @router.post("/assign", response_model=BaseResponse)
 async def assign_driver(
     assignment: DriverAssignment,
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """배차 처리 API"""
+    """배차 처리 API (낙관적 락 적용)"""
     try:
-        log_info(f"배차 처리 요청: {assignment.dict()}")
+        log_info(f"배차 처리 요청: {assignment.model_dump()}")
         result = service.assign_driver(assignment)
         return BaseResponse(
             success=True,
             message="배차가 완료되었습니다",
-            data={"updated_dashboards": [item.dict() for item in result]},
+            data={"updated_dashboards": [item.model_dump() for item in result]},
         )
-    except HTTPException:
+    except HTTPException as e:
+        # 409 Conflict (낙관적 락 충돌) 처리
+        if e.status_code == status.HTTP_409_CONFLICT:
+            return BaseResponse(
+                success=False,
+                message="다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                data=None,
+            )
         raise
     except Exception as e:
         log_error(e, "배차 처리 실패")

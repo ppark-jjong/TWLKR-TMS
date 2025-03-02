@@ -1,4 +1,4 @@
-// frontend/src/components/dashboard/DashboardDetailModal.js
+// frontend/src/components/dashboard/DashboardDetailModal.js (Updated)
 import React, { useState } from 'react';
 import {
   Modal,
@@ -12,8 +12,16 @@ import {
   Col,
   Divider,
   Tooltip,
+  Form,
+  DatePicker,
+  message as antMessage,
 } from 'antd';
-import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import {
+  EditOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  SaveOutlined,
+} from '@ant-design/icons';
 import {
   STATUS_TYPES,
   STATUS_TEXTS,
@@ -31,6 +39,7 @@ import {
 } from '../../utils/Formatter';
 import DashboardService from '../../services/DashboardService';
 import message, { MessageKeys, MessageTemplates } from '../../utils/message';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -94,11 +103,29 @@ const DashboardDetailModal = ({
   onSuccess,
   isAdmin,
 }) => {
+  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
   const [editingRemark, setEditingRemark] = useState(false);
+  const [editingFields, setEditingFields] = useState(false);
   const [currentDashboard, setCurrentDashboard] = useState(dashboard);
   const [selectedStatus, setSelectedStatus] = useState(null);
+
+  // 낙관적 락을 위한 버전 관리
+  const [currentVersion, setCurrentVersion] = useState(dashboard?.version || 1);
+
+  // 필드 수정을 위한 폼 초기화
+  const initFieldsForm = () => {
+    form.setFieldsValue({
+      eta: currentDashboard.eta ? dayjs(currentDashboard.eta) : null,
+      customer: currentDashboard.customer || '',
+      contact: currentDashboard.contact || '',
+      address: currentDashboard.address || '',
+      postal_code: currentDashboard.postal_code || '',
+      remark: currentDashboard.remark || '',
+      version: currentVersion,
+    });
+  };
 
   // 상태 변경 가능 여부 확인
   const canChangeStatus = () => {
@@ -187,28 +214,53 @@ const DashboardDetailModal = ({
         '상태 변경 요청:',
         dashboard.dashboard_id,
         newStatus,
-        isAdmin
+        isAdmin,
+        '버전:',
+        currentVersion
       );
 
       const updatedDashboard = await DashboardService.updateStatus(
         dashboard.dashboard_id,
         newStatus,
-        isAdmin
+        isAdmin,
+        currentVersion // 낙관적 락을 위한 버전 전송
       );
 
+      // 업데이트된 대시보드 정보로 화면 갱신
       setCurrentDashboard(updatedDashboard);
+      setCurrentVersion(updatedDashboard.version); // 버전 업데이트
       setEditingStatus(false);
       message.loadingToSuccess(
         `${STATUS_TEXTS[newStatus]} 상태로 변경되었습니다`,
         key
       );
-      onSuccess();
+      onSuccess(); // 부모 컴포넌트에 성공 알림
     } catch (error) {
       console.error('상태 변경 실패:', error);
-      message.loadingToError(
-        error.response?.data?.detail || '상태 변경 중 오류가 발생했습니다',
-        key
-      );
+
+      // 낙관적 락 충돌 확인
+      if (error.response?.status === 409) {
+        const newVersion = error.response?.data?.detail?.current_version;
+        if (newVersion) {
+          // 충돌 시 사용자에게 메시지 표시
+          antMessage.error(
+            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 다시 시도해주세요.'
+          );
+          setCurrentVersion(newVersion); // 최신 버전으로 업데이트
+          // 추가로 데이터 리로드 등 필요한 로직 추가
+          onSuccess(); // 부모 컴포넌트의 리로드 함수 호출
+        } else {
+          message.loadingToError(
+            '데이터 충돌이 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.',
+            key
+          );
+        }
+      } else {
+        message.loadingToError(
+          error.response?.data?.detail || '상태 변경 중 오류가 발생했습니다',
+          key
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -223,33 +275,120 @@ const DashboardDetailModal = ({
       console.log(
         '메모 업데이트 요청:',
         dashboard.dashboard_id,
-        currentDashboard.remark
+        currentDashboard.remark,
+        '버전:',
+        currentVersion
       );
 
       const updatedDashboard = await DashboardService.updateRemark(
         dashboard.dashboard_id,
-        currentDashboard.remark
+        currentDashboard.remark,
+        currentVersion // 낙관적 락을 위한 버전 전송
       );
 
+      setCurrentDashboard(updatedDashboard);
+      setCurrentVersion(updatedDashboard.version); // 버전 업데이트
       setEditingRemark(false);
       message.loadingToSuccess('메모가 업데이트되었습니다', key);
       onSuccess();
     } catch (error) {
       console.error('메모 업데이트 실패:', error);
-      message.loadingToError(
-        error.response?.data?.detail || '메모 업데이트 중 오류가 발생했습니다',
-        key
-      );
-      setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
+
+      // 낙관적 락 충돌 확인
+      if (error.response?.status === 409) {
+        const newVersion = error.response?.data?.detail?.current_version;
+        if (newVersion) {
+          antMessage.error(
+            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 다시 시도해주세요.'
+          );
+          setCurrentVersion(newVersion);
+          onSuccess();
+        } else {
+          message.loadingToError(
+            '데이터 충돌이 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.',
+            key
+          );
+        }
+        setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
+      } else {
+        message.loadingToError(
+          error.response?.data?.detail ||
+            '메모 업데이트 중 오류가 발생했습니다',
+          key
+        );
+        setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // 상태 변경 선택 처리
-  const handleStatusChange = (value) => {
-    setSelectedStatus(value);
-    confirmStatusChange(value);
+  // 필드 업데이트 핸들러
+  const handleFieldsUpdate = async () => {
+    const key = 'field-update';
+    try {
+      const values = await form.validateFields();
+      setLoading(true);
+      message.loading('필드 업데이트 중...', key);
+
+      // 버전 정보 추가
+      values.version = currentVersion;
+
+      console.log('필드 업데이트 요청:', dashboard.dashboard_id, values);
+
+      const updatedDashboard = await DashboardService.updateFields(
+        dashboard.dashboard_id,
+        values
+      );
+
+      setCurrentDashboard(updatedDashboard);
+      setCurrentVersion(updatedDashboard.version); // 버전 업데이트
+      setEditingFields(false);
+      message.loadingToSuccess('필드가 업데이트되었습니다', key);
+      onSuccess();
+    } catch (error) {
+      console.error('필드 업데이트 실패:', error);
+
+      // 낙관적 락 충돌 확인
+      if (error.response?.status === 409) {
+        const newVersion = error.response?.data?.detail?.current_version;
+        if (newVersion) {
+          antMessage.error(
+            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 다시 시도해주세요.'
+          );
+          setCurrentVersion(newVersion);
+          onSuccess();
+        } else {
+          message.loadingToError(
+            '데이터 충돌이 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.',
+            key
+          );
+        }
+      } else if (error.errorFields) {
+        // 폼 유효성 검사 오류
+        message.loadingToError('입력값을 확인해주세요', key);
+      } else {
+        message.loadingToError(
+          error.response?.data?.detail ||
+            '필드 업데이트 중 오류가 발생했습니다',
+          key
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 필드 편집 시작
+  const startEditingFields = () => {
+    initFieldsForm();
+    setEditingFields(true);
+  };
+
+  // 필드 편집 취소
+  const cancelEditingFields = () => {
+    setEditingFields(false);
+    form.resetFields();
   };
 
   return (
@@ -293,170 +432,293 @@ const DashboardDetailModal = ({
         padding: '24px',
       }}
     >
-      <div style={{ padding: '24px' }}>
-        <Row gutter={32}>
-          <Col span={12}>
-            <div style={{ marginBottom: '32px' }}>
-              <SectionTitle>기본 정보</SectionTitle>
-              <InfoItem
-                label="부서"
-                value={DEPARTMENT_TEXTS[currentDashboard.department]}
-              />
-              <InfoItem
-                label="종류"
-                value={TYPE_TEXTS[currentDashboard.type]}
-              />
-              <InfoItem
-                label="출발 허브"
-                value={WAREHOUSE_TEXTS[currentDashboard.warehouse]}
-              />
-              <InfoItem label="SLA" value={currentDashboard.sla} />
-            </div>
-
-            <div>
-              <SectionTitle>배송 시간</SectionTitle>
-              <InfoItem
-                label="접수 시각"
-                value={formatDateTime(currentDashboard.create_time)}
-              />
-              <InfoItem
-                label="출발 시각"
-                value={formatDateTime(currentDashboard.depart_time)}
-              />
-              <InfoItem
-                label="완료 시각"
-                value={formatDateTime(currentDashboard.complete_time)}
-              />
-              <InfoItem
+      {editingFields ? (
+        <Form form={form} layout="vertical">
+          <Row gutter={32}>
+            <Col span={12}>
+              <Form.Item
+                name="eta"
                 label="ETA"
-                value={formatDateTime(currentDashboard.eta)}
-                highlight={true}
-              />
-            </div>
-          </Col>
+                rules={[
+                  { required: true, message: 'ETA를 선택해주세요' },
+                  {
+                    validator: (_, value) => {
+                      if (value && value.isBefore(dayjs())) {
+                        return Promise.reject(
+                          'ETA는 현재 시간 이후여야 합니다'
+                        );
+                      }
+                      return Promise.resolve();
+                    },
+                  },
+                ]}
+              >
+                <DatePicker
+                  showTime
+                  format="YYYY-MM-DD HH:mm"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
 
-          <Col span={12}>
-            <div style={{ marginBottom: '32px' }}>
-              <SectionTitle>배송 담당자</SectionTitle>
-              <InfoItem
-                label="담당 기사"
-                value={currentDashboard.driver_name}
-                highlight={true}
-              />
-              <InfoItem
-                label="기사 연락처"
-                value={formatPhoneNumber(currentDashboard.driver_contact)}
-              />
-            </div>
+              <Form.Item
+                name="postal_code"
+                label="우편번호"
+                rules={[
+                  { required: true, message: '우편번호를 입력해주세요' },
+                  {
+                    pattern: /^\d{5}$/,
+                    message: '5자리 숫자로 입력해주세요',
+                  },
+                ]}
+              >
+                <Input maxLength={5} />
+              </Form.Item>
 
-            <div style={{ marginBottom: '32px' }}>
-              <SectionTitle>배송 세부사항</SectionTitle>
-              <InfoItem label="주소" value={currentDashboard.address} />
-              <InfoItem
-                label="예상 거리"
-                value={formatDistance(currentDashboard.distance)}
-              />
-              <InfoItem
-                label="예상 소요시간"
-                value={formatDuration(currentDashboard.duration_time)}
-              />
-            </div>
+              <Form.Item
+                name="address"
+                label="주소"
+                rules={[{ required: true, message: '주소를 입력해주세요' }]}
+              >
+                <TextArea rows={3} />
+              </Form.Item>
+            </Col>
 
-            <div>
-              <SectionTitle>수령인 정보</SectionTitle>
-              <InfoItem label="수령인" value={currentDashboard.customer} />
-              <InfoItem
+            <Col span={12}>
+              <Form.Item
+                name="customer"
+                label="수령인"
+                rules={[{ required: true, message: '수령인을 입력해주세요' }]}
+              >
+                <Input />
+              </Form.Item>
+
+              <Form.Item
+                name="contact"
                 label="연락처"
-                value={formatPhoneNumber(currentDashboard.contact)}
-              />
-            </div>
-          </Col>
-        </Row>
+                rules={[
+                  { required: true, message: '연락처를 입력해주세요' },
+                  {
+                    pattern: /^\d{2,3}-\d{3,4}-\d{4}$/,
+                    message:
+                      '올바른 연락처 형식으로 입력해주세요 (예: 010-1234-5678)',
+                  },
+                ]}
+              >
+                <Input />
+              </Form.Item>
 
-        <Divider />
+              <Form.Item name="remark" label="메모">
+                <TextArea rows={5} />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        <div>
-          <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
-            메모
-          </Title>
-          {editingRemark ? (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+          <div style={{ textAlign: 'right', marginTop: '16px' }}>
+            <Space>
+              <Button onClick={cancelEditingFields}>취소</Button>
+              <Button
+                type="primary"
+                onClick={handleFieldsUpdate}
+                loading={loading}
+              >
+                저장
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      ) : (
+        <div style={{ padding: '24px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              marginBottom: '16px',
+            }}
+          >
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={startEditingFields}
             >
-              <TextArea
-                value={currentDashboard.remark}
-                onChange={(e) =>
-                  setCurrentDashboard({
-                    ...currentDashboard,
-                    remark: e.target.value,
-                  })
-                }
-                rows={6}
-                maxLength={2000}
-                showCount
-                style={{
-                  ...FONT_STYLES.BODY.MEDIUM,
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: '6px',
-                }}
-              />
-              <Space>
-                <Button
-                  type="primary"
-                  icon={<CheckOutlined />}
-                  onClick={handleRemarkUpdate}
-                  loading={loading}
-                  size="large"
-                >
-                  저장
-                </Button>
-                <Button
-                  icon={<CloseOutlined />}
-                  onClick={() => {
-                    setEditingRemark(false);
-                    setCurrentDashboard(dashboard);
-                  }}
-                  size="large"
-                >
-                  취소
-                </Button>
-              </Space>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-              }}
-            >
+              정보 수정
+            </Button>
+          </div>
+
+          <Row gutter={32}>
+            <Col span={12}>
+              <div style={{ marginBottom: '32px' }}>
+                <SectionTitle>기본 정보</SectionTitle>
+                <InfoItem
+                  label="부서"
+                  value={DEPARTMENT_TEXTS[currentDashboard.department]}
+                />
+                <InfoItem
+                  label="종류"
+                  value={TYPE_TEXTS[currentDashboard.type]}
+                />
+                <InfoItem
+                  label="출발 허브"
+                  value={WAREHOUSE_TEXTS[currentDashboard.warehouse]}
+                />
+                <InfoItem label="SLA" value={currentDashboard.sla} />
+              </div>
+
+              <div>
+                <SectionTitle>배송 시간</SectionTitle>
+                <InfoItem
+                  label="접수 시각"
+                  value={formatDateTime(currentDashboard.create_time)}
+                />
+                <InfoItem
+                  label="출발 시각"
+                  value={formatDateTime(currentDashboard.depart_time)}
+                />
+                <InfoItem
+                  label="완료 시각"
+                  value={formatDateTime(currentDashboard.complete_time)}
+                />
+                <InfoItem
+                  label="ETA"
+                  value={formatDateTime(currentDashboard.eta)}
+                  highlight={true}
+                />
+              </div>
+            </Col>
+
+            <Col span={12}>
+              <div style={{ marginBottom: '32px' }}>
+                <SectionTitle>배송 담당자</SectionTitle>
+                <InfoItem
+                  label="담당 기사"
+                  value={currentDashboard.driver_name}
+                  highlight={true}
+                />
+                <InfoItem
+                  label="기사 연락처"
+                  value={formatPhoneNumber(currentDashboard.driver_contact)}
+                />
+              </div>
+
+              <div style={{ marginBottom: '32px' }}>
+                <SectionTitle>배송 세부사항</SectionTitle>
+                <InfoItem label="주소" value={currentDashboard.address} />
+                <InfoItem
+                  label="예상 거리"
+                  value={formatDistance(currentDashboard.distance)}
+                />
+                <InfoItem
+                  label="예상 소요시간"
+                  value={formatDuration(currentDashboard.duration_time)}
+                />
+              </div>
+
+              <div>
+                <SectionTitle>수령인 정보</SectionTitle>
+                <InfoItem label="수령인" value={currentDashboard.customer} />
+                <InfoItem
+                  label="연락처"
+                  value={formatPhoneNumber(currentDashboard.contact)}
+                />
+              </div>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          <div>
+            <Title level={5} style={FONT_STYLES.TITLE.SMALL}>
+              메모
+            </Title>
+            {editingRemark ? (
               <div
                 style={{
-                  flex: 1,
-                  backgroundColor: '#fafafa',
-                  padding: '16px',
-                  borderRadius: '6px',
-                  minHeight: '120px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  marginRight: '16px',
-                  ...FONT_STYLES.BODY.MEDIUM,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
                 }}
               >
-                {currentDashboard.remark || '메모 없음'}
+                <TextArea
+                  value={currentDashboard.remark}
+                  onChange={(e) =>
+                    setCurrentDashboard({
+                      ...currentDashboard,
+                      remark: e.target.value,
+                    })
+                  }
+                  rows={6}
+                  maxLength={2000}
+                  showCount
+                  style={{
+                    ...FONT_STYLES.BODY.MEDIUM,
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '6px',
+                  }}
+                />
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<CheckOutlined />}
+                    onClick={handleRemarkUpdate}
+                    loading={loading}
+                    size="large"
+                  >
+                    저장
+                  </Button>
+                  <Button
+                    icon={<CloseOutlined />}
+                    onClick={() => {
+                      setEditingRemark(false);
+                      setCurrentDashboard(dashboard);
+                    }}
+                    size="large"
+                  >
+                    취소
+                  </Button>
+                </Space>
               </div>
-              <Button
-                icon={<EditOutlined />}
-                onClick={() => setEditingRemark(true)}
-                size="large"
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                }}
               >
-                메모 수정
-              </Button>
-            </div>
-          )}
+                <div
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#fafafa',
+                    padding: '16px',
+                    borderRadius: '6px',
+                    minHeight: '120px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    marginRight: '16px',
+                    ...FONT_STYLES.BODY.MEDIUM,
+                  }}
+                >
+                  {currentDashboard.remark || '메모 없음'}
+                </div>
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={() => setEditingRemark(true)}
+                  size="large"
+                >
+                  메모 수정
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* 버전 정보 표시 (개발용, 실제 운영에서는 제거) */}
+          <div style={{ marginTop: '16px', textAlign: 'right' }}>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              버전: {currentVersion}
+            </Text>
+          </div>
         </div>
-      </div>
+      )}
     </Modal>
   );
 
@@ -506,6 +768,12 @@ const DashboardDetailModal = ({
         상태 변경
       </Button>
     );
+  }
+
+  // 상태 변경 선택 처리
+  function handleStatusChange(value) {
+    setSelectedStatus(value);
+    confirmStatusChange(value);
   }
 };
 

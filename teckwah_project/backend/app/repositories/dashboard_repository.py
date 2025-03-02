@@ -1,12 +1,13 @@
 # backend/app/repositories/dashboard_repository.py
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, or_
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import and_, func, or_, exc
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from app.models.dashboard_model import Dashboard
 from app.models.postal_code_model import PostalCode, PostalCodeDetail
 from app.utils.logger import log_error, log_info
+from app.utils.exceptions import OptimisticLockException
 
 
 class DashboardRepository:
@@ -64,6 +65,7 @@ class DashboardRepository:
             log_info(f"대시보드 생성 시작")
 
             dashboard = Dashboard(**dashboard_data)
+            dashboard.version = 1  # 초기 버전 설정
             self.db.add(dashboard)
 
             # postal_code_detail 정보 연결 위해 flush
@@ -96,55 +98,136 @@ class DashboardRepository:
             raise
 
     def update_dashboard_status(
-        self, dashboard_id: int, status: str, current_time: datetime
+        self,
+        dashboard_id: int,
+        status: str,
+        current_time: datetime,
+        expected_version: int,
     ) -> Optional[Dashboard]:
-        """상태 업데이트"""
+        """상태 업데이트 (낙관적 락 적용)"""
         try:
             dashboard = self.get_dashboard_detail(dashboard_id)
-            if dashboard:
-                old_status = dashboard.status
-                dashboard.status = status
+            if not dashboard:
+                return None
 
-                # 상태 변경에 따른 시간 업데이트
-                if status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
-                    dashboard.depart_time = current_time
-                    dashboard.complete_time = None
-                elif status in ["COMPLETE", "ISSUE"]:
-                    dashboard.complete_time = current_time
-                elif status in ["WAITING", "CANCEL"]:
-                    dashboard.depart_time = None
-                    dashboard.complete_time = None
+            # 낙관적 락 검증
+            if dashboard.version != expected_version:
+                log_info(
+                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
+                )
+                raise OptimisticLockException(
+                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                    current_version=dashboard.version,
+                )
 
-                self.db.commit()
-                self.db.refresh(dashboard)
+            old_status = dashboard.status
+            dashboard.status = status
+
+            # 상태 변경에 따른 시간 업데이트
+            if status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
+                dashboard.depart_time = current_time
+                dashboard.complete_time = None
+            elif status in ["COMPLETE", "ISSUE"]:
+                dashboard.complete_time = current_time
+            elif status in ["WAITING", "CANCEL"]:
+                dashboard.depart_time = None
+                dashboard.complete_time = None
+
+            # 버전 증가
+            dashboard.version += 1
+
+            self.db.commit()
+            self.db.refresh(dashboard)
             return dashboard
 
+        except OptimisticLockException:
+            self.db.rollback()
+            raise
         except SQLAlchemyError as e:
             self.db.rollback()
             log_error(e, "상태 업데이트 실패", {"id": dashboard_id, "status": status})
             raise
 
     def update_dashboard_remark(
-        self, dashboard_id: int, remark: str
+        self, dashboard_id: int, remark: str, expected_version: int
     ) -> Optional[Dashboard]:
-        """메모 업데이트"""
+        """메모 업데이트 (낙관적 락 적용)"""
         try:
             dashboard = self.get_dashboard_detail(dashboard_id)
-            if dashboard:
-                dashboard.remark = remark
-                self.db.commit()
-                self.db.refresh(dashboard)
+            if not dashboard:
+                return None
+
+            # 낙관적 락 검증
+            if dashboard.version != expected_version:
+                log_info(
+                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
+                )
+                raise OptimisticLockException(
+                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                    current_version=dashboard.version,
+                )
+
+            dashboard.remark = remark
+            dashboard.version += 1  # 버전 증가
+
+            self.db.commit()
+            self.db.refresh(dashboard)
             return dashboard
 
+        except OptimisticLockException:
+            self.db.rollback()
+            raise
         except SQLAlchemyError as e:
             self.db.rollback()
             log_error(e, "메모 업데이트 실패", {"id": dashboard_id})
             raise
 
+    def update_dashboard_fields(
+        self, dashboard_id: int, fields: Dict[str, Any], expected_version: int
+    ) -> Optional[Dashboard]:
+        """대시보드 필드 업데이트 (낙관적 락 적용)"""
+        try:
+            dashboard = self.get_dashboard_detail(dashboard_id)
+            if not dashboard:
+                return None
+
+            # 낙관적 락 검증
+            if dashboard.version != expected_version:
+                log_info(
+                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
+                )
+                raise OptimisticLockException(
+                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                    current_version=dashboard.version,
+                )
+
+            # 필드 업데이트
+            for field, value in fields.items():
+                if hasattr(dashboard, field) and field != "version":
+                    setattr(dashboard, field, value)
+
+            dashboard.version += 1  # 버전 증가
+
+            self.db.commit()
+            self.db.refresh(dashboard)
+            return dashboard
+
+        except OptimisticLockException:
+            self.db.rollback()
+            raise
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
+            raise
+
     def assign_driver(
-        self, dashboard_ids: List[int], driver_name: str, driver_contact: str
+        self,
+        dashboard_ids: List[int],
+        driver_name: str,
+        driver_contact: str,
+        versions: Dict[int, int],
     ) -> List[Dashboard]:
-        """배차 처리"""
+        """배차 처리 (낙관적 락 적용)"""
         try:
             log_info(f"배차 처리: {len(dashboard_ids)}건")
 
@@ -153,16 +236,47 @@ class DashboardRepository:
             if not dashboards:
                 return []
 
-            # 배차 정보 일괄 업데이트
+            successful_ids = []
+            failed_ids = []
+
+            # 각 대시보드에 대해 낙관적 락 검증 후 배차 정보 업데이트
             for dashboard in dashboards:
+                if dashboard.dashboard_id not in versions:
+                    failed_ids.append(dashboard.dashboard_id)
+                    continue
+
+                expected_version = versions[dashboard.dashboard_id]
+
+                # 낙관적 락 검증
+                if dashboard.version != expected_version:
+                    log_info(
+                        f"낙관적 락 충돌 발생: 대시보드 ID {dashboard.dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
+                    )
+                    failed_ids.append(dashboard.dashboard_id)
+                    continue
+
+                # 배차 정보 업데이트
                 dashboard.driver_name = driver_name
                 dashboard.driver_contact = driver_contact
+                dashboard.version += 1  # 버전 증가
+                successful_ids.append(dashboard.dashboard_id)
+
+            if failed_ids:
+                # 실패한 항목이 있으면 롤백하고 예외 발생
+                self.db.rollback()
+                log_info(f"배차 처리 실패 항목: {failed_ids}")
+                raise OptimisticLockException(
+                    f"일부 항목이 다른 사용자에 의해 수정되었습니다. 최신 데이터를 확인하세요.",
+                    current_version=0,  # 프론트엔드에서 재조회 하도록 함
+                )
 
             self.db.commit()
 
             # 업데이트된 대시보드 다시 조회하여 반환
-            return self.get_dashboards_by_ids(dashboard_ids)
+            return self.get_dashboards_by_ids(successful_ids)
 
+        except OptimisticLockException:
+            raise
         except SQLAlchemyError as e:
             self.db.rollback()
             log_error(e, "배차 처리 실패", {"ids": dashboard_ids})

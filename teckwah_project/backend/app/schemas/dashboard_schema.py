@@ -69,6 +69,7 @@ class DashboardResponse(DashboardBase):
     create_time: datetime
     depart_time: Optional[datetime] = None
     region: Optional[str] = None
+    version: int  # 낙관적 락을 위한 버전 필드 추가
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -115,11 +116,26 @@ class DashboardDetailResponse(BaseResponse):
 class StatusUpdate(BaseModel):
     status: DeliveryStatus = Field(description="변경할 상태")
     is_admin: bool = Field(default=False, description="관리자 권한 사용 여부")
+    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
 # 메모 변경
 class RemarkUpdate(BaseModel):
     remark: str = Field(max_length=2000, description="변경할 메모")
+    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
+
+
+# 필드 업데이트 (낙관적 락 추가)
+class FieldsUpdate(BaseModel):
+    eta: Optional[datetime] = None
+    customer: Optional[str] = Field(None, max_length=50)
+    contact: Optional[str] = Field(None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
+    address: Optional[str] = None
+    postal_code: Optional[str] = Field(
+        None, min_length=5, max_length=5, pattern=r"^\d{5}$"
+    )
+    remark: Optional[str] = Field(None, max_length=2000)
+    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
 # 배차 처리
@@ -131,3 +147,12 @@ class DriverAssignment(BaseModel):
     driver_contact: str = Field(
         pattern=r"^\d{2,3}-\d{3,4}-\d{4}$", description="배송 담당자 연락처"
     )
+    versions: Dict[int, int] = Field(
+        description="대시보드 ID별 버전 (낙관적 락을 위함)"
+    )
+
+
+# 낙관적 락 충돌 응답
+class OptimisticLockResponse(BaseResponse):
+    conflict: bool = True
+    current_version: int = 0

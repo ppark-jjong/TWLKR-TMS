@@ -1,6 +1,13 @@
-// frontend/src/components/dashboard/AssignDriverModal.js
-import React, { useState } from 'react';
-import { Modal, Form, Input, Typography, Space } from 'antd';
+// frontend/src/components/dashboard/AssignDriverModal.js (Updated)
+import React, { useState, useEffect } from 'react';
+import {
+  Modal,
+  Form,
+  Input,
+  Typography,
+  Space,
+  message as antMessage,
+} from 'antd';
 import { formatPhoneNumber } from '../../utils/Formatter';
 import { FONT_STYLES } from '../../utils/Constants';
 import DashboardService from '../../services/DashboardService';
@@ -12,6 +19,19 @@ const { Text } = Typography;
 const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+
+  // 낙관적 락을 위한 버전 정보 수집
+  useEffect(() => {
+    if (visible && selectedRows.length > 0) {
+      // 각 대시보드 ID별 버전 정보 수집
+      const versions = {};
+      selectedRows.forEach((row) => {
+        versions[row.dashboard_id] = row.version || 1;
+      });
+      // 폼에 버전 정보 설정 (내부적으로만 사용)
+      form.setFieldsValue({ versions });
+    }
+  }, [visible, selectedRows, form]);
 
   // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
@@ -46,12 +66,14 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
+        versions: values.versions, // 낙관적 락을 위한 버전 정보
       });
 
       await DashboardService.assignDriver({
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
+        versions: values.versions, // 낙관적 락을 위한 버전 정보
       });
 
       message.loadingToSuccess('배차가 완료되었습니다', key);
@@ -59,9 +81,19 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       onSuccess();
     } catch (error) {
       console.error('배차 처리 실패:', error);
-      const errorMessage =
-        error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다';
-      message.loadingToError(errorMessage, key);
+
+      // 낙관적 락 충돌 확인
+      if (error.response?.status === 409) {
+        antMessage.error(
+          '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.'
+        );
+        // 부모 컴포넌트에 알림 (데이터 리로드 유도)
+        onSuccess();
+      } else {
+        const errorMessage =
+          error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다';
+        message.loadingToError(errorMessage, key);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -150,6 +182,11 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
             maxLength={13}
             style={FONT_STYLES.BODY.MEDIUM}
           />
+        </Form.Item>
+
+        {/* 버전 정보는 숨겨진 필드로 관리 */}
+        <Form.Item name="versions" hidden>
+          <Input />
         </Form.Item>
       </Form>
     </Modal>

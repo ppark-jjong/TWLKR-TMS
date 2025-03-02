@@ -2,7 +2,7 @@
 import re
 import pytz
 from datetime import datetime, timezone, timedelta
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 from fastapi import HTTPException, status
 from app.repositories.dashboard_repository import DashboardRepository
 from app.schemas.dashboard_schema import (
@@ -10,10 +10,12 @@ from app.schemas.dashboard_schema import (
     DashboardResponse,
     DashboardDetail,
     DriverAssignment,
+    FieldsUpdate,
 )
 from app.utils.datetime_helper import KST, get_date_range_from_datetime
 from app.utils.constants import MESSAGES
 from app.utils.logger import log_info, log_error
+from app.utils.exceptions import OptimisticLockException
 
 
 class DashboardService:
@@ -106,9 +108,9 @@ class DashboardService:
             )
 
     def update_status(
-        self, dashboard_id: int, status: str, is_admin: bool = False
+        self, dashboard_id: int, status: str, version: int, is_admin: bool = False
     ) -> DashboardDetail:
-        """상태 업데이트"""
+        """상태 업데이트 (낙관적 락 적용)"""
         try:
             # 대시보드 조회
             dashboard = self.repository.get_dashboard_detail(dashboard_id)
@@ -153,12 +155,21 @@ class DashboardService:
             # 현재 시간 (KST)
             current_time = datetime.now(self.kr_timezone)
 
-            # 상태 업데이트
-            updated = self.repository.update_dashboard_status(
-                dashboard_id, status, current_time
-            )
-
-            return DashboardDetail.model_validate(updated)
+            try:
+                # 상태 업데이트 (낙관적 락 적용)
+                updated = self.repository.update_dashboard_status(
+                    dashboard_id, status, current_time, version
+                )
+                return DashboardDetail.model_validate(updated)
+            except OptimisticLockException as e:
+                # 낙관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                        "current_version": e.current_version,
+                    },
+                )
 
         except HTTPException:
             raise
@@ -169,8 +180,10 @@ class DashboardService:
                 detail=MESSAGES["DASHBOARD"]["STATUS_UPDATE_ERROR"],
             )
 
-    def update_remark(self, dashboard_id: int, remark: str) -> DashboardDetail:
-        """메모 업데이트"""
+    def update_remark(
+        self, dashboard_id: int, remark: str, version: int
+    ) -> DashboardDetail:
+        """메모 업데이트 (낙관적 락 적용)"""
         try:
             # 대시보드 조회
             dashboard = self.repository.get_dashboard_detail(dashboard_id)
@@ -187,9 +200,21 @@ class DashboardService:
                     detail="메모는 2000자를 초과할 수 없습니다",
                 )
 
-            # 메모 업데이트
-            updated = self.repository.update_dashboard_remark(dashboard_id, remark)
-            return DashboardDetail.model_validate(updated)
+            try:
+                # 메모 업데이트 (낙관적 락 적용)
+                updated = self.repository.update_dashboard_remark(
+                    dashboard_id, remark, version
+                )
+                return DashboardDetail.model_validate(updated)
+            except OptimisticLockException as e:
+                # 낙관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                        "current_version": e.current_version,
+                    },
+                )
 
         except HTTPException:
             raise
@@ -200,8 +225,74 @@ class DashboardService:
                 detail="메모 업데이트 중 오류가 발생했습니다",
             )
 
+    def update_dashboard_fields(
+        self, dashboard_id: int, fields_update: FieldsUpdate
+    ) -> DashboardDetail:
+        """대시보드 필드 업데이트 (낙관적 락 적용)"""
+        try:
+            # 대시보드 조회
+            dashboard = self.repository.get_dashboard_detail(dashboard_id)
+            if not dashboard:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="대시보드를 찾을 수 없습니다",
+                )
+
+            # 필드 값 유효성 검증
+            fields = fields_update.model_dump(exclude_unset=True, exclude={"version"})
+
+            # 우편번호 검증
+            if "postal_code" in fields and (
+                not fields["postal_code"].isdigit() or len(fields["postal_code"]) != 5
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="유효하지 않은 우편번호입니다",
+                )
+
+            # 연락처 검증
+            if "contact" in fields and not bool(
+                re.match(r"^\d{2,3}-\d{3,4}-\d{4}$", fields["contact"])
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="올바른 연락처 형식이 아닙니다",
+                )
+
+            # ETA 검증
+            if "eta" in fields and fields["eta"] <= datetime.now(self.kr_timezone):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="ETA는 현재 시간 이후여야 합니다",
+                )
+
+            try:
+                # 필드 업데이트 (낙관적 락 적용)
+                updated = self.repository.update_dashboard_fields(
+                    dashboard_id, fields, fields_update.version
+                )
+                return DashboardDetail.model_validate(updated)
+            except OptimisticLockException as e:
+                # 낙관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                        "current_version": e.current_version,
+                    },
+                )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            log_error(e, "필드 업데이트 실패")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="필드 업데이트 중 오류가 발생했습니다",
+            )
+
     def assign_driver(self, assignment: DriverAssignment) -> List[DashboardResponse]:
-        """배차 처리"""
+        """배차 처리 (낙관적 락 적용)"""
         try:
             log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
 
@@ -227,20 +318,31 @@ class DashboardService:
                     detail="올바른 연락처 형식이 아닙니다",
                 )
 
-            # 배차 정보 업데이트
-            updated_dashboards = self.repository.assign_driver(
-                assignment.dashboard_ids,
-                assignment.driver_name,
-                assignment.driver_contact,
-            )
-
-            if len(updated_dashboards) != len(assignment.dashboard_ids):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="일부 대시보드를 찾을 수 없습니다",
+            try:
+                # 배차 정보 업데이트 (낙관적 락 적용)
+                updated_dashboards = self.repository.assign_driver(
+                    assignment.dashboard_ids,
+                    assignment.driver_name,
+                    assignment.driver_contact,
+                    assignment.versions,
                 )
 
-            return [DashboardResponse.model_validate(d) for d in updated_dashboards]
+                if len(updated_dashboards) != len(assignment.dashboard_ids):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="일부 대시보드를 찾을 수 없습니다",
+                    )
+
+                return [DashboardResponse.model_validate(d) for d in updated_dashboards]
+            except OptimisticLockException as e:
+                # 낙관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                        "current_version": e.current_version,
+                    },
+                )
 
         except HTTPException:
             raise

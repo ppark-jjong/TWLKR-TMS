@@ -124,6 +124,10 @@ class VisualizationService:
     ) -> Dict[str, Any]:
         """부서별 시간대별 접수량 데이터 조회 및 분석
         (create_time 기준으로 데이터 조회 후 분석)
+
+        시간대 기준:
+        - 09:00 ~ 19:00: 시간 단위로 집계
+        - 19:00 ~ 익일 09:00: 하나의 단위로 통합 집계
         """
         try:
             log_info(f"시간대별 접수량 데이터 조회 시작: {start_date} ~ {end_date}")
@@ -131,10 +135,9 @@ class VisualizationService:
             # 데이터 조회 - create_time 기준
             raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
 
-            # 시간대 정의 (주간: 08-22시 1시간 단위, 야간: 22-08시 통합)
-            time_slots = ["야간(22-08)"] + [
-                f"{h:02d}-{(h+1):02d}" for h in range(8, 22)
-            ]
+            # 시간대 정의 (주간: 09-19시 1시간 단위, 야간: 19-09시 통합)
+            day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
+            time_slots = ["야간(19-09)"] + day_slots  # 야간을 맨 앞에 두어 표시상 구분
 
             # 데이터가 없는 경우 빈 결과 반환
             if not raw_data:
@@ -151,21 +154,7 @@ class VisualizationService:
                         for dept in self.departments
                     },
                     "time_slots": [
-                        {
-                            "label": slot,
-                            "start": (
-                                int(slot.split("-")[0]) if slot != "야간(22-08)" else 22
-                            ),
-                            "end": (
-                                (
-                                    int(slot.split("-")[1])
-                                    if slot != "야간(22-08)"
-                                    else 8
-                                )
-                                if slot != "야간(22-08)"
-                                else None
-                            ),
-                        }
+                        {"label": slot, "is_night": slot == "야간(19-09)"}
                         for slot in time_slots
                     ],
                 }
@@ -176,13 +165,16 @@ class VisualizationService:
                 columns=["department", "create_time"],
             )
 
+            # 시간대 분류 함수 정의
+            def categorize_time_slot(hour):
+                if 9 <= hour < 19:
+                    return f"{hour:02d}-{(hour+1):02d}"
+                else:
+                    return "야간(19-09)"
+
             # 생성 시간 기준으로 시간대 분석
             df["hour"] = df["create_time"].dt.hour
-            df["time_slot"] = df["hour"].apply(
-                lambda x: (
-                    "야간(22-08)" if (x >= 22 or x < 8) else f"{x:02d}-{(x+1):02d}"
-                )
-            )
+            df["time_slot"] = df["hour"].apply(categorize_time_slot)
 
             # 시간대별 집계
             hourly_pivot = pd.pivot_table(
@@ -225,14 +217,10 @@ class VisualizationService:
             # 시간대 정보 구성
             time_slot_info = []
             for slot in time_slots:
-                if slot == "야간(22-08)":
-                    time_slot_info.append({"label": slot, "start": 22, "end": 8})
+                if slot == "야간(19-09)":
+                    time_slot_info.append({"label": slot, "is_night": True})
                 else:
-                    start_hour = int(slot.split("-")[0])
-                    end_hour = int(slot.split("-")[1])
-                    time_slot_info.append(
-                        {"label": slot, "start": start_hour, "end": end_hour}
-                    )
+                    time_slot_info.append({"label": slot, "is_night": False})
 
             log_info(f"시간대별 접수량 데이터 처리 완료: {total_count}건")
 
@@ -248,9 +236,8 @@ class VisualizationService:
             log_error(e, "시간대별 접수량 데이터 분석 실패")
 
             # 에러 발생 시 빈 결과 반환
-            time_slots = ["야간(22-08)"] + [
-                f"{h:02d}-{(h+1):02d}" for h in range(8, 22)
-            ]
+            day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
+            time_slots = ["야간(19-09)"] + day_slots
 
             return {
                 "type": "hourly_orders",
@@ -264,17 +251,7 @@ class VisualizationService:
                     for dept in self.departments
                 },
                 "time_slots": [
-                    {
-                        "label": slot,
-                        "start": (
-                            int(slot.split("-")[0]) if slot != "야간(22-08)" else 22
-                        ),
-                        "end": (
-                            (int(slot.split("-")[1]) if slot != "야간(22-08)" else 8)
-                            if slot != "야간(22-08)"
-                            else None
-                        ),
-                    }
+                    {"label": slot, "is_night": slot == "야간(19-09)"}
                     for slot in time_slots
                 ],
             }
