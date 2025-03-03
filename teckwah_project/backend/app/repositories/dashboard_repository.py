@@ -62,6 +62,43 @@ class DashboardRepository:
                 {"start": start_time, "end": end_time},
             )
             raise
+            
+    def search_dashboards_by_order_no(self, order_no: str) -> List[Dashboard]:
+        """주문번호로 대시보드 검색 (인덱스 활용)"""
+        try:
+            log_info(f"주문번호로 대시보드 검색: {order_no}")
+            
+            # order_no 컬럼이 빅인트 타입이므로 숫자 변환 시도
+            search_term = order_no.strip()
+            
+            # 숫자 검색 조건 (정확히 일치하는 경우)
+            if search_term.isdigit():
+                exact_match = int(search_term)
+                # 정확히 일치하는 주문번호 검색
+                result = (
+                    self.db.query(Dashboard)
+                    .filter(Dashboard.order_no == exact_match)
+                    .order_by(
+                        case(
+                            (Dashboard.status == "WAITING", 1),
+                            (Dashboard.status == "IN_PROGRESS", 2),
+                            (Dashboard.status == "COMPLETE", 10),
+                            (Dashboard.status == "ISSUE", 11),
+                            (Dashboard.status == "CANCEL", 12),
+                            else_=99,
+                        ).asc(),
+                        Dashboard.eta.asc(),
+                    )
+                    .all()
+                )
+                return result
+            
+            # 숫자가 아닌 경우 빈 리스트 반환 (주문번호는 숫자만 유효)
+            return []
+        
+        except SQLAlchemyError as e:
+            log_error(e, "주문번호 검색 실패", {"order_no": order_no})
+            raise
 
     def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
         """대시보드 상세 정보 조회"""
