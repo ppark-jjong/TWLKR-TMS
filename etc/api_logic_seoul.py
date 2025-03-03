@@ -66,7 +66,7 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
                     distances.append(distance)
                     print(f"- {option_name}: {distance}km")
 
-            time.sleep(0.3)  # API 호출 간격
+            time.sleep(0.5)  # API 호출 간격
 
         except Exception as e:
             print(f"경로 계산 중 오류 발생 ({option_name}): {str(e)}")
