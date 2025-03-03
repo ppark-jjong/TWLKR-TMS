@@ -1,4 +1,4 @@
-// frontend/src/contexts/DashboardContext.js (Updated)
+// frontend/src/contexts/DashboardContext.js
 import React, {
   createContext,
   useState,
@@ -16,23 +16,27 @@ export const DashboardProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [pollingInterval, setPollingInterval] = useState(30000); // 30초 기본값
   const [dateRange, setDateRange] = useState(null);
+  const [availableDateRange, setAvailableDateRange] = useState(null);
 
   // 데이터 폴링을 위한 상태
   const [isPolling, setIsPolling] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
 
-  // 일반 대시보드 목록 조회 (하루 단위)
+  // 일반 대시보드 목록 조회 (날짜 범위)
   const fetchDashboards = useCallback(
-    async (date) => {
+    async (startDate, endDate) => {
       try {
         setLoading(true);
-        const data = await DashboardService.getDashboardList(date);
+        const data = await DashboardService.getDashboardList(
+          startDate,
+          endDate
+        );
         console.log('fetchDashboards 결과:', data);
 
         // 받아온 데이터가 배열인지 확인하고 설정
         const items = Array.isArray(data) ? data : [];
         setDashboards(items);
-        setDateRange(date);
+        setDateRange([startDate, endDate]);
         setLastUpdate(Date.now());
 
         // 데이터 변경 여부에 따른 폴링 간격 조정
@@ -42,7 +46,10 @@ export const DashboardProvider = ({ children }) => {
           setPollingInterval(45000); // 변경사항 없으면 45초
         }
 
-        return items;
+        return {
+          items,
+          date_range: availableDateRange,
+        };
       } catch (error) {
         console.error(
           '대시보드 목록 조회 오류:',
@@ -57,37 +64,46 @@ export const DashboardProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [dashboards]
+    [dashboards, availableDateRange]
   );
 
-  // 관리자 대시보드 목록 조회 (하루 단위)
-  const fetchAdminDashboards = useCallback(async (date) => {
-    try {
-      setLoading(true);
-      const data = await DashboardService.getAdminDashboardList(date);
-      console.log('fetchAdminDashboards 결과:', data);
+  // 관리자 대시보드 목록 조회 (날짜 범위)
+  const fetchAdminDashboards = useCallback(
+    async (startDate, endDate) => {
+      try {
+        setLoading(true);
+        const data = await DashboardService.getAdminDashboardList(
+          startDate,
+          endDate
+        );
+        console.log('fetchAdminDashboards 결과:', data);
 
-      // 받아온 데이터가 배열인지 확인하고 설정
-      const items = Array.isArray(data) ? data : [];
-      setDashboards(items);
-      setDateRange(date);
-      setLastUpdate(Date.now());
+        // 받아온 데이터가 배열인지 확인하고 설정
+        const items = Array.isArray(data) ? data : [];
+        setDashboards(items);
+        setDateRange([startDate, endDate]);
+        setLastUpdate(Date.now());
 
-      return items;
-    } catch (error) {
-      console.error(
-        '관리자 대시보드 목록 조회 오류:',
-        error.response?.data || error
-      );
-      message.error(
-        '데이터 조회 중 오류가 발생했습니다',
-        MessageKeys.DASHBOARD.LOAD
-      );
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        return {
+          items,
+          date_range: availableDateRange,
+        };
+      } catch (error) {
+        console.error(
+          '관리자 대시보드 목록 조회 오류:',
+          error.response?.data || error
+        );
+        message.error(
+          '데이터 조회 중 오류가 발생했습니다',
+          MessageKeys.DASHBOARD.LOAD
+        );
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    [availableDateRange]
+  );
 
   // 단일 대시보드 업데이트 (낙관적 락 고려)
   const updateDashboard = useCallback((dashboardId, updates) => {
@@ -117,7 +133,10 @@ export const DashboardProvider = ({ children }) => {
       return;
     }
 
-    setDashboards(newDashboards);
+    // 정렬 적용 후 데이터 설정
+    const sortedDashboards =
+      DashboardService.sortDashboardsByStatus(newDashboards);
+    setDashboards(sortedDashboards);
   }, []);
 
   // 대시보드 삭제
@@ -135,13 +154,12 @@ export const DashboardProvider = ({ children }) => {
     );
   }, []);
 
-  // 주기적 폴링 설정 (낙관적 락 충돌 대비)
+  // 주기적 폴링 설정
   useEffect(() => {
-    // 폴링이 활성화된 경우에만 타이머 설정
-    if (isPolling && dateRange) {
+    if (isPolling && dateRange && dateRange.length === 2) {
       const timer = setTimeout(() => {
         console.log('폴링 실행: 대시보드 데이터 갱신');
-        fetchDashboards(dateRange);
+        fetchDashboards(dateRange[0], dateRange[1]);
       }, pollingInterval);
 
       return () => clearTimeout(timer);
@@ -164,6 +182,8 @@ export const DashboardProvider = ({ children }) => {
     dateRange,
     lastUpdate,
     isPolling,
+    availableDateRange,
+    setAvailableDateRange,
     fetchDashboards,
     fetchAdminDashboards,
     updateDashboard,

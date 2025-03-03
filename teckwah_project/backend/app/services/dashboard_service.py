@@ -93,6 +93,7 @@ class DashboardService:
             dashboard_data = data.model_dump()
             dashboard_data["department"] = department
             dashboard_data["eta"] = eta_kst
+            dashboard_data["status"] = "WAITING"  # 초기 상태는 대기 상태
 
             dashboard = self.repository.create_dashboard(dashboard_data)
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")

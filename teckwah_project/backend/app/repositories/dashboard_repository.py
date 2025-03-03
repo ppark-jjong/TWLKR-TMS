@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, or_, exc
+from sqlalchemy import and_, func, or_, exc, desc, case
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from app.models.dashboard_model import Dashboard
 from app.models.postal_code_model import PostalCode, PostalCodeDetail
@@ -24,13 +24,43 @@ class DashboardRepository:
             result = (
                 self.db.query(Dashboard)
                 .filter(and_(Dashboard.eta >= start_time, Dashboard.eta <= end_time))
-                .order_by(Dashboard.eta.asc())  # ETA 기준 오름차순 정렬
+                .order_by(
+                    # 상태별 그룹화 우선 (대기, 진행 중 우선, 완료/이슈/취소는 후순위)
+                    case(
+                        (Dashboard.status == "WAITING", 1),
+                        (Dashboard.status == "IN_PROGRESS", 2),
+                        (Dashboard.status == "COMPLETE", 10),
+                        (Dashboard.status == "ISSUE", 11),
+                        (Dashboard.status == "CANCEL", 12),
+                        else_=99,
+                    ).asc(),
+                    # 같은 상태 그룹 내에서는 ETA 기준 정렬
+                    Dashboard.eta.asc(),
+                )
                 .all()
             )
             return result if result else []
 
+        except NameError as e:
+            log_error(
+                e,
+                "대시보드 조회 실패: 필요한 함수/변수가 정의되지 않음",
+                {"start": start_time, "end": end_time},
+            )
+            raise
         except SQLAlchemyError as e:
-            log_error(e, "대시보드 조회 실패", {"start": start_time, "end": end_time})
+            log_error(
+                e,
+                "대시보드 조회 실패: 데이터베이스 오류",
+                {"start": start_time, "end": end_time},
+            )
+            raise
+        except Exception as e:
+            log_error(
+                e,
+                "대시보드 조회 실패: 예상치 못한 오류",
+                {"start": start_time, "end": end_time},
+            )
             raise
 
     def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:

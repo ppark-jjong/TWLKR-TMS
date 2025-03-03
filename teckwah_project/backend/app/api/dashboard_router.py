@@ -1,5 +1,5 @@
 # backend/app/api/dashboard_router.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -35,31 +35,60 @@ def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
 
 @router.get("/list", response_model=DashboardListResponse)
 async def get_dashboard_list(
-    date: str,
+    date: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 목록 조회 API - ETA 기준 하루 단위"""
+    """대시보드 목록 조회 API - ETA 기준 하루 단위 또는 날짜 범위"""
     try:
-        log_info(f"대시보드 목록 조회 요청: {date}")
-        try:
-            start_date, end_date = get_date_range(date)
-        except ValueError:
-            log_error(None, f"날짜 형식 오류: {date}")
-            return DashboardListResponse(
-                success=False,
-                message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                data={
-                    "date_range": {
-                        "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                        "latest_date": datetime.now().strftime("%Y-%m-%d"),
+        # 날짜 범위로 조회하는 경우
+        if start_date and end_date:
+            log_info(f"대시보드 목록 조회 요청 (범위): {start_date} ~ {end_date}")
+            try:
+                start_date_obj, _ = get_date_range(start_date)
+                _, end_date_obj = get_date_range(end_date)
+            except ValueError:
+                log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
+                return DashboardListResponse(
+                    success=False,
+                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+                    data={
+                        "date_range": {
+                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                        },
+                        "items": [],
                     },
-                    "items": [],
-                },
-            )
+                )
+        # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
+        elif date:
+            log_info(f"대시보드 목록 조회 요청 (단일): {date}")
+            try:
+                start_date_obj, end_date_obj = get_date_range(date)
+            except ValueError:
+                log_error(None, f"날짜 형식 오류: {date}")
+                return DashboardListResponse(
+                    success=False,
+                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+                    data={
+                        "date_range": {
+                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                        },
+                        "items": [],
+                    },
+                )
+        else:
+            # 날짜 정보가 없는 경우 현재 날짜 사용
+            log_info("날짜 정보 없음, 현재 날짜 사용")
+            today = datetime.now()
+            date_str = today.strftime("%Y-%m-%d")
+            start_date_obj, end_date_obj = get_date_range(date_str)
 
         # 대시보드 목록 조회 (ETA 기준)
-        items = service.get_dashboard_list_by_date(start_date, end_date)
+        items = service.get_dashboard_list_by_date(start_date_obj, end_date_obj)
         oldest_date, latest_date = service.get_date_range()
 
         # 응답 데이터 구성
@@ -95,31 +124,64 @@ async def get_dashboard_list(
 
 @router.get("/admin/list", response_model=AdminDashboardListResponse)
 async def get_admin_dashboard_list(
-    date: str,
+    date: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(check_admin_access),
 ):
-    """관리자 대시보드 목록 조회 API - ETA 기준 하루 단위"""
+    """관리자 대시보드 목록 조회 API - ETA 기준 하루 단위 또는 날짜 범위"""
     try:
-        log_info(f"관리자 대시보드 목록 조회 요청: {date}")
-        try:
-            start_date, end_date = get_date_range(date)
-        except ValueError:
-            log_error(None, f"날짜 형식 오류: {date}")
-            return AdminDashboardListResponse(
-                success=False,
-                message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                data={
-                    "date_range": {
-                        "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                        "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                    },
-                    "items": [],
-                },
+        # 날짜 범위로 조회하는 경우
+        if start_date and end_date:
+            log_info(
+                f"관리자 대시보드 목록 조회 요청 (범위): {start_date} ~ {end_date}"
             )
+            try:
+                start_date_obj, _ = get_date_range(start_date)
+                _, end_date_obj = get_date_range(end_date)
+            except ValueError:
+                log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
+                return AdminDashboardListResponse(
+                    success=False,
+                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+                    data={
+                        "date_range": {
+                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                        },
+                        "items": [],
+                    },
+                )
+        # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
+        elif date:
+            log_info(f"관리자 대시보드 목록 조회 요청 (단일): {date}")
+            try:
+                start_date_obj, end_date_obj = get_date_range(date)
+            except ValueError:
+                log_error(None, f"날짜 형식 오류: {date}")
+                return AdminDashboardListResponse(
+                    success=False,
+                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+                    data={
+                        "date_range": {
+                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                        },
+                        "items": [],
+                    },
+                )
+        else:
+            # 날짜 정보가 없는 경우 현재 날짜 사용
+            log_info("날짜 정보 없음, 현재 날짜 사용")
+            today = datetime.now()
+            date_str = today.strftime("%Y-%m-%d")
+            start_date_obj, end_date_obj = get_date_range(date_str)
 
         # 관리자용 대시보드 목록 조회 (ETA 기준)
-        items = service.get_dashboard_list_by_date(start_date, end_date, is_admin=True)
+        items = service.get_dashboard_list_by_date(
+            start_date_obj, end_date_obj, is_admin=True
+        )
         oldest_date, latest_date = service.get_date_range()
 
         # 응답 데이터 구성

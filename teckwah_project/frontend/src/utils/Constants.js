@@ -31,11 +31,11 @@ export const TYPE_TEXTS = {
 };
 
 /**
- * 종류별 색상 정의
+ * 종류별 색상 정의 (강조색 - 더 눈에 띄게 조정)
  */
 export const TYPE_COLORS = {
-  DELIVERY: '#1664C0', // 진한 파랑
-  RETURN: '#9C27B0', // 진한 보라
+  DELIVERY: '#0050c8', // 더 진한 파랑
+  RETURN: '#7b1fa2', // 더 진한 보라
 };
 
 /**
@@ -72,7 +72,7 @@ export const STATUS_COLORS = {
 };
 
 /**
- * 상태별 배경색 정의
+ * 상태별 배경색 정의 (행 전체 색상)
  */
 export const STATUS_BG_COLORS = {
   WAITING: {
@@ -84,8 +84,8 @@ export const STATUS_BG_COLORS = {
     hover: '#FFE2B5',
   },
   COMPLETE: {
-    normal: '#E8FDF3',
-    hover: '#C5F5E1',
+    normal: '#f2f2f2',
+    hover: '#e0e0e0',
   },
   ISSUE: {
     normal: '#FFE9E9',
@@ -185,11 +185,11 @@ export const VISUALIZATION_COLORS = {
   // 시간대 구분 색상
   TIME_PERIODS: {
     NIGHT: {
-      label: '야간(22-08)',
+      label: '야간(19-09)',
       color: '#722ED1', // 보라색 (야간 표시)
     },
     DAY: {
-      label: '주간(08-22)',
+      label: '주간(09-19)',
       color: '#1890FF', // 파란색 (주간 표시)
     },
   },
