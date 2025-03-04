@@ -1,10 +1,8 @@
 // frontend/src/components/dashboard/DashboardTable.js
+
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Tooltip, Input, Select, Space, Button } from 'antd';
-import {
-  SearchOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import {
   STATUS_TYPES,
   STATUS_TEXTS,
@@ -52,8 +50,10 @@ const DashboardTable = ({
 }) => {
   // 로컬 필터링 상태 관리(외부 props와 연동)
   const [localTypeFilter, setLocalTypeFilter] = useState(typeFilter);
-  const [localDepartmentFilter, setLocalDepartmentFilter] = useState(departmentFilter);
-  const [localWarehouseFilter, setLocalWarehouseFilter] = useState(warehouseFilter);
+  const [localDepartmentFilter, setLocalDepartmentFilter] =
+    useState(departmentFilter);
+  const [localWarehouseFilter, setLocalWarehouseFilter] =
+    useState(warehouseFilter);
   const [localOrderNoSearch, setLocalOrderNoSearch] = useState(orderNoSearch);
   const [filteredData, setFilteredData] = useState([]);
 
@@ -71,33 +71,70 @@ const DashboardTable = ({
   // 필터링된 데이터 계산 및 정렬
   useEffect(() => {
     console.log('필터링 및 정렬 적용 시작');
-    
+    console.log('원본 데이터 건수:', safeDataSource.length);
+
+    // 데이터 필드 검사 로깅 (누락된 필드 확인용)
+    if (safeDataSource.length > 0) {
+      const sample = safeDataSource[0];
+      console.log('데이터 샘플의 필드 목록:', Object.keys(sample));
+
+      // 필수 필드 확인
+      const missingFields = [];
+      [
+        'dashboard_id',
+        'status',
+        'type',
+        'department',
+        'warehouse',
+        'sla',
+        'eta',
+      ].forEach((field) => {
+        if (sample[field] === undefined) {
+          missingFields.push(field);
+        }
+      });
+
+      if (missingFields.length > 0) {
+        console.error('누락된 필드 발견:', missingFields);
+      }
+    }
+
     // 원본 데이터 복사 (불변성 유지)
     let result = [...safeDataSource];
-    
+
     // 필터링 적용
     if (localTypeFilter) {
       result = result.filter((item) => item.type === localTypeFilter);
-      console.log(`타입 필터 적용: ${localTypeFilter}, 결과 건수: ${result.length}`);
+      console.log(
+        `타입 필터 적용: ${localTypeFilter}, 결과 건수: ${result.length}`
+      );
     }
 
     if (localDepartmentFilter) {
-      result = result.filter((item) => item.department === localDepartmentFilter);
-      console.log(`부서 필터 적용: ${localDepartmentFilter}, 결과 건수: ${result.length}`);
+      result = result.filter(
+        (item) => item.department === localDepartmentFilter
+      );
+      console.log(
+        `부서 필터 적용: ${localDepartmentFilter}, 결과 건수: ${result.length}`
+      );
     }
 
     if (localWarehouseFilter) {
       result = result.filter((item) => item.warehouse === localWarehouseFilter);
-      console.log(`허브 필터 적용: ${localWarehouseFilter}, 결과 건수: ${result.length}`);
+      console.log(
+        `허브 필터 적용: ${localWarehouseFilter}, 결과 건수: ${result.length}`
+      );
     }
 
     if (localOrderNoSearch) {
       result = result.filter((item) =>
         String(item.order_no).includes(localOrderNoSearch)
       );
-      console.log(`주문번호 검색 적용: ${localOrderNoSearch}, 결과 건수: ${result.length}`);
+      console.log(
+        `주문번호 검색 적용: ${localOrderNoSearch}, 결과 건수: ${result.length}`
+      );
     }
-    
+
     // 정렬 로직: 요구사항에 맞게 단순화
     // 1. 완료/이슈/취소 상태와 대기/진행 상태로 그룹화
     // 2. 각 그룹 내에서 ETA 기준 오름차순 정렬
@@ -105,18 +142,18 @@ const DashboardTable = ({
       // 상태 그룹화 (대기, 진행 vs 완료, 이슈, 취소)
       const aGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(a.status) ? 1 : 0;
       const bGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(b.status) ? 1 : 0;
-      
+
       // 그룹이 다르면 그룹 기준으로 정렬 (대기,진행 우선)
       if (aGroup !== bGroup) {
         return aGroup - bGroup;
       }
-      
+
       // 같은 그룹 내에서는 ETA 기준 오름차순 정렬
       const aEta = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
       const bEta = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
       return aEta - bEta;
     });
-    
+
     console.log(`정렬 및 필터링 완료, 최종 결과 건수: ${result.length}`);
     setFilteredData(result);
   }, [
@@ -143,9 +180,11 @@ const DashboardTable = ({
     onWarehouseFilterChange(value);
   };
 
+  // 주문번호 검색 핸들러 - API 호출 방식으로 변경
   const handleOrderNoSearchChange = (e) => {
     const value = e.target.value;
     setLocalOrderNoSearch(value);
+    // 백엔드 API 호출을 위해 상위 컴포넌트의 핸들러 호출
     onOrderNoSearchChange(value);
   };
 
@@ -194,7 +233,7 @@ const DashboardTable = ({
         const { status } = record;
         e.currentTarget.style.backgroundColor =
           STATUS_BG_COLORS[status]?.normal || '#ffffff';
-      }
+      },
     };
   };
 
@@ -268,7 +307,12 @@ const DashboardTable = ({
         <Button
           icon={<ReloadOutlined />}
           onClick={resetFilters}
-          disabled={!localTypeFilter && !localDepartmentFilter && !localWarehouseFilter && !localOrderNoSearch}
+          disabled={
+            !localTypeFilter &&
+            !localDepartmentFilter &&
+            !localWarehouseFilter &&
+            !localOrderNoSearch
+          }
         >
           필터 초기화
         </Button>
@@ -334,6 +378,14 @@ const DashboardTable = ({
       render: (text) => (
         <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
       ),
+      // SLA 데이터 디버깅 추가
+      onCell: (record) => ({
+        onMouseEnter: () => {
+          if (!record.sla) {
+            console.log('SLA 값 없음:', record);
+          }
+        },
+      }),
     },
     {
       title: 'ETA',
@@ -411,20 +463,33 @@ const DashboardTable = ({
       dataIndex: 'status',
       align: 'center',
       width: 100,
-      render: (status) => (
-        <Tag
-          color={STATUS_COLORS[status] || 'default'}
-          style={{
-            minWidth: '60px',
-            textAlign: 'center',
-            fontWeight: 600,
-            ...FONT_STYLES.BODY.MEDIUM,
-          }}
-          className="status-tag"
-        >
-          {STATUS_TEXTS[status] || status}
-        </Tag>
-      ),
+      render: (status) => {
+        // 상태 값이 없으면 '-' 표시
+        if (!status) {
+          console.error('상태 값이 없습니다:', status);
+          return <span>-</span>;
+        }
+
+        // STATUS_TEXTS에 없는 상태값이면 원본 표시 (디버깅 로그 추가)
+        if (!STATUS_TEXTS[status]) {
+          console.error('알 수 없는 상태:', status);
+        }
+
+        return (
+          <Tag
+            color={STATUS_COLORS[status] || 'default'}
+            style={{
+              minWidth: '60px',
+              textAlign: 'center',
+              fontWeight: 600,
+              ...FONT_STYLES.BODY.MEDIUM,
+            }}
+            className="status-tag"
+          >
+            {STATUS_TEXTS[status] || status}
+          </Tag>
+        );
+      },
     },
   ];
 

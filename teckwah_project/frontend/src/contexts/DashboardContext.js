@@ -1,4 +1,5 @@
 // frontend/src/contexts/DashboardContext.js
+
 import React, {
   createContext,
   useState,
@@ -18,8 +19,7 @@ export const DashboardProvider = ({ children }) => {
   const [dateRange, setDateRange] = useState(null);
   const [availableDateRange, setAvailableDateRange] = useState(null);
 
-  // 데이터 폴링을 위한 상태
-  const [isPolling, setIsPolling] = useState(false);
+  // 데이터 상태 관리 (폴링 제거)
   const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   // 일반 대시보드 목록 조회 (날짜 범위)
@@ -121,7 +121,7 @@ export const DashboardProvider = ({ children }) => {
     );
   }, []);
 
-  // 여러 대시보드 업데이트 (새로운 항목 추가 로직 포함)
+  // 여러 대시보드 업데이트 (새로운 항목 추가 로직 포함) - 상태 및 필드 정보 정확히 유지
   const updateMultipleDashboards = useCallback((newDashboards) => {
     console.log('updateMultipleDashboards 호출됨:', newDashboards);
 
@@ -136,7 +136,15 @@ export const DashboardProvider = ({ children }) => {
     // 정렬 적용 후 데이터 설정
     const sortedDashboards =
       DashboardService.sortDashboardsByStatus(newDashboards);
-    setDashboards(sortedDashboards);
+
+    // 데이터가 있을 경우에만 상태 업데이트
+    if (sortedDashboards.length > 0) {
+      setDashboards(sortedDashboards);
+      setLastUpdate(Date.now());
+    } else if (newDashboards.length === 0) {
+      // 명시적으로 빈 배열을 설정한 경우 (검색 결과 없음 등)
+      setDashboards([]);
+    }
   }, []);
 
   // 대시보드 삭제
@@ -154,25 +162,19 @@ export const DashboardProvider = ({ children }) => {
     );
   }, []);
 
-  // 주기적 폴링 설정
-  useEffect(() => {
-    if (isPolling && dateRange && dateRange.length === 2) {
-      const timer = setTimeout(() => {
-        console.log('폴링 실행: 대시보드 데이터 갱신');
-        fetchDashboards(dateRange[0], dateRange[1]);
-      }, pollingInterval);
+  // 주기적 폴링 제거 - 자동 새로고침 방지
+  // 필요 시 수동으로 새로고침을 사용하도록 폴링 관련 로직 제거
 
-      return () => clearTimeout(timer);
-    }
-  }, [isPolling, dateRange, pollingInterval, fetchDashboards, lastUpdate]);
-
-  // 폴링 시작/중지 함수
+  // 폴링 함수 제거하고 필요 시 수동 새로고침 대체
   const startPolling = useCallback(() => {
-    setIsPolling(true);
+    console.log(
+      '자동 폴링이 제거되었습니다. 필요 시 새로고침 버튼을 사용하세요.'
+    );
+    // 폴링 기능 제거됨
   }, []);
 
   const stopPolling = useCallback(() => {
-    setIsPolling(false);
+    // 폴링 기능 제거됨
   }, []);
 
   const value = {
@@ -181,7 +183,6 @@ export const DashboardProvider = ({ children }) => {
     pollingInterval,
     dateRange,
     lastUpdate,
-    isPolling,
     availableDateRange,
     setAvailableDateRange,
     fetchDashboards,

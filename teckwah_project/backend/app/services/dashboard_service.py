@@ -391,3 +391,26 @@ class DashboardService:
             log_error(e, "날짜 범위 조회 실패")
             now = datetime.now(self.kr_timezone)
             return now - timedelta(days=30), now
+
+
+def search_dashboards_by_order_no(self, order_no: str) -> List[DashboardResponse]:
+    """주문번호로 대시보드 검색 서비스"""
+    try:
+        log_info(f"주문번호로 대시보드 검색 서비스: {order_no}")
+
+        # 주문번호가 비어있으면 빈 리스트 반환
+        if not order_no or not order_no.strip():
+            return []
+
+        # 레포지토리 메소드 호출하여 주문번호로 검색
+        dashboards = self.repository.search_dashboards_by_order_no(order_no)
+
+        # 응답 객체로 변환
+        return [DashboardResponse.model_validate(d) for d in dashboards]
+
+    except Exception as e:
+        log_error(e, "주문번호 검색 서비스 실패")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="주문번호 검색 중 오류가 발생했습니다",
+        )

@@ -429,3 +429,50 @@ async def delete_dashboards(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="삭제 처리 중 오류가 발생했습니다",
         )
+
+
+@router.get("/search", response_model=DashboardListResponse)
+async def search_dashboards_by_order_no(
+    order_no: str = Query(..., description="검색할 주문번호"),
+    service: DashboardService = Depends(get_dashboard_service),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """주문번호로 대시보드 검색 API"""
+    try:
+        log_info(f"주문번호 검색 요청: {order_no}")
+
+        # 주문번호로 대시보드 검색
+        items = service.search_dashboards_by_order_no(order_no)
+
+        # 날짜 범위 정보 조회 (조회 가능 기간 표시용)
+        oldest_date, latest_date = service.get_date_range()
+
+        # 응답 데이터 구성
+        message_text = (
+            "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
+        )
+
+        return DashboardListResponse(
+            success=True,
+            message=message_text,
+            data={
+                "date_range": {
+                    "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+                    "latest_date": latest_date.strftime("%Y-%m-%d"),
+                },
+                "items": items,
+            },
+        )
+    except Exception as e:
+        log_error(e, "주문번호 검색 실패")
+        return DashboardListResponse(
+            success=False,
+            message="주문번호 검색 중 오류가 발생했습니다",
+            data={
+                "date_range": {
+                    "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                    "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                },
+                "items": [],
+            },
+        )

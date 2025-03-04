@@ -1,4 +1,5 @@
 // frontend/src/pages/AdminPage.js
+
 import React, { useState, useEffect } from 'react';
 import {
   Layout,
@@ -55,24 +56,19 @@ const AdminPage = () => {
     loading,
     fetchAdminDashboards,
     removeDashboards,
+    updateMultipleDashboards,
     startPolling,
     stopPolling,
   } = useDashboard();
 
   const pageSize = 50;
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 - 자동 새로고침 제거
   useEffect(() => {
     console.log('AdminPage 마운트');
     loadDashboardData(dateRange[0], dateRange[1]);
 
-    // 폴링 시작 - 자동 업데이트를 위한 설정
-    startPolling();
-
-    // 컴포넌트 언마운트 시 폴링 중지
-    return () => {
-      stopPolling();
-    };
+    // 폴링 기능 제거 (자동 새로고침 방지)
   }, []);
 
   // 대시보드 데이터 로드
@@ -209,6 +205,45 @@ const AdminPage = () => {
     setShowAssignModal(true);
   };
 
+  // 주문번호 검색 핸들러 - 백엔드 API 호출 방식으로 변경
+  const handleOrderNoSearch = async (value) => {
+    if (!value || value.trim() === '') {
+      // 검색어가 비어있으면 기존 날짜 범위로 데이터 다시 로드
+      loadDashboardData(dateRange[0], dateRange[1]);
+      setOrderNoSearch('');
+      return;
+    }
+
+    setOrderNoSearch(value);
+    setCurrentPage(1);
+
+    // 검색 중임을 표시
+    const key = MessageKeys.DASHBOARD.LOAD;
+    message.loading('주문번호 검색 중...', key);
+
+    try {
+      // 백엔드 API 호출
+      const response = await DashboardService.searchDashboardsByOrderNo(value);
+
+      if (response && Array.isArray(response)) {
+        // 검색 결과 상태 업데이트
+        removeDashboards(dashboards.map((d) => d.dashboard_id)); // 기존 목록 클리어
+        if (response.length > 0) {
+          updateMultipleDashboards(response);
+          message.loadingToSuccess(`검색 결과: ${response.length}건`, key);
+        } else {
+          message.loadingToInfo('검색 결과가 없습니다', key);
+        }
+      } else {
+        message.loadingToInfo('검색 결과가 없습니다', key);
+        updateMultipleDashboards([]); // 빈 배열로 설정
+      }
+    } catch (error) {
+      console.error('주문번호 검색 실패:', error);
+      message.loadingToError('주문번호 검색 중 오류가 발생했습니다', key);
+    }
+  };
+
   // 필터 핸들러
   const handleTypeFilter = (value) => {
     setTypeFilter(value);
@@ -222,11 +257,6 @@ const AdminPage = () => {
 
   const handleWarehouseFilter = (value) => {
     setWarehouseFilter(value);
-    setCurrentPage(1);
-  };
-
-  const handleOrderNoSearch = (value) => {
-    setOrderNoSearch(value);
     setCurrentPage(1);
   };
 
