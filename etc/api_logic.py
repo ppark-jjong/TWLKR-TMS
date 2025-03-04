@@ -39,7 +39,7 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
         ("traavoidtoll", "무료우선"),
     ]
 
-    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving5"
+    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
     # url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving15"
 
     headers = {
@@ -86,7 +86,7 @@ def process_new_rows(
     start_address,
     client_id,
     client_secret,
-    output_file="C:/MyMain/dashboard/main/data/zipcode_address_result.csv",
+    output_file="C:/MyMain/dashboard/main/data/zipcode_address_result_Daejeon.csv",
     max_rows=1500,
 ):
     """
@@ -213,7 +213,7 @@ if __name__ == "__main__":
             client_id=NAVER_CLIENT_ID,
             client_secret=NAVER_CLIENT_SECRET,
             output_file="C:/MyMain/teckwah-dashboard/data/zipcode_address_result_Daejeon.csv",
-            max_rows=2530,
+            max_rows=12470,  # 750
         )
         print("\n🎉 실행 완료!")
         print(df_final.tail(5))
