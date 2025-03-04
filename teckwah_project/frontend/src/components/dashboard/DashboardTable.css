@@ -1,0 +1,105 @@
+/* frontend/src/components/dashboard/DashboardTable.css */
+
+/* 대시보드 테이블 기본 컨테이너 */
+.dashboard-table-container {
+  width: 100%;
+  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+
+.dashboard-table {
+  width: 100%;
+}
+
+/* 필터 스타일 */
+.dashboard-filters {
+  background-color: #f9fbfd;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e8e8e8;
+}
+
+/* 상태별 행 배경색 - 요구사항: 각 상태별 색상대로 각 행 전체에 색이 반영되어야 함 */
+.dashboard-table .ant-table-row-waiting {
+  background-color: #f3f6f9 !important;
+}
+.dashboard-table .ant-table-row-waiting:hover {
+  background-color: #e3e8ef !important;
+}
+
+.dashboard-table .ant-table-row-in-progress {
+  background-color: #fff4de !important;
+}
+.dashboard-table .ant-table-row-in-progress:hover {
+  background-color: #ffe2b5 !important;
+}
+
+.dashboard-table .ant-table-row-complete {
+  background-color: #f2f2f2 !important;
+  color: #888888 !important;
+}
+.dashboard-table .ant-table-row-complete:hover {
+  background-color: #e0e0e0 !important;
+}
+
+.dashboard-table .ant-table-row-issue {
+  background-color: #ffe9e9 !important;
+  color: #888888 !important;
+}
+.dashboard-table .ant-table-row-issue:hover {
+  background-color: #ffd1d1 !important;
+}
+
+.dashboard-table .ant-table-row-cancel {
+  background-color: #f5f5f5 !important;
+  color: #888888 !important;
+}
+.dashboard-table .ant-table-row-cancel:hover {
+  background-color: #e0e0e0 !important;
+}
+
+/* 행 선택 스타일 조정 */
+.dashboard-table .ant-table-row-selected td {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+}
+
+/* 종류 칼럼 강조 스타일 */
+.dashboard-table .type-column-delivery {
+  color: #0050c8 !important;
+  font-weight: 700 !important;
+}
+
+.dashboard-table .type-column-return {
+  color: #7b1fa2 !important;
+  font-weight: 700 !important;
+}
+
+/* 테이블 셀 패딩 조정 */
+.dashboard-table .ant-table-cell {
+  padding: 12px 8px;
+  vertical-align: middle;
+}
+
+/* 상태 태그 스타일 */
+.dashboard-table .status-tag {
+  min-width: 60px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* 관리자 페이지 테이블 특수 스타일 */
+.admin-table .ant-table-row-selected td {
+  background-color: rgba(250, 173, 20, 0.1) !important;
+}
+
+/* 반응형 레이아웃 대응 */
+@media (max-width: 992px) {
+  .dashboard-filters {
+    padding: 12px;
+  }
+
+  .dashboard-filters > div {
+    margin-bottom: 8px;
+  }
+}

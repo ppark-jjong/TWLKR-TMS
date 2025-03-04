@@ -1,4 +1,5 @@
 // frontend/src/pages/DashboardPage.js
+
 import React, { useState, useEffect } from 'react';
 import { Layout, DatePicker, Space, Button, Tooltip, Empty } from 'antd';
 import { ReloadOutlined, PlusOutlined, CarOutlined } from '@ant-design/icons';
@@ -14,36 +15,71 @@ import { useAuth } from '../contexts/AuthContext';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
 import { FONT_STYLES } from '../utils/Constants';
 
+const { RangePicker } = DatePicker;
+
 const DashboardPage = () => {
   // 상태 관리
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [dateRange, setDateRange] = useState([
+    dayjs().subtract(6, 'day'), // 일주일 범위 (오늘 포함)
+    dayjs(),
+  ]);
   const [selectedRows, setSelectedRows] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [availableDateRange, setAvailableDateRange] = useState(null);
+
+  // 필터링 상태
+  const [typeFilter, setTypeFilter] = useState(null);
+  const [departmentFilter, setDepartmentFilter] = useState(null);
+  const [warehouseFilter, setWarehouseFilter] = useState(null);
+  const [orderNoSearch, setOrderNoSearch] = useState('');
 
   const { user } = useAuth();
-  const { dashboards, loading, fetchDashboards, updateDashboard, dateRange } =
-    useDashboard();
+  const {
+    dashboards,
+    loading,
+    fetchDashboards,
+    updateDashboard,
+    updateMultipleDashboards,
+    startPolling,
+    stopPolling,
+  } = useDashboard();
 
   const pageSize = 50;
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 - 자동 새로고침 제거
   useEffect(() => {
     console.log('DashboardPage 마운트');
-    loadDashboardData(selectedDate);
+    loadDashboardData(dateRange[0], dateRange[1]);
+
+    // 폴링 기능 제거 (자동 새로고침 방지)
   }, []);
 
   // 대시보드 데이터 로드
-  const loadDashboardData = async (date) => {
+  const loadDashboardData = async (startDate, endDate) => {
     const key = MessageKeys.DASHBOARD.LOAD;
     try {
+      setCurrentPage(1); // 데이터 조회 시 첫 페이지로 이동
       message.loading('데이터 조회 중...', key);
-      console.log('대시보드 데이터 조회 시작:', date.format('YYYY-MM-DD'));
+      console.log(
+        '대시보드 데이터 조회 시작:',
+        startDate.format('YYYY-MM-DD'),
+        '~',
+        endDate.format('YYYY-MM-DD')
+      );
 
-      const data = await fetchDashboards(date);
+      const data = await fetchDashboards(startDate, endDate);
+
+      // 날짜 범위 정보 업데이트
+      if (data && data.date_range) {
+        setAvailableDateRange(data.date_range);
+      }
+
+      // 필터 초기화
+      resetFilters();
 
       if (Array.isArray(data) && data.length > 0) {
         message.loadingToSuccess('데이터를 조회했습니다', key);
@@ -56,19 +92,25 @@ const DashboardPage = () => {
     }
   };
 
-  // 날짜 변경 핸들러
-  const handleDateChange = (date) => {
-    const newDate = date || dayjs();
-    console.log('날짜 변경:', newDate.format('YYYY-MM-DD'));
-    setSelectedDate(newDate);
+  // 날짜 범위 변경 핸들러
+  const handleDateRangeChange = (dates) => {
+    if (!dates || !dates[0] || !dates[1]) return;
+
+    console.log(
+      '날짜 범위 변경:',
+      dates[0].format('YYYY-MM-DD'),
+      '~',
+      dates[1].format('YYYY-MM-DD')
+    );
+    setDateRange(dates);
     setSelectedRows([]);
-    loadDashboardData(newDate);
+    loadDashboardData(dates[0], dates[1]);
   };
 
   // 새로고침 핸들러
   const handleRefresh = () => {
     console.log('새로고침 요청');
-    loadDashboardData(selectedDate);
+    loadDashboardData(dateRange[0], dateRange[1]);
   };
 
   // 행 클릭 핸들러
@@ -130,6 +172,79 @@ const DashboardPage = () => {
     setShowAssignModal(true);
   };
 
+  // 주문번호 검색 핸들러 - 백엔드 API 호출 방식으로 변경
+  const handleOrderNoSearch = async (value) => {
+    if (!value || value.trim() === '') {
+      // 검색어가 비어있으면 기존 날짜 범위로 데이터 다시 로드
+      loadDashboardData(dateRange[0], dateRange[1]);
+      setOrderNoSearch('');
+      return;
+    }
+
+    setOrderNoSearch(value);
+    setCurrentPage(1);
+
+    // 검색 중임을 표시
+    const key = MessageKeys.DASHBOARD.LOAD;
+    message.loading('주문번호 검색 중...', key);
+
+    try {
+      // 백엔드 API 호출
+      const response = await DashboardService.searchDashboardsByOrderNo(value);
+
+      if (response && Array.isArray(response)) {
+        // 검색 결과 상태 업데이트
+        updateMultipleDashboards(response);
+        message.loadingToSuccess(`검색 결과: ${response.length}건`, key);
+      } else {
+        message.loadingToInfo('검색 결과가 없습니다', key);
+        updateMultipleDashboards([]); // 빈 배열로 설정
+      }
+    } catch (error) {
+      console.error('주문번호 검색 실패:', error);
+      message.loadingToError('주문번호 검색 중 오류가 발생했습니다', key);
+    }
+  };
+
+  // 필터 핸들러
+  const handleTypeFilter = (value) => {
+    setTypeFilter(value);
+    setCurrentPage(1); // 필터 변경 시 첫 페이지로 이동
+  };
+
+  const handleDepartmentFilter = (value) => {
+    setDepartmentFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleWarehouseFilter = (value) => {
+    setWarehouseFilter(value);
+    setCurrentPage(1);
+  };
+
+  // 필터 초기화
+  const resetFilters = () => {
+    setTypeFilter(null);
+    setDepartmentFilter(null);
+    setWarehouseFilter(null);
+    setOrderNoSearch('');
+    setCurrentPage(1);
+  };
+
+  // 날짜 범위 제한 설정 (가능한 날짜 범위 내에서만 선택 가능)
+  const disabledDate = (current) => {
+    if (!availableDateRange) return false;
+
+    const oldest = dayjs(availableDateRange.oldest_date);
+    const latest = dayjs(availableDateRange.latest_date);
+
+    // 가능한 범위를 벗어나는 날짜 비활성화
+    return (
+      current &&
+      (current < oldest.startOf('day') || current > latest.endOf('day'))
+    );
+  };
+
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>
@@ -139,12 +254,28 @@ const DashboardPage = () => {
           style={{ width: '100%', justifyContent: 'space-between' }}
         >
           <Space size="middle">
-            <DatePicker
-              value={selectedDate}
-              onChange={handleDateChange}
-              style={{ width: 280 }}
+            <RangePicker
+              value={dateRange}
+              onChange={handleDateRangeChange}
+              style={{ width: 350 }}
               size="large"
+              allowClear={false}
+              disabledDate={disabledDate}
+              ranges={{
+                오늘: [dayjs(), dayjs()],
+                '최근 3일': [dayjs().subtract(2, 'day'), dayjs()],
+                '최근 7일': [dayjs().subtract(6, 'day'), dayjs()],
+                '최근 30일': [dayjs().subtract(29, 'day'), dayjs()],
+              }}
             />
+
+            {/* 가능한 날짜 범위 표시 */}
+            {availableDateRange && (
+              <span style={{ color: '#888', fontSize: '14px' }}>
+                조회 가능 기간: {availableDateRange.oldest_date} ~{' '}
+                {availableDateRange.latest_date}
+              </span>
+            )}
           </Space>
 
           <Space size="middle">
@@ -191,6 +322,16 @@ const DashboardPage = () => {
           pageSize={pageSize}
           onPageChange={setCurrentPage}
           isAdminPage={false}
+          // 필터링 관련 props
+          typeFilter={typeFilter}
+          departmentFilter={departmentFilter}
+          warehouseFilter={warehouseFilter}
+          orderNoSearch={orderNoSearch}
+          onTypeFilterChange={handleTypeFilter}
+          onDepartmentFilterChange={handleDepartmentFilter}
+          onWarehouseFilterChange={handleWarehouseFilter}
+          onOrderNoSearchChange={handleOrderNoSearch}
+          onResetFilters={resetFilters}
         />
       )}
 

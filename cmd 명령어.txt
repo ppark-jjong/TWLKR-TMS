@@ -8,7 +8,7 @@ venv\Scripts\activate                     # 가상 환경 활성화
 deactivate                                # 가상 환경 비활성화
 
 C:\MyMain\config\Scripts\activate.ps1 #수동 활성화
-
+.\\Scripts\activate
 ======================================================================================
 2. Docker 및 Docker Compose 명령어
 

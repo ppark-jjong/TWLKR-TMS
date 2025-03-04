@@ -40,6 +40,8 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
     ]
 
     url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
+    # url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving15"
+
     headers = {
         "X-NCP-APIGW-API-KEY-ID": client_id,
         "X-NCP-APIGW-API-KEY": client_secret,
@@ -66,7 +68,7 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
                     distances.append(distance)
                     print(f"- {option_name}: {distance}km")
 
-            time.sleep(0.3)  # API 호출 간격
+            time.sleep(0.5)  # API 호출 간격
 
         except Exception as e:
             print(f"경로 계산 중 오류 발생 ({option_name}): {str(e)}")
@@ -84,7 +86,7 @@ def process_new_rows(
     start_address,
     client_id,
     client_secret,
-    output_file="C:/MyMain/dashboard/main/data/zipcode_address_result.csv",
+    output_file="C:/MyMain/dashboard/main/data/zipcode_address_result_Daejeon.csv",
     max_rows=1500,
 ):
     """
@@ -199,8 +201,8 @@ def process_new_rows(
 
 if __name__ == "__main__":
     # 설정
-    CSV_FILE = "C:/MyMain/dashboard/data/zipcode_address.csv"
-    START_ADDRESS = "서울 구로구 부광로 96-5"
+    CSV_FILE = "C:/MyMain/teckwah-dashboard/data/zipcode_address.csv"
+    START_ADDRESS = "대전광역시 중구 대종로 434"
     NAVER_CLIENT_ID = "2qxc1i2ijz"
     NAVER_CLIENT_SECRET = "J9UWJv3QUeIPgwFNGOPMLqgcfatqh83uPTf8vXmG"
 
@@ -210,8 +212,8 @@ if __name__ == "__main__":
             start_address=START_ADDRESS,
             client_id=NAVER_CLIENT_ID,
             client_secret=NAVER_CLIENT_SECRET,
-            output_file="C:/MyMain/dashboard/data/zipcode_address_result.csv",
-            max_rows=4700,
+            output_file="C:/MyMain/teckwah-dashboard/data/zipcode_address_result_Daejeon.csv",
+            max_rows=12470,  # 750
         )
         print("\n🎉 실행 완료!")
         print(df_final.tail(5))

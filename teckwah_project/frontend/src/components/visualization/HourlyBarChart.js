@@ -25,24 +25,26 @@ const HourlyBarChart = ({ data }) => {
     ([dept, deptData]) =>
       Object.entries(deptData.hourly_counts).map(([timeSlot, count]) => ({
         timeSlot,
-        department: VISUALIZATION_COLORS.DEPARTMENT[dept]
-          ? VISUALIZATION_COLORS.DEPARTMENT[dept].primary
-          : '#1890FF',
+        department: dept, // 원본 부서명 저장
         departmentName: `${dept} 부서`,
         count,
-        period:
-          timeSlot === '야간(22-08)'
-            ? VISUALIZATION_COLORS.TIME_PERIODS.NIGHT.label
-            : VISUALIZATION_COLORS.TIME_PERIODS.DAY.label,
+        isNight: timeSlot === '야간(19-09)', // 야간 여부 추가
       }))
   );
+
+  // 데이터 정렬 (야간을 마지막에 오도록)
+  const sortedChartData = [...chartData].sort((a, b) => {
+    if (a.isNight && !b.isNight) return 1;
+    if (!a.isNight && b.isNight) return -1;
+    return a.timeSlot.localeCompare(b.timeSlot);
+  });
 
   // 부서별 통계 계산
   const departmentStats = Object.entries(data.department_breakdown).map(
     ([dept, deptData]) => {
-      const nightCount = deptData.hourly_counts['야간(22-08)'] || 0;
+      const nightCount = deptData.hourly_counts['야간(19-09)'] || 0;
       const dayCount = Object.entries(deptData.hourly_counts)
-        .filter(([slot]) => slot !== '야간(22-08)')
+        .filter(([slot]) => slot !== '야간(19-09)')
         .reduce((sum, [_, count]) => sum + count, 0);
 
       const totalCount = nightCount + dayCount;
@@ -62,26 +64,25 @@ const HourlyBarChart = ({ data }) => {
   );
 
   const config = {
-    data: chartData,
+    data: sortedChartData,
     isGroup: true,
     xField: 'timeSlot',
     yField: 'count',
-    seriesField: 'departmentName',
-    groupField: 'period',
-    color: (datum) => {
-      // 부서별 색상 적용
-      for (const [dept, theme] of Object.entries(
-        VISUALIZATION_COLORS.DEPARTMENT
-      )) {
-        if (datum.departmentName === `${dept} 부서`) {
-          return theme.primary;
-        }
+    seriesField: 'departmentName', // 범례 필드는 departmentName 사용
+    // 색상 지정 (부서별 색상 적용)
+    color: ({ department }) => {
+      if (VISUALIZATION_COLORS.DEPARTMENT[department]) {
+        return VISUALIZATION_COLORS.DEPARTMENT[department].primary;
       }
       return '#1890FF'; // 기본 색상
     },
-    columnStyle: {
+    columnStyle: ({ isNight }) => ({
       radius: [4, 4, 0, 0],
-    },
+      // 야간 데이터에 특별한 스타일 적용
+      fillOpacity: isNight ? 0.8 : 1,
+      // 야간 데이터에 패턴 스타일 적용 (선택적)
+      // pattern: isNight ? { type: 'line', cfg: { stroke: '#fff', lineWidth: 1 } } : null,
+    }),
     label: {
       position: 'top',
       style: {
@@ -95,6 +96,19 @@ const HourlyBarChart = ({ data }) => {
         style: {
           ...FONT_STYLES.BODY.SMALL,
           fill: '#666',
+        },
+        formatter: (value) => {
+          // 야간은 강조 표시
+          if (value === '야간(19-09)') {
+            return {
+              content: value,
+              style: {
+                fill: VISUALIZATION_COLORS.TIME_PERIODS.NIGHT.color,
+                fontWeight: 'bold',
+              },
+            };
+          }
+          return value;
         },
       },
     },
@@ -121,8 +135,8 @@ const HourlyBarChart = ({ data }) => {
         duration: 1000,
       },
     },
-    minColumnWidth: 20,
-    maxColumnWidth: 40,
+    minColumnWidth: 15, // 컬럼 너비 조정 (좀 더 좁게)
+    maxColumnWidth: 35,
     columnBackground: {
       style: {
         fill: '#f0f0f0',
@@ -195,10 +209,10 @@ const HourlyBarChart = ({ data }) => {
                     }}
                   >
                     <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
-                      주간: {formatNumber(stat.dayCount)}건
+                      주간(09-19): {formatNumber(stat.dayCount)}건
                     </Text>
                     <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
-                      야간: {formatNumber(stat.nightCount)}건
+                      야간(19-09): {formatNumber(stat.nightCount)}건
                     </Text>
                     <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
                       <ClockCircleOutlined /> 시간당 평균:{' '}
