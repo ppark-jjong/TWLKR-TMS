@@ -22,10 +22,10 @@
 
 /* 상태별 행 배경색 - 요구사항: 각 상태별 색상대로 각 행 전체에 색이 반영되어야 함 */
 .dashboard-table .ant-table-row-waiting {
-  background-color: #f3f6f9 !important;
+  background-color: #d4e6ff !important;
 }
 .dashboard-table .ant-table-row-waiting:hover {
-  background-color: #e3e8ef !important;
+  background-color: #bdd7ff !important;
 }
 
 .dashboard-table .ant-table-row-in-progress {
@@ -36,11 +36,11 @@
 }
 
 .dashboard-table .ant-table-row-complete {
-  background-color: #f2f2f2 !important;
+  background-color: #e6f7e6 !important;
   color: #888888 !important;
 }
 .dashboard-table .ant-table-row-complete:hover {
-  background-color: #e0e0e0 !important;
+  background-color: #d4f0d4 !important;
 }
 
 .dashboard-table .ant-table-row-issue {

@@ -1,0 +1,223 @@
+- `driver_contact`: 배송 담당자 연락처
+  - `version`: 버전 (낙관적 락용)
+
+- `PostalCode` 모델:
+  - `postal_code`: 우편번호 (primary key)
+  - `city`: 시/도
+  - `county`: 군/구
+  - `district`: 동/읍/면
+  
+- `PostalCodeDetail` 모델:
+  - `postal_code`: 우편번호 (primary key, foreign key)
+  - `warehouse`: 창고 (primary key)
+  - `distance`: 거리
+  - `duration_time`: 예상 소요 시간
+
+#### 데이터 정렬 및 필터링
+- 상태 그룹 우선 정렬: 대기/진행 → 완료/이슈/취소
+- 그룹 내 ETA 기준 오름차순 정렬
+
+### 3. 관리자 전용 대시보드 관리 (dashboard_router.py 확장)
+
+#### 필수 구현 API 엔드포인트
+- `GET /dashboard/admin/list`: 관리자용 목록 조회
+- `DELETE /dashboard`: 주문 삭제 (관리자 전용)
+
+#### 핵심 구현 요구사항
+- 관리자 권한 검증 (check_admin_access 의존성 사용)
+- 삭제 작업 안전장치 (트랜잭션 관리)
+# 배송 관제 대시보드 프로젝트 백엔드 에이전트 프롬프트
+
+## 역할 및 목적
+
+당신은 배송 관제 대시보드 프로젝트의 백엔드 개발을 담당하는 에이전트입니다. FastAPI와 SQLAlchemy를 활용하여 프론트엔드와 통신하는 RESTful API를 구현하고, 데이터베이스 접근 로직과 비즈니스 로직을 개발해야 합니다. 본 프로젝트는 레이어드 아키텍처(API 라우터 → 서비스 → 레포지토리)를 따르며, 모든 주석과 로그는 한국어로 작성합니다.
+
+## 레이어드 아키텍처 세부 구조
+
+1. **API 라우터 레이어**
+   - 역할: HTTP 요청/응답 처리, 입력 유효성 검증, 의존성 주입
+   - 파일 위치: `app/api/` 디렉토리
+   - 명명 규칙: `*_router.py`
+   - 인증/권한 검증: `deps.py` 의존성 활용
+
+2. **서비스 레이어**
+   - 역할: 비즈니스 로직 처리, 트랜잭션 관리, 에러 처리
+   - 파일 위치: `app/services/` 디렉토리
+   - 명명 규칙: `*_service.py`
+   - 레포지토리 의존성 주입 패턴 사용
+
+3. **레포지토리 레이어**
+   - 역할: 데이터 접근 로직, SQL 쿼리 작성, ORM 활용
+   - 파일 위치: `app/repositories/` 디렉토리
+   - 명명 규칙: `*_repository.py`
+   - 공통 쿼리 패턴 재사용
+
+## 페이지별 API 요구사항 및 구현 방향
+
+### 1. 인증 및 권한 관리 (auth_router.py)
+
+#### 필수 구현 API 엔드포인트
+- `POST /auth/login`: 사용자 로그인 처리
+- `GET /auth/check-session`: 토큰 유효성 검증
+- `POST /auth/refresh`: 액세스 토큰 갱신
+- `POST /auth/logout`: 로그아웃 처리
+
+#### 핵심 구현 요구사항
+- JWT 기반 토큰 인증 (액세스 토큰 60분, 리프레시 토큰 7일)
+- 토큰에 사용자 ID(sub), 부서(department), 역할(role) 정보 포함
+- 관리자/일반 사용자 권한 구분 (ADMIN/USER)
+- 토큰 만료 감지 및 자동 갱신 메커니즘
+
+#### 모델 관련 컬럼 및 데이터
+- `User` 모델:
+  - `user_id`: 사용자 ID (primary key)
+  - `user_password`: 해시된 비밀번호
+  - `user_department`: 부서 (CS, HES, LENOVO)
+  - `user_role`: 역할 (ADMIN, USER)
+  
+- `RefreshToken` 모델:
+  - `refresh_token_id`: 토큰 ID (primary key)
+  - `user_id`: 사용자 ID (foreign key)
+  - `refresh_token`: 리프레시 토큰 문자열
+  - `expires_at`: 만료 시간
+  - `created_at`: 생성 시간
+
+#### 응답 형식 표준
+- 성공: `{"success": true, "message": "로그인되었습니다", "data": {...}}`
+- 실패: `{"success": false, "message": "인증 실패", "data": null}`
+
+### 2. 대시보드/배차 관리 (dashboard_router.py)
+
+#### 필수 구현 API 엔드포인트
+- `GET /dashboard/list`: ETA 기준 주문 목록 조회
+- `POST /dashboard`: 신규 주문 생성
+- `GET /dashboard/{dashboard_id}`: 주문 상세 정보 조회
+- `PATCH /dashboard/{dashboard_id}/status`: 주문 상태 변경
+- `PATCH /dashboard/{dashboard_id}/fields`: 주문 필드 업데이트
+- `PATCH /dashboard/{dashboard_id}/remark`: 메모 업데이트
+- `POST /dashboard/assign`: 배차 처리 (다중 주문 지원)
+- `GET /dashboard/search`: 주문번호 검색
+
+#### 핵심 구현 요구사항
+- **낙관적 락 적용**: 모든 수정 작업에 version 필드 활용
+- **권한별 제약 적용**:
+  - 일반 사용자: 상태 변경 제한 (정해진 흐름만 허용)
+    - WAITING → IN_PROGRESS, CANCEL
+    - IN_PROGRESS → COMPLETE, ISSUE, CANCEL
+    - COMPLETE, ISSUE, CANCEL → 변경 불가
+  - 관리자: 제한 없는 상태 변경 및 삭제 권한
+- **배차 처리 제약**:
+  - 일반 사용자: 대기 상태 주문만 배차 가능
+  - 관리자: 모든 주문 배차 가능
+- **날짜/시간 처리**: 모든 시간 관련 처리는 KST 기준
+
+#### 모델 관련 컬럼 및 데이터
+- `Dashboard` 모델:
+  - `dashboard_id`: 대시보드 ID (primary key)
+  - `order_no`: 주문 번호
+  - `type`: 유형 (DELIVERY, RETURN)
+  - `status`: 상태 (WAITING, IN_PROGRESS, COMPLETE, ISSUE, CANCEL)
+  - `department`: 부서 (CS, HES, LENOVO)
+  - `warehouse`: 창고 (SEOUL, BUSAN, GWANGJU, DAEJEON)
+  - `sla`: SLA 타입
+  - `eta`: 예상 도착 시간
+  - `create_time`: 생성 시간
+  - `depart_time`: 출발 시간
+  - `complete_time`: 완료 시간
+  - `postal_code`: 우편번호
+  - `city`, `county`, `district`, `region`: 지역 정보
+  - `distance`: 거리
+  - `duration_time`: 예상 소요 시간
+  - `address`: 주소
+  - `customer`: 고객명
+  - `contact`: 연락처
+  - `remark`: 메모
+  - `driver_name`: 배송 담당자
+  - `driver_contact
+
+- 낙관적 락 적용 (version 필드 활용)
+
+### 4. 시각화 데이터 처리 (visualization_router.py)
+
+#### 필수 구현 API 엔드포인트
+- `GET /visualization/delivery_status`: 배송 현황 통계
+- `GET /visualization/hourly_orders`: 시간대별 접수량 통계
+- `GET /visualization/date_range`: 조회 가능 날짜 범위
+
+#### 핵심 구현 요구사항
+- **시간대 분석 기준**:
+  - 주간(09~19시): 1시간 단위로 개별 집계
+  - 야간(19~09시): 통합 집계 (하나의 시간대로 처리)
+- **데이터 집계 기준**: create_time 컬럼 사용 (ETA 아님)
+- **KST 기준 처리**: 모든 시간 계산은 한국 표준시 기준
+- **부서별 집계**: 각 부서(CS, HES, LENOVO)별 데이터 구분
+
+#### 시각화 데이터 응답 구조
+- 배송 현황 통계 응답:
+  ```json
+  {
+    "success": true,
+    "message": "데이터를 조회했습니다",
+    "data": {
+      "type": "delivery_status",
+      "total_count": 235,
+      "department_breakdown": {
+        "CS": {
+          "total": 100,
+          "status_breakdown": [
+            {"status": "WAITING", "count": 25, "percentage": 25.0},
+            {"status": "IN_PROGRESS", "count": 30, "percentage": 30.0},
+            {"status": "COMPLETE", "count": 35, "percentage": 35.0},
+            {"status": "ISSUE", "count": 5, "percentage": 5.0},
+            {"status": "CANCEL", "count": 5, "percentage": 5.0}
+          ]
+        },
+        "HES": { /* 유사한 구조 */ },
+        "LENOVO": { /* 유사한 구조 */ }
+      }
+    },
+    "date_range": {
+      "oldest_date": "2023-01-01",
+      "latest_date": "2023-12-31"
+    }
+  }
+
+{
+  "success": true,
+  "message": "데이터를 조회했습니다",
+  "data": {
+    "type": "hourly_orders",
+    "total_count": 235,
+    "average_count": 78.3,
+    "department_breakdown": {
+      "CS": {
+        "total": 100,
+        "hourly_counts": {
+          "09-10": 10,
+          "10-11": 15,
+          "11-12": 8,
+          "12-13": 5,
+          "13-14": 7,
+          "14-15": 9,
+          "15-16": 10,
+          "16-17": 15,
+          "17-18": 12,
+          "18-19": 6,
+          "야간(19-09)": 3
+        }
+      },
+      "HES": { /* 유사한 구조 */ },
+      "LENOVO": { /* 유사한 구조 */ }
+    },
+    "time_slots": [
+      {"label": "09-10", "start": 9, "end": 10},
+      {"label": "10-11", "start": 10, "end": 11},
+      /* 다른 시간대... */
+      {"label": "야간(19-09)", "start": 19, "end": 9}
+    ]
+  },
+  "date_range": {
+    "oldest_date": "2023-01-01",
+    "latest_date": "2023-12-31"
+  }
+}

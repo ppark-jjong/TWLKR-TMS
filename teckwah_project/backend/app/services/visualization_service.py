@@ -1,4 +1,4 @@
-# backend/app/services/visualization_service.py (수정)
+# backend/app/services/visualization_service.py
 
 import pandas as pd
 from datetime import datetime, timedelta
@@ -26,7 +26,10 @@ class VisualizationService:
             log_info(f"배송 현황 데이터 조회 시작: {start_date} ~ {end_date}")
 
             # 데이터 조회 - create_time 기준으로 변경
-            raw_data = self.repository.get_raw_delivery_data(start_date, end_date)
+            raw_data = self.repository.get_raw_delivery_data(
+                start_date, end_time=end_date
+            )
+            log_info(f"Raw 데이터 조회 결과: {len(raw_data) if raw_data else 0}건")
 
             # 데이터가 없는 경우 빈 결과 반환
             if not raw_data:
@@ -51,6 +54,14 @@ class VisualizationService:
                 raw_data,
                 columns=["department", "status", "create_time"],
             )
+
+            # department, status 필드 유효성 검증
+            df["department"] = df["department"].fillna("CS")  # 부서 누락 시 기본값
+            df["status"] = df["status"].fillna("WAITING")  # 상태 누락 시 기본값
+
+            # 존재하지 않는 부서/상태 필터링
+            df = df[df["department"].isin(self.departments)]
+            df = df[df["status"].isin(self.status_list)]
 
             # create_time 기준으로 상태 분석
             status_pivot = pd.pivot_table(
@@ -132,12 +143,24 @@ class VisualizationService:
         try:
             log_info(f"시간대별 접수량 데이터 조회 시작: {start_date} ~ {end_date}")
 
-            # 데이터 조회 - create_time 기준
-            raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
-
             # 시간대 정의 (주간: 09-19시 1시간 단위, 야간: 19-09시 통합)
             day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
-            time_slots = ["야간(19-09)"] + day_slots  # 야간을 맨 앞에 두어 표시상 구분
+            night_slot = "야간(19-09)"
+            all_slots = day_slots + [night_slot]  # 모든 시간대
+
+            # 데이터 조회 - create_time 기준
+            raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
+            log_info(
+                f"Raw 시간대별 데이터 조회 결과: {len(raw_data) if raw_data else 0}건"
+            )
+            # TimeSlot 객체로 변환 (문자열이 아닌 구조화된 객체)
+            formatted_slots = []
+            for slot in day_slots:
+                start, end = map(int, slot.split("-"))
+                formatted_slots.append({"label": slot, "start": start, "end": end})
+            # 야간 시간대 추가
+            formatted_slots.append({"label": night_slot, "start": 19, "end": 9})
+            raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
 
             # 데이터가 없는 경우 빈 결과 반환
             if not raw_data:
@@ -153,10 +176,7 @@ class VisualizationService:
                         }
                         for dept in self.departments
                     },
-                    "time_slots": [
-                        {"label": slot, "is_night": slot == "야간(19-09)"}
-                        for slot in time_slots
-                    ],
+                    "time_slots": time_slots,
                 }
 
             # pandas DataFrame으로 변환
@@ -164,6 +184,12 @@ class VisualizationService:
                 raw_data,
                 columns=["department", "create_time"],
             )
+
+            # 부서 필드 검증
+            df["department"] = df["department"].fillna("CS")  # 부서 누락 시 기본값
+            df = df[
+                df["department"].isin(self.departments)
+            ]  # 유효하지 않은 부서 필터링
 
             # 시간대 분류 함수 정의
             def categorize_time_slot(hour):
@@ -191,53 +217,48 @@ class VisualizationService:
             total_count = 0
 
             for dept in self.departments:
-                if dept in hourly_pivot.index:
-                    dept_data = hourly_pivot.loc[dept]
+                dept_data = {}
+                dept_total = 0
 
-                    hourly_counts = {}
-                    for slot in time_slots:
-                        count = int(dept_data.get(slot, 0))
-                        hourly_counts[slot] = count
-                        total_count += count
+                for slot in time_slots:
+                    count = 0
+                    if dept in hourly_pivot.index and slot in hourly_pivot.columns:
+                        count = int(hourly_pivot.loc[dept, slot])
+                    dept_data[slot] = count
+                    dept_total += count
+                    total_count += count
 
-                    department_breakdown[dept] = {
-                        "total": int(dept_data.sum()),
-                        "hourly_counts": hourly_counts,
-                    }
-                else:
-                    department_breakdown[dept] = {
-                        "total": 0,
-                        "hourly_counts": {slot: 0 for slot in time_slots},
-                    }
+                department_breakdown[dept] = {
+                    "total": dept_total,
+                    "hourly_counts": dept_data,
+                }
 
-            # 조회 기간의 일수 계산
-            days_between = (end_date - start_date).days + 1
-            average_count = round(total_count / max(days_between, 1), 1)
+            # 조회 기간의 일수 계산 (1일이라도 최소 1로 설정)
+            days_between = max((end_date - start_date).days + 1, 1)
+            average_count = round(total_count / days_between, 1)
 
-            # 시간대 정보 구성
-            time_slot_info = []
-            for slot in time_slots:
-                if slot == "야간(19-09)":
-                    time_slot_info.append({"label": slot, "is_night": True})
-                else:
-                    time_slot_info.append({"label": slot, "is_night": False})
-
-            log_info(f"시간대별 접수량 데이터 처리 완료: {total_count}건")
+            log_info(
+                f"시간대별 접수량 데이터 처리 완료: {total_count}건, 일평균: {average_count}건"
+            )
 
             return {
                 "type": "hourly_orders",
                 "total_count": total_count,
                 "average_count": average_count,
                 "department_breakdown": department_breakdown,
-                "time_slots": time_slot_info,
+                "time_slots": formatted_slots,  # 문자열 배열이 아닌 객체 배열 사용
             }
 
         except Exception as e:
             log_error(e, "시간대별 접수량 데이터 분석 실패")
 
-            # 에러 발생 시 빈 결과 반환
+            # 에러 발생 시 기본 응답 형식 준수
             day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
-            time_slots = ["야간(19-09)"] + day_slots
+            formatted_slots = []
+            for slot in day_slots:
+                start, end = map(int, slot.split("-"))
+                formatted_slots.append({"label": slot, "start": start, "end": end})
+            formatted_slots.append({"label": "야간(19-09)", "start": 19, "end": 9})
 
             return {
                 "type": "hourly_orders",
@@ -246,14 +267,13 @@ class VisualizationService:
                 "department_breakdown": {
                     dept: {
                         "total": 0,
-                        "hourly_counts": {slot: 0 for slot in time_slots},
+                        "hourly_counts": {
+                            slot: 0 for slot in day_slots + ["야간(19-09)"]
+                        },
                     }
                     for dept in self.departments
                 },
-                "time_slots": [
-                    {"label": slot, "is_night": slot == "야간(19-09)"}
-                    for slot in time_slots
-                ],
+                "time_slots": formatted_slots,
             }
 
     def get_date_range(self) -> Tuple[datetime, datetime]:

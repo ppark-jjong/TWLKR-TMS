@@ -13,7 +13,13 @@ from app.schemas.dashboard_schema import (
     FieldsUpdate,
 )
 from app.utils.datetime_helper import KST, get_date_range_from_datetime
-from app.utils.constants import MESSAGES
+from app.utils.constants import (
+    MESSAGES,
+    STATUS_TEXT_MAP,
+    TYPE_TEXT_MAP,
+    WAREHOUSE_TEXT_MAP,
+    DEPARTMENT_TEXT_MAP,
+)
 from app.utils.logger import log_info, log_error
 from app.utils.exceptions import OptimisticLockException
 
@@ -29,14 +35,64 @@ class DashboardService:
         """날짜별 대시보드 조회 (ETA 기준)"""
         try:
             log_info(f"대시보드 목록 조회 시작: {start_date} ~ {end_date}")
-            # ETA 기준으로 데이터 조회
+            # ETA 기준으로 데이터 조회c
             dashboards = self.repository.get_dashboards_by_date_range(
                 start_date, end_date
             )
-            log_info(f"대시보드 목록 조회 완료: {len(dashboards)}건")
+
+            # 디버깅: 데이터 샘플 로깅
+            if dashboards and len(dashboards) > 0:
+                sample = dashboards[0]
+                log_info(
+                    f"첫 번째 대시보드 데이터 샘플: ID={sample.dashboard_id}, "
+                    f"SLA={getattr(sample, 'sla', None)}, "
+                    f"Status={getattr(sample, 'status', None)}"
+                )
+
+                # 필드 존재 여부 확인
+                model_fields = [
+                    attr
+                    for attr in dir(sample)
+                    if not attr.startswith("_") and not callable(getattr(sample, attr))
+                ]
+                log_info(f"모델 필드 목록: {model_fields}")
+
+                # 필요한 필드 특별 체크
+                required_fields = [
+                    "type",
+                    "department",
+                    "warehouse",
+                    "order_no",
+                    "sla",
+                    "eta",
+                    "depart_time",
+                    "region",
+                    "driver_name",
+                    "customer",
+                    "status",
+                ]
+
+                missing_fields = [
+                    field for field in required_fields if field not in model_fields
+                ]
+                if missing_fields:
+                    log_error(None, f"모델에 누락된 필드: {missing_fields}")
 
             # 응답 객체로 변환
-            return [DashboardResponse.model_validate(d) for d in dashboards]
+            responses = [DashboardResponse.model_validate(d) for d in dashboards]
+
+            # 응답 검증
+            if responses and len(responses) > 0:
+                sample_resp = responses[0].model_dump()
+                log_info(f"응답 객체 샘플: {sample_resp}")
+
+                missing_resp_fields = [
+                    field for field in required_fields if field not in sample_resp
+                ]
+                if missing_resp_fields:
+                    log_error(None, f"응답에 누락된 필드: {missing_resp_fields}")
+
+            return responses
         except Exception as e:
             log_error(e, "대시보드 목록 조회 실패")
             raise
@@ -50,6 +106,32 @@ class DashboardService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="대시보드를 찾을 수 없습니다",
                 )
+
+            # 필드 검증 및 기본값 설정
+            if not hasattr(dashboard, "sla") or dashboard.sla is None:
+                dashboard.sla = "표준"
+            if (
+                not hasattr(dashboard, "status")
+                or dashboard.status not in STATUS_TEXT_MAP
+            ):
+                dashboard.status = "WAITING"
+            if not hasattr(dashboard, "driver_name"):
+                dashboard.driver_name = None
+            if not hasattr(dashboard, "driver_contact"):
+                dashboard.driver_contact = None
+            if not hasattr(dashboard, "version") or dashboard.version is None:
+                dashboard.version = 1
+            if not hasattr(dashboard, "customer") or dashboard.customer is None:
+                dashboard.customer = ""
+            log_info(
+                f"대시보드 상세 조회 결과: ID={dashboard.dashboard_id}, customer={dashboard.customer}"
+            )
+
+            # 필드 존재 여부 로깅
+            model_fields = dir(dashboard)
+            if "customer" not in model_fields:
+                log_error(None, f"customer 필드 누락됨: ID={dashboard.dashboard_id}")
+
             return DashboardDetail.model_validate(dashboard)
         except HTTPException:
             raise
@@ -94,6 +176,11 @@ class DashboardService:
             dashboard_data["department"] = department
             dashboard_data["eta"] = eta_kst
             dashboard_data["status"] = "WAITING"  # 초기 상태는 대기 상태
+            dashboard_data["version"] = 1  # 초기 버전 설정
+
+            # SLA 필드가 비어있는 경우 기본값 설정
+            if not dashboard_data.get("sla"):
+                dashboard_data["sla"] = "표준"
 
             dashboard = self.repository.create_dashboard(dashboard_data)
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
@@ -297,11 +384,24 @@ class DashboardService:
         try:
             log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
 
-            # 대기 상태 검증
+            # 대시보드 조회
             dashboards = self.repository.get_dashboards_by_ids(assignment.dashboard_ids)
+
+            # 대시보드가 비어있는 경우 처리
+            if not dashboards:
+                log_error(
+                    None, f"배차 대상 대시보드가 없음: {assignment.dashboard_ids}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="배차 대상 대시보드를 찾을 수 없습니다",
+                )
+
+            # 대기 상태 검증
             invalid_dashboards = []
             for dash in dashboards:
-                if dash.status != "WAITING":
+                # 상태 필드가 없거나 WAITING이 아닌 경우 체크
+                if not hasattr(dash, "status") or dash.status != "WAITING":
                     invalid_dashboards.append(dash.order_no)
 
             if invalid_dashboards:
@@ -392,25 +492,38 @@ class DashboardService:
             now = datetime.now(self.kr_timezone)
             return now - timedelta(days=30), now
 
+    def search_dashboards_by_order_no(self, order_no: str) -> List[DashboardResponse]:
+        """주문번호로 대시보드 검색 서비스"""
+        try:
+            log_info(f"주문번호로 대시보드 검색 서비스: {order_no}")
 
-def search_dashboards_by_order_no(self, order_no: str) -> List[DashboardResponse]:
-    """주문번호로 대시보드 검색 서비스"""
-    try:
-        log_info(f"주문번호로 대시보드 검색 서비스: {order_no}")
+            # 주문번호가 비어있으면 빈 리스트 반환
+            if not order_no or not order_no.strip():
+                return []
 
-        # 주문번호가 비어있으면 빈 리스트 반환
-        if not order_no or not order_no.strip():
-            return []
+            # 레포지토리 메소드 호출하여 주문번호로 검색
+            dashboards = self.repository.search_dashboards_by_order_no(order_no)
 
-        # 레포지토리 메소드 호출하여 주문번호로 검색
-        dashboards = self.repository.search_dashboards_by_order_no(order_no)
+            # 데이터 검증
+            for dash in dashboards:
+                # 필드 검증 및 기본값 설정
+                if not hasattr(dash, "sla") or dash.sla is None:
+                    dash.sla = "표준"
+                if not hasattr(dash, "status") or dash.status not in STATUS_TEXT_MAP:
+                    dash.status = "WAITING"
+                if not hasattr(dash, "driver_name"):
+                    dash.driver_name = None
+                if not hasattr(dash, "driver_contact"):
+                    dash.driver_contact = None
+                if not hasattr(dash, "version") or dash.version is None:
+                    dash.version = 1
 
-        # 응답 객체로 변환
-        return [DashboardResponse.model_validate(d) for d in dashboards]
+            # 응답 객체로 변환
+            return [DashboardResponse.model_validate(d) for d in dashboards]
 
-    except Exception as e:
-        log_error(e, "주문번호 검색 서비스 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="주문번호 검색 중 오류가 발생했습니다",
-        )
+        except Exception as e:
+            log_error(e, "주문번호 검색 서비스 실패")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="주문번호 검색 중 오류가 발생했습니다",
+            )

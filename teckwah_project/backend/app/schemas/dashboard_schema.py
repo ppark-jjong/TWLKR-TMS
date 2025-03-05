@@ -51,7 +51,7 @@ class DashboardCreate(DashboardBase):
         min_length=5, max_length=5, pattern=r"^\d{5}$", description="5자리 우편번호"
     )
     address: str = Field(description="배송 주소")
-    customer: Optional[str] = Field(None, max_length=50, description="수령인 이름")
+    customer: str = Field(None, max_length=50, description="수령인 이름")
     contact: Optional[str] = Field(
         None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$", description="연락처(xxx-xxxx-xxxx)"
     )
@@ -70,6 +70,7 @@ class DashboardResponse(DashboardBase):
     depart_time: Optional[datetime] = None
     region: Optional[str] = None
     version: int  # 낙관적 락을 위한 버전 필드 추가
+    sla: str = Field(description="SLA 타입")  # 이 필드 추가
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -82,7 +83,7 @@ class DashboardDetail(DashboardResponse):
     postal_code: str
     distance: Optional[int] = None
     duration_time: Optional[int] = None
-    customer: Optional[str] = None
+    customer: str
     contact: Optional[str] = None
     remark: Optional[str] = None
     city: Optional[str] = None
