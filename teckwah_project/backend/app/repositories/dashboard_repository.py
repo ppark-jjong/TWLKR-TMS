@@ -39,7 +39,22 @@ class DashboardRepository:
                 )
                 .all()
             )
-            return result if result else []
+
+            # 결과 검증 및 로깅
+            if result:
+                log_info(f"대시보드 조회 결과: {len(result)}건")
+
+                # 데이터 샘플 로깅 (디버깅용)
+                if len(result) > 0:
+                    sample = result[0]
+                    log_info(
+                        f"샘플 데이터: ID={sample.dashboard_id}, 상태={sample.status}, SLA={sample.sla}, 담당자={sample.driver_name}"
+                    )
+            else:
+                log_info("대시보드 조회 결과 없음")
+                result = []
+
+            return result
 
         except NameError as e:
             log_error(
@@ -91,9 +106,21 @@ class DashboardRepository:
                     )
                     .all()
                 )
+
+                # 결과 검증 및 로깅
+                if result:
+                    log_info(f"주문번호 검색 결과: {len(result)}건")
+                    if len(result) > 0:
+                        log_info(
+                            f"첫 번째 결과: ID={result[0].dashboard_id}, 상태={result[0].status}"
+                        )
+                else:
+                    log_info("주문번호 검색 결과 없음")
+
                 return result
 
             # 숫자가 아닌 경우 빈 리스트 반환 (주문번호는 숫자만 유효)
+            log_info("주문번호가 숫자가 아닙니다")
             return []
 
         except SQLAlchemyError as e:
@@ -104,11 +131,28 @@ class DashboardRepository:
         """대시보드 상세 정보 조회"""
         try:
             log_info(f"대시보드 상세 조회: {dashboard_id}")
-            return (
+            result = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
                 .first()
             )
+
+            # 결과 검증 및 로깅
+            if result:
+                log_info(
+                    f"대시보드 상세 조회 결과: ID={result.dashboard_id}, 상태={result.status}, SLA={result.sla}"
+                )
+                # 필드 존재 여부 확인
+                if not hasattr(result, "sla") or result.sla is None:
+                    log_error(None, f"SLA 필드 누락됨: ID={result.dashboard_id}")
+                if not hasattr(result, "status") or result.status is None:
+                    log_error(None, f"상태 필드 누락됨: ID={result.dashboard_id}")
+                if not hasattr(result, "driver_name"):
+                    log_error(None, f"담당자 필드 누락됨: ID={result.dashboard_id}")
+            else:
+                log_info(f"대시보드 상세 조회 결과 없음: ID={dashboard_id}")
+
+            return result
         except SQLAlchemyError as e:
             log_error(e, "대시보드 조회 실패", {"id": dashboard_id})
             raise
@@ -117,11 +161,25 @@ class DashboardRepository:
         """대시보드 다중 조회"""
         try:
             log_info(f"대시보드 다중 조회: {dashboard_ids}")
-            return (
+            result = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.dashboard_id.in_(dashboard_ids))
                 .all()
             )
+
+            # 결과 검증 및 로깅
+            if result:
+                log_info(
+                    f"대시보드 다중 조회 결과: {len(result)}건 / 요청 {len(dashboard_ids)}건"
+                )
+                if len(result) < len(dashboard_ids):
+                    found_ids = [r.dashboard_id for r in result]
+                    missing_ids = [id for id in dashboard_ids if id not in found_ids]
+                    log_info(f"찾을 수 없는 대시보드: {missing_ids}")
+            else:
+                log_info(f"대시보드 다중 조회 결과 없음: IDs={dashboard_ids}")
+
+            return result
         except SQLAlchemyError as e:
             log_error(e, "대시보드 다중 조회 실패", {"ids": dashboard_ids})
             raise
@@ -157,6 +215,12 @@ class DashboardRepository:
 
             self.db.commit()
             self.db.refresh(dashboard)
+
+            # 생성된 대시보드 정보 로깅
+            log_info(
+                f"대시보드 생성 완료: ID={dashboard.dashboard_id}, 상태={dashboard.status}, SLA={dashboard.sla}"
+            )
+
             return dashboard
 
         except SQLAlchemyError as e:
@@ -205,6 +269,12 @@ class DashboardRepository:
 
             self.db.commit()
             self.db.refresh(dashboard)
+
+            # 상태 업데이트 결과 로깅
+            log_info(
+                f"상태 업데이트 완료: ID={dashboard.dashboard_id}, {old_status} -> {status}, 버전={dashboard.version}"
+            )
+
             return dashboard
 
         except OptimisticLockException:
@@ -239,6 +309,12 @@ class DashboardRepository:
 
             self.db.commit()
             self.db.refresh(dashboard)
+
+            # 메모 업데이트 결과 로깅
+            log_info(
+                f"메모 업데이트 완료: ID={dashboard.dashboard_id}, 버전={dashboard.version}"
+            )
+
             return dashboard
 
         except OptimisticLockException:
@@ -277,6 +353,12 @@ class DashboardRepository:
 
             self.db.commit()
             self.db.refresh(dashboard)
+
+            # 필드 업데이트 결과 로깅
+            log_info(
+                f"필드 업데이트 완료: ID={dashboard.dashboard_id}, 필드={list(fields.keys())}, 버전={dashboard.version}"
+            )
+
             return dashboard
 
         except OptimisticLockException:
@@ -338,6 +420,9 @@ class DashboardRepository:
                 )
 
             self.db.commit()
+
+            # 배차 처리 결과 로깅
+            log_info(f"배차 처리 완료: {len(successful_ids)}건")
 
             # 업데이트된 대시보드 다시 조회하여 반환
             return self.get_dashboards_by_ids(successful_ids)

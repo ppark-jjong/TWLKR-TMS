@@ -57,6 +57,38 @@ const DashboardTable = ({
   const [localOrderNoSearch, setLocalOrderNoSearch] = useState(orderNoSearch);
   const [filteredData, setFilteredData] = useState([]);
 
+  // 데이터 검증 로직 추가
+  const normalizeData = (data) => {
+    if (!Array.isArray(data)) return [];
+
+    return data.map((item) => {
+      // 필수 필드 검증
+      const normalized = { ...item };
+
+      // 상태 필드 검증
+      if (!normalized.status || !STATUS_TEXTS[normalized.status]) {
+        console.warn(
+          `잘못된 상태 값: ${normalized.status}, ID: ${normalized.dashboard_id}`
+        );
+        normalized.status = 'WAITING'; // 기본값 설정
+      }
+
+      // SLA 필드 검증
+      if (!normalized.sla) {
+        console.warn(`SLA 값 없음, ID: ${normalized.dashboard_id}`);
+        normalized.sla = '표준';
+      }
+
+      // 버전 필드 검증
+      if (normalized.version === undefined || normalized.version === null) {
+        console.warn(`버전 값 없음, ID: ${normalized.dashboard_id}`);
+        normalized.version = 1;
+      }
+
+      return normalized;
+    });
+  };
+
   // 외부 props가 변경되면 로컬 상태 업데이트
   useEffect(() => {
     setLocalTypeFilter(typeFilter);
@@ -65,8 +97,8 @@ const DashboardTable = ({
     setLocalOrderNoSearch(orderNoSearch);
   }, [typeFilter, departmentFilter, warehouseFilter, orderNoSearch]);
 
-  // 안전한 데이터 소스 확인
-  const safeDataSource = Array.isArray(dataSource) ? dataSource : [];
+  // 안전한 데이터 소스 확인 및 정규화
+  const safeDataSource = normalizeData(dataSource);
 
   // 필터링된 데이터 계산 및 정렬
   useEffect(() => {
@@ -202,7 +234,8 @@ const DashboardTable = ({
    * 요구사항: 각 상태별 색상대로 각 행 전체에 색이 반영되어야 함
    */
   const getRowStyle = (record) => {
-    const { status } = record;
+    // 기본 상태 검증
+    const status = record.status || 'WAITING';
 
     // 상태별 배경색 및 스타일 적용
     const style = {
@@ -223,14 +256,14 @@ const DashboardTable = ({
    * 행 Hover 이벤트 처리 - 동적 상태별 시각적 피드백
    */
   const onRowOver = (record) => {
+    const status = record.status || 'WAITING';
+
     return {
       onMouseEnter: (e) => {
-        const { status } = record;
         e.currentTarget.style.backgroundColor =
           STATUS_BG_COLORS[status]?.hover || '#f5f5f5';
       },
       onMouseLeave: (e) => {
-        const { status } = record;
         e.currentTarget.style.backgroundColor =
           STATUS_BG_COLORS[status]?.normal || '#ffffff';
       },
@@ -327,48 +360,65 @@ const DashboardTable = ({
       dataIndex: 'type',
       align: 'center',
       width: 80,
-      render: (text) => (
-        <span
-          className={`type-column-${text?.toLowerCase()}`}
-          style={{
-            color: TYPE_COLORS[text] || '#666',
-            fontWeight: 700,
-            fontSize: '14px',
-            ...FONT_STYLES.BODY.MEDIUM,
-          }}
-        >
-          {TYPE_TEXTS[text] || text}
-        </span>
-      ),
+      render: (text) => {
+        // 타입 값 검증
+        const validType = text && TYPE_TEXTS[text] ? text : 'DELIVERY';
+
+        return (
+          <span
+            className={`type-column-${validType.toLowerCase()}`}
+            style={{
+              color: TYPE_COLORS[validType] || '#666',
+              fontWeight: 700,
+              fontSize: '14px',
+              ...FONT_STYLES.BODY.MEDIUM,
+            }}
+          >
+            {TYPE_TEXTS[validType] || validType}
+          </span>
+        );
+      },
     },
     {
       title: '부서',
       dataIndex: 'department',
       align: 'center',
       width: 80,
-      render: (text) => (
-        <span style={FONT_STYLES.BODY.MEDIUM}>
-          {DEPARTMENT_TEXTS[text] || text}
-        </span>
-      ),
+      render: (text) => {
+        // 부서 값 검증
+        const validDepartment = text && DEPARTMENT_TEXTS[text] ? text : 'CS';
+
+        return (
+          <span style={FONT_STYLES.BODY.MEDIUM}>
+            {DEPARTMENT_TEXTS[validDepartment] || validDepartment}
+          </span>
+        );
+      },
     },
     {
       title: '출발 허브',
       dataIndex: 'warehouse',
       align: 'center',
       width: 100,
-      render: (text) => (
-        <span style={FONT_STYLES.BODY.MEDIUM}>
-          {WAREHOUSE_TEXTS[text] || text}
-        </span>
-      ),
+      render: (text) => {
+        // 창고 값 검증
+        const validWarehouse = text && WAREHOUSE_TEXTS[text] ? text : 'SEOUL';
+
+        return (
+          <span style={FONT_STYLES.BODY.MEDIUM}>
+            {WAREHOUSE_TEXTS[validWarehouse] || validWarehouse}
+          </span>
+        );
+      },
     },
     {
       title: 'order#',
       dataIndex: 'order_no',
       align: 'center',
       width: 130,
-      render: (text) => <span style={FONT_STYLES.BODY.MEDIUM}>{text}</span>,
+      render: (text) => (
+        <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
+      ),
     },
     {
       title: 'SLA',
@@ -376,16 +426,8 @@ const DashboardTable = ({
       align: 'center',
       width: 100,
       render: (text) => (
-        <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
+        <span style={FONT_STYLES.BODY.MEDIUM}>{text || '표준'}</span>
       ),
-      // SLA 데이터 디버깅 추가
-      onCell: (record) => ({
-        onMouseEnter: () => {
-          if (!record.sla) {
-            console.log('SLA 값 없음:', record);
-          }
-        },
-      }),
     },
     {
       title: 'ETA',
@@ -401,7 +443,7 @@ const DashboardTable = ({
               : 400,
           }}
         >
-          {formatDateTime(text)}
+          {formatDateTime(text) || '-'}
         </span>
       ),
     },
@@ -464,15 +506,10 @@ const DashboardTable = ({
       align: 'center',
       width: 100,
       render: (status) => {
-        // 상태 값이 없으면 '-' 표시
-        if (!status) {
-          console.error('상태 값이 없습니다:', status);
-          return <span>-</span>;
-        }
-
-        // STATUS_TEXTS에 없는 상태값이면 원본 표시 (디버깅 로그 추가)
-        if (!STATUS_TEXTS[status]) {
-          console.error('알 수 없는 상태:', status);
+        // 상태 값 검증
+        if (!status || !STATUS_TEXTS[status]) {
+          console.warn('알 수 없는 상태:', status);
+          status = 'WAITING'; // 기본값 적용
         }
 
         return (
@@ -486,7 +523,7 @@ const DashboardTable = ({
             }}
             className="status-tag"
           >
-            {STATUS_TEXTS[status] || status}
+            {STATUS_TEXTS[status]}
           </Tag>
         );
       },
@@ -530,7 +567,9 @@ const DashboardTable = ({
         }}
         onRow={(record) => ({
           onClick: () => onRowClick(record),
-          className: `ant-table-row-${record.status.toLowerCase()}`,
+          className: `ant-table-row-${(
+            record.status || 'WAITING'
+          ).toLowerCase()}`,
           style: getRowStyle(record),
           ...onRowOver(record),
         })}

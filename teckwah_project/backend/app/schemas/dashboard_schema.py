@@ -70,6 +70,7 @@ class DashboardResponse(DashboardBase):
     depart_time: Optional[datetime] = None
     region: Optional[str] = None
     version: int  # 낙관적 락을 위한 버전 필드 추가
+    sla: str = Field(description="SLA 타입")  # 이 필드 추가
 
     model_config = ConfigDict(from_attributes=True)
 

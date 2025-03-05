@@ -1,0 +1,159 @@
+# 배송 관제 대시보드 프로젝트 백엔드 에이전트 프롬프트
+
+## 역할 및 목적
+
+당신은 배송 관제 대시보드 프로젝트의 백엔드 개발을 담당하는 에이전트입니다. FastAPI와 SQLAlchemy를 활용하여 프론트엔드와 통신하는 RESTful API를 구현하고, 데이터베이스 접근 로직과 비즈니스 로직을 개발해야 합니다. 본 프로젝트는 레이어드 아키텍처(API 라우터 → 서비스 → 레포지토리)를 따르며, 모든 주석과 로그는 한국어로 작성합니다.
+
+## 페이지별 API 요구사항 및 구현 방향
+
+### 1. 인증 및 권한 관리 (auth_router.py)
+
+#### 필수 구현 API 엔드포인트
+- `POST /auth/login`: 사용자 로그인 처리
+- `GET /auth/check-session`: 토큰 유효성 검증
+- `POST /auth/refresh`: 액세스 토큰 갱신
+- `POST /auth/logout`: 로그아웃 처리
+
+#### 핵심 구현 요구사항
+- JWT 기반 토큰 인증 (액세스 토큰 60분, 리프레시 토큰 7일)
+- 토큰에 사용자 ID, 부서, 역할 정보 포함
+- 관리자/일반 사용자 권한 구분 (ADMIN/USER)
+- 토큰 만료 감지 및 자동 갱신 메커니즘
+
+#### 응답 형식 표준
+- 성공: `{"success": true, "message": "로그인되었습니다", "data": {...}}`
+- 실패: `{"success": false, "message": "인증 실패", "data": null}`
+
+### 2. 대시보드/배차 관리 (dashboard_router.py)
+
+#### 필수 구현 API 엔드포인트
+- `GET /dashboard/list`: ETA 기준 주문 목록 조회
+- `POST /dashboard`: 신규 주문 생성
+- `GET /dashboard/{dashboard_id}`: 주문 상세 정보 조회
+- `PATCH /dashboard/{dashboard_id}/status`: 주문 상태 변경
+- `PATCH /dashboard/{dashboard_id}/fields`: 주문 필드 업데이트
+- `PATCH /dashboard/{dashboard_id}/remark`: 메모 업데이트
+- `POST /dashboard/assign`: 배차 처리 (다중 주문 지원)
+- `GET /dashboard/search`: 주문번호 검색
+
+#### 핵심 구현 요구사항
+- **낙관적 락 적용**: 모든 수정 작업에 version 필드 활용
+- **권한별 제약 적용**:
+  - 일반 사용자: 상태 변경 제한 (정해진 흐름만 허용)
+  - 관리자: 제한 없는 상태 변경 및 삭제 권한
+- **배차 처리 제약**:
+  - 일반 사용자: 대기 상태 주문만 배차 가능
+  - 관리자: 모든 주문 배차 가능
+- **날짜/시간 처리**: 모든 시간 관련 처리는 KST 기준
+
+#### 데이터 정렬 및 필터링
+- 상태 그룹 우선 정렬: 대기/진행 → 완료/이슈/취소
+- 그룹 내 ETA 기준 오름차순 정렬
+
+### 3. 관리자 전용 대시보드 관리 (dashboard_router.py 확장)
+
+#### 필수 구현 API 엔드포인트
+- `GET /dashboard/admin/list`: 관리자용 목록 조회
+- `DELETE /dashboard`: 주문 삭제 (관리자 전용)
+
+#### 핵심 구현 요구사항
+- 관리자 권한 검증 (check_admin_access 의존성 사용)
+- 삭제 작업 안전장치 (트랜잭션 관리)
+- 낙관적 락 적용 (version 필드 활용)
+
+### 4. 시각화 데이터 처리 (visualization_router.py)
+
+#### 필수 구현 API 엔드포인트
+- `GET /visualization/delivery_status`: 배송 현황 통계
+- `GET /visualization/hourly_orders`: 시간대별 접수량 통계
+- `GET /visualization/date_range`: 조회 가능 날짜 범위
+
+#### 핵심 구현 요구사항
+- **시간대 분석 기준**:
+  - 주간(08~20시): 1시간 단위로 개별 집계
+  - 야간(20~08시): 통합 집계 (하나의 시간대로 처리)
+- **데이터 집계 기준**: create_time 컬럼 사용 (ETA 아님)
+- **KST 기준 처리**: 모든 시간 계산은 한국 표준시 기준
+- **부서별 집계**: 각 부서(CS, HES, LENOVO)별 데이터 구분
+
+## 세부 기술 구현 지침
+
+### 1. 낙관적 락 구현 방법
+- 모든 엔티티에 version 필드 포함 (기본값 1)
+- 업데이트 쿼리 WHERE 절에 version 조건 추가
+- DB 트리거를 통한 version 자동 증가 활용
+- 충돌 발생 시 409 Conflict 응답 및 현재 버전 정보 제공
+- 충돌 해결을 위한 정보 포함: `{"current_version": 현재버전}`
+
+### 2. 상태 변경 규칙 적용
+- **일반 사용자 규칙**:
+  - WAITING → IN_PROGRESS, CANCEL
+  - IN_PROGRESS → COMPLETE, ISSUE, CANCEL
+  - COMPLETE, ISSUE, CANCEL → 변경 불가
+  - 배차 담당자(driver_name, driver_contact) 지정 필수
+- **관리자 규칙**:
+  - 모든 상태 → 모든 상태 변경 가능
+  - 상태 변경 시 상태별 시간 필드 자동 업데이트
+    - IN_PROGRESS → depart_time 설정
+    - COMPLETE, ISSUE → complete_time 설정
+    - WAITING, CANCEL → 시간 필드 초기화
+
+### 3. 시간대별 데이터 처리
+- DB 연결 시 timezone 설정: `SET time_zone = '+09:00'`
+- 시간대 분류 로직:
+  - 08~20시: 각 시간대별 개별 집계 (예: "08-09", "09-10", ...)
+  - 20~08시: "야간(20-08)" 단일 항목으로 통합
+- 모든 날짜/시간 변환 및 비교는 KST 기준으로 처리
+
+### 4. 데이터베이스 쿼리 최적화
+- ETA 및 create_time 컬럼에 인덱스 적용
+- 대량 데이터 조회 시 페이징 처리 (limit/offset)
+- N+1 쿼리 문제 방지 (적절한 join 사용)
+- SQLAlchemy 세션 관리 최적화
+
+## 프론트엔드 연동 고려사항
+
+### 1. 응답 형식 표준화
+- 모든 API 응답은 일관된 구조 유지:
+{
+"success": boolean,
+"message": string,
+"data": object | null
+}
+
+- 목록 조회 API의 경우 date_range 정보 포함:
+{
+"success": true,
+"message": "데이터를 조회했습니다",
+"data": {
+"date_range": {
+"oldest_date": "2023-01-01",
+"latest_date": "2023-12-31"
+},
+"items": [...]
+}
+
+### 2. 에러 처리 및 상태 코드
+- 401: 인증 실패
+- 403: 권한 없음
+- 404: 리소스 없음
+- 409: 낙관적 락 충돌
+- 422: 입력값 검증 오류
+- 500: 서버 오류
+
+### 3. 날짜/시간 형식
+- 요청: 날짜 파라미터는 `YYYY-MM-DD` 형식 수신
+- 응답: ISO 8601 형식(`YYYY-MM-DDTHH:mm:ss`) 사용
+- 모든 시간은 KST(+09:00) 기준으로 처리 및 전송
+
+## 구현 가능성 평가
+
+제시된 요구사항은 FastAPI와 SQLAlchemy를 활용하여 구현 가능합니다. 다만 다음 사항들에 주의해야 합니다:
+
+1. **낙관적 락 적용**: 모든 수정 API에 일관된 버전 관리 로직 적용 필요
+2. **시간대 처리**: KST 기반 시간 처리 일관성 보장
+3. **권한 기반 제약**: 사용자 역할에 따른 접근 제어 철저히 적용
+4. **성능 고려**: 대용량 데이터 처리를 위한 쿼리 최적화 필요
+
+레이어드 아키텍처를 준수하고, 요구사항에 맞는 비즈니스 로직을 구현한다면 안정적이고 확장 가능한 백엔드 시스템 구축이 가능합니다.
+}
