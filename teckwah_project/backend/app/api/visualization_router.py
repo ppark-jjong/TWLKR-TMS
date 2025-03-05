@@ -91,9 +91,7 @@ async def get_hourly_orders(
         log_info(f"시간대별 접수량 데이터 조회 요청: {start_date} ~ {end_date}")
 
         try:
-            # 수정: datetime_helper의 get_date_range 함수 사용(코루틴 아님)
-            from app.utils.datetime_helper import get_date_range as parse_date_range
-
+            # datetime_helper의 get_date_range 함수 사용
             start_dt, _ = parse_date_range(start_date)
             _, end_dt = parse_date_range(end_date)
         except ValueError:
@@ -108,12 +106,20 @@ async def get_hourly_orders(
         data = service.get_hourly_orders(start_dt, end_dt)
         oldest_date, latest_date = service.get_date_range()
 
+        # 디버깅용 로그 추가
+        log_info(f"시간대별 접수량 데이터 구조: {data.keys()}")
+        if "time_slots" in data:
+            log_info(
+                f"time_slots 타입: {type(data['time_slots'])}, 첫 항목 타입: {type(data['time_slots'][0]) if data['time_slots'] else 'empty'}"
+            )
+
         message_text = (
             "조회된 데이터가 없습니다"
             if data["total_count"] == 0
             else "데이터를 조회했습니다"
         )
 
+        # 명시적으로 HourlyOrdersResponse 생성 시 필요한 필드 확인
         return HourlyOrdersResponse(
             success=True,
             message=message_text,
@@ -124,6 +130,12 @@ async def get_hourly_orders(
             },
         )
 
+    except ValidationError as e:
+        # Pydantic 검증 오류 자세히 로깅
+        log_error(e, "시간대별 접수량 데이터 검증 실패", str(e))
+        return HourlyOrdersResponse(
+            success=False, message="데이터 형식 검증 중 오류가 발생했습니다", data=None
+        )
     except Exception as e:
         log_error(e, "시간대별 접수량 데이터 조회 실패")
         return HourlyOrdersResponse(

@@ -385,9 +385,7 @@ const DashboardTable = ({
       align: 'center',
       width: 80,
       render: (text) => {
-        // 부서 값 검증
         const validDepartment = text && DEPARTMENT_TEXTS[text] ? text : 'CS';
-
         return (
           <span style={FONT_STYLES.BODY.MEDIUM}>
             {DEPARTMENT_TEXTS[validDepartment] || validDepartment}
@@ -401,9 +399,7 @@ const DashboardTable = ({
       align: 'center',
       width: 100,
       render: (text) => {
-        // 창고 값 검증
         const validWarehouse = text && WAREHOUSE_TEXTS[text] ? text : 'SEOUL';
-
         return (
           <span style={FONT_STYLES.BODY.MEDIUM}>
             {WAREHOUSE_TEXTS[validWarehouse] || validWarehouse}

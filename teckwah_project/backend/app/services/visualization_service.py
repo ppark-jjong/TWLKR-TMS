@@ -145,13 +145,22 @@ class VisualizationService:
 
             # 시간대 정의 (주간: 09-19시 1시간 단위, 야간: 19-09시 통합)
             day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
-            time_slots = day_slots + ["야간(19-09)"]  # 야간을 마지막에 표시
+            night_slot = "야간(19-09)"
+            all_slots = day_slots + [night_slot]  # 모든 시간대
 
             # 데이터 조회 - create_time 기준
             raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
             log_info(
                 f"Raw 시간대별 데이터 조회 결과: {len(raw_data) if raw_data else 0}건"
             )
+            # TimeSlot 객체로 변환 (문자열이 아닌 구조화된 객체)
+            formatted_slots = []
+            for slot in day_slots:
+                start, end = map(int, slot.split("-"))
+                formatted_slots.append({"label": slot, "start": start, "end": end})
+            # 야간 시간대 추가
+            formatted_slots.append({"label": night_slot, "start": 19, "end": 9})
+            raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
 
             # 데이터가 없는 경우 빈 결과 반환
             if not raw_data:
@@ -237,15 +246,19 @@ class VisualizationService:
                 "total_count": total_count,
                 "average_count": average_count,
                 "department_breakdown": department_breakdown,
-                "time_slots": time_slots,
+                "time_slots": formatted_slots,  # 문자열 배열이 아닌 객체 배열 사용
             }
 
         except Exception as e:
             log_error(e, "시간대별 접수량 데이터 분석 실패")
 
-            # 에러 발생 시 빈 결과 반환
+            # 에러 발생 시 기본 응답 형식 준수
             day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
-            time_slots = day_slots + ["야간(19-09)"]
+            formatted_slots = []
+            for slot in day_slots:
+                start, end = map(int, slot.split("-"))
+                formatted_slots.append({"label": slot, "start": start, "end": end})
+            formatted_slots.append({"label": "야간(19-09)", "start": 19, "end": 9})
 
             return {
                 "type": "hourly_orders",
@@ -254,11 +267,13 @@ class VisualizationService:
                 "department_breakdown": {
                     dept: {
                         "total": 0,
-                        "hourly_counts": {slot: 0 for slot in time_slots},
+                        "hourly_counts": {
+                            slot: 0 for slot in day_slots + ["야간(19-09)"]
+                        },
                     }
                     for dept in self.departments
                 },
-                "time_slots": time_slots,
+                "time_slots": formatted_slots,
             }
 
     def get_date_range(self) -> Tuple[datetime, datetime]:

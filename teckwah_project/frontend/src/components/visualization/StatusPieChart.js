@@ -211,39 +211,23 @@ const StatusPieCharts = ({ data }) => {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{ textAlign: 'center' }}>
         <Title
           level={4}
           style={{
             ...FONT_STYLES.TITLE.MEDIUM,
-            margin: '0 0 16px',
+            margin: '0 0 8px',
           }}
         >
           부서별 배송 현황
         </Title>
-
-        <Row gutter={16} justify="center">
-          <Col>
-            <Card size="small">
-              <Statistic
-                title="전체 배송 건수"
-                value={formatNumber(processedData.total)}
-                suffix="건"
-                valueStyle={{ color: '#1890FF' }}
-              />
-            </Card>
-          </Col>
-        </Row>
       </div>
 
-      {/* 상태별 카드 추가 */}
-      <Row gutter={[16, 16]} justify="center">
+      {/* 상태별 카드 - 한 줄로 배치하고 크기 조정 */}
+      <Row gutter={[8, 8]} justify="center">
         {Object.entries(STATUS_TEXTS).map(([status, text]) => {
-          // 해당 상태 건수
           const count = processedData.statusTotals[status] || 0;
-
-          // 전체 건수 대비 비율
           const percentage =
             processedData.total > 0
               ? ((count / processedData.total) * 100).toFixed(1)
@@ -257,20 +241,22 @@ const StatusPieCharts = ({ data }) => {
                   backgroundColor: VISUALIZATION_COLORS.STATUS[status],
                   borderColor: VISUALIZATION_COLORS.STATUS[status],
                   textAlign: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  borderRadius: '6px',
                 }}
               >
-                <div style={{ marginBottom: 8 }}>{STATUS_ICONS[status]}</div>
+                <div style={{ marginBottom: 4 }}>{STATUS_ICONS[status]}</div>
                 <Statistic
                   title={
-                    <Text strong style={{ fontSize: 14 }}>
+                    <Text strong style={{ fontSize: 12 }}>
                       {text}
                     </Text>
                   }
                   value={count}
                   suffix="건"
-                  valueStyle={{ fontSize: 16 }}
+                  valueStyle={{ fontSize: 14 }}
                 />
-                <Text type="secondary" style={{ fontSize: 12 }}>
+                <Text type="secondary" style={{ fontSize: 10 }}>
                   {percentage}%
                 </Text>
               </Card>
@@ -279,7 +265,8 @@ const StatusPieCharts = ({ data }) => {
         })}
       </Row>
 
-      <Row justify="space-around" gutter={[24, 24]}>
+      {/* 파이 차트 영역 - 높이 조정 */}
+      <Row justify="space-around" gutter={[16, 16]}>
         {Object.entries(processedData.departmentBreakdown).map(
           ([dept, deptData]) => (
             <Col span={8} key={dept}>
@@ -289,7 +276,7 @@ const StatusPieCharts = ({ data }) => {
                   borderRadius: '12px',
                   background: '#fff',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  height: '100%',
+                  height: '320px', // 높이 고정
                 }}
               >
                 {deptData.total > 0 ? (
@@ -310,35 +297,34 @@ const StatusPieCharts = ({ data }) => {
                 {deptData.total > 0 && (
                   <div
                     style={{
-                      marginTop: '24px',
+                      marginTop: '12px',
                       display: 'flex',
                       flexWrap: 'wrap',
-                      gap: '12px',
+                      gap: '8px',
                       justifyContent: 'center',
                     }}
                   >
-                    {deptData.status_breakdown.map(
-                      ({ status, count, percentage }) => (
+                    {deptData.status_breakdown
+                      .filter((item) => item.count > 0)
+                      .map(({ status, count, percentage }) => (
                         <div
                           key={status}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '4px',
                             background: '#f5f5f5',
-                            padding: '4px 12px',
-                            borderRadius: '16px',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
                           }}
                         >
                           {STATUS_ICONS[status]}
                           <span style={FONT_STYLES.BODY.SMALL}>
-                            {`${STATUS_TEXTS[status] || status}: ${formatNumber(
-                              count
-                            )}건`}
+                            {`${formatNumber(count)}건`}
                           </span>
                         </div>
-                      )
-                    )}
+                      ))}
                   </div>
                 )}
               </Card>

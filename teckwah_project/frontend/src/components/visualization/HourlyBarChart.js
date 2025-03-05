@@ -29,17 +29,51 @@ const HourlyBarChart = ({ data }) => {
         return;
       }
 
-      // 데이터 구조 보존 로깅
+      // 데이터 구조 보존 로깅 (디버깅용)
       console.log('데이터 구조:', {
         type: data.type,
-        total_count: data.total_count,
+        totalCount: data.total_count,
         departments: Object.keys(data.department_breakdown),
-        time_slots: data.time_slots,
+        timeSlots: data.time_slots,
       });
 
       // 시간대 슬롯 정보 가져오기 (주간 + 야간)
-      const slots = data.time_slots || [];
-      setTimeSlots(slots);
+      let processedTimeSlots = [];
+
+      // 서버 응답의 time_slots 필드에 대한 방어적 처리
+      if (Array.isArray(data.time_slots) && data.time_slots.length > 0) {
+        // 서버에서 제공하는 형식이 다양할 수 있으므로 모든 케이스 처리
+        processedTimeSlots = data.time_slots.map((slot) => {
+          if (typeof slot === 'string') {
+            return slot;
+          } else if (typeof slot === 'object' && slot !== null && slot.label) {
+            return slot.label;
+          } else {
+            return String(slot);
+          }
+        });
+
+        // 추가 디버깅 정보
+        console.log('처리된 시간대 정보:', processedTimeSlots);
+      } else {
+        // 시간대 정보가 없거나 형식이 예상과 다른 경우 기본값 사용
+        processedTimeSlots = [
+          '09-10',
+          '10-11',
+          '11-12',
+          '12-13',
+          '13-14',
+          '14-15',
+          '15-16',
+          '16-17',
+          '17-18',
+          '18-19',
+          '야간(19-09)',
+        ];
+        console.warn('시간대 정보 형식 오류, 기본값 사용:', processedTimeSlots);
+      }
+
+      setTimeSlots(processedTimeSlots);
 
       // 차트 데이터 가공
       const processedChartData = [];
@@ -52,23 +86,37 @@ const HourlyBarChart = ({ data }) => {
         let deptTotal = 0;
 
         if (deptData && deptData.hourly_counts) {
-          Object.entries(deptData.hourly_counts).forEach(([slot, count]) => {
-            // 시간대별 차트 데이터 추가
+          // hourly_counts 필드의 존재 여부와 형식 검증
+          let hourly_counts = deptData.hourly_counts;
+          if (typeof hourly_counts !== 'object' || hourly_counts === null) {
+            console.warn(
+              `${dept} 부서의 hourly_counts 형식 오류:`,
+              hourly_counts
+            );
+            hourly_counts = {}; // 기본값 설정
+          }
+
+          // 각 시간대별로 처리
+          processedTimeSlots.forEach((slot) => {
+            // 시간대별 데이터 가져오기 (없으면 0)
+            const count = hourly_counts[slot] || 0;
+
+            // 차트 데이터 추가
             processedChartData.push({
               timeSlot: slot,
               department: dept,
               departmentName: `${dept} 부서`,
-              count: count || 0,
-              isNight: slot === '야간(19-09)', // 야간 여부 추가
+              count: count,
+              isNight: slot === '야간(19-09)', // 야간 여부 표시
             });
 
             // 통계 계산
             if (slot === '야간(19-09)') {
-              nightCount += count || 0;
+              nightCount += count;
             } else {
-              dayCount += count || 0;
+              dayCount += count;
             }
-            deptTotal += count || 0;
+            deptTotal += count;
           });
         }
 
@@ -103,7 +151,7 @@ const HourlyBarChart = ({ data }) => {
       console.log('차트 데이터 처리 완료:', {
         chartDataCount: sortedChartData.length,
         departmentStatsCount: stats.length,
-        timeSlotsCount: slots.length,
+        timeSlotsCount: processedTimeSlots.length,
       });
     } catch (err) {
       console.error('시간대별 접수량 차트 데이터 처리 오류:', err);
@@ -212,33 +260,21 @@ const HourlyBarChart = ({ data }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{ textAlign: 'center' }}>
         <Title
           level={4}
           style={{
             ...FONT_STYLES.TITLE.MEDIUM,
-            margin: '0 0 16px',
+            margin: '0 0 12px',
           }}
         >
           시간대별 접수량
         </Title>
-
-        <Row gutter={16} justify="center">
-          <Col>
-            <Card size="small">
-              <Statistic
-                title="전체 접수 건수"
-                value={formatNumber(data?.total_count || 0)}
-                suffix="건"
-                valueStyle={{ color: '#1890FF' }}
-              />
-            </Card>
-          </Col>
-        </Row>
       </div>
 
-      <Row gutter={[16, 16]}>
+      {/* 부서별 통계 카드 - 한 줄로 최적화 */}
+      <Row gutter={[12, 12]}>
         {departmentStats.map((stat) => (
           <Col span={8} key={stat.department}>
             <Card
@@ -246,9 +282,10 @@ const HourlyBarChart = ({ data }) => {
               style={{
                 backgroundColor: stat.background,
                 borderColor: stat.border,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
               }}
             >
-              <Row gutter={16} align="middle">
+              <Row gutter={12} align="middle">
                 <Col span={12}>
                   <Statistic
                     title={
@@ -257,6 +294,7 @@ const HourlyBarChart = ({ data }) => {
                         style={{
                           ...FONT_STYLES.BODY.MEDIUM,
                           color: stat.primary,
+                          fontSize: '14px',
                         }}
                       >
                         {stat.title}
@@ -264,7 +302,7 @@ const HourlyBarChart = ({ data }) => {
                     }
                     value={stat.totalCount}
                     suffix="건"
-                    valueStyle={{ color: stat.primary }}
+                    valueStyle={{ color: stat.primary, fontSize: '20px' }}
                   />
                 </Col>
                 <Col span={12}>
@@ -272,16 +310,25 @@ const HourlyBarChart = ({ data }) => {
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '4px',
+                      gap: '2px',
                     }}
                   >
-                    <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
+                    <Text
+                      type="secondary"
+                      style={{ ...FONT_STYLES.BODY.SMALL, fontSize: '11px' }}
+                    >
                       주간(09-19): {formatNumber(stat.dayCount)}건
                     </Text>
-                    <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
+                    <Text
+                      type="secondary"
+                      style={{ ...FONT_STYLES.BODY.SMALL, fontSize: '11px' }}
+                    >
                       야간(19-09): {formatNumber(stat.nightCount)}건
                     </Text>
-                    <Text type="secondary" style={FONT_STYLES.BODY.SMALL}>
+                    <Text
+                      type="secondary"
+                      style={{ ...FONT_STYLES.BODY.SMALL, fontSize: '11px' }}
+                    >
                       <ClockCircleOutlined /> 시간당 평균:{' '}
                       {formatNumber(stat.avgPerHour)}건
                     </Text>
@@ -293,6 +340,7 @@ const HourlyBarChart = ({ data }) => {
         ))}
       </Row>
 
+      {/* 차트 영역 - 높이 최적화 */}
       <Card
         bordered={false}
         style={{
@@ -301,7 +349,7 @@ const HourlyBarChart = ({ data }) => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         }}
       >
-        <div style={{ height: 400 }}>
+        <div style={{ height: 320 }}>
           {chartData.length > 0 ? (
             <Column {...config} />
           ) : (

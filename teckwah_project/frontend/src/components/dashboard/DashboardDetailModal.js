@@ -129,10 +129,31 @@ const DashboardDetailModal = ({
 
   // 상태 변경 가능 여부 확인
   const canChangeStatus = () => {
+    // 관리자는 항상 변경 가능
     if (isAdmin) return true;
-    return !!(currentDashboard.driver_name && currentDashboard.driver_contact);
-  };
 
+    // 디버깅을 위한 상세 로깅 추가
+    console.log('상태 변경 가능 여부 체크:', {
+      dashboardId: currentDashboard.dashboard_id,
+      driverName: currentDashboard.driver_name || '없음',
+      driverContact: currentDashboard.driver_contact || '없음',
+      hasDriverName: Boolean(currentDashboard.driver_name),
+      hasDriverContact: Boolean(currentDashboard.driver_contact),
+      typeofDriverName: typeof currentDashboard.driver_name,
+      typeofDriverContact: typeof currentDashboard.driver_contact,
+    });
+
+    // 명시적인 문자열 타입 확인 및 공백 검사 (문제 해결)
+    const hasDriverName =
+      typeof currentDashboard.driver_name === 'string' &&
+      currentDashboard.driver_name.trim() !== '';
+
+    const hasDriverContact =
+      typeof currentDashboard.driver_contact === 'string' &&
+      currentDashboard.driver_contact.trim() !== '';
+
+    return hasDriverName && hasDriverContact;
+  };
   // 상태 변경 가능한 상태 목록 가져오기
   const getAvailableStatuses = () => {
     // 관리자는 모든 상태로 변경 가능
@@ -487,7 +508,14 @@ const DashboardDetailModal = ({
               <Form.Item
                 name="customer"
                 label="수령인"
-                rules={[{ required: true, message: '수령인을 입력해주세요' }]}
+                rules={[
+                  { required: true, message: '수령인을 입력해주세요' },
+                  {
+                    whitespace: true,
+                    message: '공백만으로는 입력할 수 없습니다',
+                  },
+                  { max: 50, message: '50자를 초과할 수 없습니다' },
+                ]}
               >
                 <Input />
               </Form.Item>

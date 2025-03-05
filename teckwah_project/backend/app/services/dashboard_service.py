@@ -35,31 +35,64 @@ class DashboardService:
         """날짜별 대시보드 조회 (ETA 기준)"""
         try:
             log_info(f"대시보드 목록 조회 시작: {start_date} ~ {end_date}")
-            # ETA 기준으로 데이터 조회
+            # ETA 기준으로 데이터 조회c
             dashboards = self.repository.get_dashboards_by_date_range(
                 start_date, end_date
             )
-            log_info(f"대시보드 목록 조회 완료: {len(dashboards)}건")
 
-            # 응답 객체로 변환 전 데이터 검증
-            for dash in dashboards:
-                # 누락된 필드에 기본값 설정
-                if not hasattr(dash, "sla") or dash.sla is None:
-                    dash.sla = "표준"
-                # 올바른 상태 값 확인
-                if not hasattr(dash, "status") or dash.status not in STATUS_TEXT_MAP:
-                    dash.status = "WAITING"  # 기본값 설정
-                # SLA, 상태, 담당 기사 등 필드 검증
-                if not hasattr(dash, "driver_name"):
-                    dash.driver_name = None
-                if not hasattr(dash, "driver_contact"):
-                    dash.driver_contact = None
-                # 버전 필드 확인
-                if not hasattr(dash, "version") or dash.version is None:
-                    dash.version = 1
+            # 디버깅: 데이터 샘플 로깅
+            if dashboards and len(dashboards) > 0:
+                sample = dashboards[0]
+                log_info(
+                    f"첫 번째 대시보드 데이터 샘플: ID={sample.dashboard_id}, "
+                    f"SLA={getattr(sample, 'sla', None)}, "
+                    f"Status={getattr(sample, 'status', None)}"
+                )
+
+                # 필드 존재 여부 확인
+                model_fields = [
+                    attr
+                    for attr in dir(sample)
+                    if not attr.startswith("_") and not callable(getattr(sample, attr))
+                ]
+                log_info(f"모델 필드 목록: {model_fields}")
+
+                # 필요한 필드 특별 체크
+                required_fields = [
+                    "type",
+                    "department",
+                    "warehouse",
+                    "order_no",
+                    "sla",
+                    "eta",
+                    "depart_time",
+                    "region",
+                    "driver_name",
+                    "customer",
+                    "status",
+                ]
+
+                missing_fields = [
+                    field for field in required_fields if field not in model_fields
+                ]
+                if missing_fields:
+                    log_error(None, f"모델에 누락된 필드: {missing_fields}")
 
             # 응답 객체로 변환
-            return [DashboardResponse.model_validate(d) for d in dashboards]
+            responses = [DashboardResponse.model_validate(d) for d in dashboards]
+
+            # 응답 검증
+            if responses and len(responses) > 0:
+                sample_resp = responses[0].model_dump()
+                log_info(f"응답 객체 샘플: {sample_resp}")
+
+                missing_resp_fields = [
+                    field for field in required_fields if field not in sample_resp
+                ]
+                if missing_resp_fields:
+                    log_error(None, f"응답에 누락된 필드: {missing_resp_fields}")
+
+            return responses
         except Exception as e:
             log_error(e, "대시보드 목록 조회 실패")
             raise
@@ -88,6 +121,16 @@ class DashboardService:
                 dashboard.driver_contact = None
             if not hasattr(dashboard, "version") or dashboard.version is None:
                 dashboard.version = 1
+            if not hasattr(dashboard, "customer") or dashboard.customer is None:
+                dashboard.customer = ""
+            log_info(
+                f"대시보드 상세 조회 결과: ID={dashboard.dashboard_id}, customer={dashboard.customer}"
+            )
+
+            # 필드 존재 여부 로깅
+            model_fields = dir(dashboard)
+            if "customer" not in model_fields:
+                log_error(None, f"customer 필드 누락됨: ID={dashboard.dashboard_id}")
 
             return DashboardDetail.model_validate(dashboard)
         except HTTPException:

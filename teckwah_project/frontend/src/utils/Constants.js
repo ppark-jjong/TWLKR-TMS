@@ -76,16 +76,16 @@ export const STATUS_COLORS = {
  */
 export const STATUS_BG_COLORS = {
   WAITING: {
-    normal: '#F3F6F9',
-    hover: '#E3E8EF',
+    normal: '#d4e6ff',
+    hover: '#bdd7ff',
   },
   IN_PROGRESS: {
     normal: '#FFF4DE',
     hover: '#FFE2B5',
   },
   COMPLETE: {
-    normal: '#f2f2f2',
-    hover: '#e0e0e0',
+    normal: '#e6f7e6',
+    hover: '#d4f0d4',
   },
   ISSUE: {
     normal: '#FFE9E9',
