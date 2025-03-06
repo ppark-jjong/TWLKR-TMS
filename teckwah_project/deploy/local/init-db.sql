@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   duration_time INT NULL, -- postal_code_detail 테이블의 duration_time 데이터 중복 저장
   address TEXT NOT NULL, -- 주소
   customer VARCHAR(255) NOT NULL, -- 수령인
-  contact VARCHAR(20) NOT NULL, -- 수령인 연락처
+  contact VARCHAR(20) NULL, -- 수령인 연락처
   remark TEXT NULL, -- 메모
   driver_name VARCHAR(255) NULL, -- 배송 담당자
   driver_contact VARCHAR(50) NULL, -- 배송 담당자 연락처

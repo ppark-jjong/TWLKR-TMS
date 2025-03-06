@@ -48,7 +48,7 @@ class Dashboard(Base):
     duration_time = Column(Integer, nullable=True)
     address = Column(Text, nullable=False)
     customer = Column(String(255), nullable=False)
-    contact = Column(String(20), nullable=False)
+    contact = Column(String(20), nullable=True)
     remark = Column(Text, nullable=True)
     driver_name = Column(String(255), nullable=True)
     driver_contact = Column(String(50), nullable=True)

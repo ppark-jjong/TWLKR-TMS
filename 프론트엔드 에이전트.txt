@@ -1,196 +1,415 @@
-# 배송 관제 대시보드 프로젝트 프론트엔드 에이전트 프롬프트
-
-## 역할 및 목적
-
+배송 관제 대시보드 프로젝트 프론트엔드 에이전트 프롬프트
+역할 및 목적
 당신은 배송 관제 대시보드 프로젝트의 프론트엔드 개발을 담당하는 에이전트입니다. React와 Ant Design 컴포넌트를 활용하여 사용자 친화적인 인터페이스를 구현하고, 백엔드 API와 통신하여 배송 데이터를 효과적으로 조회, 관리, 시각화해야 합니다. 컴포넌트 재사용성과 사용자 경험을 극대화하는 방향으로 개발을 진행합니다.
+페이지별 구현 요구사항과 데이터 교환 형식
+1. 로그인 페이지 (LoginPage.js)
+화면 구성 요소
 
-## 페이지별 구현 요구사항과 CSR/API 처리 구분
+로고 및 시스템 타이틀
+사용자 ID 입력 필드
+비밀번호 입력 필드 (마스킹 처리)
+로그인 버튼
+로딩 상태 표시
 
-### 1. 로그인 페이지 (LoginPage.js)
+CSR 처리 요소
 
-#### 화면 구성 요소
-- 로고 및 시스템 타이틀
-- 사용자 ID 입력 필드
-- 비밀번호 입력 필드 (마스킹 처리)
-- 로그인 버튼
-- 로딩 상태 표시
+폼 입력값 유효성 검증
 
-#### CSR 처리 요소
-- 폼 입력값 유효성 검증
-  - ID: 필수 입력, 공백 불가
-  - 비밀번호: 필수 입력, 최소 4자 이상
-- 로딩 상태에 따른 UI 변경 (버튼 비활성화, 스피너 표시)
-- 로그인 성공 시 대시보드 페이지로 리다이렉션
-- 로그인 실패 시 에러 메시지 표시
+ID: 필수 입력, 공백 불가
+비밀번호: 필수 입력, 최소 4자 이상
 
-#### RESTful API 연동
-- `POST /auth/login`: 사용자 ID/비밀번호 전송 → JWT 토큰 수신
-- 응답 데이터 처리: 토큰 저장(localStorage), 사용자 정보 Context 저장
 
-### 2. 대시보드/배차 페이지 (DashboardPage.js)
+로딩 상태에 따른 UI 변경 (버튼 비활성화, 스피너 표시)
+로그인 성공 시 대시보드 페이지로 리다이렉션
+로그인 실패 시 에러 메시지 표시
 
-#### 화면 구성 요소
-- 날짜 범위 선택기 (RangePicker)
-- 필터링 컨트롤 (타입, 부서, 창고, 주문번호)
-- 주문 데이터 테이블 (DashboardTable)
-- 작업 버튼 (신규 등록, 배차, 새로고침)
-- 모달 창 (생성, 배차, 상세 정보)
+RESTful API 연동
 
-#### CSR 처리 요소
-- **테이블 데이터 표시**:
-  - 상태별 행 색상 적용 (각 상태별로 행 전체에 배경색 지정)
-  - 선택된 행 관리 (체크박스 선택 상태)
-  - 페이징 처리 (현재 페이지, 페이지 크기)
-- **필터링 및 정렬**:
-  - 타입(Type), 부서(Department), 창고(Warehouse) 필터링
-  - 주문번호(order_no) 검색
-  - 상태 및 ETA 기준 정렬
-- **모달 창 상태 관리**:
-  - 표시/숨김 상태
-  - 폼 데이터 관리
-  - 유효성 검증
+POST /auth/login
 
-#### RESTful API 연동
-- `GET /dashboard/list`: 날짜 범위로 데이터 조회
-- `POST /dashboard`: 신규 주문 생성
-- `POST /dashboard/assign`: 선택된 주문 배차 처리
-- `GET /dashboard/{dashboard_id}`: 주문 상세 정보 조회
-- `PATCH /dashboard/{dashboard_id}/status`: 상태 변경
-- `PATCH /dashboard/{dashboard_id}/fields`: 필드 수정
-- `GET /dashboard/search`: 주문번호 검색
+요청 데이터: { user_id: string, password: string }
+응답 데이터: { success: boolean, message: string, data: { token: { access_token: string, refresh_token: string }, user: { user_id: string, user_department: string, user_role: string } } }
+로컬 스토리지 저장: access_token, refresh_token, user 정보
 
-#### 낙관적 락 처리
-- 모든 데이터 수정 요청에 version 필드 포함
-- 409 Conflict 응답 처리: 오류 메시지 표시 및 데이터 새로고침
-- 충돌 발생 시 사용자에게 적절한 피드백 제공
 
-### 3. 관리자 페이지 (AdminPage.js)
 
-#### 화면 구성 요소
-- 대시보드 페이지와 동일한 기본 구성
-- 추가 관리자 기능 버튼 (삭제)
-- 확인 대화상자 (삭제 확인)
+2. 대시보드/배차 페이지 (DashboardPage.js)
+화면 구성 요소
 
-#### CSR 처리 요소
-- **권한 기반 UI**:
-  - 관리자 권한 확인 및 페이지 접근 제어
-  - 관리자 전용 버튼 표시
-- **데이터 관리**:
-  - 선택된 주문 관리
-  - 삭제 작업 확인 절차
-  - 상태 변경 없는 배차 허용
+날짜 범위 선택기 (RangePicker)
+필터링 컨트롤 (타입, 부서, 창고, 주문번호)
+주문 데이터 테이블 (DashboardTable)
+작업 버튼 (신규 등록, 배차, 새로고침)
+모달 창 (생성, 배차, 상세 정보)
 
-#### RESTful API 연동
-- `GET /dashboard/admin/list`: 관리자 권한으로 데이터 조회
-- `DELETE /dashboard`: 선택된 주문 삭제
-- 대시보드 페이지와 동일한 기타 API 사용
+CSR 처리 요소
 
-### 4. 시각화 페이지 (VisualizationPage.js)
+테이블 데이터 표시:
 
-#### 화면 구성 요소
-- 날짜 범위 선택기 (RangePicker)
-- 차트 타입 선택기 (배송 현황, 시간대별 접수량)
-- 배송 현황 차트 (StatusPieChart)
-- 시간대별 접수량 차트 (HourlyBarChart)
+상태별 행 색상 적용 (각 상태별로 행 전체에 배경색 지정)
+선택된 행 관리 (체크박스 선택 상태)
+페이징 처리 (현재 페이지, 페이지 크기)
 
-#### CSR 처리 요소
-- **차트 렌더링**:
-  - Ant Design Plots 라이브러리 활용
-  - 데이터 변환 및 포맷팅
-  - 차트 타입에 따른 컴포넌트 전환
-- **인터랙션 처리**:
-  - 차트 호버/클릭 이벤트
-  - 날짜 변경에 따른 데이터 갱신
-- **데이터 없음 상태 처리**:
-  - Empty 컴포넌트 표시
 
-#### RESTful API 연동
-- `GET /visualization/delivery_status`: 배송 현황 통계 데이터
-- `GET /visualization/hourly_orders`: 시간대별 접수량 데이터
-- `GET /visualization/date_range`: 조회 가능 날짜 범위
+필터링 및 정렬:
 
-### 5. 공통 컴포넌트 및 기능
+타입(Type): DELIVERY, RETURN
+부서(Department): CS, HES, LENOVO
+창고(Warehouse): SEOUL, BUSAN, GWANGJU, DAEJEON
+주문번호(order_no) 검색
+상태 및 ETA 기준 정렬
 
-#### 전역 상태 관리 (Context API)
-- **AuthContext**: 인증 상태, 사용자 정보, 로그인/로그아웃 함수
-- **DashboardContext**: 대시보드 데이터, 선택 항목, 로딩 상태, API 함수
 
-#### 공통 컴포넌트
-- **MainLayout**: 레이아웃 구조, 네비게이션, 헤더, 컨텐츠 영역
-- **Sidebar**: 사용자 정보, 메뉴 항목, 로그아웃 버튼
-- **DashboardTable**: 주문 데이터 테이블, 필터링, 정렬, 선택 기능
-- **ErrorBoundary**: 오류 처리 및 폴백 UI
-- **LoadingSpin**: 로딩 상태 표시
-- **모달 컴포넌트**: 주문 생성, 배차, 상세 정보
+모달 창 상태 관리:
 
-#### 유틸리티 함수
-- **API 클라이언트**: Axios 인스턴스 및 인터셉터
-- **날짜/시간 포맷터**: KST 기준 날짜/시간 포맷팅
-- **메시지 유틸리티**: 알림 및 오류 메시지 표시
+표시/숨김 상태
+폼 데이터 관리
+유효성 검증
 
-## 시각적 요구사항 및 스타일링
 
-### 1. 상태별 색상 및 스타일
-- **대기(WAITING)**: 배경색 #F3F6F9, hover #E3E8EF
-- **진행(IN_PROGRESS)**: 배경색 #FFF4DE, hover #FFE2B5
-- **완료(COMPLETE)**: 배경색 #F2F2F2, hover #E0E0E0
-- **이슈(ISSUE)**: 배경색 #FFE9E9, hover #FFD1D1
-- **취소(CANCEL)**: 배경색 #F5F5F5, hover #E0E0E0
 
-### 2. 시각화 차트 요구사항
-- **배송 현황 파이 차트**:
-  - 상태별 색상 구분 사용
-  - 파스텔톤 색상 적용
-  - 부서별 개별 차트 표시
-- **시간대별 접수량 막대 그래프**:
-  - 주간(08~20시): 각 시간대별 개별 막대
-  - 야간(20~08시): 하나의 통합 막대
-  - 부서별 색상 구분
+RESTful API 연동
 
-## CSR과 RESTful API 처리 구분 (핵심 요약)
+GET /dashboard/list
 
-### 클라이언트 사이드 렌더링(CSR)
-1. **폼 상태 관리 및 유효성 검증**
-   - 입력값 유효성 검증
-   - 폼 제출 처리
-   - 오류 메시지 표시
+요청 파라미터: { start_date: string, end_date: string }
+응답 데이터: { success: boolean, message: string, data: { date_range: { oldest_date: string, latest_date: string }, items: [{ dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, region: string, driver_name: string, customer: string, version: number }] } }
 
-2. **UI 상태 및 인터랙션**
-   - 모달 표시/숨김
-   - 로딩 상태 표시
-   - 테이블 행 스타일링
-   - 선택된 행 관리
 
-3. **데이터 가공 및 표시**
-   - 받아온 데이터 변환 및 포맷팅
-   - 차트 렌더링
-   - 페이징 처리
+POST /dashboard
 
-### RESTful API 처리
-1. **인증 및 권한**
-   - 로그인/로그아웃
-   - 토큰 관리
-   - 세션 유효성 검증
+요청 데이터: { type: string, warehouse: string, order_no: number, sla: string, eta: string, postal_code: string, address: string, customer: string, contact: string, remark: string }
+응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, ... } }
 
-2. **데이터 CRUD 작업**
-   - 데이터 조회(GET)
-   - 신규 생성(POST)
-   - 수정(PATCH)
-   - 삭제(DELETE)
 
-3. **비동기 상태 관리**
-   - 요청 전송
-   - 응답 처리
-   - 오류 처리
-   - 낙관적 락 충돌 해결
+POST /dashboard/assign
 
-## 구현 가능성 평가
+요청 데이터: { dashboard_ids: number[], driver_name: string, driver_contact: string, versions: { [key: number]: number } }
+응답 데이터: { success: boolean, message: string, data: { updated_dashboards: [{ dashboard_id: number, ... }] } }
 
+
+GET /dashboard/{dashboard_id}
+
+응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, complete_time: string, address: string, postal_code: string, distance: number, duration_time: number, customer: string, contact: string, remark: string, driver_name: string, driver_contact: string, version: number } }
+
+
+PATCH /dashboard/{dashboard_id}/status
+
+요청 데이터: { status: string, is_admin: boolean, version: number }
+응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, status: string, ... version: number } }
+
+
+PATCH /dashboard/{dashboard_id}/fields
+
+요청 데이터: { eta: string, customer: string, contact: string, address: string, postal_code: string, remark: string, version: number }
+응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, ... version: number } }
+
+
+GET /dashboard/search
+
+요청 파라미터: { order_no: string }
+응답 데이터: { success: boolean, message: string, data: { items: [{ dashboard_id: number, ... }] } }
+
+
+
+낙관적 락 처리
+
+모든 데이터 수정 요청에 version 필드 포함
+409 Conflict 응답 처리: { success: false, message: string, data: { current_version: number } }
+충돌 발생 시 사용자에게 알림 표시 후 데이터 새로고침
+
+3. 관리자 페이지 (AdminPage.js)
+화면 구성 요소
+
+대시보드 페이지와 동일한 기본 구성
+추가 관리자 기능 버튼 (삭제)
+확인 대화상자 (삭제 확인)
+
+CSR 처리 요소
+
+권한 기반 UI:
+
+관리자 권한 확인 및 페이지 접근 제어
+관리자 전용 버튼 표시
+
+
+데이터 관리:
+
+선택된 주문 관리
+삭제 작업 확인 절차
+상태 변경 없는 배차 허용
+
+
+
+RESTful API 연동
+
+GET /dashboard/admin/list
+
+요청 파라미터: { start_date: string, end_date: string }
+응답 데이터: 대시보드 목록 조회와 동일한 구조
+
+
+DELETE /dashboard
+
+요청 데이터: dashboard_ids: number[]
+응답 데이터: { success: boolean, message: string, data: { deleted_count: number } }
+
+
+
+4. 시각화 페이지 (VisualizationPage.js)
+화면 구성 요소
+
+날짜 범위 선택기 (RangePicker)
+차트 타입 선택기 (배송 현황, 시간대별 접수량)
+배송 현황 차트 (StatusPieChart)
+시간대별 접수량 차트 (HourlyBarChart)
+
+CSR 처리 요소
+
+차트 렌더링:
+
+Ant Design Plots 라이브러리 활용
+데이터 변환 및 포맷팅
+차트 타입에 따른 컴포넌트 전환
+
+
+인터랙션 처리:
+
+차트 호버/클릭 이벤트
+날짜 변경에 따른 데이터 갱신
+
+
+데이터 없음 상태 처리:
+
+Empty 컴포넌트 표시
+
+
+
+RESTful API 연동
+
+GET /visualization/delivery_status
+
+요청 파라미터: { start_date: string, end_date: string }
+응답 데이터:
+Copy{
+  success: boolean,
+  message: string,
+  data: {
+    type: "delivery_status",
+    total_count: number,
+    department_breakdown: {
+      [department: string]: {
+        total: number,
+        status_breakdown: [
+          {
+            status: string,
+            count: number,
+            percentage: number
+          }
+        ]
+      }
+    }
+  },
+  date_range: {
+    oldest_date: string,
+    latest_date: string
+  }
+}
+
+
+
+GET /visualization/hourly_orders
+
+요청 파라미터: { start_date: string, end_date: string }
+응답 데이터:
+Copy{
+  success: boolean,
+  message: string,
+  data: {
+    type: "hourly_orders",
+    total_count: number,
+    average_count: number,
+    department_breakdown: {
+      [department: string]: {
+        total: number,
+        hourly_counts: {
+          [timeSlot: string]: number
+        }
+      }
+    },
+    time_slots: [
+      {
+        label: string,
+        start: number,
+        end: number
+      }
+    ]
+  },
+  date_range: {
+    oldest_date: string,
+    latest_date: string
+  }
+}
+
+
+
+GET /visualization/date_range
+
+응답 데이터: { success: boolean, message: string, date_range: { oldest_date: string, latest_date: string } }
+
+
+
+5. 공통 컴포넌트 및 기능
+Context API를 활용한 상태 관리
+
+AuthContext: 인증 상태, 사용자 정보, 로그인/로그아웃 함수
+
+상태: { user: User, isAuthenticated: boolean, authChecking: boolean }
+함수: login(userId, password), logout(), resetAuthAndRedirect()
+
+
+DashboardContext: 대시보드 데이터, 선택 항목, 로딩 상태, API 함수
+
+상태: { dashboards: Dashboard[], loading: boolean, lastUpdate: number }
+함수: fetchDashboards(startDate, endDate), updateDashboard(dashboardId, updates), removeDashboards(dashboardIds)
+
+
+
+공통 컴포넌트
+
+MainLayout: 레이아웃 구조, 네비게이션, 헤더, 컨텐츠 영역
+Sidebar: 사용자 정보, 메뉴 항목, 로그아웃 버튼
+DashboardTable: 주문 데이터 테이블, 필터링, 정렬, 선택 기능
+
+Props: dataSource, loading, selectedRows, onSelectRows, onRowClick, onRefresh, currentPage, pageSize, onPageChange, isAdminPage
+
+
+ErrorBoundary: 오류 처리 및 폴백 UI
+LoadingSpin: 로딩 상태 표시
+모달 컴포넌트:
+
+CreateDashboardModal: 주문 생성 폼
+AssignDriverModal: 배차 처리 폼
+DashboardDetailModal: 주문 상세 정보 및 편집
+
+
+
+유틸리티 함수
+
+API 클라이언트: Axios 인스턴스 및 인터셉터
+
+토큰 자동 첨부
+401 오류 시 토큰 갱신 처리
+409 충돌 감지 및 처리
+
+
+날짜/시간 포맷터: KST 기준 날짜/시간 포맷팅
+
+formatDateTime(date, format): 날짜/시간 포맷팅
+formatPhoneNumber(phone): 전화번호 포맷팅
+formatDistance(distance): 거리 포맷팅
+formatDuration(duration): 소요시간 포맷팅
+
+
+메시지 유틸리티: 알림 및 오류 메시지 표시
+
+success(content, key): 성공 메시지
+error(content, key): 오류 메시지
+loading(content, key): 로딩 메시지
+loadingToSuccess(content, key): 로딩→성공 상태 전환
+
+
+
+컴포넌트 데이터 구조
+주요 모델 데이터 구조
+
+User: { user_id: string, user_department: string, user_role: string }
+Dashboard: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, region: string, driver_name: string, customer: string, version: number }
+DashboardDetail: Dashboard에 complete_time, postal_code, city, county, district, distance, duration_time, address, contact, remark, driver_contact 추가
+
+폼 데이터 구조
+
+LoginForm: { user_id: string, password: string }
+CreateDashboardForm: { type: string, warehouse: string, order_no: number, sla: string, eta: string, postal_code: string, address: string, customer: string, contact: string, remark: string }
+AssignDriverForm: { driver_name: string, driver_contact: string }
+StatusUpdateForm: { status: string, is_admin: boolean, version: number }
+FieldsUpdateForm: { eta: string, customer: string, contact: string, address: string, postal_code: string, remark: string, version: number }
+
+시각적 요구사항 및 스타일링
+1. 상태별 색상 및 스타일
+
+대기(WAITING): 배경색 #d4e6ff, hover #bdd7ff
+진행(IN_PROGRESS): 배경색 #FFF4DE, hover #FFE2B5
+완료(COMPLETE): 배경색 #e6f7e6, hover #d4f0d4
+이슈(ISSUE): 배경색 #FFE9E9, hover #FFD1D1
+취소(CANCEL): 배경색 #F5F5F5, hover #E0E0E0
+
+2. 시각화 차트 요구사항
+
+배송 현황 파이 차트:
+
+상태별 색상 구분:
+
+WAITING: #BAE7FF
+IN_PROGRESS: #FFE2B5
+COMPLETE: #C5F5E1
+ISSUE: #FFD1D1
+CANCEL: #D9D9D9
+
+
+부서별 개별 차트 표시
+도넛 차트 형태 (innerRadius 적용)
+
+
+시간대별 접수량 막대 그래프:
+
+주간(09~19시): 각 시간대별 개별 막대
+야간(19~09시): 하나의 통합 막대 (강조 표시)
+부서별 색상 구분:
+
+CS: #1890FF
+HES: #722ED1
+LENOVO: #13C2C2
+
+
+
+
+
+낙관적 락 처리 로직
+낙관적 락을 이용한 데이터 수정 흐름
+
+모든 데이터 수정 요청에 현재 버전 정보 포함
+응답으로 받은 데이터에서 업데이트된 버전 정보 저장
+409 충돌 발생 시 최신 데이터 재조회 및 버전 정보 업데이트
+사용자에게 충돌 알림 표시
+
+배차 처리에서의 낙관적 락 처리
+
+각 대시보드 ID별 버전 정보를 수집하여 요청에 포함
+충돌 발생 시 전체 데이터 새로고침 및 사용자에게 알림
+사용자가 최신 데이터로 다시 시도할 수 있도록 안내
+
+인증 및 권한 관리
+인증 흐름
+
+로그인: ID/비밀번호로 인증 후 토큰 수신
+토큰 저장: localStorage에 access_token, refresh_token 저장
+요청 인증: Authorization 헤더에 Bearer 토큰 첨부
+토큰 갱신: 401 오류 시 refresh_token으로 새 access_token 요청
+인증 실패: 갱신 실패 시 로그인 페이지로 리다이렉트
+
+권한 기반 UI 제어
+
+관리자(ADMIN): 모든 기능 접근 가능, 삭제 버튼 표시
+일반 사용자(USER): 제한된 상태 변경, 관리자 페이지 접근 불가
+조건부 렌더링: 사용자 역할에 따른 컴포넌트 표시/숨김
+
+구현 가능성 평가
 제시된 요구사항은 React와 Ant Design을 활용하여 구현 가능합니다. 다만 다음 사항들에 주의해야 합니다:
 
-1. **낙관적 락 처리**: 모든 데이터 수정 작업에서 충돌 감지 및 재시도 메커니즘 필요
-2. **상태별 테이블 행 스타일링**: CSS 클래스를 활용한 일관된 스타일 적용
-3. **시간대별 데이터 시각화**: 주간/야간 구분에 따른 데이터 가공 로직 필요
-4. **권한 기반 UI 제어**: 사용자 역할에 따른 컴포넌트 조건부 렌더링
+낙관적 락 처리: 모든 데이터 수정 작업에서 충돌 감지 및 재시도 메커니즘 필요
+상태별 테이블 행 스타일링: CSS 클래스를 활용한 일관된 스타일 적용
+시간대별 데이터 시각화: 주간/야간 구분에 따른 데이터 가공 로직 필요
+권한 기반 UI 제어: 사용자 역할에 따른 컴포넌트 조건부 렌더링
 
 현재 제공된 코드 구조를 기반으로, Context API를 활용한 상태 관리와 컴포넌트 계층 구조를 유지하면서 요구사항을 충족하는 프론트엔드 구현이 가능합니다.

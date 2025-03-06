@@ -68,6 +68,7 @@ class DashboardResponse(DashboardBase):
     driver_name: Optional[str] = None
     create_time: datetime
     depart_time: Optional[datetime] = None
+    customer: str
     region: Optional[str] = None
     version: int  # 낙관적 락을 위한 버전 필드 추가
     sla: str = Field(description="SLA 타입")  # 이 필드 추가

@@ -39,8 +39,8 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
         ("traavoidtoll", "무료우선"),
     ]
 
-    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
-    # url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving15"
+    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving15"
+    # Directions 5: https://naveropenapi.apigw.ntruss.com/map-direction/v1
 
     headers = {
         "X-NCP-APIGW-API-KEY-ID": client_id,
@@ -213,7 +213,7 @@ if __name__ == "__main__":
             client_id=NAVER_CLIENT_ID,
             client_secret=NAVER_CLIENT_SECRET,
             output_file="C:/MyMain/teckwah-dashboard/data/zipcode_address_result_Daejeon.csv",
-            max_rows=8970,  # 750
+            max_rows=750,  # 750
         )
         print("\n🎉 실행 완료!")
         print(df_final.tail(5))
