@@ -1,4 +1,4 @@
-# backend/app/repositories/visualization_repository.py (수정)
+# backend/app/repositories/visualization_repository.py
 
 from datetime import datetime
 from typing import List, Tuple, Dict, Any, Union
@@ -14,11 +14,11 @@ class VisualizationRepository:
         self.db = db
 
     def get_raw_delivery_data(
-        self, start_date: datetime, end_date: datetime
+        self, start_date: datetime, end_time: datetime
     ) -> List[Tuple]:
         """배송 현황 raw 데이터 조회 - create_time 기준"""
         try:
-            log_info(f"배송 현황 데이터 조회: {start_date} ~ {end_date}")
+            log_info(f"배송 현황 데이터 조회: {start_date} ~ {end_time}")
 
             result = (
                 self.db.query(
@@ -27,13 +27,34 @@ class VisualizationRepository:
                 .filter(
                     and_(
                         Dashboard.create_time >= start_date,
-                        Dashboard.create_time <= end_date,
+                        Dashboard.create_time <= end_time,
                     )
                 )
                 .all()
             )
 
             log_info(f"배송 현황 데이터 조회 결과: {len(result)}건")
+
+            # 데이터 검증 로깅
+            if result:
+                sample = result[0]
+                log_info(
+                    f"배송 현황 데이터 샘플: 부서={sample[0]}, 상태={sample[1]}, 시간={sample[2]}"
+                )
+
+                # 유효하지 않은 데이터 검사
+                invalid_data = [
+                    (i, row)
+                    for i, row in enumerate(result)
+                    if row[0] is None or row[1] is None or row[2] is None
+                ]
+                if invalid_data:
+                    log_error(
+                        None,
+                        f"누락된 필드가 있는 데이터: {len(invalid_data)}건",
+                        invalid_data[:5] if len(invalid_data) > 5 else invalid_data,
+                    )
+
             return result
         except SQLAlchemyError as e:
             log_error(e, "배송 현황 데이터 조회 실패")
@@ -58,6 +79,27 @@ class VisualizationRepository:
             )
 
             log_info(f"시간대별 접수량 데이터 조회 결과: {len(result)}건")
+
+            # 데이터 검증 로깅
+            if result:
+                sample = result[0]
+                log_info(
+                    f"시간대별 접수량 데이터 샘플: 부서={sample[0]}, 시간={sample[1]}"
+                )
+
+                # 유효하지 않은 데이터 검사
+                invalid_data = [
+                    (i, row)
+                    for i, row in enumerate(result)
+                    if row[0] is None or row[1] is None
+                ]
+                if invalid_data:
+                    log_error(
+                        None,
+                        f"누락된 필드가 있는 데이터: {len(invalid_data)}건",
+                        invalid_data[:5] if len(invalid_data) > 5 else invalid_data,
+                    )
+
             return result
         except SQLAlchemyError as e:
             log_error(e, "시간대별 접수량 데이터 조회 실패")

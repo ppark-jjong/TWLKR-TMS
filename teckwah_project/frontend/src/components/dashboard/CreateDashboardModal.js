@@ -109,7 +109,19 @@ const CreateDashboardModal = ({
 
   return (
     <Modal
-      title={<span style={FONT_STYLES.TITLE.LARGE}>대시보드 생성</span>}
+      title={
+        <div
+          style={{
+            padding: '8px 0',
+            borderBottom: '2px solid #1890ff',
+            marginBottom: '16px',
+          }}
+        >
+          <span style={{ ...FONT_STYLES.TITLE.LARGE, color: '#1890ff' }}>
+            대시보드 생성
+          </span>
+        </div>
+      }
       open={visible}
       onCancel={onCancel}
       onOk={handleSubmit}
@@ -236,6 +248,7 @@ const CreateDashboardModal = ({
                   whitespace: true,
                   message: '공백만으로는 입력할 수 없습니다',
                 },
+                { max: 50, message: '50자를 초과할 수 없습니다' },
               ]}
             >
               <Input maxLength={50} style={FONT_STYLES.BODY.MEDIUM} />

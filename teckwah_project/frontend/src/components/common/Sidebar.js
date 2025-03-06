@@ -1,12 +1,12 @@
 // frontend/src/components/common/Sidebar.js
 import React from 'react';
 import { Layout, Menu, Typography, Avatar, message } from 'antd';
-import { 
-  DashboardOutlined, 
-  BarChartOutlined, 
+import {
+  DashboardOutlined,
+  BarChartOutlined,
   LogoutOutlined,
   UserOutlined,
-  SettingOutlined
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,15 +33,15 @@ const Sidebar = () => {
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
-      label: '배송현황',
-      onClick: () => navigate('/dashboard')
+      label: '배차',
+      onClick: () => navigate('/dashboard'),
     },
     {
       key: '/visualization',
       icon: <BarChartOutlined />,
       label: '통계',
-      onClick: () => navigate('/visualization')
-    }
+      onClick: () => navigate('/visualization'),
+    },
   ];
 
   // 관리자인 경우 관리 메뉴 추가
@@ -50,7 +50,7 @@ const Sidebar = () => {
       key: '/admin',
       icon: <SettingOutlined />,
       label: '관리',
-      onClick: () => navigate('/admin')
+      onClick: () => navigate('/admin'),
     });
   }
 
@@ -59,22 +59,26 @@ const Sidebar = () => {
     key: 'logout',
     icon: <LogoutOutlined />,
     label: '로그아웃',
-    onClick: handleLogout
+    onClick: handleLogout,
   });
 
   return (
     <Sider width={200} theme="light">
       <div style={{ padding: '24px 16px', borderBottom: '1px solid #f0f0f0' }}>
-        <img 
-          src="/static/logo.png" 
-          alt="Logo" 
-          style={{ width: 130, height: 58, marginBottom: 16, display: 'block' }} 
+        <img
+          src="/static/logo.png"
+          alt="Logo"
+          style={{ width: 130, height: 58, marginBottom: 16, display: 'block' }}
         />
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <Avatar icon={<UserOutlined />} />
           <div style={{ marginLeft: 8 }}>
-            <Title level={5} style={{ margin: 0 }}>{user?.user_id}</Title>
-            <Typography.Text type="secondary">{user?.user_department}</Typography.Text>
+            <Title level={5} style={{ margin: 0 }}>
+              {user?.user_id}
+            </Title>
+            <Typography.Text type="secondary">
+              {user?.user_department}
+            </Typography.Text>
           </div>
         </div>
       </div>

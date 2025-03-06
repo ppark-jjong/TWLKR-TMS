@@ -40,6 +40,23 @@ class TimeSlot(BaseModel):
     start: int
     end: Optional[int] = None
 
+    # 문자열에서 자동으로 변환할 수 있도록 __init__ 메서드 추가
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if isinstance(v, str):
+            # 일반 시간대 형식 (예: "09-10")
+            if "-" in v and "(" not in v:
+                start, end = map(int, v.split("-"))
+                return cls(label=v, start=start, end=end)
+            # 야간 시간대 형식 (예: "야간(19-09)")
+            elif "야간" in v:
+                return cls(label=v, start=19, end=9)
+        return v
+
 
 class DeliveryStatusData(BaseModel):
     """배송 현황 전체 데이터"""
