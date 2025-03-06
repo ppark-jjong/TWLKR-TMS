@@ -200,7 +200,6 @@ def process_new_rows(
 
 
 if __name__ == "__main__":
-    # 설정
     CSV_FILE = "C:/MyMain/teckwah-dashboard/data/zipcode_address.csv"
     START_ADDRESS = "대전광역시 중구 대종로 434"
     NAVER_CLIENT_ID = "2qxc1i2ijz"
@@ -213,7 +212,7 @@ if __name__ == "__main__":
             client_id=NAVER_CLIENT_ID,
             client_secret=NAVER_CLIENT_SECRET,
             output_file="C:/MyMain/teckwah-dashboard/data/zipcode_address_result_Daejeon.csv",
-            max_rows=12470,  # 750
+            max_rows=8970,  # 750
         )
         print("\n🎉 실행 완료!")
         print(df_final.tail(5))
