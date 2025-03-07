@@ -1,4 +1,4 @@
--- 1. 데이터베이스 생성
+-- 1. 데이터베이스 생성 및 사용
 CREATE DATABASE IF NOT EXISTS delivery_system
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE=utf8mb4_unicode_ci;
@@ -6,21 +6,46 @@ USE delivery_system;
 
 -- 2. 기본 지역 정보를 저장할 postal_code 테이블 생성
 CREATE TABLE IF NOT EXISTS postal_code (
-  postal_code VARCHAR(5) NOT NULL PRIMARY KEY, -- 우편번호 (5자)
-  city VARCHAR(100) NULL, -- 지역정보 1
-  county VARCHAR(100) NULL, -- 지역정보 2
-  district VARCHAR(100) NULL -- 지역정보 3
+  postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
+  city VARCHAR(100) NULL,
+  county VARCHAR(100) NULL,
+  district VARCHAR(100) NULL
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 3. 허브별 거리 및 소요시간 정보를 저장할 postal_code_detail 테이블 생성
-CREATE TABLE IF NOT EXISTS postal_code_detail (
-  postal_code VARCHAR(5) NOT NULL, -- 우편번호 (5자리)
-  warehouse ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON') NOT NULL, -- 허브 종류
-  distance INT NOT NULL, -- 거리
-  duration_time INT NOT NULL, -- 예상 소요 시간
-  PRIMARY KEY (postal_code, warehouse),
+-- 3. 허브별 상세 정보를 저장할 개별 테이블 생성 (warehouse 컬럼 제거)
+CREATE TABLE IF NOT EXISTS postal_seoul (
+  postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
+  distance INT NOT NULL,
+  duration_time INT NOT NULL,
+  FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS postal_daejeon (
+  postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
+  distance INT NOT NULL,
+  duration_time INT NOT NULL,
+  FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS postal_busan (
+  postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
+  distance INT NOT NULL,
+  duration_time INT NOT NULL,
+  FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS postal_gwangju (
+  postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
+  distance INT NOT NULL,
+  duration_time INT NOT NULL,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
@@ -48,50 +73,43 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (version 컬럼 추가)
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 생성
 CREATE TABLE IF NOT EXISTS dashboard (
-  dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, -- 대시보드 id
-  order_no BIGINT NOT NULL, -- 주문번호 (배송과 회수 겹칠 때 있음)
-  type ENUM('DELIVERY', 'RETURN') NOT NULL, -- 타입 (배송, 회수)
-  status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING', -- 상태 (대기, 진행, 완료, 이슈, 취소)
-  department ENUM('CS', 'HES', 'LENOVO') NOT NULL, -- user 부서값 중복 저장 
-  warehouse ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON') NOT NULL, -- 허브 종류 (서울, 부산, 광주, 대전)
-  sla VARCHAR(10) NOT NULL, -- SLA 타입 (입력창 문자열 입력 - 현재는 별 의미 없음)
-  eta DATETIME NOT NULL, -- ETA
-  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- dashboard 생성 시각
-  depart_time DATETIME NULL, -- 대기 -> 진행 상태 변경 시 시각
-  complete_time DATETIME NULL, -- 진행 -> 완료, 취소, 이슈 상태 변경 시 시각
-  postal_code VARCHAR(5) NOT NULL, -- 우편번호 (외래키)
-  city VARCHAR(100) NULL,   -- postal_code 테이블의 city 데이터 중복 저장
-  county VARCHAR(100) NULL, -- postal_code 테이블의 county 데이터 중복 저장
-  district VARCHAR(100) NULL, -- postal_code 테이블의 district 데이터 중복 저장
-  region VARCHAR(255) GENERATED ALWAYS AS (CONCAT(city, ' ', county, ' ', district)) STORED, -- 지역 정보 조합
-  distance INT NULL, -- postal_code_detail 테이블의 distance 데이터 중복 저장
-  duration_time INT NULL, -- postal_code_detail 테이블의 duration_time 데이터 중복 저장
-  address TEXT NOT NULL, -- 주소
-  customer VARCHAR(255) NOT NULL, -- 수령인
-  contact VARCHAR(20) NULL, -- 수령인 연락처
-  remark TEXT NULL, -- 메모
-  driver_name VARCHAR(255) NULL, -- 배송 담당자
-  driver_contact VARCHAR(50) NULL, -- 배송 담당자 연락처
-  version INT NOT NULL DEFAULT 1, -- 낙관적 락을 위한 버전 필드 추가
+  dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_no varchar(15) NOT NULL,
+  type ENUM('DELIVERY', 'RETURN') NOT NULL,
+  status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING',
+  department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
+  warehouse ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON') NOT NULL,
+  sla VARCHAR(10) NOT NULL,
+  eta DATETIME NOT NULL,
+  create_time DATETIME NOT NULL,
+  depart_time DATETIME NULL,
+  complete_time DATETIME NULL,
+  postal_code VARCHAR(5) NOT NULL,
+  city VARCHAR(21) NULL,-- 한글 7글자
+  county VARCHAR(51) NULL, -- 한글 17글자
+  district VARCHAR(51) NULL, -- 한글 17글자
+  region VARCHAR(153) GENERATED ALWAYS AS (CONCAT(city, ' ', county, ' ', district)) STORED,
+  distance INT NULL,
+  duration_time INT NULL,
+  address TEXT NOT NULL,
+  customer VARCHAR(150) NOT NULL, -- 한글 50글자
+  contact VARCHAR(20) NULL, 
+  remark TEXT NULL,
+  driver_name VARCHAR(153) NULL, -- 한글 50글자
+  driver_contact VARCHAR(50) NULL,
+  version INT NOT NULL DEFAULT 1,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_status (status),
   INDEX idx_department (department),
-  INDEX idx_version (version) -- 버전 인덱스 추가
+  INDEX idx_version (version)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 7. dashboard 테이블과 postal_code_detail 테이블의 (postal_code, warehouse) 컬럼 간 복합 외래키 추가
-ALTER TABLE dashboard
-  ADD CONSTRAINT fk_dashboard_postal_detail
-  FOREIGN KEY (postal_code, warehouse) REFERENCES postal_code_detail(postal_code, warehouse);
-
--- 8. 트리거 생성: INSERT 시 postal_code 테이블에서 지역정보를, 
---    postal_code_detail 테이블에서 (postal_code, warehouse) 조건에 따른 distance와 duration_time 값을 가져오며,
---    만약 해당 조합이 없으면 기본값(0, 0)을 넣고 기본 행을 생성
+-- 7. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정
 DELIMITER //
 
 CREATE TRIGGER trg_dashboard_before_insert_postal
@@ -105,11 +123,8 @@ BEGIN
   DECLARE v_duration_time INT;
   DECLARE v_count INT;
 
-  -- (1) postal_code 테이블에서 지역정보(city, county, district) 조회
-  SELECT 
-    COALESCE(city, ''), 
-    COALESCE(county, ''), 
-    COALESCE(district, '')
+  -- (1) postal_code 테이블에서 지역정보 조회
+  SELECT COALESCE(city, ''), COALESCE(county, ''), COALESCE(district, '')
   INTO v_city, v_county, v_district
   FROM postal_code
   WHERE postal_code = NEW.postal_code;
@@ -118,43 +133,75 @@ BEGIN
   SET NEW.county = v_county;
   SET NEW.district = v_district;
 
-  -- (2) postal_code_detail 테이블에서 (postal_code, warehouse)로 distance와 duration_time 조회
-  SELECT COUNT(*) INTO v_count
-  FROM postal_code_detail
-  WHERE postal_code = NEW.postal_code 
-    AND warehouse = NEW.warehouse;
-
-  IF v_count > 0 THEN
-    SELECT distance, duration_time
-    INTO v_distance, v_duration_time
-    FROM postal_code_detail
-    WHERE postal_code = NEW.postal_code 
-      AND warehouse = NEW.warehouse;
-  ELSE
-    SET v_distance = 0;
-    SET v_duration_time = 0;
-    INSERT INTO postal_code_detail (postal_code, warehouse, distance, duration_time)
-      VALUES (NEW.postal_code, NEW.warehouse, v_distance, v_duration_time);
+  -- (2) warehouse 값에 따라 해당 테이블에서 distance와 duration_time 조회 및 없으면 기본값(0, 0)으로 INSERT
+  IF NEW.warehouse = 'SEOUL' THEN
+    SELECT COUNT(*) INTO v_count FROM postal_seoul WHERE postal_code = NEW.postal_code;
+    IF v_count > 0 THEN
+      SELECT distance, duration_time INTO v_distance, v_duration_time
+      FROM postal_seoul WHERE postal_code = NEW.postal_code;
+    ELSE
+      SET v_distance = 0;
+      SET v_duration_time = 0;
+      INSERT INTO postal_seoul (postal_code, distance, duration_time)
+      VALUES (NEW.postal_code, v_distance, v_duration_time);
+    END IF;
+    
+  ELSEIF NEW.warehouse = 'DAEJEON' THEN
+    SELECT COUNT(*) INTO v_count FROM postal_daejeon WHERE postal_code = NEW.postal_code;
+    IF v_count > 0 THEN
+      SELECT distance, duration_time INTO v_distance, v_duration_time
+      FROM postal_daejeon WHERE postal_code = NEW.postal_code;
+    ELSE
+      SET v_distance = 0;
+      SET v_duration_time = 0;
+      INSERT INTO postal_daejeon (postal_code, distance, duration_time)
+      VALUES (NEW.postal_code, v_distance, v_duration_time);
+    END IF;
+    
+  ELSEIF NEW.warehouse = 'BUSAN' THEN
+    SELECT COUNT(*) INTO v_count FROM postal_busan WHERE postal_code = NEW.postal_code;
+    IF v_count > 0 THEN
+      SELECT distance, duration_time INTO v_distance, v_duration_time
+      FROM postal_busan WHERE postal_code = NEW.postal_code;
+    ELSE
+      SET v_distance = 0;
+      SET v_duration_time = 0;
+      INSERT INTO postal_busan (postal_code, distance, duration_time)
+      VALUES (NEW.postal_code, v_distance, v_duration_time);
+    END IF;
+    
+  ELSEIF NEW.warehouse = 'GWANGJU' THEN
+    SELECT COUNT(*) INTO v_count FROM postal_gwangju WHERE postal_code = NEW.postal_code;
+    IF v_count > 0 THEN
+      SELECT distance, duration_time INTO v_distance, v_duration_time
+      FROM postal_gwangju WHERE postal_code = NEW.postal_code;
+    ELSE
+      SET v_distance = 0;
+      SET v_duration_time = 0;
+      INSERT INTO postal_gwangju (postal_code, distance, duration_time)
+      VALUES (NEW.postal_code, v_distance, v_duration_time);
+    END IF;
   END IF;
 
   SET NEW.distance = v_distance;
   SET NEW.duration_time = v_duration_time;
   
-  -- 초기 버전 설정 (낙관적 락을 위함)
+  -- (3) 초기 버전 값 설정 (낙관적 락을 위함)
   IF NEW.version IS NULL THEN
     SET NEW.version = 1;
   END IF;
 END//
+  
+DELIMITER ;
 
--- 9. 낙관적 락 충돌을 감지하는 트리거 추가
+-- 8. 트리거 생성: dashboard 테이블 UPDATE 시 버전 자동 증가 (낙관적 락)
+DELIMITER //
 CREATE TRIGGER trg_dashboard_before_update_version
 BEFORE UPDATE ON dashboard
 FOR EACH ROW
 BEGIN
-  -- 버전 증가 (자동으로 처리)
   IF OLD.version = NEW.version THEN
     SET NEW.version = OLD.version + 1;
   END IF;
 END//
-
 DELIMITER ;

@@ -158,9 +158,10 @@ const CreateDashboardModal = ({
               rules={[
                 { required: true, message: '주문번호를 입력해주세요' },
                 { pattern: /^\d+$/, message: '숫자만 입력 가능합니다' },
+                { max: 15, message: '주문번호는 15자를 초과할 수 없습니다' },
               ]}
             >
-              <Input maxLength={20} style={FONT_STYLES.BODY.MEDIUM} />
+              <Input maxLength={15} style={FONT_STYLES.BODY.MEDIUM} />
             </Form.Item>
 
             <Form.Item

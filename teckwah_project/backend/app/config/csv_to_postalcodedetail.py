@@ -59,9 +59,10 @@ def execute_query(query, params=None, fetch=False, many=False):
         connection.close()
 
 
-def import_csv_to_postal_code_detail(file_path):
+def import_csv_to_table(file_path, table_name):
     """
-    CSV 파일을 읽고 postal_code_detail 테이블에 삽입
+    CSV 파일을 읽어 지정한 테이블에 데이터를 삽입하는 함수.
+    테이블에는 postal_code, distance, duration_time 컬럼이 존재해야 합니다.
     """
     try:
         df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
@@ -69,39 +70,53 @@ def import_csv_to_postal_code_detail(file_path):
         print(f"CSV 파일 읽기 실패: {e}")
         return
 
-    # NaN 값을 처리 (문자열 컬럼 -> "", 숫자형 컬럼 -> 0)
+    # NaN 처리: 문자열 컬럼은 ""로, 숫자형 컬럼은 0으로 처리
     df.fillna({"warehouse": ""}, inplace=True)
     df["distance"] = df["distance"].fillna(0).astype(int)
     df["duration_time"] = df["duration_time"].fillna(0).astype(int)
 
-    # postal_code 값을 5자리로 변환 (4자리면 앞에 '0' 추가)
+    # postal_code 값을 5자리 문자열로 변환 (예: '1234' -> '01234')
     df["postal_code"] = df["postal_code"].astype(str).str.zfill(5)
 
-    # 데이터베이스 삽입 쿼리 생성
-    insert_query = """
-    INSERT INTO postal_code_detail (postal_code, warehouse, distance, duration_time)
-    VALUES (%s, %s, %s, %s)
+    # 필요한 컬럼 선택 (CSV 파일이 해당 지역 전용이므로 warehouse 컬럼은 무시)
+    df_table = df[["postal_code", "distance", "duration_time"]]
+
+    # DB 삽입 쿼리 생성 (해당 테이블에 삽입)
+    insert_query = f"""
+    INSERT INTO {table_name} (postal_code, distance, duration_time)
+    VALUES (%s, %s, %s)
     ON DUPLICATE KEY UPDATE 
         distance = VALUES(distance), 
         duration_time = VALUES(duration_time)
     """
 
-    # DataFrame을 리스트로 변환하여 삽입
-    values = df[
-        ["postal_code", "warehouse", "distance", "duration_time"]
-    ].values.tolist()
+    # DataFrame 데이터를 리스트로 변환하여 삽입
+    values = df_table.values.tolist()
     result = execute_query(insert_query, values, many=True)
 
     if result is not None:
-        print(f"postal_code_detail 테이블에 총 {len(df)}개의 데이터가 삽입되었습니다.")
+        print(f"{table_name} 테이블에 총 {len(df_table)}개의 데이터가 삽입되었습니다.")
     else:
-        print(f"postal_code_detail 테이블 데이터 삽입 실패")
+        print(f"{table_name} 테이블 데이터 삽입 실패")
 
 
 if __name__ == "__main__":
-    file_path = "backend/app/data/postal_code_detail.csv"
+    # 파일 경로와 삽입할 테이블을 아래에서 선택하여 사용하세요.
+    file_path = "backend/app/data/postal_seoul.csv"
+    table_name = "postal_seoul"
+
+    # 다른 지역의 경우, 아래 주석을 해제하여 사용하세요.
+    # file_path = "backend/app/data/postal_busan.csv"
+    # table_name = "postal_busan"
+
+    # file_path = "backend/app/data/postal_daejeon.csv"
+    # table_name = "postal_daejeon"
+
+    # file_path = "backend/app/data/postal_gwangju.csv"
+    # table_name = "postal_gwangju"
+
     if os.path.exists(file_path):
-        print(f"{file_path} -> postal_code_detail 테이블에 삽입 중...")
-        import_csv_to_postal_code_detail(file_path)
+        print(f"{file_path} -> {table_name} 테이블에 삽입 중...")
+        import_csv_to_table(file_path, table_name)
     else:
         print(f"파일이 존재하지 않음: {file_path}")

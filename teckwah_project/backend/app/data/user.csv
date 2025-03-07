@@ -1,7 +1,8 @@
 ﻿user_id,user_password,user_department,user_role
-csAdmin-twlkr,Teckwah0327!,CS,ADMIN
-cs1-twlkr,Teckwah0328!,CS,USER
-cs2-twlkr,Teckwah0329!,CS,USER
-cs3-twlkr,Teckwah0330!,CS,USER
-hes1-twlkr,Teckwah0331!,HES,USER
-len1-twlkr,Teckwah0332!,LENOVO,USER
+관리자1,Texkwah0326!,CS,ADMIN
+관리자2,Teckwah0327!,CS,ADMIN
+TeamCS1,Teckwah0328!,CS,USER
+TeamCS2,Teckwah0329!,CS,USER
+TeamCS3,Teckwah0330!,CS,USER
+TeamHES1,Teckwah0331!,HES,USER
+TeamLEN1,Teckwah0332!,LENOVO,USER

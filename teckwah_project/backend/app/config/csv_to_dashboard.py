@@ -70,13 +70,16 @@ def import_dashboard_data():
         print(f"CSV 파일 읽기 실패: {e}")
         return
 
+    # CSV 파일에 create_time 및 status 컬럼을 포함하여 필요한 컬럼 리스트 업데이트
     expected_columns = [
         "order_no",
         "type",
+        "status",  # status 컬럼 추가
         "department",
         "warehouse",
         "sla",
         "eta",
+        "create_time",
         "depart_time",
         "complete_time",
         "postal_code",
@@ -93,17 +96,20 @@ def import_dashboard_data():
         print(f"필요한 컬럼이 존재하지 않습니다: {e}")
         return
 
-    # 1) 날짜/시간 컬럼을 datetime으로 변환
-    for col in ["eta", "depart_time", "complete_time"]:
+    # 1) 날짜/시간 컬럼들을 datetime으로 변환 (create_time 포함)
+    for col in ["eta", "create_time", "depart_time", "complete_time"]:
         df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    # 2) 숫자형 변환
-    df["order_no"] = pd.to_numeric(df["order_no"], errors="coerce")
+    # 만약 create_time이 NaT인 경우 현재 시각으로 채움
+    df["create_time"] = df["create_time"].fillna(pd.Timestamp.now())
+
+    # 2) order_no 컬럼은 문자열로 처리 (숫자형 변환 제거)
+    df["order_no"] = df["order_no"].astype(str).str.strip()
 
     # 3) 우편번호 5자리 처리
     df["postal_code"] = df["postal_code"].astype(str).str.zfill(5)
 
-    # 4) NaN/NaT -> None 치환
+    # 4) NaN/NaT를 None으로 치환
     df = df.where(pd.notnull(df), None)
 
     # 5) 날짜/시간 컬럼을 문자열로 변환
@@ -112,28 +118,22 @@ def import_dashboard_data():
             return None
         return x.strftime("%Y-%m-%d %H:%M:%S")
 
-    for col in ["eta", "depart_time", "complete_time"]:
+    for col in ["eta", "create_time", "depart_time", "complete_time"]:
         df[col] = df[col].apply(datetime_to_str)
 
-    # 6) 나머지 컬럼에서 'nan' 같은 문자열 치환
-    #    (모든 컬럼에 대해 일괄 적용해도 됨)
+    # 6) 모든 컬럼에 대해 'nan' 문자열을 None으로 치환
     for col in df.columns:
-        # 일단 전부 문자열로 캐스팅 (None은 그대로 둠)
         df[col] = df[col].apply(lambda x: str(x).strip() if x is not None else None)
-        # 그 후 'nan', 'NaN', '' 등을 None으로
         df[col] = df[col].replace(["nan", "NaN", ""], None)
 
-    # 7) 파라미터 바인딩 전, 최종적으로 float('nan')을 잡아낼 수도 있음
-    #    (위 단계에서 대부분 처리되겠지만 혹시 몰라서)
+    # 7) 혹시 남아있는 float('nan')도 None으로 처리
     data_tuples = df.to_numpy().tolist()
     cleaned_data = []
     for row in data_tuples:
         new_row = []
         for val in row:
-            # float 타입 NaN 체크
             if isinstance(val, float) and math.isnan(val):
                 new_row.append(None)
-            # 문자열 'nan' 체크 (소문자, 대문자 등)
             elif isinstance(val, str) and val.lower() == "nan":
                 new_row.append(None)
             else:
@@ -142,11 +142,11 @@ def import_dashboard_data():
 
     insert_query = """
     INSERT INTO dashboard (
-        order_no, type, department, warehouse, sla, eta,
-        depart_time, complete_time, postal_code, address,
+        order_no, type, status, department, warehouse, sla, eta,
+        create_time, depart_time, complete_time, postal_code, address,
         customer, contact, remark, driver_name, driver_contact
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
     result = execute_query(insert_query, params=cleaned_data, many=True)

@@ -40,7 +40,11 @@ class Warehouse(str, Enum):
 class DashboardBase(BaseModel):
     type: DeliveryType
     warehouse: Warehouse
-    order_no: int = Field(gt=0, description="주문번호는 양의 정수여야 합니다")
+    order_no: str = Field(
+        max_length=15,
+        pattern=r"^\d+$",
+        description="주문번호는 15자 이내의 숫자여야 합니다",
+    )
     eta: datetime = Field(description="예상 도착 시간")
 
 
@@ -70,8 +74,8 @@ class DashboardResponse(DashboardBase):
     depart_time: Optional[datetime] = None
     customer: str
     region: Optional[str] = None
-    version: int  # 낙관적 락을 위한 버전 필드 추가
-    sla: str = Field(description="SLA 타입")  # 이 필드 추가
+    version: int
+    sla: str
 
     model_config = ConfigDict(from_attributes=True)
 

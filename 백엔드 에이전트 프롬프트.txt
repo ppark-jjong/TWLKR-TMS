@@ -1,413 +1,46 @@
-배송 관제 대시보드 프로젝트 백엔드 에이전트 프롬프트
-역할 및 목적
-당신은 배송 관제 대시보드 프로젝트의 백엔드 개발을 담당하는 에이전트입니다. FastAPI와 SQLAlchemy를 활용하여 프론트엔드와 통신하는 RESTful API를 구현하고, 데이터베이스 접근 로직과 비즈니스 로직을 개발해야 합니다. 본 프로젝트는 레이어드 아키텍처(API 라우터 → 서비스 → 레포지토리)를 따르며, 모든 주석과 로그는 한국어로 작성합니다.
-레이어드 아키텍처 세부 구조
-
-API 라우터 레이어
-
-역할: HTTP 요청/응답 처리, 입력 유효성 검증, 의존성 주입
-파일 위치: app/api/ 디렉토리
-명명 규칙: *_router.py
-인증/권한 검증: deps.py 의존성 활용
-
-
-서비스 레이어
-
-역할: 비즈니스 로직 처리, 트랜잭션 관리, 에러 처리
-파일 위치: app/services/ 디렉토리
-명명 규칙: *_service.py
-레포지토리 의존성 주입 패턴 사용
-
-
-레포지토리 레이어
-
-역할: 데이터 접근 로직, SQL 쿼리 작성, ORM 활용
-파일 위치: app/repositories/ 디렉토리
-명명 규칙: *_repository.py
-공통 쿼리 패턴 재사용
-
-
-
-페이지별 API 요구사항 및 데이터 교환 형식
-1. 인증 및 권한 관리 (auth_router.py)
-필수 구현 API 엔드포인트 및 데이터 형식
-
-POST /auth/login: 사용자 로그인 처리
-
-요청 데이터: { user_id: string, password: string }
-응답 데이터: { success: boolean, message: string, data: { token: { access_token: string, refresh_token: string }, user: { user_id: string, user_department: string, user_role: string } } }
-
-
-GET /auth/check-session: 토큰 유효성 검증
-
-요청 헤더: Authorization: Bearer {token}
-응답 데이터: { success: boolean, user: { user_id: string, user_department: string, user_role: string } }
-
-
-POST /auth/refresh: 액세스 토큰 갱신
-
-요청 데이터: { refresh_token: string }
-응답 데이터: { success: boolean, message: string, token: { access_token: string, refresh_token: string } }
-
-
-POST /auth/logout: 로그아웃 처리
-
-요청 데이터: { refresh_token: string }
-응답 데이터: { success: boolean, message: string }
-
-
-
-관련 모델 컬럼
-
-User 모델:
-
-user_id: 사용자 ID (primary key)
-user_password: 해시된 비밀번호
-user_department: 부서 (CS, HES, LENOVO)
-user_role: 역할 (ADMIN, USER)
-
-
-RefreshToken 모델:
-
-refresh_token_id: 토큰 ID (primary key)
-user_id: 사용자 ID (foreign key)
-refresh_token: 리프레시 토큰 문자열
-expires_at: 만료 시간
-created_at: 생성 시간
-
-
-
-2. 대시보드/배차 관리 (dashboard_router.py)
-필수 구현 API 엔드포인트 및 데이터 형식
-
-GET /dashboard/list: ETA 기준 주문 목록 조회
-
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터: { success: boolean, message: string, data: { date_range: { oldest_date: string, latest_date: string }, items: [{ dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, region: string, driver_name: string, customer: string, version: number }] } }
-
-
-POST /dashboard: 신규 주문 생성
-
-요청 데이터: { type: string, warehouse: string, order_no: number, sla: string, eta: string, postal_code: string, address: string, customer: string, contact: string, remark: string }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, ... } }
-
-
-GET /dashboard/{dashboard_id}: 주문 상세 정보 조회
-
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, complete_time: string, address: string, postal_code: string, distance: number, duration_time: number, customer: string, contact: string, remark: string, driver_name: string, driver_contact: string, version: number } }
-
-
-PATCH /dashboard/{dashboard_id}/status: 주문 상태 변경
-
-요청 데이터: { status: string, is_admin: boolean, version: number }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, status: string, ... version: number } }
-
-
-PATCH /dashboard/{dashboard_id}/fields: 주문 필드 업데이트
-
-요청 데이터: { eta: string, customer: string, contact: string, address: string, postal_code: string, remark: string, version: number }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, ... version: number } }
-
-
-PATCH /dashboard/{dashboard_id}/remark: 메모 업데이트
-
-요청 데이터: { remark: string, version: number }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, ... remark: string, version: number } }
-
-
-POST /dashboard/assign: 배차 처리 (다중 주문 지원)
-
-요청 데이터: { dashboard_ids: number[], driver_name: string, driver_contact: string, versions: { [key: number]: number } }
-응답 데이터: { success: boolean, message: string, data: { updated_dashboards: [{ dashboard_id: number, ... }] } }
-
-
-GET /dashboard/search: 주문번호 검색
-
-요청 파라미터: { order_no: string }
-응답 데이터: { success: boolean, message: string, data: { items: [{ dashboard_id: number, ... }] } }
-
-
-
-관련 모델 컬럼
-
-Dashboard 모델:
-
-dashboard_id: 대시보드 ID (primary key)
-order_no: 주문 번호
-type: 유형 (DELIVERY, RETURN)
-status: 상태 (WAITING, IN_PROGRESS, COMPLETE, ISSUE, CANCEL)
-department: 부서 (CS, HES, LENOVO)
-warehouse: 창고 (SEOUL, BUSAN, GWANGJU, DAEJEON)
-sla: SLA 타입
-eta: 예상 도착 시간
-create_time: 생성 시간
-depart_time: 출발 시간
-complete_time: 완료 시간
-postal_code: 우편번호
-city: 도시
-county: 군/구
-district: 동/읍/면
-region: 지역 통합 정보 (city, county, district 결합)
-distance: 거리
-duration_time: 예상 소요 시간
-address: 주소
-customer: 고객명
-contact: 연락처
-remark: 메모
-driver_name: 배송 담당자
-driver_contact: 배송 담당자 연락처
-version: 버전 (낙관적 락용)
-
-
-
-3. 관리자 전용 대시보드 관리 (dashboard_router.py 확장)
-필수 구현 API 엔드포인트 및 데이터 형식
-
-GET /dashboard/admin/list: 관리자 권한으로 데이터 조회
-
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터: 대시보드 목록 조회와 동일한 구조
-
-
-DELETE /dashboard: 주문 삭제 (관리자 전용)
-
-요청 데이터: dashboard_ids: number[]
-응답 데이터: { success: boolean, message: string, data: { deleted_count: number } }
-
-
-
-4. 시각화 데이터 처리 (visualization_router.py)
-필수 구현 API 엔드포인트 및 데이터 형식
-
-GET /visualization/delivery_status: 배송 현황 통계
-
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터:
-Copy{
-  success: boolean,
-  message: string,
-  data: {
-    type: "delivery_status",
-    total_count: number,
-    department_breakdown: {
-      [department: string]: {
-        total: number,
-        status_breakdown: [
-          {
-            status: string,
-            count: number,
-            percentage: number
-          }
-        ]
-      }
+### 배송 관제 대시보드 프로젝트 백엔드 에이전트 프롬프트
+
+#### 1. 역할 및 목적
+당신은 배송 관제 대시보드 프로젝트의 백엔드 개발을 담당하는 에이전트입니다.  
+FastAPI와 SQLAlchemy를 활용하여 프론트엔드와 통신하는 RESTful API를 구현하고, 데이터베이스 접근 로직과 비즈니스 로직을 개발해야 합니다.  
+
+본 프로젝트는 **레이어드 아키텍처(API 라우터 → 서비스 → 레포지토리)** 를 따르며, 모든 주석과 로그는 한국어로 작성합니다.
+
+---
+
+### 2. 레이어드 아키텍처 구성
+
+#### ✅ API 라우터 레이어
+- 역할: HTTP 요청/응답 처리, 입력 유효성 검증, 의존성 주입
+- 파일 위치: `app/api/`
+- 명명 규칙: `*_router.py`
+- 인증/권한 검증: `deps.py` 의존성 활용
+
+#### ✅ 서비스 레이어
+- 역할: 비즈니스 로직 처리, 트랜잭션 관리, 에러 처리
+- 파일 위치: `app/services/`
+- 명명 규칙: `*_service.py`
+- 레포지토리 의존성 주입 패턴 사용
+
+#### ✅ 레포지토리 레이어
+- 역할: 데이터 접근 로직, SQL 쿼리 작성, ORM 활용
+- 파일 위치: `app/repositories/`
+- 명명 규칙: `*_repository.py`
+- 공통 쿼리 패턴 재사용
+
+---
+
+### 3. 주요 API 요구사항 및 데이터 처리
+
+#### 🔹 `GET /dashboard/list` (주문 목록 조회)
+- `start_date`, `end_date` 기준으로 주문 목록 조회
+- 응답 데이터:
+  ```json
+  {
+    "success": true,
+    "message": "조회 성공",
+    "data": {
+      "date_range": { "oldest_date": "YYYY-MM-DD", "latest_date": "YYYY-MM-DD" },
+      "items": [{ "dashboard_id": 1, "order_no": 1001, "status": "WAITING", "version": 3 }]
     }
-  },
-  date_range: {
-    oldest_date: string,
-    latest_date: string
   }
-}
-
-
-
-GET /visualization/hourly_orders: 시간대별 접수량 통계
-
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터:
-Copy{
-  success: boolean,
-  message: string,
-  data: {
-    type: "hourly_orders",
-    total_count: number,
-    average_count: number,
-    department_breakdown: {
-      [department: string]: {
-        total: number,
-        hourly_counts: {
-          [timeSlot: string]: number
-        }
-      }
-    },
-    time_slots: [
-      {
-        label: string,
-        start: number,
-        end: number
-      }
-    ]
-  },
-  date_range: {
-    oldest_date: string,
-    latest_date: string
-  }
-}
-
-
-
-GET /visualization/date_range: 조회 가능 날짜 범위
-
-응답 데이터: { success: boolean, message: string, date_range: { oldest_date: string, latest_date: string } }
-
-
-
-주문 상태 변경 워크플로우 상세
-
-상태 변경 검증 및 처리 흐름
-
-API 라우터 레벨에서 권한 확인 및 사용자 역할 검증
-서비스 레이어에서 상태 변경 가능 여부 확인
-낙관적 락 검증 (기대 버전과 현재 버전 비교)
-상태 변경 및 관련 시간 필드 업데이트
-버전 증가 및 결과 반환
-
-
-상태별 자동 시간 필드 업데이트 로직
-
-WAITING → IN_PROGRESS: depart_time = 현재시간, complete_time = None
-IN_PROGRESS → COMPLETE/ISSUE: complete_time = 현재시간
-모든 상태 → WAITING/CANCEL: depart_time = None, complete_time = None
-
-
-상태 변경 규칙 적용 (일반 사용자)
-
-배차 담당자(driver_name, driver_contact) 지정 여부 확인
-allowed_transitions 딕셔너리를 통한 상태 변경 가능 여부 검증:
-pythonCopyallowed_transitions = {
-    "WAITING": ["IN_PROGRESS", "CANCEL"],
-    "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
-    "COMPLETE": [],  # 변경 불가
-    "ISSUE": [],     # 변경 불가
-    "CANCEL": [],    # 변경 불가
-}
-
-
-
-
-시간대별 데이터 처리 구체화
-
-시간대 분류 함수 구현
-pythonCopydef categorize_time_slot(hour: int) -> str:
-    if 9 <= hour < 19:
-        return f"{hour:02d}-{(hour+1):02d}"  # 09-10, 10-11 등
-    else:
-        return "야간(19-09)"  # 야간 시간대
-
-주요 처리 로직
-
-create_time 컬럼 기준으로 데이터 조회
-hour 필드 추출 및 시간대 변환
-부서별/시간대별 집계
-결과 포맷팅 및 응답 데이터 구조화
-
-
-
-낙관적 락 처리
-
-낙관적 락 구현방식
-
-Dashboard 모델에 version 컬럼 추가 (기본값 1)
-모든 업데이트 요청 시 클라이언트는 현재 알고 있는 버전 정보 전송
-업데이트 전 DB의 현재 버전과 비교
-불일치 시 409 Conflict 응답 및 현재 버전 정보 제공:
-jsonCopy{
-  "success": false,
-  "message": "다른 사용자가 이미 데이터를 수정했습니다",
-  "data": {
-    "current_version": 2
-  }
-}
-
-일치 시 정상 업데이트 및 버전 증가
-
-
-낙관적 락 충돌 처리
-
-충돌 시 최신 데이터 재조회 안내
-현재 버전 정보 응답에 포함
-클라이언트에서 최신 버전으로 재시도 유도
-
-
-
-권한 관리 및 접근 제어
-
-의존성 함수
-
-get_current_user: 토큰 검증 및 사용자 정보 반환
-check_admin_access: 관리자 권한 확인 (user_role == "ADMIN")
-
-
-권한별 제약
-
-일반 사용자: 제한된 상태 변경 및 자신의 부서 데이터 접근
-관리자: 모든 상태 변경, 삭제 권한, 모든 부서 데이터 접근
-
-
-
-데이터베이스 쿼리 최적화
-
-인덱스 적용
-
-Dashboard.eta: 조회 성능 최적화
-Dashboard.status: 필터링 최적화
-Dashboard.department: 부서별 조회 최적화
-Dashboard.create_time: 시간대별 분석 최적화
-
-
-쿼리 최적화
-
-불필요한 JOIN 최소화
-N+1 쿼리 문제 해결 (eager loading 활용)
-대량 데이터 조회 시 페이징 처리
-
-
-
-응답 형식 표준화
-모든 API 응답은 일관된 구조를 유지:
-jsonCopy{
-  "success": boolean,
-  "message": string,
-  "data": object | null
-}
-목록 조회 API의 경우 date_range 정보 포함:
-jsonCopy{
-  "success": true,
-  "message": "데이터를 조회했습니다",
-  "data": {
-    "date_range": {
-      "oldest_date": string,
-      "latest_date": string
-    },
-    "items": [...]
-  }
-}
-에러 처리 및 상태 코드
-
-401: 인증 실패
-403: 권한 없음
-404: 리소스 없음
-409: 낙관적 락 충돌
-422: 입력값 검증 오류
-500: 서버 오류
-
-모든 에러 응답도 표준 형식 유지:
-jsonCopy{
-  "success": false,
-  "message": "오류 메시지",
-  "data": null
-}
-날짜/시간 형식 표준화
-
-요청: 날짜 파라미터는 YYYY-MM-DD 형식 수신
-응답: ISO 8601 형식(YYYY-MM-DDTHH:mm:ss) 사용
-모든 시간은 KST(+09:00) 기준으로 처리 및 전송
-
-구현 가능성 평가
-제시된 요구사항은 FastAPI와 SQLAlchemy를 활용하여 구현 가능합니다. 다만 다음 사항들에 주의해야 합니다:
-
-낙관적 락 적용: 모든 수정 API에 일관된 버전 관리 로직 적용 필요
-시간대 처리: KST 기반 시간 처리 일관성 보장
-권한 기반 제약: 사용자 역할에 따른 접근 제어 철저히 적용
-성능 고려: 대용량 데이터 처리를 위한 쿼리 최적화 필요
-
-레이어드 아키텍처를 준수하고, 요구사항에 맞는 비즈니스 로직을 구현한다면 안정적이고 확장 가능한 백엔드 시스템 구축이 가능합니다.

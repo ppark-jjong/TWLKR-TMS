@@ -162,6 +162,12 @@ class DashboardService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="올바른 연락처 형식이 아닙니다",
                 )
+            # order_no 추가 검증 (15자 제한)
+            if len(data.order_no) > 15:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="주문번호는 15자를 초과할 수 없습니다",
+                )
 
             # ETA가 현재 시간 이후인지 검증
             eta_kst = data.eta.astimezone(self.kr_timezone)
@@ -178,11 +184,16 @@ class DashboardService:
             dashboard_data["status"] = "WAITING"  # 초기 상태는 대기 상태
             dashboard_data["version"] = 1  # 초기 버전 설정
 
+            # 현재 시간 (KST)을 create_time으로 설정
+            current_time = datetime.now(self.kr_timezone)
+            dashboard_data["create_time"] = current_time
+
             # SLA 필드가 비어있는 경우 기본값 설정
             if not dashboard_data.get("sla"):
                 dashboard_data["sla"] = "표준"
 
-            dashboard = self.repository.create_dashboard(dashboard_data)
+            # 변경 포인트: current_time을 repository 메서드에 전달
+            dashboard = self.repository.create_dashboard(dashboard_data, current_time)
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
             return DashboardDetail.model_validate(dashboard)
 
@@ -196,57 +207,31 @@ class DashboardService:
             )
 
     def update_status(
-        self, dashboard_id: int, status: str, version: int, is_admin: bool = False
+        self,
+        dashboard_id: int,
+        status: str,
+        version: int,
+        user_id: str,
+        is_admin: bool = False,
     ) -> DashboardDetail:
-        """상태 업데이트 (낙관적 락 적용)"""
+        """상태 업데이트 (낙관적 락 + 비관적 락 적용)"""
         try:
-            # 대시보드 조회
-            dashboard = self.repository.get_dashboard_detail(dashboard_id)
-            if not dashboard:
+            # 대시보드 조회 (비관적 락 적용)는 repository에서 이루어짐
+
+            # 상태 유효성 검증
+            if status not in STATUS_TEXT_MAP.keys():
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"유효하지 않은 상태입니다: {status}",
                 )
-
-            # 일반 사용자의 상태 변경 규칙 검증
-            if not is_admin:
-                # 배차 정보 확인
-                if not dashboard.driver_name or not dashboard.driver_contact:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="배차 담당자가 할당되지 않아 상태를 변경할 수 없습니다",
-                    )
-
-                # 상태 변경 규칙 검증
-                allowed_transitions = {
-                    "WAITING": ["IN_PROGRESS", "CANCEL"],
-                    "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
-                    "COMPLETE": [],
-                    "ISSUE": [],
-                    "CANCEL": [],
-                }
-
-                if status not in allowed_transitions.get(dashboard.status, []):
-                    status_text_map = {
-                        "WAITING": "대기",
-                        "IN_PROGRESS": "진행",
-                        "COMPLETE": "완료",
-                        "ISSUE": "이슈",
-                        "CANCEL": "취소",
-                    }
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"{status_text_map[dashboard.status]} 상태에서는 "
-                        f"{status_text_map[status]}(으)로 변경할 수 없습니다",
-                    )
 
             # 현재 시간 (KST)
             current_time = datetime.now(self.kr_timezone)
 
             try:
-                # 상태 업데이트 (낙관적 락 적용)
-                updated = self.repository.update_dashboard_status(
-                    dashboard_id, status, current_time, version
+                # 비관적 락 + 낙관적 락 적용한 상태 업데이트
+                updated = self.repository.update_dashboard_status_with_lock(
+                    dashboard_id, status, current_time, version, user_id
                 )
                 return DashboardDetail.model_validate(updated)
             except OptimisticLockException as e:
@@ -256,6 +241,15 @@ class DashboardService:
                     detail={
                         "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
                         "current_version": e.current_version,
+                    },
+                )
+            except PessimisticLockException as e:
+                # 비관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail={
+                        "message": str(e.detail),
+                        "locked_by": e.locked_by,
                     },
                 )
 
@@ -379,36 +373,12 @@ class DashboardService:
                 detail="필드 업데이트 중 오류가 발생했습니다",
             )
 
-    def assign_driver(self, assignment: DriverAssignment) -> List[DashboardResponse]:
-        """배차 처리 (낙관적 락 적용)"""
+    def assign_driver(
+        self, assignment: DriverAssignment, user_id: str
+    ) -> List[DashboardResponse]:
+        """배차 처리 (낙관적 락 + 비관적 락 적용)"""
         try:
             log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
-
-            # 대시보드 조회
-            dashboards = self.repository.get_dashboards_by_ids(assignment.dashboard_ids)
-
-            # 대시보드가 비어있는 경우 처리
-            if not dashboards:
-                log_error(
-                    None, f"배차 대상 대시보드가 없음: {assignment.dashboard_ids}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="배차 대상 대시보드를 찾을 수 없습니다",
-                )
-
-            # 대기 상태 검증
-            invalid_dashboards = []
-            for dash in dashboards:
-                # 상태 필드가 없거나 WAITING이 아닌 경우 체크
-                if not hasattr(dash, "status") or dash.status != "WAITING":
-                    invalid_dashboards.append(dash.order_no)
-
-            if invalid_dashboards:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"대기 상태가 아니어서 처리할 수 없습니다: {', '.join(map(str, invalid_dashboards))}",
-                )
 
             # 연락처 형식 검증
             if not bool(
@@ -420,12 +390,13 @@ class DashboardService:
                 )
 
             try:
-                # 배차 정보 업데이트 (낙관적 락 적용)
-                updated_dashboards = self.repository.assign_driver(
+                # 비관적 락 + 낙관적 락 적용한 배차 처리
+                updated_dashboards = self.repository.assign_driver_with_lock(
                     assignment.dashboard_ids,
                     assignment.driver_name,
                     assignment.driver_contact,
                     assignment.versions,
+                    user_id,
                 )
 
                 if len(updated_dashboards) != len(assignment.dashboard_ids):
@@ -442,6 +413,15 @@ class DashboardService:
                     detail={
                         "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
                         "current_version": e.current_version,
+                    },
+                )
+            except PessimisticLockException as e:
+                # 비관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail={
+                        "message": str(e.detail),
+                        "locked_by": e.locked_by,
                     },
                 )
 

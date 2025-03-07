@@ -184,13 +184,18 @@ class DashboardRepository:
             log_error(e, "대시보드 다중 조회 실패", {"ids": dashboard_ids})
             raise
 
-    def create_dashboard(self, dashboard_data: dict) -> Dashboard:
+    def create_dashboard(
+        self,
+        dashboard_data: dict,
+        current_time: datetime,
+    ) -> Dashboard:
         """대시보드 생성"""
         try:
             log_info(f"대시보드 생성 시작")
 
             dashboard = Dashboard(**dashboard_data)
             dashboard.version = 1  # 초기 버전 설정
+            dashboard.create_time = current_time  # KST 시간을 직접 설정
             self.db.add(dashboard)
 
             # postal_code_detail 정보 연결 위해 flush
