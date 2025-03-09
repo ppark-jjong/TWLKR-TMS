@@ -20,7 +20,7 @@ class Dashboard(Base):
     __tablename__ = "dashboard"
 
     dashboard_id = Column(Integer, primary_key=True, autoincrement=True)
-    order_no = Column(String(15), nullable=False)
+    order_no = Column(String(15), nullable=False, index=True)
     type = Column(Enum("DELIVERY", "RETURN"), nullable=False)
     status = Column(
         Enum("WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"),
@@ -49,14 +49,12 @@ class Dashboard(Base):
     address = Column(Text, nullable=False)
     customer = Column(String(150), nullable=False)
     contact = Column(String(20), nullable=True)
-    remark = Column(Text, nullable=True)
+    # remark 필드 제거됨
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    version = Column(
-        Integer, nullable=False, default=1
-    )  # 낙관적 락을 위한 버전 필드 추가
+    version = Column(Integer, nullable=False, default=1)  # 낙관적 락을 위한 버전 필드
 
-    # Relationships 수정
+    # Relationships
     postal_code_info = relationship(
         "PostalCode", backref="dashboards", viewonly=True  # 읽기 전용으로 설정
     )
@@ -67,6 +65,14 @@ class Dashboard(Base):
         primaryjoin="and_(Dashboard.postal_code==PostalCodeDetail.postal_code, "
         "Dashboard.warehouse==PostalCodeDetail.warehouse)",
         overlaps="postal_code_info",  # 중복 관계 명시
+    )
+
+    # 메모 관계 추가
+    memos = relationship(
+        "DashboardMemo",
+        back_populates="dashboard",
+        cascade="all, delete-orphan",
+        order_by="desc(DashboardMemo.created_at)",
     )
 
     __table_args__ = (
