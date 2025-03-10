@@ -33,8 +33,3 @@ class PostalCodeDetail(Base):
 
     # Relationships
     postal_code_info = relationship("PostalCode", back_populates="postal_code_details")
-
-    def __repr__(self):
-        return (
-            f"<PostalCodeDetail(code={self.postal_code}, warehouse={self.warehouse})>"
-        )

@@ -4,6 +4,7 @@ import math
 import pandas as pd
 import mysql.connector
 import numpy as np
+from datetime import datetime
 
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "1234"
@@ -29,37 +30,6 @@ def get_mysql_connection():
         return None
 
 
-def execute_query(query, params=None, fetch=False, many=False):
-    connection = get_mysql_connection()
-    if not connection:
-        return None
-    try:
-        cursor = connection.cursor()
-        if many:
-            successful_inserts = 0
-            for i, row in enumerate(params):
-                try:
-                    cursor.execute(query, row)
-                    successful_inserts += 1
-                except mysql.connector.Error as e:
-                    print(f"쿼리 실행 오류 (행 {i}): {e} | 데이터: {row}")
-            connection.commit()
-            return successful_inserts
-        else:
-            cursor.execute(query, params)
-            if fetch:
-                result = cursor.fetchall()
-                return result
-            connection.commit()
-            return cursor.rowcount
-    except mysql.connector.Error as e:
-        print(f"쿼리 실행 오류: {e} | 파라미터: {params}")
-        return None
-    finally:
-        cursor.close()
-        connection.close()
-
-
 def import_dashboard_data():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     csv_file = os.path.join(current_dir, "..", "data", "dashboard.csv")
@@ -70,11 +40,11 @@ def import_dashboard_data():
         print(f"CSV 파일 읽기 실패: {e}")
         return
 
-    # CSV 파일에 create_time 및 status 컬럼을 포함하여 필요한 컬럼 리스트 업데이트
+    # CSV 파일에 필요한 컬럼 리스트 (remark 컬럼은 dashboard_remark로 별도 처리)
     expected_columns = [
         "order_no",
         "type",
-        "status",  # status 컬럼 추가
+        "status",
         "department",
         "warehouse",
         "sla",
@@ -86,7 +56,7 @@ def import_dashboard_data():
         "address",
         "customer",
         "contact",
-        "remark",
+        "remark",  # remark는 dashboard_remark.content 로 사용
         "driver_name",
         "driver_contact",
     ]
@@ -103,7 +73,7 @@ def import_dashboard_data():
     # 만약 create_time이 NaT인 경우 현재 시각으로 채움
     df["create_time"] = df["create_time"].fillna(pd.Timestamp.now())
 
-    # 2) order_no 컬럼은 문자열로 처리 (숫자형 변환 제거)
+    # 2) order_no 컬럼은 문자열로 처리
     df["order_no"] = df["order_no"].astype(str).str.strip()
 
     # 3) 우편번호 5자리 처리
@@ -121,40 +91,85 @@ def import_dashboard_data():
     for col in ["eta", "create_time", "depart_time", "complete_time"]:
         df[col] = df[col].apply(datetime_to_str)
 
-    # 6) 모든 컬럼에 대해 'nan' 문자열을 None으로 치환
+    # 6) 모든 컬럼의 'nan' 문자열을 None으로 치환
     for col in df.columns:
         df[col] = df[col].apply(lambda x: str(x).strip() if x is not None else None)
         df[col] = df[col].replace(["nan", "NaN", ""], None)
 
-    # 7) 혹시 남아있는 float('nan')도 None으로 처리
-    data_tuples = df.to_numpy().tolist()
-    cleaned_data = []
-    for row in data_tuples:
-        new_row = []
-        for val in row:
-            if isinstance(val, float) and math.isnan(val):
-                new_row.append(None)
-            elif isinstance(val, str) and val.lower() == "nan":
-                new_row.append(None)
-            else:
-                new_row.append(val)
-        cleaned_data.append(tuple(new_row))
+    # 데이터 연결 및 row-by-row 삽입 (dashboard, dashboard_remark)
+    connection = get_mysql_connection()
+    if connection is None:
+        print("DB 연결 실패")
+        return
 
-    insert_query = """
+    dashboard_insert_query = """
     INSERT INTO dashboard (
         order_no, type, status, department, warehouse, sla, eta,
         create_time, depart_time, complete_time, postal_code, address,
-        customer, contact, remark, driver_name, driver_contact
+        customer, contact, driver_name, driver_contact
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
+    dashboard_remark_insert_query = """
+    INSERT INTO dashboard_remark (
+        dashboard_id, content, created_by
+    )
+    VALUES (%s, %s, %s)
+    """
+    successful_dashboard = 0
+    successful_remark = 0
 
-    result = execute_query(insert_query, params=cleaned_data, many=True)
+    try:
+        cursor = connection.cursor()
+        for idx, row in df.iterrows():
+            # dashboard 테이블 삽입용 데이터 (remark 제외)
+            dashboard_data = (
+                row["order_no"],
+                row["type"],
+                row["status"],
+                row["department"],
+                row["warehouse"],
+                row["sla"],
+                row["eta"],
+                row["create_time"],
+                row["depart_time"],
+                row["complete_time"],
+                row["postal_code"],
+                row["address"],
+                row["customer"],
+                row["contact"],
+                row["driver_name"],
+                row["driver_contact"],
+            )
+            try:
+                cursor.execute(dashboard_insert_query, dashboard_data)
+                dashboard_id = cursor.lastrowid
+                successful_dashboard += 1
+            except mysql.connector.Error as e:
+                print(f"Dashboard 삽입 오류 (행 {idx}): {e} | 데이터: {dashboard_data}")
+                connection.rollback()
+                continue  # 다음 행으로 진행
 
-    if result is not None:
-        print(f"총 {result}개의 행이 삽입되었습니다.")
-    else:
-        print("데이터 삽입 실패")
+            # dashboard_remark 처리 (remark가 존재하면 삽입)
+            remark_content = row["remark"]
+            if remark_content is not None and remark_content.strip() != "":
+                remark_data = (dashboard_id, remark_content, "AdminMaster")  # 고정값
+                try:
+                    cursor.execute(dashboard_remark_insert_query, remark_data)
+                    successful_remark += 1
+                except mysql.connector.Error as e:
+                    print(
+                        f"Dashboard_remark 삽입 오류 (행 {idx}): {e} | 데이터: {remark_data}"
+                    )
+                    connection.rollback()
+                    continue
+        connection.commit()
+    finally:
+        cursor.close()
+        connection.close()
+
+    print(f"Dashboard 테이블에 {successful_dashboard}건 삽입되었습니다.")
+    print(f"Dashboard_remark 테이블에 {successful_remark}건 삽입되었습니다.")
 
 
 if __name__ == "__main__":

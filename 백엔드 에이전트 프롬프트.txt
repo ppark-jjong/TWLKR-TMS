@@ -1,46 +1,709 @@
-### 배송 관제 대시보드 프로젝트 백엔드 에이전트 프롬프트
+배송 실시간 관제 시스템 백엔드 구조 및 API 명세서
+1. 백엔드 아키텍처 개요
+1.1 기본 구성
 
-#### 1. 역할 및 목적
-당신은 배송 관제 대시보드 프로젝트의 백엔드 개발을 담당하는 에이전트입니다.  
-FastAPI와 SQLAlchemy를 활용하여 프론트엔드와 통신하는 RESTful API를 구현하고, 데이터베이스 접근 로직과 비즈니스 로직을 개발해야 합니다.  
+웹 프레임워크: FastAPI
+데이터베이스: MySQL (UTF-8mb4 문자셋)
+인증 방식: JWT 토큰 (액세스 + 리프레시)
+서버 포트: 8000
 
-본 프로젝트는 **레이어드 아키텍처(API 라우터 → 서비스 → 레포지토리)** 를 따르며, 모든 주석과 로그는 한국어로 작성합니다.
+1.2 코드 계층 구조
 
----
+라우터(Router): API 엔드포인트 정의
+서비스(Service): 비즈니스 로직 구현
+리포지토리(Repository): 데이터베이스 액세스 로직
+모델(Model): 데이터베이스 테이블 매핑
+스키마(Schema): API 요청/응답 데이터 유효성 검증
 
-### 2. 레이어드 아키텍처 구성
+1.3 주요 데이터베이스 테이블
 
-#### ✅ API 라우터 레이어
-- 역할: HTTP 요청/응답 처리, 입력 유효성 검증, 의존성 주입
-- 파일 위치: `app/api/`
-- 명명 규칙: `*_router.py`
-- 인증/권한 검증: `deps.py` 의존성 활용
+dashboard: 대시보드 기본 정보
+dashboard_remark: 대시보드 메모 정보
+dashboard_lock: 비관적 락 관리
+postal_code: 우편번호별 지역 정보
+postal_code_detail: 창고별 우편번호 거리/시간 정보
+user: 사용자 정보
+refresh_token: 리프레시 토큰 관리
 
-#### ✅ 서비스 레이어
-- 역할: 비즈니스 로직 처리, 트랜잭션 관리, 에러 처리
-- 파일 위치: `app/services/`
-- 명명 규칙: `*_service.py`
-- 레포지토리 의존성 주입 패턴 사용
+2. 인증 관련 API
+2.1 로그인
 
-#### ✅ 레포지토리 레이어
-- 역할: 데이터 접근 로직, SQL 쿼리 작성, ORM 활용
-- 파일 위치: `app/repositories/`
-- 명명 규칙: `*_repository.py`
-- 공통 쿼리 패턴 재사용
+엔드포인트: POST /auth/login
+요청 바디:
 
----
+jsonCopy{
+  "user_id": "사용자ID",
+  "password": "비밀번호"
+}
 
-### 3. 주요 API 요구사항 및 데이터 처리
+응답 형식:
 
-#### 🔹 `GET /dashboard/list` (주문 목록 조회)
-- `start_date`, `end_date` 기준으로 주문 목록 조회
-- 응답 데이터:
-  ```json
-  {
-    "success": true,
-    "message": "조회 성공",
-    "data": {
-      "date_range": { "oldest_date": "YYYY-MM-DD", "latest_date": "YYYY-MM-DD" },
-      "items": [{ "dashboard_id": 1, "order_no": 1001, "status": "WAITING", "version": 3 }]
-    }
+jsonCopy{
+  "token": {
+    "access_token": "eyJhbGc...",
+    "refresh_token": "eyJhbGc..."
+  },
+  "user": {
+    "user_id": "사용자ID",
+    "user_department": "CS",
+    "user_role": "ADMIN"
   }
+}
+
+특이사항:
+
+액세스 토큰 만료 시간: 60분
+리프레시 토큰 만료 시간: 7일
+
+
+
+2.2 세션 확인
+
+엔드포인트: GET /auth/check-session
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "user": {
+    "user_id": "사용자ID",
+    "user_department": "CS",
+    "user_role": "ADMIN"
+  }
+}
+2.3 토큰 갱신
+
+엔드포인트: POST /auth/refresh
+요청 바디:
+
+jsonCopy{
+  "refresh_token": "eyJhbGc..."
+}
+
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "토큰이 갱신되었습니다",
+  "token": {
+    "access_token": "eyJhbGc...",
+    "refresh_token": "eyJhbGc..."
+  }
+}
+2.4 로그아웃
+
+엔드포인트: POST /auth/logout
+요청 바디:
+
+jsonCopy{
+  "refresh_token": "eyJhbGc..."
+}
+
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "로그아웃이 완료되었습니다"
+}
+3. 대시보드 관련 API
+3.1 대시보드 목록 조회
+
+엔드포인트: GET /dashboard/list
+쿼리 파라미터:
+
+date (선택): 단일 날짜 (YYYY-MM-DD 형식)
+start_date (선택): 시작 날짜 (YYYY-MM-DD 형식)
+end_date (선택): 종료 날짜 (YYYY-MM-DD 형식)
+
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "데이터를 조회했습니다",
+  "data": {
+    "date_range": {
+      "oldest_date": "2025-01-01",
+      "latest_date": "2025-03-10"
+    },
+    "items": [
+      {
+        "dashboard_id": 1,
+        "type": "DELIVERY",
+        "status": "WAITING",
+        "department": "CS",
+        "warehouse": "SEOUL",
+        "sla": "표준",
+        "eta": "2025-03-10T14:00:00+09:00",
+        "create_time": "2025-03-09T10:30:00+09:00",
+        "depart_time": null,
+        "driver_name": null,
+        "order_no": "ORDER123456",
+        "customer": "홍길동",
+        "region": "서울시 강남구 역삼동",
+        "version": 1
+      }
+      // ... 더 많은 항목
+    ]
+  }
+}
+
+특이사항:
+
+날짜 미지정 시 현재 날짜 기준으로 조회
+정렬은 상태(대기/진행중 우선) 및 ETA 기준
+
+
+
+3.2 관리자용 대시보드 목록 조회
+
+엔드포인트: GET /dashboard/admin/list
+쿼리 파라미터: 대시보드 목록 조회와 동일
+헤더: Authorization: Bearer {access_token}
+응답 형식: 대시보드 목록 조회와 동일
+특이사항: 관리자(ADMIN) 권한 필요
+
+3.3 주문번호로 대시보드 검색
+
+엔드포인트: GET /dashboard/search
+쿼리 파라미터: order_no (필수): 검색할 주문번호
+헤더: Authorization: Bearer {access_token}
+응답 형식: 대시보드 목록 조회와 동일
+
+3.4 대시보드 상세 조회
+
+엔드포인트: GET /dashboard/{dashboard_id}
+경로 파라미터: dashboard_id (필수): 조회할 대시보드 ID
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "상세 정보를 조회했습니다",
+  "data": {
+    "dashboard_id": 1,
+    "type": "DELIVERY",
+    "status": "WAITING",
+    "department": "CS",
+    "warehouse": "SEOUL",
+    "sla": "표준",
+    "eta": "2025-03-10T14:00:00+09:00",
+    "create_time": "2025-03-09T10:30:00+09:00",
+    "depart_time": null,
+    "complete_time": null,
+    "driver_name": null,
+    "driver_contact": null,
+    "order_no": "ORDER123456",
+    "postal_code": "12345",
+    "address": "서울시 강남구 역삼동 123-456",
+    "customer": "홍길동",
+    "contact": "010-1234-5678",
+    "city": "서울시",
+    "county": "강남구",
+    "district": "역삼동",
+    "distance": 15,
+    "duration_time": 30,
+    "version": 1,
+    "remarks": [
+      {
+        "remark_id": 1,
+        "dashboard_id": 1,
+        "content": "고객이 17시 이후 배송 요청",
+        "created_at": "2025-03-09T11:30:00+09:00",
+        "created_by": "user1",
+        "version": 1,
+        "formatted_content": "user1: 고객이 17시 이후 배송 요청"
+      }
+      // ... 더 많은 메모
+    ]
+  }
+}
+3.5 대시보드 생성
+
+엔드포인트: POST /dashboard
+요청 바디:
+
+jsonCopy{
+  "type": "DELIVERY",
+  "warehouse": "SEOUL",
+  "order_no": "ORDER123456",
+  "eta": "2025-03-10T14:00:00+09:00",
+  "sla": "표준",
+  "postal_code": "12345",
+  "address": "서울시 강남구 역삼동 123-456",
+  "customer": "홍길동",
+  "contact": "010-1234-5678"
+}
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "대시보드가 생성되었습니다",
+  "data": {
+    // 생성된 대시보드 상세 정보
+  }
+}
+
+유효성 검사:
+
+postal_code: 5자리 숫자
+contact: xxx-xxxx-xxxx 형식
+order_no: 15자 이내
+eta: 현재 시간 이후
+
+
+
+3.6 상태 업데이트
+
+엔드포인트: PATCH /dashboard/{dashboard_id}/status
+경로 파라미터: dashboard_id (필수): 대상 대시보드 ID
+요청 바디:
+
+jsonCopy{
+  "status": "IN_PROGRESS",
+  "is_admin": false,
+  "version": 1
+}
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "IN_PROGRESS 상태로 변경되었습니다",
+  "data": {
+    // 업데이트된 대시보드 상세 정보
+  }
+}
+
+에러 응답:
+
+409 Conflict: 낙관적 락 충돌 (다른 사용자가 이미 수정함)
+423 Locked: 비관적 락 충돌 (다른 사용자가 편집 중)
+
+
+상태 전이 규칙:
+
+WAITING → IN_PROGRESS, CANCEL
+IN_PROGRESS → COMPLETE, ISSUE, CANCEL
+COMPLETE, ISSUE, CANCEL → 변경 불가
+
+
+시간 자동 설정:
+
+IN_PROGRESS 상태로 변경 시 depart_time 설정
+COMPLETE 또는 ISSUE 상태로 변경 시 complete_time 설정
+
+
+
+3.7 필드 업데이트
+
+엔드포인트: PATCH /dashboard/{dashboard_id}/fields
+경로 파라미터: dashboard_id (필수): 대상 대시보드 ID
+요청 바디:
+
+jsonCopy{
+  "eta": "2025-03-10T16:00:00+09:00",
+  "customer": "홍길동",
+  "contact": "010-1234-5678",
+  "address": "서울시 강남구 역삼동 123-456",
+  "postal_code": "12345",
+  "version": 1
+}
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "필드가 업데이트되었습니다",
+  "data": {
+    // 업데이트된 대시보드 상세 정보
+  }
+}
+
+에러 응답: 상태 업데이트와 동일
+
+3.8 배차 처리
+
+엔드포인트: POST /dashboard/assign
+요청 바디:
+
+jsonCopy{
+  "dashboard_ids": [1, 2, 3],
+  "driver_name": "김기사",
+  "driver_contact": "010-9876-5432",
+  "versions": {
+    "1": 1,
+    "2": 2,
+    "3": 1
+  }
+}
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "배차가 완료되었습니다",
+  "data": {
+    "updated_dashboards": [
+      // 업데이트된 대시보드 목록
+    ]
+  }
+}
+
+에러 응답:
+
+409 Conflict: 낙관적 락 충돌
+423 Locked: 비관적 락 충돌
+
+
+특이사항:
+
+여러 대시보드를 한 번에 배차할 수 있음
+각 대시보드별로 버전 체크
+하나라도 충돌 시 전체 롤백
+
+
+
+3.9 대시보드 삭제
+
+엔드포인트: DELETE /dashboard
+요청 바디:
+
+jsonCopy[1, 2, 3]  // 삭제할 대시보드 ID 목록
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "선택한 항목이 삭제되었습니다",
+  "data": {
+    "deleted_count": 3
+  }
+}
+
+특이사항: 관리자(ADMIN) 권한 필요
+
+4. 메모 관련 API
+4.1 메모 목록 조회
+
+엔드포인트: GET /dashboard/{dashboard_id}/remarks
+경로 파라미터: dashboard_id (필수): 대시보드 ID
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy[
+  {
+    "remark_id": 1,
+    "dashboard_id": 1,
+    "content": "고객이 17시 이후 배송 요청",
+    "created_at": "2025-03-09T11:30:00+09:00",
+    "created_by": "user1",
+    "version": 1,
+    "formatted_content": "user1: 고객이 17시 이후 배송 요청"
+  },
+  // ... 더 많은 메모
+]
+4.2 메모 생성
+
+엔드포인트: POST /dashboard/{dashboard_id}/remarks
+경로 파라미터: dashboard_id (필수): 대시보드 ID
+요청 바디:
+
+jsonCopy{
+  "content": "고객이 17시 이후 배송 요청"
+}
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "remark_id": 1,
+  "dashboard_id": 1,
+  "content": "고객이 17시 이후 배송 요청",
+  "created_at": "2025-03-09T11:30:00+09:00",
+  "created_by": "user1",
+  "version": 1,
+  "formatted_content": "user1: 고객이 17시 이후 배송 요청"
+}
+
+에러 응답:
+
+423 Locked: 비관적 락 충돌 (다른 사용자가 메모 작성 중)
+
+
+
+4.3 메모 업데이트
+
+엔드포인트: PUT /dashboard/remarks/{remark_id}
+경로 파라미터: remark_id (필수): 메모 ID
+요청 바디:
+
+jsonCopy{
+  "content": "고객이 18시 이후 배송 요청",
+  "version": 1
+}
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "remark_id": 2,  // 새로운 메모 ID (기존 메모는 보존됨)
+  "dashboard_id": 1,
+  "content": "고객이 18시 이후 배송 요청",
+  "created_at": "2025-03-09T12:30:00+09:00",
+  "created_by": "user1",
+  "version": 1,
+  "formatted_content": "user1: 고객이 18시 이후 배송 요청"
+}
+
+에러 응답:
+
+409 Conflict: 낙관적 락 충돌
+423 Locked: 비관적 락 충돌
+
+
+특이사항:
+
+메모 업데이트 시 기존 메모는 유지되고 새 메모가 생성됨
+메모 이력 추적 가능
+
+
+
+5. 시각화 관련 API
+5.1 배송 현황 데이터
+
+엔드포인트: GET /visualization/delivery_status
+쿼리 파라미터:
+
+start_date (필수): 시작 날짜 (YYYY-MM-DD)
+end_date (필수): 종료 날짜 (YYYY-MM-DD)
+
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "데이터를 조회했습니다",
+  "data": {
+    "type": "delivery_status",
+    "total_count": 120,
+    "department_breakdown": {
+      "CS": {
+        "total": 50,
+        "status_breakdown": [
+          {"status": "WAITING", "count": 10, "percentage": 20.0},
+          {"status": "IN_PROGRESS", "count": 15, "percentage": 30.0},
+          {"status": "COMPLETE", "count": 20, "percentage": 40.0},
+          {"status": "ISSUE", "count": 3, "percentage": 6.0},
+          {"status": "CANCEL", "count": 2, "percentage": 4.0}
+        ]
+      },
+      "HES": {
+        // 유사한 구조
+      },
+      "LENOVO": {
+        // 유사한 구조
+      }
+    }
+  },
+  "date_range": {
+    "oldest_date": "2025-01-01",
+    "latest_date": "2025-03-10"
+  }
+}
+5.2 시간대별 접수량
+
+엔드포인트: GET /visualization/hourly_orders
+쿼리 파라미터:
+
+start_date (필수): 시작 날짜 (YYYY-MM-DD)
+end_date (필수): 종료 날짜 (YYYY-MM-DD)
+
+
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "데이터를 조회했습니다",
+  "data": {
+    "type": "hourly_orders",
+    "total_count": 120,
+    "average_count": 40.0,
+    "department_breakdown": {
+      "CS": {
+        "total": 50,
+        "hourly_counts": {
+          "09-10": 5,
+          "10-11": 8,
+          "11-12": 10,
+          "12-13": 5,
+          "13-14": 4,
+          "14-15": 6,
+          "15-16": 3,
+          "16-17": 2,
+          "17-18": 2,
+          "18-19": 1,
+          "야간(19-09)": 4
+        }
+      },
+      "HES": {
+        // 유사한 구조
+      },
+      "LENOVO": {
+        // 유사한 구조
+      }
+    },
+    "time_slots": [
+      {"label": "09-10", "start": 9, "end": 10},
+      {"label": "10-11", "start": 10, "end": 11},
+      // ... 더 많은 시간대
+      {"label": "야간(19-09)", "start": 19, "end": 9}
+    ]
+  },
+  "date_range": {
+    "oldest_date": "2025-01-01",
+    "latest_date": "2025-03-10"
+  }
+}
+5.3 조회 가능 날짜 범위
+
+엔드포인트: GET /visualization/date_range
+헤더: Authorization: Bearer {access_token}
+응답 형식:
+
+jsonCopy{
+  "success": true,
+  "message": "조회 가능 날짜 범위를 조회했습니다",
+  "date_range": {
+    "oldest_date": "2025-01-01",
+    "latest_date": "2025-03-10"
+  }
+}
+6. 동시성 제어 매커니즘
+6.1 비관적 락 (Pessimistic Lock)
+
+목적: 데이터 수정 전에 락을 획득하여 다른 사용자의 접근 차단
+락 유형:
+
+EDIT: 일반 필드 수정
+STATUS: 상태 변경
+ASSIGN: 배차 할당
+REMARK: 메모 관리
+
+
+락 만료 시간: 5분 (300초)
+락 충돌 시 응답: HTTP 423 (Locked)
+
+jsonCopy{
+  "detail": {
+    "message": "다른 사용자가 수정 중입니다: user123",
+    "locked_by": "user123"
+  }
+}
+6.2 낙관적 락 (Optimistic Lock)
+
+목적: 동시 수정 시 충돌 감지
+구현 방식: 엔티티마다 version 필드 사용
+충돌 감지: 저장 시 버전 번호가 다르면 충돌 발생
+충돌 시 응답: HTTP 409 (Conflict)
+
+jsonCopy{
+  "detail": {
+    "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+    "current_version": 2
+  }
+}
+7. 주요 데이터 형식 및 열거형
+7.1 배송 타입 (type)
+
+DELIVERY: 배송
+RETURN: 회수
+
+7.2 배송 상태 (status)
+
+WAITING: 대기
+IN_PROGRESS: 진행 중
+COMPLETE: 완료
+ISSUE: 이슈
+CANCEL: 취소
+
+7.3 부서 (department)
+
+CS: 고객 서비스
+HES: HES팀
+LENOVO: 레노버팀
+
+7.4 창고 (warehouse)
+
+SEOUL: 서울
+BUSAN: 부산
+GWANGJU: 광주
+DAEJEON: 대전
+
+7.5 사용자 권한 (user_role)
+
+ADMIN: 관리자
+USER: 일반 사용자
+
+8. 공통 API 응답 형식
+8.1 성공 응답
+jsonCopy{
+  "success": true,
+  "message": "작업 성공 메시지",
+  "data": {
+    // 응답 데이터
+  }
+}
+8.2 실패 응답
+jsonCopy{
+  "success": false,
+  "message": "오류 메시지",
+  "detail": {
+    // 추가 오류 정보
+  }
+}
+8.3 주요 오류 코드
+
+400: 잘못된 요청 (유효성 검사 실패)
+401: 인증 실패
+403: 권한 부족
+404: 리소스 없음
+409: 충돌 (낙관적 락)
+423: 잠김 (비관적 락)
+500: 서버 오류
+
+9. 중요 참고사항
+
+헤더 설정:
+
+모든 요청에 Authorization: Bearer {access_token} 헤더 필요
+Content-Type: application/json
+
+
+날짜/시간 형식:
+
+ISO 8601 형식 (YYYY-MM-DDTHH:MM:SS+09:00)
+모든 시간은 KST(+09:00) 기준
+
+
+
+
+락 충돌 처리:
+
+비관적 락 충돌(423) 시 사용자에게 작업 중인 사용자 정보 표시
+낙관적 락 충돌(409) 시 최신 데이터 다시 로드 필요
+
+
+대량 데이터 처리:
+
+목록 조회 시 수백 건의 데이터가 반환될 수 있음
+클라이언트 측 페이지네이션 또는 가상 스크롤 구현 권장

@@ -1,4 +1,4 @@
-// frontend/src/components/dashboard/AssignDriverModal.js (Updated)
+// frontend/src/components/dashboard/AssignDriverModal.js
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -82,13 +82,29 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
     } catch (error) {
       console.error('배차 처리 실패:', error);
 
-      // 낙관적 락 충돌 확인
+      // 낙관적 락 충돌 확인 - 사용자 친화적인 오류 메시지
       if (error.response?.status === 409) {
-        antMessage.error(
-          '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.'
-        );
+        const errorDetail = error.response?.data?.detail;
+        const currentVersion = errorDetail?.current_version;
+        let errorMessage =
+          '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.';
+
+        // 충돌한 주문번호가 응답에 포함되어 있을 경우 표시
+        if (errorDetail?.conflicted_orders) {
+          const conflictedOrders = errorDetail.conflicted_orders.join(', ');
+          errorMessage = `다음 주문(${conflictedOrders})이 이미 다른 사용자에 의해 수정되었습니다. 새로고침 후 다시 시도해주세요.`;
+        }
+
+        antMessage.error(errorMessage);
         // 부모 컴포넌트에 알림 (데이터 리로드 유도)
         onSuccess();
+      } else if (error.response?.status === 423) {
+        // 비관적 락 충돌 처리
+        const lockedBy =
+          error.response?.data?.detail?.locked_by || '다른 사용자';
+        antMessage.error(
+          `현재 ${lockedBy}님이 이 데이터를 수정 중입니다. 잠시 후 다시 시도해주세요.`
+        );
       } else {
         const errorMessage =
           error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다';

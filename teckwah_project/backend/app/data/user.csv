@@ -1,6 +1,6 @@
 ﻿user_id,user_password,user_department,user_role
-관리자1,Texkwah0326!,CS,ADMIN
-관리자2,Teckwah0327!,CS,ADMIN
+AdminCS,Texkwah0326!,CS,ADMIN
+AdminMaster,Teckwah0327!,CS,ADMIN
 TeamCS1,Teckwah0328!,CS,USER
 TeamCS2,Teckwah0329!,CS,USER
 TeamCS3,Teckwah0330!,CS,USER

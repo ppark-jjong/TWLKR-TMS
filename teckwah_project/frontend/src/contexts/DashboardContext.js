@@ -27,17 +27,24 @@ export const DashboardProvider = ({ children }) => {
     async (startDate, endDate) => {
       try {
         setLoading(true);
-        const data = await DashboardService.getDashboardList(
+        const response = await DashboardService.getDashboardList(
           startDate,
           endDate
         );
-        console.log('fetchDashboards 결과:', data);
+        console.log('fetchDashboards 결과:', response);
 
-        // 받아온 데이터가 배열인지 확인하고 설정
-        const items = Array.isArray(data) ? data : [];
+        // 항목과 날짜 범위 정보 처리
+        const items = response.items || [];
+        const dateRangeInfo = response.date_range || null;
+
         setDashboards(items);
         setDateRange([startDate, endDate]);
         setLastUpdate(Date.now());
+
+        // 날짜 범위 정보가 있으면 상태 업데이트
+        if (dateRangeInfo) {
+          setAvailableDateRange(dateRangeInfo);
+        }
 
         // 데이터 변경 여부에 따른 폴링 간격 조정
         if (JSON.stringify(items) !== JSON.stringify(dashboards)) {
@@ -46,10 +53,7 @@ export const DashboardProvider = ({ children }) => {
           setPollingInterval(45000); // 변경사항 없으면 45초
         }
 
-        return {
-          items,
-          date_range: availableDateRange,
-        };
+        return response;
       } catch (error) {
         console.error(
           '대시보드 목록 조회 오류:',
@@ -59,51 +63,52 @@ export const DashboardProvider = ({ children }) => {
           '데이터 조회 중 오류가 발생했습니다',
           MessageKeys.DASHBOARD.LOAD
         );
-        return [];
+        return { items: [], date_range: null };
       } finally {
         setLoading(false);
       }
     },
-    [dashboards, availableDateRange]
+    [dashboards]
   );
 
   // 관리자 대시보드 목록 조회 (날짜 범위)
-  const fetchAdminDashboards = useCallback(
-    async (startDate, endDate) => {
-      try {
-        setLoading(true);
-        const data = await DashboardService.getAdminDashboardList(
-          startDate,
-          endDate
-        );
-        console.log('fetchAdminDashboards 결과:', data);
+  const fetchAdminDashboards = useCallback(async (startDate, endDate) => {
+    try {
+      setLoading(true);
+      const response = await DashboardService.getAdminDashboardList(
+        startDate,
+        endDate
+      );
+      console.log('fetchAdminDashboards 결과:', response);
 
-        // 받아온 데이터가 배열인지 확인하고 설정
-        const items = Array.isArray(data) ? data : [];
-        setDashboards(items);
-        setDateRange([startDate, endDate]);
-        setLastUpdate(Date.now());
+      // 항목과 날짜 범위 정보 처리
+      const items = response.items || [];
+      const dateRangeInfo = response.date_range || null;
 
-        return {
-          items,
-          date_range: availableDateRange,
-        };
-      } catch (error) {
-        console.error(
-          '관리자 대시보드 목록 조회 오류:',
-          error.response?.data || error
-        );
-        message.error(
-          '데이터 조회 중 오류가 발생했습니다',
-          MessageKeys.DASHBOARD.LOAD
-        );
-        return [];
-      } finally {
-        setLoading(false);
+      setDashboards(items);
+      setDateRange([startDate, endDate]);
+      setLastUpdate(Date.now());
+
+      // 날짜 범위 정보가 있으면 상태 업데이트
+      if (dateRangeInfo) {
+        setAvailableDateRange(dateRangeInfo);
       }
-    },
-    [availableDateRange]
-  );
+
+      return response;
+    } catch (error) {
+      console.error(
+        '관리자 대시보드 목록 조회 오류:',
+        error.response?.data || error
+      );
+      message.error(
+        '데이터 조회 중 오류가 발생했습니다',
+        MessageKeys.DASHBOARD.LOAD
+      );
+      return { items: [], date_range: null };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // 단일 대시보드 업데이트 (낙관적 락 고려)
   const updateDashboard = useCallback((dashboardId, updates) => {

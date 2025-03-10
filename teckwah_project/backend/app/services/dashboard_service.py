@@ -1,5 +1,6 @@
 # backend/app/services/dashboard_service.py
 import re
+import time
 import pytz
 from datetime import datetime, timezone, timedelta
 from typing import List, Tuple, Optional, Dict, Any
@@ -21,7 +22,7 @@ from app.utils.constants import (
     DEPARTMENT_TEXT_MAP,
 )
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import OptimisticLockException
+from app.utils.exceptions import OptimisticLockException, PessimisticLockException
 
 
 class DashboardService:
@@ -262,64 +263,11 @@ class DashboardService:
                 detail=MESSAGES["DASHBOARD"]["STATUS_UPDATE_ERROR"],
             )
 
-    def update_remark(
-        self, dashboard_id: int, remark: str, version: int
-    ) -> DashboardDetail:
-        """메모 업데이트 (낙관적 락 적용)"""
-        try:
-            # 대시보드 조회
-            dashboard = self.repository.get_dashboard_detail(dashboard_id)
-            if not dashboard:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다",
-                )
-
-            # 메모 길이 검증
-            if len(remark) > 2000:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="메모는 2000자를 초과할 수 없습니다",
-                )
-
-            try:
-                # 메모 업데이트 (낙관적 락 적용)
-                updated = self.repository.update_dashboard_remark(
-                    dashboard_id, remark, version
-                )
-                return DashboardDetail.model_validate(updated)
-            except OptimisticLockException as e:
-                # 낙관적 락 충돌 처리
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={
-                        "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                        "current_version": e.current_version,
-                    },
-                )
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            log_error(e, "메모 업데이트 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="메모 업데이트 중 오류가 발생했습니다",
-            )
-
     def update_dashboard_fields(
-        self, dashboard_id: int, fields_update: FieldsUpdate
+        self, dashboard_id: int, fields_update: FieldsUpdate, user_id: str
     ) -> DashboardDetail:
-        """대시보드 필드 업데이트 (낙관적 락 적용)"""
+        """대시보드 필드 업데이트 (낙관적 락 + 비관적 락 적용)"""
         try:
-            # 대시보드 조회
-            dashboard = self.repository.get_dashboard_detail(dashboard_id)
-            if not dashboard:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다",
-                )
-
             # 필드 값 유효성 검증
             fields = fields_update.model_dump(exclude_unset=True, exclude={"version"})
 
@@ -349,9 +297,9 @@ class DashboardService:
                 )
 
             try:
-                # 필드 업데이트 (낙관적 락 적용)
-                updated = self.repository.update_dashboard_fields(
-                    dashboard_id, fields, fields_update.version
+                # 필드 업데이트 (낙관적 락 + 비관적 락 적용)
+                updated = self.repository.update_dashboard_fields_with_lock(
+                    dashboard_id, fields, fields_update.version, user_id
                 )
                 return DashboardDetail.model_validate(updated)
             except OptimisticLockException as e:
@@ -361,6 +309,15 @@ class DashboardService:
                     detail={
                         "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
                         "current_version": e.current_version,
+                    },
+                )
+            except PessimisticLockException as e:
+                # 비관적 락 충돌 처리
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail={
+                        "message": str(e.detail),
+                        "locked_by": e.locked_by,
                     },
                 )
 
@@ -456,16 +413,40 @@ class DashboardService:
             )
 
     def get_date_range(self) -> Tuple[datetime, datetime]:
-        """조회 가능한 날짜 범위 조회 (ETA 기준)"""
+        """조회 가능한 날짜 범위 조회 (ETA 기준) - 캐싱 적용"""
         try:
-            oldest_date, latest_date = self.repository.get_date_range()
-            if not oldest_date or not latest_date:
-                now = datetime.now(self.kr_timezone)
-                return now - timedelta(days=30), now
+            current_time = time.time()
 
-            return oldest_date.astimezone(self.kr_timezone), latest_date.astimezone(
-                self.kr_timezone
-            )
+            # 캐시가 유효한 경우 캐시된 값 반환
+            if (
+                self._date_range_cache
+                and self._cache_timestamp
+                and current_time - self._cache_timestamp < self._cache_ttl
+            ):
+                log_info("날짜 범위 캐시 사용")
+                return self._date_range_cache
+
+            # 캐시가 없거나 만료된 경우 새로 조회
+            log_info("날짜 범위 DB 조회 시작")
+
+            # 레포지토리 메서드 호출
+            result = self.repository.get_date_range()
+
+            # 결과 검증 및 캐싱
+            oldest_date, latest_date = result
+            if oldest_date and latest_date:
+                self._date_range_cache = (oldest_date, latest_date)
+                self._cache_timestamp = current_time
+                log_info(f"날짜 범위 캐싱됨: {oldest_date} ~ {latest_date}")
+                return oldest_date, latest_date
+            else:
+                # 데이터가 없는 경우 기본값 반환 및 캐싱
+                now = datetime.now(self.kr_timezone)
+                result = (now - timedelta(days=30), now)
+                self._date_range_cache = result
+                self._cache_timestamp = current_time
+                log_info(f"날짜 범위 기본값 캐싱됨: {result[0]} ~ {result[1]}")
+                return result
 
         except Exception as e:
             log_error(e, "날짜 범위 조회 실패")

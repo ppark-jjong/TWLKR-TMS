@@ -1,6 +1,7 @@
 # backend/app/services/visualization_service.py
 
 import pandas as pd
+import time
 from datetime import datetime, timedelta
 from typing import Tuple, Dict, Any, List
 from fastapi import HTTPException, status
@@ -146,7 +147,7 @@ class VisualizationService:
             # 시간대 정의 (주간: 09-19시 1시간 단위, 야간: 19-09시 통합)
             day_slots = [f"{h:02d}-{(h+1):02d}" for h in range(9, 19)]
             night_slot = "야간(19-09)"
-            all_slots = day_slots + [night_slot]  # 모든 시간대
+            time_slots = day_slots + [night_slot]  # 모든 시간대
 
             # 데이터 조회 - create_time 기준
             raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
@@ -160,7 +161,6 @@ class VisualizationService:
                 formatted_slots.append({"label": slot, "start": start, "end": end})
             # 야간 시간대 추가
             formatted_slots.append({"label": night_slot, "start": 19, "end": 9})
-            raw_data = self.repository.get_raw_hourly_data(start_date, end_date)
 
             # 데이터가 없는 경우 빈 결과 반환
             if not raw_data:
@@ -176,7 +176,7 @@ class VisualizationService:
                         }
                         for dept in self.departments
                     },
-                    "time_slots": time_slots,
+                    "time_slots": formatted_slots,
                 }
 
             # pandas DataFrame으로 변환
@@ -277,16 +277,46 @@ class VisualizationService:
             }
 
     def get_date_range(self) -> Tuple[datetime, datetime]:
-        """조회 가능한 날짜 범위 조회 (create_time 기준)"""
+        """조회 가능한 날짜 범위 조회 (create_time 기준) - 캐싱 적용"""
         try:
-            oldest_date, latest_date = self.repository.get_date_range()
-            if not oldest_date or not latest_date:
-                now = datetime.now(KST)
-                return now - timedelta(days=30), now
+            current_time = time.time()
 
-            return oldest_date.astimezone(KST), latest_date.astimezone(KST)
+            # 캐시가 유효한 경우 캐시된 값 반환
+            if (
+                self._date_range_cache
+                and self._cache_timestamp
+                and current_time - self._cache_timestamp < self._cache_ttl
+            ):
+                log_info("시각화 날짜 범위 캐시 사용")
+                return self._date_range_cache
+
+            # 캐시가 없거나 만료된 경우 새로 조회
+            log_info("시각화 날짜 범위 DB 조회 시작")
+
+            result = self.repository.get_date_range()
+
+            # 결과 검증 및 캐싱
+            if result and len(result) == 2 and all(result):
+                oldest_date, latest_date = result
+                if oldest_date.tzinfo is None:
+                    oldest_date = KST.localize(oldest_date)
+                if latest_date.tzinfo is None:
+                    latest_date = KST.localize(latest_date)
+
+                self._date_range_cache = (oldest_date, latest_date)
+                self._cache_timestamp = current_time
+                log_info(f"시각화 날짜 범위 캐싱됨: {oldest_date} ~ {latest_date}")
+                return oldest_date, latest_date
+            else:
+                # 데이터가 없는 경우 기본값 반환 및 캐싱
+                now = datetime.now(KST)
+                result = (now - timedelta(days=30), now)
+                self._date_range_cache = result
+                self._cache_timestamp = current_time
+                log_info(f"시각화 날짜 범위 기본값 캐싱됨: {result[0]} ~ {result[1]}")
+                return result
 
         except Exception as e:
-            log_error(e, "날짜 범위 조회 실패")
+            log_error(e, "시각화 날짜 범위 조회 실패")
             now = datetime.now(KST)
             return now - timedelta(days=30), now

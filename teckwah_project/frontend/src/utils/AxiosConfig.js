@@ -3,6 +3,7 @@ import axios from 'axios';
 import message from './message';
 import { MessageTemplates, MessageKeys } from './message';
 import AuthService from '../services/AuthService';
+import ErrorHandler from './ErrorHandler';
 
 // 진행중인 요청을 추적하는 객체
 const pendingRequests = {};
@@ -38,13 +39,60 @@ const handleErrorResponse = (error) => {
     // 403 (권한 없음)
     if (status === 403) {
       message.error('접근 권한이 없습니다', MessageKeys.AUTH.PERMISSION);
-      return Promise.reject(error);
+      return Promise.reject({ ...error, handled: true });
     }
 
     // 404 (리소스 없음)
     if (status === 404) {
       message.error('요청한 데이터를 찾을 수 없습니다');
-      return Promise.reject(error);
+      return Promise.reject({ ...error, handled: true });
+    }
+
+    // 409 (낙관적 락 충돌)
+    if (status === 409) {
+      const currentVersion = data?.detail?.current_version;
+      let errorMessage =
+        '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.';
+
+      // 충돌한 주문번호가 포함된 경우
+      if (data?.detail?.conflicted_orders) {
+        const conflictedOrders = data.detail.conflicted_orders.join(', ');
+        errorMessage = `다음 주문(${conflictedOrders})이 이미 다른 사용자에 의해 수정되었습니다.`;
+      }
+
+      message.error(errorMessage, 'optimistic-lock-error');
+      return Promise.reject({ ...error, handled: true });
+    }
+
+    // 423 (비관적 락 충돌)
+    if (status === 423) {
+      const lockedBy = data?.detail?.locked_by || '다른 사용자';
+      const lockType = data?.detail?.lock_type || '';
+      let lockTypeText = '';
+
+      // 락 타입에 따른 메시지 차별화
+      switch (lockType) {
+        case 'EDIT':
+          lockTypeText = '편집';
+          break;
+        case 'STATUS':
+          lockTypeText = '상태 변경';
+          break;
+        case 'ASSIGN':
+          lockTypeText = '배차';
+          break;
+        case 'REMARK':
+          lockTypeText = '메모 작성';
+          break;
+        default:
+          lockTypeText = '수정';
+      }
+
+      message.error(
+        `현재 ${lockedBy}님이 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`,
+        'pessimistic-lock-error'
+      );
+      return Promise.reject({ ...error, handled: true });
     }
 
     // 422 (유효성 검사 오류) 처리 개선
@@ -62,7 +110,7 @@ const handleErrorResponse = (error) => {
     // 500 (서버 오류)
     if (status >= 500) {
       message.error(MessageTemplates.ERROR.SERVER, 'server-error');
-      return Promise.reject(error);
+      return Promise.reject({ ...error, handled: true });
     }
 
     // 기타 에러 응답
@@ -190,12 +238,14 @@ const setupAxiosInterceptors = () => {
           if (!window.location.pathname.includes('/login')) {
             // 현재 URL 저장
             localStorage.setItem('returnUrl', window.location.pathname);
-            window.location.href = '/login';
+            // 수정: 콘솔 로그 추가 및 리다이렉션 보장
+            console.log('로그인 페이지로 리다이렉션합니다...');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 100);
           }
 
-          return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
+          return Promise.reject({ ...refreshError, handled: true });
         }
       }
 

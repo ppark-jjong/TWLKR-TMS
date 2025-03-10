@@ -1,8 +1,9 @@
-# backend/app/api/visualization_router.py (수정)
+# backend/app/api/visualization_router.py
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any
+from pydantic import ValidationError
 
 from app.services.visualization_service import VisualizationService
 from app.repositories.visualization_repository import VisualizationRepository
@@ -92,6 +93,8 @@ async def get_hourly_orders(
 
         try:
             # datetime_helper의 get_date_range 함수 사용
+            from app.utils.datetime_helper import get_date_range as parse_date_range
+
             start_dt, _ = parse_date_range(start_date)
             _, end_dt = parse_date_range(end_date)
         except ValueError:

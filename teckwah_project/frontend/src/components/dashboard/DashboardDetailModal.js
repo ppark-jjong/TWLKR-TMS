@@ -1,4 +1,4 @@
-// frontend/src/components/dashboard/DashboardDetailModal.js (Updated)
+// frontend/src/components/dashboard/DashboardDetailModal.js
 import React, { useState } from 'react';
 import {
   Modal,
@@ -259,26 +259,42 @@ const DashboardDetailModal = ({
     } catch (error) {
       console.error('상태 변경 실패:', error);
 
-      // 낙관적 락 충돌 확인
+      // 사용자 친화적인 오류 메시지 처리
       if (error.response?.status === 409) {
-        const newVersion = error.response?.data?.detail?.current_version;
+        // 낙관적 락 충돌
+        const errorDetail = error.response?.data?.detail;
+        const newVersion = errorDetail?.current_version;
+
         if (newVersion) {
-          // 충돌 시 사용자에게 메시지 표시
+          // 충돌 시 사용자에게 친절한 메시지 표시
           antMessage.error(
-            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 다시 시도해주세요.'
+            '다른 사용자가 이미 주문 정보를 수정했습니다. 최신 데이터를 불러옵니다.'
           );
           setCurrentVersion(newVersion); // 최신 버전으로 업데이트
-          // 추가로 데이터 리로드 등 필요한 로직 추가
-          onSuccess(); // 부모 컴포넌트의 리로드 함수 호출
+          // 부모 컴포넌트의 리로드 함수 호출
+          onSuccess();
         } else {
           message.loadingToError(
             '데이터 충돌이 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.',
             key
           );
         }
+      } else if (error.response?.status === 423) {
+        // 비관적 락 충돌
+        const lockedBy =
+          error.response?.data?.detail?.locked_by || '다른 사용자';
+        message.loadingToError(
+          `현재 ${lockedBy}님이 이 데이터를 수정 중입니다. 잠시 후 다시 시도해주세요.`,
+          key
+        );
+      } else if (error.response?.status === 400) {
+        // 유효하지 않은 상태 변경
+        const errorMessage =
+          error.response?.data?.detail || '유효하지 않은 상태 변경입니다.';
+        message.loadingToError(errorMessage, key);
       } else {
         message.loadingToError(
-          error.response?.data?.detail || '상태 변경 중 오류가 발생했습니다',
+          '상태 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
           key
         );
       }
@@ -315,12 +331,14 @@ const DashboardDetailModal = ({
     } catch (error) {
       console.error('메모 업데이트 실패:', error);
 
-      // 낙관적 락 충돌 확인
+      // 낙관적 락 충돌 확인 - 사용자 친화적인 메시지
       if (error.response?.status === 409) {
-        const newVersion = error.response?.data?.detail?.current_version;
+        const errorDetail = error.response?.data?.detail;
+        const newVersion = errorDetail?.current_version;
+
         if (newVersion) {
           antMessage.error(
-            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 다시 시도해주세요.'
+            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 업데이트합니다.'
           );
           setCurrentVersion(newVersion);
           onSuccess();
@@ -331,10 +349,18 @@ const DashboardDetailModal = ({
           );
         }
         setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
+      } else if (error.response?.status === 423) {
+        // 비관적 락 충돌
+        const lockedBy =
+          error.response?.data?.detail?.locked_by || '다른 사용자';
+        message.loadingToError(
+          `현재 ${lockedBy}님이 메모를 수정 중입니다. 잠시 후 다시 시도해주세요.`,
+          key
+        );
+        setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
       } else {
         message.loadingToError(
-          error.response?.data?.detail ||
-            '메모 업데이트 중 오류가 발생했습니다',
+          '메모 업데이트 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
           key
         );
         setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
@@ -365,19 +391,26 @@ const DashboardDetailModal = ({
       setCurrentDashboard(updatedDashboard);
       setCurrentVersion(updatedDashboard.version); // 버전 업데이트
       setEditingFields(false);
-      message.loadingToSuccess('필드가 업데이트되었습니다', key);
+      message.loadingToSuccess(
+        '주문 정보가 성공적으로 업데이트되었습니다',
+        key
+      );
       onSuccess();
     } catch (error) {
       console.error('필드 업데이트 실패:', error);
 
-      // 낙관적 락 충돌 확인
+      // 사용자 친화적인 오류 메시지 처리
       if (error.response?.status === 409) {
-        const newVersion = error.response?.data?.detail?.current_version;
+        // 낙관적 락 충돌
+        const errorDetail = error.response?.data?.detail;
+        const newVersion = errorDetail?.current_version;
+
         if (newVersion) {
           antMessage.error(
-            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 다시 시도해주세요.'
+            '다른 사용자가 이미 주문 정보를 수정했습니다. 최신 정보로 업데이트합니다.'
           );
           setCurrentVersion(newVersion);
+          setEditingFields(false);
           onSuccess();
         } else {
           message.loadingToError(
@@ -385,13 +418,28 @@ const DashboardDetailModal = ({
             key
           );
         }
+      } else if (error.response?.status === 423) {
+        // 비관적 락 충돌
+        const lockedBy =
+          error.response?.data?.detail?.locked_by || '다른 사용자';
+        message.loadingToError(
+          `현재 ${lockedBy}님이 이 데이터를 수정 중입니다. 잠시 후 다시 시도해주세요.`,
+          key
+        );
       } else if (error.errorFields) {
         // 폼 유효성 검사 오류
-        message.loadingToError('입력값을 확인해주세요', key);
+        message.loadingToError(
+          '입력값을 확인해주세요. 모든 필수 항목을 작성해야 합니다.',
+          key
+        );
+      } else if (error.response?.status === 400) {
+        // 데이터 유효성 검사 실패
+        const errorMessage =
+          error.response?.data?.detail || '입력한 정보가 유효하지 않습니다.';
+        message.loadingToError(errorMessage, key);
       } else {
         message.loadingToError(
-          error.response?.data?.detail ||
-            '필드 업데이트 중 오류가 발생했습니다',
+          '데이터 업데이트 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
           key
         );
       }
@@ -466,7 +514,7 @@ const DashboardDetailModal = ({
                     validator: (_, value) => {
                       if (value && value.isBefore(dayjs())) {
                         return Promise.reject(
-                          'ETA는 현재 시간 이후여야 합니다'
+                          '현재 시간 이후로 ETA를 설정해주세요'
                         );
                       }
                       return Promise.resolve();
@@ -478,6 +526,7 @@ const DashboardDetailModal = ({
                   showTime
                   format="YYYY-MM-DD HH:mm"
                   style={{ width: '100%' }}
+                  placeholder="도착 예정 시간 선택"
                 />
               </Form.Item>
 
@@ -492,7 +541,7 @@ const DashboardDetailModal = ({
                   },
                 ]}
               >
-                <Input maxLength={5} />
+                <Input maxLength={5} placeholder="12345" />
               </Form.Item>
 
               <Form.Item
@@ -500,7 +549,12 @@ const DashboardDetailModal = ({
                 label="주소"
                 rules={[{ required: true, message: '주소를 입력해주세요' }]}
               >
-                <TextArea rows={3} />
+                <TextArea
+                  rows={3}
+                  placeholder="상세 주소를 입력하세요"
+                  maxLength={200}
+                  showCount
+                />
               </Form.Item>
             </Col>
 
@@ -517,7 +571,7 @@ const DashboardDetailModal = ({
                   { max: 50, message: '50자를 초과할 수 없습니다' },
                 ]}
               >
-                <Input />
+                <Input placeholder="수령인 이름" maxLength={50} />
               </Form.Item>
 
               <Form.Item
@@ -532,11 +586,16 @@ const DashboardDetailModal = ({
                   },
                 ]}
               >
-                <Input />
+                <Input placeholder="010-1234-5678" />
               </Form.Item>
 
               <Form.Item name="remark" label="메모">
-                <TextArea rows={5} />
+                <TextArea
+                  rows={5}
+                  placeholder="메모를 입력하세요"
+                  maxLength={2000}
+                  showCount
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -548,6 +607,7 @@ const DashboardDetailModal = ({
                 type="primary"
                 onClick={handleFieldsUpdate}
                 loading={loading}
+                icon={<SaveOutlined />}
               >
                 저장
               </Button>
@@ -682,6 +742,7 @@ const DashboardDetailModal = ({
                     padding: '12px',
                     borderRadius: '6px',
                   }}
+                  placeholder="메모를 입력하세요"
                 />
                 <Space>
                   <Button
@@ -739,12 +800,13 @@ const DashboardDetailModal = ({
             )}
           </div>
 
-          {/* 버전 정보 표시 (개발용, 실제 운영에서는 제거) */}
-          <div style={{ marginTop: '16px', textAlign: 'right' }}>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              버전: {currentVersion}
-            </Text>
-          </div>
+          {isAdmin && (
+            <div style={{ marginTop: '16px', textAlign: 'right' }}>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                버전: {currentVersion}
+              </Text>
+            </div>
+          )}
         </div>
       )}
     </Modal>

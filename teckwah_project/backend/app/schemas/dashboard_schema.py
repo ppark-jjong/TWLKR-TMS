@@ -4,13 +4,33 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .common_schema import BaseResponse, DateRangeInfo
 from enum import Enum
-from .memo_schema import MemoResponse  # 메모 스키마 임포트
 
 
 # 배송 타입 정의
 class DeliveryType(str, Enum):
     DELIVERY = "DELIVERY"
     RETURN = "RETURN"
+
+
+class RemarkResponse(BaseModel):
+    remark_id: int
+    dashboard_id: int
+    content: str
+    created_at: datetime
+    created_by: str
+    version: int
+    formatted_content: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RemarkCreate(BaseModel):
+    content: str = Field(max_length=2000, description="메모 내용(2000자 이내)")
+
+
+class RemarkUpdate(BaseModel):
+    content: str = Field(max_length=2000, description="변경할 메모 내용")
+    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
 # 배송 상태 정의
@@ -43,13 +63,13 @@ class DashboardBase(BaseModel):
     warehouse: Warehouse
     order_no: str = Field(
         max_length=15,
-        pattern=r"^\d+$",
+        pattern=r"^[\d\-]+$",
         description="주문번호는 15자 이내의 숫자여야 합니다",
     )
     eta: datetime = Field(description="예상 도착 시간")
 
 
-# 생성 요청 (remark 필드 제거)
+# 생성 요청
 class DashboardCreate(DashboardBase):
     sla: str = Field(max_length=10, description="SLA(10자 이내)")
     postal_code: str = Field(
@@ -60,7 +80,9 @@ class DashboardCreate(DashboardBase):
     contact: Optional[str] = Field(
         None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$", description="연락처(xxx-xxxx-xxxx)"
     )
-    # remark 필드 제거됨
+    remark: Optional[str] = Field(
+        None, max_length=2000, description="메모(2000자 이내)"
+    )
 
 
 # 기본 응답
@@ -79,7 +101,7 @@ class DashboardResponse(DashboardBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# 상세 응답 (remark 필드 제거)
+# 상세 응답 (기본 응답 확장)
 class DashboardDetail(DashboardResponse):
     driver_contact: Optional[str] = None
     complete_time: Optional[datetime] = None
@@ -89,16 +111,11 @@ class DashboardDetail(DashboardResponse):
     duration_time: Optional[int] = None
     customer: str
     contact: Optional[str] = None
-    # remark 필드 제거됨
+    remarks: List[RemarkResponse] = Field(default_factory=list)  # 메모 리스트 추가
     city: Optional[str] = None
     county: Optional[str] = None
     district: Optional[str] = None
     sla: str
-
-
-# 메모가 포함된 대시보드 상세 응답
-class DashboardDetailWithMemos(DashboardDetail):
-    memos: List[MemoResponse] = []
 
 
 # 목록 데이터
@@ -119,28 +136,26 @@ class AdminDashboardListResponse(BaseResponse):
 
 # 상세 응답
 class DashboardDetailResponse(BaseResponse):
-    data: Optional[DashboardDetailWithMemos] = None
+    data: Optional[DashboardDetail] = None
 
 
-# 상태 변경 (변경 없음)
+# 상태 변경
 class StatusUpdate(BaseModel):
     status: DeliveryStatus = Field(description="변경할 상태")
     is_admin: bool = Field(default=False, description="관리자 권한 사용 여부")
     version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
-# RemarkUpdate 스키마 제거 (메모 관리로 대체)
-
-
-# 필드 업데이트 (수정 필드 제한)
+# 필드 업데이트 (낙관적 락 추가)
 class FieldsUpdate(BaseModel):
     eta: Optional[datetime] = None
+    customer: Optional[str] = Field(None, max_length=50)
+    contact: Optional[str] = Field(None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
+    address: Optional[str] = None
     postal_code: Optional[str] = Field(
         None, min_length=5, max_length=5, pattern=r"^\d{5}$"
     )
-    address: Optional[str] = None
-    customer: Optional[str] = Field(None, max_length=50)
-    contact: Optional[str] = Field(None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$")
+    remark: Optional[str] = Field(None, max_length=2000)
     version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 

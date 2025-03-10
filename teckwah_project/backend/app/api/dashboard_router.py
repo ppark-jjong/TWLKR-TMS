@@ -10,7 +10,6 @@ from app.schemas.dashboard_schema import (
     DashboardDetail,
     DashboardListResponse,
     StatusUpdate,
-    RemarkUpdate,
     DriverAssignment,
     AdminDashboardListResponse,
     DashboardDetailResponse,
@@ -281,6 +280,7 @@ async def update_status(
             dashboard_id,
             status_update.status,
             status_update.version,
+            current_user.user_id,  # 사용자 ID 전달
             is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
         )
 
@@ -306,41 +306,6 @@ async def update_status(
         )
 
 
-@router.patch("/{dashboard_id}/remark", response_model=DashboardDetailResponse)
-async def update_remark(
-    dashboard_id: int,
-    remark_update: RemarkUpdate,
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
-):
-    """메모 업데이트 API (낙관적 락 적용)"""
-    try:
-        log_info(f"메모 업데이트 요청: {dashboard_id}, 버전: {remark_update.version}")
-        result = service.update_remark(
-            dashboard_id, remark_update.remark, remark_update.version
-        )
-        return DashboardDetailResponse(
-            success=True,
-            message="메모가 업데이트되었습니다",
-            data=result,
-        )
-    except HTTPException as e:
-        # 409 Conflict (낙관적 락 충돌) 처리
-        if e.status_code == status.HTTP_409_CONFLICT:
-            return DashboardDetailResponse(
-                success=False,
-                message="다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                data=None,
-            )
-        raise
-    except Exception as e:
-        log_error(e, "메모 업데이트 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="메모 업데이트 중 오류가 발생했습니다",
-        )
-
-
 @router.patch("/{dashboard_id}/fields", response_model=DashboardDetailResponse)
 async def update_fields(
     dashboard_id: int,
@@ -351,7 +316,9 @@ async def update_fields(
     """필드 업데이트 API (낙관적 락 적용)"""
     try:
         log_info(f"필드 업데이트 요청: {dashboard_id}, 버전: {fields_update.version}")
-        result = service.update_dashboard_fields(dashboard_id, fields_update)
+        result = service.update_dashboard_fields(
+            dashboard_id, fields_update, current_user.user_id  # 사용자 ID 전달
+        )
         return DashboardDetailResponse(
             success=True,
             message="필드가 업데이트되었습니다",
@@ -383,7 +350,7 @@ async def assign_driver(
     """배차 처리 API (낙관적 락 적용)"""
     try:
         log_info(f"배차 처리 요청: {assignment.model_dump()}")
-        result = service.assign_driver(assignment)
+        result = service.assign_driver(assignment, current_user.user_id)
         return BaseResponse(
             success=True,
             message="배차가 완료되었습니다",

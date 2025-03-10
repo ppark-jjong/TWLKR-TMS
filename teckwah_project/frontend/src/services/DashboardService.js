@@ -8,7 +8,7 @@ class DashboardService {
    * 대시보드 목록 조회 (ETA 기준)
    * @param {dayjs} startDate - 시작 날짜
    * @param {dayjs} endDate - 종료 날짜
-   * @returns {Promise<Array>} - 대시보드 항목 배열 (정렬 적용)
+   * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
    */
   async getDashboardList(startDate, endDate) {
     try {
@@ -29,15 +29,25 @@ class DashboardService {
       // 응답 구조 확인 및 안전한 데이터 반환
       if (response.data && response.data.success) {
         const items = response.data.data?.items || [];
+        const dateRange =
+          response.data.data?.date_range || response.data.date_range;
 
         // 날짜 범위로 필터링 (프론트엔드에서 처리)
         const filteredItems = this.filterByDateRange(items, startDate, endDate);
 
         // 상태와 ETA 기준으로 정렬
-        return this.sortDashboardsByStatus(filteredItems);
+        const sortedItems = this.sortDashboardsByStatus(filteredItems);
+
+        return {
+          items: sortedItems,
+          date_range: dateRange,
+        };
       } else {
         console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
-        return [];
+        return {
+          items: [],
+          date_range: null,
+        };
       }
     } catch (error) {
       console.error('대시보드 목록 조회 실패:', error.response?.data || error);
@@ -49,7 +59,7 @@ class DashboardService {
    * 관리자 대시보드 목록 조회
    * @param {dayjs} startDate - 시작 날짜
    * @param {dayjs} endDate - 종료 날짜
-   * @returns {Promise<Array>} - 대시보드 항목 배열 (정렬 적용)
+   * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
    */
   async getAdminDashboardList(startDate, endDate) {
     try {
@@ -75,21 +85,59 @@ class DashboardService {
       // 응답 구조 확인 및 안전한 데이터 반환
       if (response.data && response.data.success) {
         const items = response.data.data?.items || [];
+        const dateRange =
+          response.data.data?.date_range || response.data.date_range;
 
         // 날짜 범위로 필터링 (프론트엔드에서 처리)
         const filteredItems = this.filterByDateRange(items, startDate, endDate);
 
         // 상태와 ETA 기준으로 정렬
-        return this.sortDashboardsByStatus(filteredItems);
+        const sortedItems = this.sortDashboardsByStatus(filteredItems);
+
+        return {
+          items: sortedItems,
+          date_range: dateRange,
+        };
       } else {
         console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
-        return [];
+        return {
+          items: [],
+          date_range: null,
+        };
       }
     } catch (error) {
       console.error(
         '관리자 대시보드 목록 조회 실패:',
         error.response?.data || error
       );
+      throw error;
+    }
+  }
+
+  /**
+   * 주문번호로 대시보드 검색
+   * @param {string} orderNo - 검색할 주문번호
+   * @returns {Promise<Array>} - 검색 결과 배열
+   */
+  async searchDashboardsByOrderNo(orderNo) {
+    try {
+      console.log('주문번호 검색 요청:', orderNo);
+      const response = await axios.get('/dashboard/search', {
+        params: { order_no: orderNo },
+      });
+
+      console.log('주문번호 검색 응답:', response.data);
+
+      // 응답 구조 확인 및 안전한 데이터 반환
+      if (response.data && response.data.success) {
+        const items = response.data.data?.items || [];
+        return this.sortDashboardsByStatus(items);
+      } else {
+        console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
+        return [];
+      }
+    } catch (error) {
+      console.error('주문번호 검색 실패:', error.response?.data || error);
       throw error;
     }
   }

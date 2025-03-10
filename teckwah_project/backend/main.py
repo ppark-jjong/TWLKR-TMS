@@ -1,10 +1,15 @@
-# main.py
+# backend/main.py
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
-from app.api import auth_router, dashboard_router, visualization_router
+from app.api import (
+    auth_router,
+    dashboard_router,
+    visualization_router,
+    dashboard_remark_router,
+)
 from app.config.settings import get_settings
 
 settings = get_settings()
@@ -23,6 +28,7 @@ app.include_router(dashboard_router.router, prefix="/dashboard", tags=["대시�
 app.include_router(
     visualization_router.router, prefix="/visualization", tags=["시각화"]
 )
+app.include_router(dashboard_remark_router.router, prefix="/dashboard", tags=["메모"])
 
 
 # SPA 라우팅 처리

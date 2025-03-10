@@ -1,4 +1,4 @@
-# backend/app/models/dashboard_model.py
+# 기존 dashboard_model.py 수정
 from sqlalchemy import (
     Column,
     BigInteger,
@@ -9,10 +9,8 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Computed,
-    ForeignKeyConstraint,
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from app.config.database import Base
 
 
@@ -20,7 +18,7 @@ class Dashboard(Base):
     __tablename__ = "dashboard"
 
     dashboard_id = Column(Integer, primary_key=True, autoincrement=True)
-    order_no = Column(String(15), nullable=False, index=True)
+    order_no = Column(String(15), nullable=False)
     type = Column(Enum("DELIVERY", "RETURN"), nullable=False)
     status = Column(
         Enum("WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"),
@@ -49,36 +47,18 @@ class Dashboard(Base):
     address = Column(Text, nullable=False)
     customer = Column(String(150), nullable=False)
     contact = Column(String(20), nullable=True)
-    # remark 필드 제거됨
+    # remark 컬럼 제거
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
     version = Column(Integer, nullable=False, default=1)  # 낙관적 락을 위한 버전 필드
 
-    # Relationships
-    postal_code_info = relationship(
-        "PostalCode", backref="dashboards", viewonly=True  # 읽기 전용으로 설정
-    )
+    # Relationships 수정
+    postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)
 
-    postal_detail_info = relationship(
-        "PostalCodeDetail",
-        foreign_keys=[postal_code, warehouse],
-        primaryjoin="and_(Dashboard.postal_code==PostalCodeDetail.postal_code, "
-        "Dashboard.warehouse==PostalCodeDetail.warehouse)",
-        overlaps="postal_code_info",  # 중복 관계 명시
+    # 새로운 관계 추가
+    remarks = relationship(
+        "DashboardRemark", back_populates="dashboard", cascade="all, delete-orphan"
     )
-
-    # 메모 관계 추가
-    memos = relationship(
-        "DashboardMemo",
-        back_populates="dashboard",
-        cascade="all, delete-orphan",
-        order_by="desc(DashboardMemo.created_at)",
-    )
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["postal_code", "warehouse"],
-            ["postal_code_detail.postal_code", "postal_code_detail.warehouse"],
-            name="fk_dashboard_postal_detail",
-        ),
+    locks = relationship(
+        "DashboardLock", back_populates="dashboard", cascade="all, delete-orphan"
     )
