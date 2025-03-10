@@ -522,65 +522,105 @@ class DashboardRepository:
             raise
 
     def update_dashboard_fields_with_lock(
-        self,
-        dashboard_id: int,
-        fields: Dict[str, Any],
-        expected_version: int,
-        user_id: str,
-    ) -> Optional[Dashboard]:
-        """대시보드 필드 업데이트 (낙관적 락 + 비관적 락 적용)"""
-        try:
-            # 비관적 락으로 대시보드 조회
-            dashboard = self.get_dashboard_detail_with_lock(dashboard_id, user_id)
-            if not dashboard:
-                return None
+    self,
+    dashboard_id: int,
+    fields: Dict[str, Any],
+    expected_version: int,
+    user_id: str,
+) -> Optional[Dashboard]:
+    """대시보드 필드 업데이트 (낙관적 락 + 비관적 락 적용)"""
+    try:
+        # 수정 가능 상태 확인 (WAITING 상태만 가능)
+        if not self.check_modifiable_by_status(dashboard_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="대기 상태의 데이터만 수정할 수 있습니다",
+            )
+            
+        # 비관적 락으로 대시보드 조회
+        dashboard = self.get_dashboard_detail_with_lock(dashboard_id, user_id)
+        if not dashboard:
+            return None
 
-            # 낙관적 락 검증
-            if dashboard.version != expected_version:
-                log_info(
-                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
-                )
-                # 락 해제 후 예외 발생
-                self.release_lock(dashboard_id, user_id)
-                raise OptimisticLockException(
-                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                    current_version=dashboard.version,
-                )
-
-            # 필드 업데이트
-            for field, value in fields.items():
-                if hasattr(dashboard, field) and field != "version":
-                    setattr(dashboard, field, value)
-
-            dashboard.version += 1  # 버전 증가
-
-            self.db.commit()
-            self.db.refresh(dashboard)
-
-            # 락 해제
-            self.release_lock(dashboard_id, user_id)
-
-            # 필드 업데이트 결과 로깅
+        # 낙관적 락 검증
+        if dashboard.version != expected_version:
             log_info(
-                f"필드 업데이트 완료: ID={dashboard.dashboard_id}, 필드={list(fields.keys())}, 버전={dashboard.version}"
+                f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
+            )
+            # 락 해제 후 예외 발생
+            self.release_lock(dashboard_id, user_id)
+            raise OptimisticLockException(
+                f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
+                current_version=dashboard.version,
             )
 
-            return dashboard
+        # 수정 가능 필드 제한
+        allowed_fields = {"eta", "postal_code", "address", "customer", "contact"}
+        for field, value in fields.items():
+            if field in allowed_fields and field != "version":
+                setattr(dashboard, field, value)
 
-        except OptimisticLockException:
-            self.db.rollback()
-            # 락 해제는 이미 전에 수행됨
-            raise
-        except PessimisticLockException:
-            self.db.rollback()
-            raise
-        except SQLAlchemyError as e:
-            self.db.rollback()
-            # 락 해제
-            self.release_lock(dashboard_id, user_id)
-            log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
-            raise
+        # 필드 변경 시 postal_code_detail 정보 업데이트
+        if "postal_code" in fields:
+            postal_detail = (
+                self.db.query(PostalCodeDetail)
+                .filter(
+                    and_(
+                        PostalCodeDetail.postal_code == dashboard.postal_code,
+                        PostalCodeDetail.warehouse == dashboard.warehouse,
+                    )
+                )
+                .first()
+            )
+            if postal_detail:
+                dashboard.distance = postal_detail.distance
+                dashboard.duration_time = postal_detail.duration_time
+                
+                # 지역 정보 업데이트
+                postal_info = (
+                    self.db.query(PostalCode)
+                    .filter(PostalCode.postal_code == dashboard.postal_code)
+                    .first()
+                )
+                if postal_info:
+                    dashboard.city = postal_info.city
+                    dashboard.county = postal_info.county
+                    dashboard.district = postal_info.district
 
+        dashboard.version += 1  # 버전 증가
+
+        self.db.commit()
+        self.db.refresh(dashboard)
+
+        # 락 해제
+        self.release_lock(dashboard_id, user_id)
+
+        # 필드 업데이트 결과 로깅
+        log_info(
+            f"필드 업데이트 완료: ID={dashboard.dashboard_id}, 필드={list(fields.keys())}, 버전={dashboard.version}"
+        )
+
+        return dashboard
+
+    except OptimisticLockException:
+        self.db.rollback()
+        # 락 해제는 이미 전에 수행됨
+        raise
+    except PessimisticLockException:
+        self.db.rollback()
+        raise
+    except HTTPException:
+        self.db.rollback()
+        # 비관적 락을 이미 획득했는데 WAITING 상태가 아닌 경우에는 락 해제
+        self.release_lock(dashboard_id, user_id)
+        raise
+    except SQLAlchemyError as e:
+        self.db.rollback()
+        # 락 해제
+        self.release_lock(dashboard_id, user_id)
+        log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
+        raise    
+    
     def assign_driver_with_lock(
         self,
         dashboard_ids: List[int],
@@ -677,3 +717,21 @@ class DashboardRepository:
                 self.release_lock(dashboard_id, user_id)
             log_error(e, "배차 처리 실패", {"ids": dashboard_ids})
             raise
+
+    def check_modifiable_by_status(self, dashboard_id: int) -> bool:
+        """상태 기반 수정 가능 여부 확인 (WAITING 상태만 수정 가능)"""
+        try:
+            dashboard = self.get_dashboard_detail(dashboard_id)
+            if not dashboard:
+                return False
+
+            # WAITING 상태인 경우에만 수정 가능
+            is_modifiable = dashboard.status == "WAITING"
+            log_info(
+                f"대시보드 수정 가능 여부: ID={dashboard_id}, 상태={dashboard.status}, 가능={is_modifiable}"
+            )
+
+            return is_modifiable
+        except Exception as e:
+            log_error(e, "수정 가능 여부 확인 실패", {"id": dashboard_id})
+            return False
