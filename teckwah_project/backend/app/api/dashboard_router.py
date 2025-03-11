@@ -27,6 +27,7 @@ from app.utils.datetime_helper import get_date_range
 
 router = APIRouter()
 
+
 def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     """DashboardService 의존성 주입"""
     repository = DashboardRepository(db)
@@ -42,9 +43,9 @@ async def get_dashboard_list(
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 목록 조회 API - ETA 기준 하루 단위 또는 날짜 범위"""
+    """통합 대시보드 목록 조회 API - 권한 정보 포함"""
     try:
-        # 날짜 범위로 조회하는 경우
+        # 날짜 파라미터 처리
         if start_date and end_date:
             log_info(f"대시보드 목록 조회 요청 (범위): {start_date} ~ {end_date}")
             try:
@@ -61,9 +62,9 @@ async def get_dashboard_list(
                             "latest_date": datetime.now().strftime("%Y-%m-%d"),
                         },
                         "items": [],
+                        "user_role": current_user.role,  # 사용자 역할 정보 추가
                     },
                 )
-        # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
         elif date:
             log_info(f"대시보드 목록 조회 요청 (단일): {date}")
             try:
@@ -79,20 +80,25 @@ async def get_dashboard_list(
                             "latest_date": datetime.now().strftime("%Y-%m-%d"),
                         },
                         "items": [],
+                        "user_role": current_user.role,  # 사용자 역할 정보 추가
                     },
                 )
         else:
-            # 날짜 정보가 없는 경우 현재 날짜 사용
             log_info("날짜 정보 없음, 현재 날짜 사용")
             today = datetime.now()
             date_str = today.strftime("%Y-%m-%d")
             start_date_obj, end_date_obj = get_date_range(date_str)
 
-        # 대시보드 목록 조회 (ETA 기준)
-        items = service.get_dashboard_list_by_date(start_date_obj, end_date_obj)
+        # 사용자 역할 확인 (관리자 여부)
+        is_admin = current_user.role == "ADMIN"
+
+        # 대시보드 목록 조회 - is_admin 파라미터 전달
+        items = service.get_dashboard_list_by_date(
+            start_date_obj, end_date_obj, is_admin=is_admin
+        )
         oldest_date, latest_date = service.get_date_range()
 
-        # 응답 데이터 구성
+        # 응답 데이터 구성 (user_role 포함)
         message_text = (
             "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
         )
@@ -106,6 +112,7 @@ async def get_dashboard_list(
                     "latest_date": latest_date.strftime("%Y-%m-%d"),
                 },
                 "items": items,
+                "user_role": current_user.role,  # 사용자 역할 정보 추가
             },
         )
     except Exception as e:
@@ -119,99 +126,7 @@ async def get_dashboard_list(
                     "latest_date": datetime.now().strftime("%Y-%m-%d"),
                 },
                 "items": [],
-            },
-        )
-
-
-@router.get("/admin/list", response_model=AdminDashboardListResponse)
-async def get_admin_dashboard_list(
-    date: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(check_admin_access),
-):
-    """관리자 대시보드 목록 조회 API - ETA 기준 하루 단위 또는 날짜 범위"""
-    try:
-        # 날짜 범위로 조회하는 경우
-        if start_date and end_date:
-            log_info(
-                f"관리자 대시보드 목록 조회 요청 (범위): {start_date} ~ {end_date}"
-            )
-            try:
-                start_date_obj, _ = get_date_range(start_date)
-                _, end_date_obj = get_date_range(end_date)
-            except ValueError:
-                log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
-                return AdminDashboardListResponse(
-                    success=False,
-                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                    data={
-                        "date_range": {
-                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                        },
-                        "items": [],
-                    },
-                )
-        # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
-        elif date:
-            log_info(f"관리자 대시보드 목록 조회 요청 (단일): {date}")
-            try:
-                start_date_obj, end_date_obj = get_date_range(date)
-            except ValueError:
-                log_error(None, f"날짜 형식 오류: {date}")
-                return AdminDashboardListResponse(
-                    success=False,
-                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                    data={
-                        "date_range": {
-                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                        },
-                        "items": [],
-                    },
-                )
-        else:
-            # 날짜 정보가 없는 경우 현재 날짜 사용
-            log_info("날짜 정보 없음, 현재 날짜 사용")
-            today = datetime.now()
-            date_str = today.strftime("%Y-%m-%d")
-            start_date_obj, end_date_obj = get_date_range(date_str)
-
-        # 관리자용 대시보드 목록 조회 (ETA 기준)
-        items = service.get_dashboard_list_by_date(
-            start_date_obj, end_date_obj, is_admin=True
-        )
-        oldest_date, latest_date = service.get_date_range()
-
-        # 응답 데이터 구성
-        message_text = (
-            "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
-        )
-
-        return AdminDashboardListResponse(
-            success=True,
-            message=message_text,
-            data={
-                "date_range": {
-                    "oldest_date": oldest_date.strftime("%Y-%m-%d"),
-                    "latest_date": latest_date.strftime("%Y-%m-%d"),
-                },
-                "items": items,
-            },
-        )
-    except Exception as e:
-        log_error(e, "관리자 대시보드 목록 조회 실패")
-        return AdminDashboardListResponse(
-            success=False,
-            message="데이터 조회 중 오류가 발생했습니다",
-            data={
-                "date_range": {
-                    "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                    "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                },
-                "items": [],
+                "user_role": current_user.role,  # 사용자 역할 정보 추가
             },
         )
 
@@ -225,14 +140,12 @@ async def create_dashboard(
     """대시보드 생성 API (메모 포함)"""
     try:
         log_info(f"대시보드 생성 요청: {dashboard.model_dump()}")
-        
+
         # user_id를 전달하여 메모 작성자 정보 기록
         result = service.create_dashboard(
-            dashboard, 
-            current_user.department, 
-            user_id=current_user.user_id
+            dashboard, current_user.department, user_id=current_user.user_id
         )
-        
+
         return DashboardDetailResponse(
             success=True,
             message="대시보드가 생성되었습니다",
@@ -246,6 +159,7 @@ async def create_dashboard(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="대시보드 생성 중 오류가 발생했습니다",
         )
+
 
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 async def get_dashboard_detail(
@@ -279,17 +193,33 @@ async def update_status(
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """상태 업데이트 API (낙관적 락 적용)"""
+    """상태 업데이트 API - 권한 기반 상태 변경 제한 적용"""
     try:
         log_info(
             f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}, 버전: {status_update.version}"
         )
+
+        # 관리자 권한 요청 시 검증
+        is_admin = current_user.role == "ADMIN"
+
+        # is_admin=True 요청 시 실제 관리자인지 확인
+        if status_update.is_admin and not is_admin:
+            log_error(
+                None,
+                f"관리자 권한으로 상태 변경 시도 - 권한 없음: user={current_user.user_id}, role={current_user.role}",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="관리자 권한이 필요한 작업입니다",
+            )
+
+        # 서비스 호출 - 관리자 권한 정보 전달
         result = service.update_status(
             dashboard_id,
             status_update.status,
             status_update.version,
-            current_user.user_id,  # 사용자 ID 전달
-            is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
+            current_user.user_id,
+            is_admin=(is_admin or status_update.is_admin),
         )
 
         return DashboardDetailResponse(
@@ -385,12 +315,24 @@ async def assign_driver(
 async def delete_dashboards(
     dashboard_ids: List[int],
     service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(check_admin_access),
+    current_user: TokenData = Depends(get_current_user),  # 일반 의존성으로 변경
 ):
-    """대시보드 삭제 API - 관리자 전용"""
+    """대시보드 삭제 API - 필요 시점에 관리자 권한 검증"""
     try:
+        # 명시적 권한 검증
+        if current_user.role != "ADMIN":
+            log_error(
+                None,
+                f"권한 없는 삭제 시도: {current_user.user_id}, role={current_user.role}",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="관리자 권한이 필요한 작업입니다",
+            )
+
         log_info(f"대시보드 삭제 요청: {dashboard_ids}")
         result = service.delete_dashboards(dashboard_ids)
+
         return BaseResponse(
             success=True,
             message="선택한 항목이 삭제되었습니다",
