@@ -10,7 +10,7 @@ from app.utils.logger import log_error, log_info
 from app.utils.exceptions import OptimisticLockException, PessimisticLockException
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
 import time
-
+import pytz
 
 class DashboardRepository:
     def __init__(self, db: Session):

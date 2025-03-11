@@ -21,42 +21,19 @@ const processQueue = (error, token = null) => {
     }
   });
   failedQueue = [];
-  isRefreshing = false;
 };
 
 // 에러 타입에 따른 메시지 처리
 const handleErrorResponse = (error) => {
-  // Already handled error
+  // 이미 처리된 에러
   if (error.handled) return Promise.reject(error);
 
-  // Network errors (no response)
-  if (!error.response) {
-    message.error(MessageTemplates.ERROR.NETWORK, 'network-error');
-    error.handled = true;
-    return Promise.reject(error);
-  }
+  if (error.response) {
+    const { status, data } = error.response;
 
-  // Handle specific status codes
-  const { status, data } = error.response;
-
-    // Authentication failures - Improved handling for 401 errors
-    if (status === 401) {
-      if (error.config._retry || error.config.url.includes('/auth/refresh')) {
-        // If already retried or it's a refresh token request that failed,
-        // this indicates the user needs to login again
-        message.error(
-          '세션이 만료되었습니다. 다시 로그인해주세요',
-          MessageKeys.AUTH.SESSION_EXPIRED
-        );
-        AuthService.clearAuthData();
-
-        // Immediate redirect to login page
-        window.location.replace('/login');
-        error.handled = true;
-        return Promise.reject(error);
-      }
-      // Otherwise, let the normal token refresh logic handle it
-      return Promise.reject(error);
+    // 401 (인증 실패) - 토큰 갱신 로직은 별도 처리
+    if (status === 401 && !error.config._retry) {
+      return Promise.reject(error); // 아래 토큰 갱신 로직에서 처리
     }
 
     // 403 (권한 없음)
@@ -261,12 +238,19 @@ const setupAxiosInterceptors = () => {
           if (!window.location.pathname.includes('/login')) {
             // 현재 URL 저장
             localStorage.setItem('returnUrl', window.location.pathname);
-            // 수정: 콘솔 로그 추가 및 리다이렉션 보장
-            console.log('로그인 페이지로 리다이렉션합니다...');
-            window.location.replace('/login');
+
+            // 확실한 리디렉션을 위해 replace 사용 (브라우저 이력에 남지 않음)
+            console.log('인증 만료: 로그인 페이지로 강제 리다이렉션');
+
+            // 현재 실행 중인 코드 완료 후 리디렉션하도록 setTimeout 사용
+            setTimeout(() => {
+              window.location.replace('/login');
+            }, 100);
           }
 
           return Promise.reject({ ...refreshError, handled: true });
+        } finally {
+          isRefreshing = false;
         }
       }
 

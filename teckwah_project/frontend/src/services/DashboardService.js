@@ -10,6 +10,7 @@ class DashboardService {
    * @param {dayjs} endDate - 종료 날짜
    * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
    */
+  // frontend/src/services/DashboardService.js
   async getDashboardList(startDate, endDate) {
     try {
       // 날짜 형식 확인
@@ -24,31 +25,51 @@ class DashboardService {
         },
       });
 
-      console.log('대시보드 목록 응답:', response.data);
+      console.log('대시보드 목록 응답:', response);
 
-      // 응답 구조 확인 및 안전한 데이터 반환
-      if (response.data && response.data.success) {
-        const items = response.data.data?.items || [];
-        const dateRange =
-          response.data.data?.date_range || response.data.date_range;
+      // 응답 데이터 구조 유연하게 처리
+      if (!response.data) {
+        console.error('응답에 데이터가 없습니다');
+        return { items: [], date_range: null };
+      }
 
-        // 날짜 범위로 필터링 (프론트엔드에서 처리)
-        const filteredItems = this.filterByDateRange(items, startDate, endDate);
+      // 다양한 응답 구조 처리
+      let items = [];
+      let dateRange = null;
 
-        // 상태와 ETA 기준으로 정렬
-        const sortedItems = this.sortDashboardsByStatus(filteredItems);
-
-        return {
-          items: sortedItems,
-          date_range: dateRange,
-        };
+      // 백엔드 프롬프트에 정의된 성공 응답 구조
+      if (response.data.success && response.data.data) {
+        // { success: true, message: "...", data: { items: [...], date_range: {...} } }
+        items = response.data.data.items || [];
+        dateRange = response.data.data.date_range || response.data.date_range;
+      }
+      // 응답 구조가 다른 경우 대안적 처리
+      else if (response.data.items) {
+        // { items: [...], date_range: {...} } 구조인 경우
+        items = response.data.items;
+        dateRange = response.data.date_range;
+      } else if (Array.isArray(response.data)) {
+        // 배열 형태로 직접 반환된 경우
+        items = response.data;
+      } else if (response.data.data) {
+        // { data: [...] } 구조인 경우
+        items = Array.isArray(response.data.data) ? response.data.data : [];
+        dateRange = response.data.date_range;
       } else {
         console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
-        return {
-          items: [],
-          date_range: null,
-        };
+        return { items: [], date_range: null };
       }
+
+      // 날짜 범위로 필터링 (프론트엔드에서 처리)
+      const filteredItems = this.filterByDateRange(items, startDate, endDate);
+
+      // 상태와 ETA 기준으로 정렬
+      const sortedItems = this.sortDashboardsByStatus(filteredItems);
+
+      return {
+        items: sortedItems,
+        date_range: dateRange,
+      };
     } catch (error) {
       console.error('대시보드 목록 조회 실패:', error.response?.data || error);
       throw error;

@@ -14,6 +14,7 @@ export function useDateRange(defaultDays = 7) {
 
   // 날짜 범위 로드
   useEffect(() => {
+    // frontend/src/utils/useDateRange.js - 수정 부분
     const fetchDateRange = async () => {
       try {
         setLoading(true);
@@ -32,24 +33,39 @@ export function useDateRange(defaultDays = 7) {
           const today = dayjs();
           const validLatest = latest.isAfter(today) ? today : latest;
 
+          // 조회 가능 날짜 유효성 검증
+          if (oldest.isAfter(validLatest)) {
+            console.error(
+              '서버에서 받은 날짜 범위가 유효하지 않습니다:',
+              dateRangeInfo
+            );
+            // 기본값으로 최근 30일 설정
+            const defaultEnd = today;
+            const defaultStart = today.subtract(30, 'day');
+            setDateRange([defaultStart, defaultEnd]);
+            console.log(
+              '기본 날짜 범위로 설정:',
+              defaultStart.format('YYYY-MM-DD'),
+              '~',
+              defaultEnd.format('YYYY-MM-DD')
+            );
+            return;
+          }
+
           // 기본 선택 범위 계산 (defaultDays일 전 ~ 오늘)
           const defaultStart = today.subtract(defaultDays - 1, 'day');
 
           // 유효 범위 내에서 날짜 조정
-          const validStart = defaultStart.isBefore(oldest)
-            ? oldest
-            : defaultStart;
-
-          // 시작일이 종료일보다 나중일 경우 처리
-          if (validStart.isAfter(validLatest)) {
-            console.log(
-              '시작일이 종료일보다 나중입니다. 가능한 범위로 조정합니다.'
-            );
-            setDateRange([oldest, validLatest]);
+          let validStart;
+          if (defaultStart.isBefore(oldest)) {
+            validStart = oldest;
+          } else if (defaultStart.isAfter(validLatest)) {
+            validStart = oldest; // 시작일이 종료일보다 나중인 경우 가장 예전 날짜로 설정
           } else {
-            setDateRange([validStart, validLatest]);
+            validStart = defaultStart;
           }
 
+          setDateRange([validStart, validLatest]);
           console.log(
             '설정된 날짜 범위:',
             validStart.format('YYYY-MM-DD'),
@@ -58,14 +74,14 @@ export function useDateRange(defaultDays = 7) {
           );
         } else {
           console.warn('유효한 날짜 범위 정보가 없습니다:', response);
-          // 기본값으로 최근 7일 설정
-          setDateRange([dayjs().subtract(defaultDays - 1, 'day'), dayjs()]);
+          // 기본값으로 최근 30일 설정
+          setDateRange([dayjs().subtract(30, 'day'), dayjs()]);
         }
       } catch (error) {
         console.error('날짜 범위 조회 실패:', error);
         message.error('날짜 범위 조회에 실패했습니다. 기본 범위를 사용합니다.');
-        // 오류 발생 시 기본값으로 최근 7일 설정
-        setDateRange([dayjs().subtract(defaultDays - 1, 'day'), dayjs()]);
+        // 오류 발생 시 기본값으로 최근 30일 설정
+        setDateRange([dayjs().subtract(30, 'day'), dayjs()]);
       } finally {
         setLoading(false);
       }

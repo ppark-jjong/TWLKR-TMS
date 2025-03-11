@@ -1,6 +1,6 @@
 // frontend/src/pages/DashboardPage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Layout, DatePicker, Space, Button, Tooltip, Empty } from 'antd';
 import { ReloadOutlined, PlusOutlined, CarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -15,9 +15,14 @@ import { useAuth } from '../contexts/AuthContext';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
 import { FONT_STYLES } from '../utils/Constants';
 import { useDateRange } from '../utils/useDateRange';
+import { cancelAllPendingRequests } from '../utils/AxiosConfig';
 
 const { RangePicker } = DatePicker;
 
+/**
+ * 대시보드 페이지 컴포넌트
+ * 배송 주문 목록 조회, 필터링, 배차 처리 등 기능 제공
+ */
 const DashboardPage = () => {
   // 날짜 범위 커스텀 훅 사용
   const {
@@ -25,7 +30,7 @@ const DashboardPage = () => {
     disabledDate,
     handleDateRangeChange,
     loading: dateRangeLoading,
-  } = useDateRange(7); // 기본 7일 범위
+  } = useDateRange(30); // 기본 30일 범위로 설정
 
   const [selectedRows, setSelectedRows] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -45,60 +50,94 @@ const DashboardPage = () => {
     dashboards,
     loading,
     fetchDashboards,
+    searchByOrderNo,
+    resetSearchMode,
     updateDashboard,
     updateMultipleDashboards,
+    searchMode,
   } = useDashboard();
 
   const pageSize = 50;
 
+  // 컴포넌트 언마운트 시 정리 로직 추가
+  useEffect(() => {
+    return () => {
+      // 진행 중인 요청 취소
+      cancelAllPendingRequests();
+    };
+  }, []);
+
+  // 대시보드 데이터 로드 (메모이제이션)
+  const loadDashboardData = useCallback(
+    async (startDate, endDate, forceRefresh = false) => {
+      const key = MessageKeys.DASHBOARD.LOAD;
+      try {
+        if (!startDate || !endDate) {
+          console.error('유효하지 않은 날짜 범위:', {
+            startDate,
+            endDate,
+          });
+          return null;
+        }
+
+        setCurrentPage(1); // 데이터 조회 시 첫 페이지로 이동
+
+        // 강제 새로고침이 아니고 이미 데이터가 있는 경우, 검색 모드인 경우만 기존 데이터 유지
+        if (!forceRefresh && dashboards.length > 0 && searchMode) {
+          return { items: dashboards, date_range: null };
+        }
+
+        message.loading('데이터 조회 중...', key);
+        console.log(
+          '대시보드 데이터 조회 시작:',
+          startDate.format('YYYY-MM-DD'),
+          '~',
+          endDate.format('YYYY-MM-DD')
+        );
+
+        const response = await fetchDashboards(
+          startDate,
+          endDate,
+          forceRefresh
+        );
+
+        // 필터 초기화 (강제 새로고침 시에만)
+        if (forceRefresh) {
+          resetFilters();
+        }
+
+        const items = response?.items || [];
+        if (items.length > 0) {
+          message.loadingToSuccess('데이터를 조회했습니다', key);
+        } else {
+          message.loadingToInfo('조회된 데이터가 없습니다', key);
+        }
+
+        return response;
+      } catch (error) {
+        console.error('대시보드 데이터 로드 실패:', error);
+        message.loadingToError(
+          '데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          key
+        );
+        return null;
+      }
+    },
+    [dashboards, fetchDashboards, resetFilters, searchMode]
+  );
+
   // 날짜 범위가 설정되면 대시보드 데이터 로드
   useEffect(() => {
-    if (dateRange[0] && dateRange[1] && !dateRangeLoading) {
-      loadDashboardData(dateRange[0], dateRange[1]);
+    if (dateRange && dateRange[0] && dateRange[1] && !dateRangeLoading) {
+      loadDashboardData(dateRange[0], dateRange[1], false);
     }
-  }, [dateRange, dateRangeLoading]);
-
-  // 대시보드 데이터 로드
-  const loadDashboardData = async (startDate, endDate) => {
-    const key = MessageKeys.DASHBOARD.LOAD;
-    try {
-      setCurrentPage(1); // 데이터 조회 시 첫 페이지로 이동
-      message.loading('데이터 조회 중...', key);
-      console.log(
-        '대시보드 데이터 조회 시작:',
-        startDate.format('YYYY-MM-DD'),
-        '~',
-        endDate.format('YYYY-MM-DD')
-      );
-
-      const response = await fetchDashboards(startDate, endDate);
-
-      // 필터 초기화
-      resetFilters();
-
-      const items = response?.items || [];
-      if (items.length > 0) {
-        message.loadingToSuccess('데이터를 조회했습니다', key);
-      } else {
-        message.loadingToInfo('조회된 데이터가 없습니다', key);
-      }
-
-      return response;
-    } catch (error) {
-      console.error('대시보드 데이터 로드 실패:', error);
-      message.loadingToError(
-        '데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
-        key
-      );
-      return null;
-    }
-  };
+  }, [dateRange, dateRangeLoading, loadDashboardData]);
 
   // 새로고침 핸들러
   const handleRefresh = () => {
     console.log('새로고침 요청');
     if (dateRange[0] && dateRange[1]) {
-      loadDashboardData(dateRange[0], dateRange[1]);
+      loadDashboardData(dateRange[0], dateRange[1], true); // 강제 새로고침
     }
   };
 
@@ -124,6 +163,8 @@ const DashboardPage = () => {
           '해당 주문 정보를 찾을 수 없습니다. 삭제되었거나 존재하지 않는 주문입니다.',
           key
         );
+        // 목록 새로고침
+        handleRefresh();
       } else {
         message.loadingToError(
           '상세 정보 조회 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
@@ -177,11 +218,12 @@ const DashboardPage = () => {
     setShowAssignModal(true);
   };
 
-  // 주문번호 검색 핸들러 - 백엔드 API 호출 방식
+  // 주문번호 검색 핸들러 - API 호출 방식
   const handleOrderNoSearch = async (value) => {
     if (!value || value.trim() === '') {
-      // 검색어가 비어있으면 기존 날짜 범위로 데이터 다시 로드
-      loadDashboardData(dateRange[0], dateRange[1]);
+      // 검색어가 비어있으면 검색 모드 초기화
+      resetSearchMode();
+      loadDashboardData(dateRange[0], dateRange[1], true);
       setOrderNoSearch('');
       return;
     }
@@ -194,21 +236,23 @@ const DashboardPage = () => {
     message.loading('주문번호 검색 중...', key);
 
     try {
-      // 백엔드 API 호출
-      const searchResults = await DashboardService.searchDashboardsByOrderNo(
-        value
-      );
+      // searchByOrderNo 함수 사용(DashboardContext에서 제공)
+      const searchResults = await searchByOrderNo(value);
 
-      if (Array.isArray(searchResults) && searchResults.length > 0) {
-        // 검색 결과 상태 업데이트
-        updateMultipleDashboards(searchResults);
-        message.loadingToSuccess(`검색 결과: ${searchResults.length}건`, key);
+      if (
+        searchResults &&
+        searchResults.items &&
+        searchResults.items.length > 0
+      ) {
+        message.loadingToSuccess(
+          `검색 결과: ${searchResults.items.length}건`,
+          key
+        );
       } else {
         message.loadingToInfo(
           `주문번호 "${value}"에 대한 검색 결과가 없습니다`,
           key
         );
-        updateMultipleDashboards([]); // 빈 배열로 설정
       }
     } catch (error) {
       console.error('주문번호 검색 실패:', error);
@@ -311,6 +355,7 @@ const DashboardPage = () => {
           pageSize={pageSize}
           onPageChange={setCurrentPage}
           isAdminPage={false}
+          // 필터링 관련 props
           typeFilter={typeFilter}
           departmentFilter={departmentFilter}
           warehouseFilter={warehouseFilter}

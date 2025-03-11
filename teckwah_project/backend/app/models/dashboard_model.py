@@ -47,7 +47,6 @@ class Dashboard(Base):
     address = Column(Text, nullable=False)
     customer = Column(String(150), nullable=False)
     contact = Column(String(20), nullable=True)
-    # remark 컬럼 제거
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
     version = Column(Integer, nullable=False, default=1)  # 낙관적 락을 위한 버전 필드
