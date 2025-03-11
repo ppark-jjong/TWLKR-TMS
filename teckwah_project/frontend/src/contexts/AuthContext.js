@@ -16,76 +16,130 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 로그인 페이지로 리디렉션하는 헬퍼 함수
+  const handleRedirectToLogin = (errorMessage) => {
+    // 로그인 페이지가 아닌 경우에만 리디렉션
+    if (location.pathname !== '/login') {
+      // 현재 URL 저장
+      localStorage.setItem('returnUrl', location.pathname);
+
+      // 에러 메시지가 있으면 표시
+      if (errorMessage) {
+        message.warning(errorMessage, MessageKeys.AUTH.SESSION_EXPIRED);
+      }
+
+      // 로그인 페이지로 강제 이동
+      navigate('/login', { replace: true });
+    }
+  };
+
   // 초기 인증 상태 확인
   useEffect(() => {
     const initAuth = async () => {
       try {
         setAuthChecking(true);
+        // 현재 인증 정보 확인
         const currentUser = AuthService.getCurrentUser();
+        const token = localStorage.getItem('access_token');
+        const refreshToken = localStorage.getItem('refresh_token');
 
-        if (!currentUser) {
-          if (location.pathname !== '/login') {
-            localStorage.setItem('returnUrl', location.pathname);
-            navigate('/login');
+        // 인증 정보가 없는 경우
+        if (!currentUser || !token) {
+          console.log('인증 정보 없음:', { currentUser, hasToken: !!token });
+
+          // 리프레시 토큰이 있으면 토큰 갱신 시도
+          if (refreshToken) {
+            try {
+              console.log('리프레시 토큰으로 인증 시도');
+              const response = await AuthService.refreshToken(refreshToken);
+
+              if (response && response.token) {
+                // 갱신 성공 시 사용자 정보 설정
+                localStorage.setItem(
+                  'access_token',
+                  response.token.access_token
+                );
+                localStorage.setItem(
+                  'refresh_token',
+                  response.token.refresh_token
+                );
+
+                // 갱신된 사용자 정보가 있으면 설정
+                if (response.user) {
+                  localStorage.setItem('user', JSON.stringify(response.user));
+                  setUser(response.user);
+                  console.log('토큰 갱신 성공');
+                } else {
+                  // 사용자 정보가 없으면 기존 정보 유지
+                  setUser(currentUser);
+                }
+              } else {
+                throw new Error('토큰 갱신 실패: 응답 형식 오류');
+              }
+            } catch (refreshError) {
+              console.error('토큰 갱신 실패:', refreshError);
+              AuthService.clearAuthData();
+              handleRedirectToLogin(
+                '세션이 만료되었습니다. 다시 로그인해주세요.'
+              );
+              return;
+            }
+          } else {
+            // 리프레시 토큰도 없으면 로그인 페이지로 이동
+            handleRedirectToLogin();
+            return;
           }
-          setLoading(false);
-          setAuthChecking(false);
-          return;
-        }
-
-        // 세션 유효성 확인
-        try {
-          const token = localStorage.getItem('access_token');
-          if (!token) {
-            throw new Error('No token available');
-          }
-
-          await axios.get('/auth/check-session', {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          setUser(currentUser);
-        } catch (error) {
-          console.log('세션 체크 실패, 토큰 갱신 시도', error);
-
-          // 세션 체크 실패 시 토큰 갱신 시도
+        } else {
+          // 토큰이 있으면 세션 유효성 확인
           try {
-            const refreshToken = localStorage.getItem('refresh_token');
-            if (!refreshToken) {
-              throw new Error('No refresh token available');
-            }
+            await axios.get('/auth/check-session', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            console.log('세션 확인 성공');
+            setUser(currentUser);
+          } catch (sessionError) {
+            console.log('세션 확인 실패, 토큰 갱신 시도:', sessionError);
 
-            const response = await AuthService.refreshToken(refreshToken);
-            if (response && response.token) {
-              // 갱신된 토큰 저장
-              localStorage.setItem('access_token', response.token.access_token);
-              localStorage.setItem(
-                'refresh_token',
-                response.token.refresh_token
-              );
-              setUser(currentUser);
-              console.log('토큰 갱신 성공');
+            // 세션 확인 실패 시 리프레시 토큰으로 갱신 시도
+            if (refreshToken) {
+              try {
+                const response = await AuthService.refreshToken(refreshToken);
+                if (response && response.token) {
+                  localStorage.setItem(
+                    'access_token',
+                    response.token.access_token
+                  );
+                  localStorage.setItem(
+                    'refresh_token',
+                    response.token.refresh_token
+                  );
+                  setUser(currentUser);
+                  console.log('토큰 갱신 성공');
+                } else {
+                  throw new Error('토큰 갱신 실패: 응답 형식 오류');
+                }
+              } catch (refreshError) {
+                console.error('토큰 갱신 실패:', refreshError);
+                AuthService.clearAuthData();
+                handleRedirectToLogin(
+                  '세션이 만료되었습니다. 다시 로그인해주세요.'
+                );
+                return;
+              }
             } else {
-              throw new Error('Token refresh failed');
-            }
-          } catch (refreshError) {
-            // 갱신 실패 시 로그인 페이지로
-            console.error('Token refresh failed:', refreshError);
-            AuthService.clearAuthData();
-            if (location.pathname !== '/login') {
-              localStorage.setItem('returnUrl', location.pathname);
-              message.warning(
-                '세션이 만료되었습니다. 다시 로그인해주세요.',
-                MessageKeys.AUTH.SESSION_EXPIRED
+              // 리프레시 토큰이 없으면 로그인 페이지로 이동
+              AuthService.clearAuthData();
+              handleRedirectToLogin(
+                '세션이 만료되었습니다. 다시 로그인해주세요.'
               );
-              navigate('/login');
+              return;
             }
           }
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
         AuthService.clearAuthData();
+        handleRedirectToLogin('인증 초기화 중 오류가 발생했습니다.');
       } finally {
         setLoading(false);
         setAuthChecking(false);
@@ -100,8 +154,6 @@ export const AuthProvider = ({ children }) => {
       console.log('로그인 요청:', userId);
 
       const response = await AuthService.login(userId, password);
-
-      // 응답 구조 로깅 (디버깅용)
       console.log('로그인 응답 구조:', response);
 
       // 사용자 정보 설정
@@ -114,7 +166,9 @@ export const AuthProvider = ({ children }) => {
 
       // 저장된 returnUrl이 있으면 해당 위치로, 없으면 대시보드로
       const returnUrl = localStorage.getItem('returnUrl');
-      const redirectTo = returnUrl || '/dashboard';
+      const redirectTo =
+        returnUrl ||
+        (response.user.user_role === 'ADMIN' ? '/admin' : '/dashboard');
       localStorage.removeItem('returnUrl');
 
       navigate(redirectTo);
@@ -134,12 +188,12 @@ export const AuthProvider = ({ children }) => {
       await AuthService.logout();
       setUser(null);
       message.success('로그아웃되었습니다', MessageKeys.AUTH.LOGOUT);
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (error) {
       // 로그아웃 실패 시에도 클라이언트 상태는 초기화
       setUser(null);
       ErrorHandler.handle(error, 'logout');
-      navigate('/login');
+      navigate('/login', { replace: true });
     }
   };
 
@@ -147,11 +201,7 @@ export const AuthProvider = ({ children }) => {
   const resetAuthAndRedirect = () => {
     AuthService.clearAuthData();
     setUser(null);
-
-    if (location.pathname !== '/login') {
-      localStorage.setItem('returnUrl', location.pathname);
-      navigate('/login');
-    }
+    handleRedirectToLogin('인증 정보가 초기화되었습니다.');
   };
 
   if (loading) {

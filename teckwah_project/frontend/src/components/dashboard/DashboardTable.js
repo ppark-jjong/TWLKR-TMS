@@ -102,34 +102,30 @@ const DashboardTable = ({
 
   // 필터링된 데이터 계산 및 정렬
   useEffect(() => {
-    console.log('필터링 및 정렬 적용 시작');
-    console.log('원본 데이터 건수:', safeDataSource.length);
-
-    // 데이터 필드 검사 로깅 (누락된 필드 확인용)
-    if (safeDataSource.length > 0) {
-      const sample = safeDataSource[0];
-      console.log('데이터 샘플의 필드 목록:', Object.keys(sample));
-
-      // 필수 필드 확인
-      const missingFields = [];
-      [
-        'dashboard_id',
-        'status',
-        'type',
-        'department',
-        'warehouse',
-        'sla',
-        'eta',
-      ].forEach((field) => {
-        if (sample[field] === undefined) {
-          missingFields.push(field);
-        }
-      });
-
-      if (missingFields.length > 0) {
-        console.error('누락된 필드 발견:', missingFields);
-      }
+    // 데이터가 비어있는 경우 필터링 스킵
+    if (safeDataSource.length === 0) {
+      setFilteredData([]);
+      return;
     }
+
+    // 필터링이 없고, 검색어도 없는 경우 원본 데이터 사용
+    if (
+      !localTypeFilter &&
+      !localDepartmentFilter &&
+      !localWarehouseFilter &&
+      !localOrderNoSearch
+    ) {
+      setFilteredData(safeDataSource);
+      return;
+    }
+
+    console.log('필터링 적용 시작:', {
+      dataCount: safeDataSource.length,
+      typeFilter: localTypeFilter,
+      departmentFilter: localDepartmentFilter,
+      warehouseFilter: localWarehouseFilter,
+      orderNoSearch: localOrderNoSearch,
+    });
 
     // 원본 데이터 복사 (불변성 유지)
     let result = [...safeDataSource];
@@ -212,12 +208,34 @@ const DashboardTable = ({
     onWarehouseFilterChange(value);
   };
 
-  // 주문번호 검색 핸들러 - API 호출 방식으로 변경
+  // 주문번호 검색 핸들러 수정
   const handleOrderNoSearchChange = (e) => {
     const value = e.target.value;
     setLocalOrderNoSearch(value);
-    // 백엔드 API 호출을 위해 상위 컴포넌트의 핸들러 호출
-    onOrderNoSearchChange(value);
+
+    // 입력값이 없으면 백엔드 API 검색을 호출하지 않고 로컬 필터링 초기화
+    if (!value || value.trim() === '') {
+      if (onResetFilters) {
+        onResetFilters(); // 상위 컴포넌트에서 필터 초기화
+      }
+      return;
+    }
+
+    // 주문번호 검색은 엔터키나 검색 버튼 클릭 시에만 실행
+  };
+
+  // 검색 버튼 클릭 핸들러 추가
+  const handleSearch = () => {
+    if (localOrderNoSearch && localOrderNoSearch.trim() !== '') {
+      onOrderNoSearchChange(localOrderNoSearch);
+    }
+  };
+
+  // 엔터키 핸들러 추가
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && localOrderNoSearch) {
+      handleSearch();
+    }
   };
 
   // 필터 초기화 함수
@@ -270,7 +288,7 @@ const DashboardTable = ({
     };
   };
 
-  // 필터 컴포넌트 (간소화)
+  // 필터 컴포넌트 (검색 기능 개선)
   const renderFilters = () => (
     <div className="dashboard-filters">
       <Space size="middle" wrap>
@@ -326,14 +344,14 @@ const DashboardTable = ({
         </div>
 
         <div>
-          <span style={{ marginRight: 8 }}>주문번호:</span>
-          <Input
+          <Input.Search
             placeholder="주문번호 검색"
             value={localOrderNoSearch}
             onChange={handleOrderNoSearchChange}
-            style={{ width: 150 }}
-            prefix={<SearchOutlined />}
-            allowClear
+            onSearch={handleSearch}
+            onKeyPress={handleKeyPress}
+            style={{ width: 200 }}
+            enterButton
           />
         </div>
 

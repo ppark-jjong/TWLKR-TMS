@@ -64,31 +64,56 @@ const AdminPage = () => {
 
   const pageSize = 50;
 
-  // 날짜 범위가 설정되면 관리자 대시보드 데이터 로드
+  // 날짜 범위가 설정되면 대시보드 데이터 로드 (최적화)
   useEffect(() => {
-    if (dateRange[0] && dateRange[1] && !dateRangeLoading) {
-      loadDashboardData(dateRange[0], dateRange[1]);
+    if (dateRange[0] && dateRange[1] && !dateRangeLoading && initialized) {
+      // initialized는 useDateRange에서 추가된 상태
+      loadDashboardData(dateRange[0], dateRange[1], false);
     }
-  }, [dateRange, dateRangeLoading]);
+  }, [dateRange, dateRangeLoading, initialized]);
+
+  // 컴포넌트 언마운트 시 정리 로직 추가
+  useEffect(() => {
+    return () => {
+      // 진행 중인 요청 취소
+      cancelAllPendingRequests();
+    };
+  }, []);
 
   // 대시보드 데이터 로드
-  const loadDashboardData = async (startDate, endDate) => {
+  const loadDashboardData = async (
+    startDate,
+    endDate,
+    forceRefresh = false
+  ) => {
     const key = MessageKeys.DASHBOARD.LOAD;
     try {
       setCurrentPage(1); // 데이터 조회 시 첫 페이지로 이동
+
+      // 강제 새로고침이 아니고 이미 데이터가 있는 경우 기존 데이터 유지
+      if (!forceRefresh && dashboards.length > 0) {
+        return { items: dashboards, date_range: null };
+      }
+
       message.loading('데이터 조회 중...', key);
       console.log(
-        '관리자 대시보드 데이터 조회 시작:',
+        '대시보드 데이터 조회 시작:',
         startDate.format('YYYY-MM-DD'),
         '~',
         endDate.format('YYYY-MM-DD')
       );
 
-      const response = await fetchAdminDashboards(startDate, endDate);
+      // 관리자/일반 페이지에 따라 다른 함수 호출
+      const response = isAdminPage
+        ? await fetchAdminDashboards(startDate, endDate, forceRefresh)
+        : await fetchDashboards(startDate, endDate, forceRefresh);
 
-      // 필터 초기화
-      resetFilters();
+      // 필터 초기화 (강제 새로고침 시에만)
+      if (forceRefresh) {
+        resetFilters();
+      }
 
+      // 응답 처리
       const items = response?.items || [];
       if (items.length > 0) {
         message.loadingToSuccess('데이터를 조회했습니다', key);
@@ -98,20 +123,18 @@ const AdminPage = () => {
 
       return response;
     } catch (error) {
-      console.error('관리자 대시보드 데이터 로드 실패:', error);
+      console.error('대시보드 데이터 로드 실패:', error);
       message.loadingToError(
-        '관리자 데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        '데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
         key
       );
       return null;
     }
   };
-
-  // 새로고침 핸들러
   const handleRefresh = () => {
     console.log('새로고침 요청');
     if (dateRange[0] && dateRange[1]) {
-      loadDashboardData(dateRange[0], dateRange[1]);
+      loadDashboardData(dateRange[0], dateRange[1], true); // 강제 새로고침
     }
   };
 
@@ -232,11 +255,11 @@ const AdminPage = () => {
     setShowAssignModal(true);
   };
 
-  // 주문번호 검색 핸들러 - 백엔드 API 호출 방식
+  // 주문번호 검색 핸들러 개선 - API 호출 방식
   const handleOrderNoSearch = async (value) => {
     if (!value || value.trim() === '') {
       // 검색어가 비어있으면 기존 날짜 범위로 데이터 다시 로드
-      loadDashboardData(dateRange[0], dateRange[1]);
+      loadDashboardData(dateRange[0], dateRange[1], true);
       setOrderNoSearch('');
       return;
     }
@@ -254,9 +277,7 @@ const AdminPage = () => {
         value
       );
 
-      // 검색 결과가 있으면 기존 목록 클리어 후 결과 표시
       if (Array.isArray(searchResults) && searchResults.length > 0) {
-        removeDashboards(dashboards.map((d) => d.dashboard_id)); // 기존 목록 클리어
         updateMultipleDashboards(searchResults);
         message.loadingToSuccess(`검색 결과: ${searchResults.length}건`, key);
       } else {
@@ -264,7 +285,11 @@ const AdminPage = () => {
           `주문번호 "${value}"에 대한 검색 결과가 없습니다`,
           key
         );
-        updateMultipleDashboards([]); // 빈 배열로 설정
+        // 검색 결과가 없을 때 빈 배열을 설정하지만 기존 데이터는 유지
+        if (isAdminPage) {
+          // 관리자 페이지에서만 데이터 비우기
+          updateMultipleDashboards([]);
+        }
       }
     } catch (error) {
       console.error('주문번호 검색 실패:', error);

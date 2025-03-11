@@ -1,33 +1,34 @@
-# app/models/dashboard_remark_model.py
-from sqlalchemy import Column, Integer, Text, DateTime, String, ForeignKey, func
+# app/models/dashboard_lock_model.py
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from app.config.database import Base
+from datetime import datetime
+from app.utils.datetime_helper import KST
 
 
-class DashboardRemark(Base):
-    __tablename__ = "dashboard_remark"
+class DashboardLock(Base):
+    __tablename__ = "dashboard_lock"
 
-    remark_id = Column(Integer, primary_key=True, autoincrement=True)
     dashboard_id = Column(
         Integer,
         ForeignKey("dashboard.dashboard_id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        primary_key=True,
     )
-    content = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    created_by = Column(String(50), nullable=False)  # 사용자 ID 저장
-    version = Column(Integer, nullable=False, default=1)  # 낙관적 락을 위한 버전
+    locked_by = Column(String(50), nullable=False)  # 락을 획득한 사용자 ID
+    locked_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    lock_type = Column(Enum("EDIT", "STATUS", "ASSIGN", "REMARK"), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)  # 락 만료 시간
 
     # 관계 설정
-    dashboard = relationship("Dashboard", back_populates="remarks")
+    dashboard = relationship("Dashboard", back_populates="locks")
 
     def __repr__(self):
         return (
-            f"<DashboardRemark(id={self.remark_id}, dashboard_id={self.dashboard_id})>"
+            f"<DashboardLock(dashboard_id={self.dashboard_id}, type={self.lock_type})>"
         )
 
     @property
-    def formatted_content(self):
-        """user_id: content 형식으로 반환"""
-        return f"{self.created_by}: {self.content}"
+    def is_expired(self):
+        """락 만료 여부 확인"""
+        # UTC 기준 (기존 코드 유지)
+        return datetime.utcnow() > self.expires_at

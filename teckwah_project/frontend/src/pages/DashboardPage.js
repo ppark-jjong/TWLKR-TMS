@@ -311,7 +311,6 @@ const DashboardPage = () => {
           pageSize={pageSize}
           onPageChange={setCurrentPage}
           isAdminPage={false}
-          // 필터링 관련 props
           typeFilter={typeFilter}
           departmentFilter={departmentFilter}
           warehouseFilter={warehouseFilter}

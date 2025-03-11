@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.models.dashboard_lock_model import DashboardLock
 from app.utils.logger import log_info, log_error
 from app.utils.exceptions import PessimisticLockException
+from app.utils.datetime_helper import get_current_time, KST
 
 
 class DashboardLockRepository:
@@ -35,6 +36,7 @@ class DashboardLockRepository:
                     self.db.flush()
                 # 현재 사용자의 락인 경우 갱신
                 elif existing_lock.locked_by == user_id:
+                    # UTC 기준 (기존 코드 유지)
                     existing_lock.expires_at = datetime.utcnow() + timedelta(
                         seconds=self.lock_timeout
                     )
@@ -48,12 +50,14 @@ class DashboardLockRepository:
                     )
 
             # 3. 새 락 생성
+            # UTC 기준 (기존 코드 유지)
+            current_time = datetime.utcnow()
             lock = DashboardLock(
                 dashboard_id=dashboard_id,
                 locked_by=user_id,
-                locked_at=datetime.utcnow(),
+                locked_at=current_time,
                 lock_type=lock_type,
-                expires_at=datetime.utcnow() + timedelta(seconds=self.lock_timeout),
+                expires_at=current_time + timedelta(seconds=self.lock_timeout),
             )
             self.db.add(lock)
             self.db.flush()

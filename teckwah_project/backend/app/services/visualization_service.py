@@ -16,6 +16,9 @@ class VisualizationService:
         self.repository = repository
         self.departments = [dept.value for dept in Department]
         self.status_list = [status.value for status in DeliveryStatus]
+        self._date_range_cache = None
+        self._cache_timestamp = None
+        self._cache_ttl = 3600  # 캐시 유효시간 1시간
 
     def get_delivery_status(
         self, start_date: datetime, end_date: datetime
@@ -281,11 +284,19 @@ class VisualizationService:
         try:
             current_time = time.time()
 
+            # 방어적 프로그래밍: 속성이 없으면 초기화
+            if not hasattr(self, "_date_range_cache"):
+                self._date_range_cache = None
+                self._cache_timestamp = None
+                self._cache_ttl = 3600  # 1시간 캐시
+
             # 캐시가 유효한 경우 캐시된 값 반환
             if (
                 self._date_range_cache
+                and hasattr(self, "_cache_timestamp")
                 and self._cache_timestamp
-                and current_time - self._cache_timestamp < self._cache_ttl
+                and current_time - self._cache_timestamp
+                < getattr(self, "_cache_ttl", 3600)
             ):
                 log_info("시각화 날짜 범위 캐시 사용")
                 return self._date_range_cache
@@ -305,6 +316,7 @@ class VisualizationService:
 
                 self._date_range_cache = (oldest_date, latest_date)
                 self._cache_timestamp = current_time
+                self._cache_ttl = 3600  # 캐시 유효시간 1시간
                 log_info(f"시각화 날짜 범위 캐싱됨: {oldest_date} ~ {latest_date}")
                 return oldest_date, latest_date
             else:
@@ -313,6 +325,7 @@ class VisualizationService:
                 result = (now - timedelta(days=30), now)
                 self._date_range_cache = result
                 self._cache_timestamp = current_time
+                self._cache_ttl = 3600  # 캐시 유효시간 1시간
                 log_info(f"시각화 날짜 범위 기본값 캐싱됨: {result[0]} ~ {result[1]}")
                 return result
 

@@ -29,38 +29,59 @@ const Sidebar = () => {
     }
   };
 
-  const menuItems = [
-    {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: '배차',
-      onClick: () => navigate('/dashboard'),
-    },
-    {
-      key: '/visualization',
-      icon: <BarChartOutlined />,
-      label: '통계',
-      onClick: () => navigate('/visualization'),
-    },
-  ];
+  // 권한별 접근 가능 메뉴 설정
+  const getAuthorizedMenuItems = () => {
+    // 사용자 권한 확인
+    const isAdmin = user?.user_role === 'ADMIN';
 
-  // 관리자인 경우 관리 메뉴 추가
-  if (user?.user_role === 'ADMIN') {
-    menuItems.push({
-      key: '/admin',
-      icon: <SettingOutlined />,
-      label: '관리',
-      onClick: () => navigate('/admin'),
-    });
-  }
+    // 기본 메뉴 아이템 (로그아웃은 공통)
+    const baseMenuItems = [
+      {
+        key: 'logout',
+        icon: <LogoutOutlined />,
+        label: '로그아웃',
+        onClick: handleLogout,
+      },
+    ];
 
-  // 로그아웃 메뉴 추가
-  menuItems.push({
-    key: 'logout',
-    icon: <LogoutOutlined />,
-    label: '로그아웃',
-    onClick: handleLogout,
-  });
+    // 관리자 권한인 경우 - 관리, 통계 메뉴 표시
+    if (isAdmin) {
+      return [
+        {
+          key: '/admin',
+          icon: <SettingOutlined />,
+          label: '관리',
+          onClick: () => navigate('/admin'),
+        },
+        {
+          key: '/visualization',
+          icon: <BarChartOutlined />,
+          label: '통계',
+          onClick: () => navigate('/visualization'),
+        },
+        ...baseMenuItems,
+      ];
+    }
+
+    // 일반 사용자 권한인 경우 - 배차, 통계 메뉴 표시
+    return [
+      {
+        key: '/dashboard',
+        icon: <DashboardOutlined />,
+        label: '배차',
+        onClick: () => navigate('/dashboard'),
+      },
+      {
+        key: '/visualization',
+        icon: <BarChartOutlined />,
+        label: '통계',
+        onClick: () => navigate('/visualization'),
+      },
+      ...baseMenuItems,
+    ];
+  };
+
+  const menuItems = getAuthorizedMenuItems();
 
   return (
     <Sider width={200} theme="light">

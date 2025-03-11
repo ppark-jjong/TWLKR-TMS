@@ -21,19 +21,42 @@ const processQueue = (error, token = null) => {
     }
   });
   failedQueue = [];
+  isRefreshing = false;
 };
 
 // 에러 타입에 따른 메시지 처리
 const handleErrorResponse = (error) => {
-  // 이미 처리된 에러
+  // Already handled error
   if (error.handled) return Promise.reject(error);
 
-  if (error.response) {
-    const { status, data } = error.response;
+  // Network errors (no response)
+  if (!error.response) {
+    message.error(MessageTemplates.ERROR.NETWORK, 'network-error');
+    error.handled = true;
+    return Promise.reject(error);
+  }
 
-    // 401 (인증 실패) - 토큰 갱신 로직은 별도 처리
-    if (status === 401 && !error.config._retry) {
-      return Promise.reject(error); // 아래 토큰 갱신 로직에서 처리
+  // Handle specific status codes
+  const { status, data } = error.response;
+
+    // Authentication failures - Improved handling for 401 errors
+    if (status === 401) {
+      if (error.config._retry || error.config.url.includes('/auth/refresh')) {
+        // If already retried or it's a refresh token request that failed,
+        // this indicates the user needs to login again
+        message.error(
+          '세션이 만료되었습니다. 다시 로그인해주세요',
+          MessageKeys.AUTH.SESSION_EXPIRED
+        );
+        AuthService.clearAuthData();
+
+        // Immediate redirect to login page
+        window.location.replace('/login');
+        error.handled = true;
+        return Promise.reject(error);
+      }
+      // Otherwise, let the normal token refresh logic handle it
+      return Promise.reject(error);
     }
 
     // 403 (권한 없음)
@@ -240,9 +263,7 @@ const setupAxiosInterceptors = () => {
             localStorage.setItem('returnUrl', window.location.pathname);
             // 수정: 콘솔 로그 추가 및 리다이렉션 보장
             console.log('로그인 페이지로 리다이렉션합니다...');
-            setTimeout(() => {
-              window.location.href = '/login';
-            }, 100);
+            window.location.replace('/login');
           }
 
           return Promise.reject({ ...refreshError, handled: true });
@@ -258,6 +279,16 @@ const setupAxiosInterceptors = () => {
     if (event.reason && event.reason.isAxiosError) {
       const error = event.reason;
       if (!error.handled) {
+        // 401 에러(인증 실패)인 경우에만 로그인 페이지로 이동
+        if (error.response?.status === 401) {
+          AuthService.clearAuthData();
+          if (!window.location.pathname.includes('/login')) {
+            localStorage.setItem('returnUrl', window.location.pathname);
+            window.location.replace('/login');
+          }
+          return;
+        }
+        // 다른 에러는 일반적인 에러 처리 로직으로 처리
         handleErrorResponse(error);
       }
     }

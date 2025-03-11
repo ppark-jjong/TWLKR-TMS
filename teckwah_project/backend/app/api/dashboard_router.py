@@ -400,7 +400,12 @@ async def delete_dashboards(
 
 @router.get("/search", response_model=DashboardListResponse)
 async def search_dashboards_by_order_no(
-    order_no: str = Query(..., description="검색할 주문번호"),
+    order_no: str = Query(
+        ...,
+        description="검색할 주문번호",
+        min_length=1,  # 최소 한 글자 이상
+        regex=r"^[\d\-]+$",  # 숫자와 하이픈만 허용
+    ),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):

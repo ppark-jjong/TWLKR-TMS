@@ -1,5 +1,5 @@
 # backend/app/repositories/dashboard_repository.py
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Tuple, Dict, Any, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, or_, exc, desc, case
@@ -15,6 +15,7 @@ import time
 class DashboardRepository:
     def __init__(self, db: Session):
         self.db = db
+        self.kr_timezone = pytz.timezone("Asia/Seoul")
 
     def get_dashboards_by_date_range(
         self, start_time: datetime, end_time: datetime

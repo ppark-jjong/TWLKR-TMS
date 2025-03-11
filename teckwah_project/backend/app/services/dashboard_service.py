@@ -29,6 +29,9 @@ class DashboardService:
     def __init__(self, repository: DashboardRepository):
         self.repository = repository
         self.kr_timezone = pytz.timezone("Asia/Seoul")
+        self._date_range_cache = None
+        self._cache_timestamp = None
+        self._cache_ttl = 3600  # 캐시 유효시간 1시간
 
     def get_dashboard_list_by_date(
         self, start_date: datetime, end_date: datetime, is_admin: bool = False
@@ -417,11 +420,19 @@ class DashboardService:
         try:
             current_time = time.time()
 
+            # 방어적 프로그래밍: 속성이 없으면 초기화
+            if not hasattr(self, "_date_range_cache"):
+                self._date_range_cache = None
+                self._cache_timestamp = None
+                self._cache_ttl = 3600  # 1시간 캐시
+
             # 캐시가 유효한 경우 캐시된 값 반환
             if (
                 self._date_range_cache
+                and hasattr(self, "_cache_timestamp")
                 and self._cache_timestamp
-                and current_time - self._cache_timestamp < self._cache_ttl
+                and current_time - self._cache_timestamp
+                < getattr(self, "_cache_ttl", 3600)
             ):
                 log_info("날짜 범위 캐시 사용")
                 return self._date_range_cache
@@ -437,6 +448,7 @@ class DashboardService:
             if oldest_date and latest_date:
                 self._date_range_cache = (oldest_date, latest_date)
                 self._cache_timestamp = current_time
+                self._cache_ttl = 3600  # 캐시 유효시간 1시간
                 log_info(f"날짜 범위 캐싱됨: {oldest_date} ~ {latest_date}")
                 return oldest_date, latest_date
             else:
@@ -445,6 +457,7 @@ class DashboardService:
                 result = (now - timedelta(days=30), now)
                 self._date_range_cache = result
                 self._cache_timestamp = current_time
+                self._cache_ttl = 3600  # 캐시 유효시간 1시간
                 log_info(f"날짜 범위 기본값 캐싱됨: {result[0]} ~ {result[1]}")
                 return result
 

@@ -34,6 +34,32 @@ def get_date_range(date_str: str) -> Tuple[datetime, datetime]:
         raise ValueError(f"날짜 형식 오류: {date_str}. YYYY-MM-DD 형식이어야 합니다.")
 
 
+# 새로 추가된 유틸리티 함수들
+def ensure_timezone(dt: datetime) -> datetime:
+    """시간대 정보가 없는 datetime에 KST 시간대 정보 추가"""
+    if dt.tzinfo is None:
+        return KST.localize(dt)
+    return dt
+
+
+def is_naive_datetime(dt: datetime) -> bool:
+    """시간대 정보가 없는 naive datetime인지 확인"""
+    return dt.tzinfo is None
+
+
+def format_for_db(dt: datetime) -> datetime:
+    """데이터베이스 저장용 포맷으로 변환 (필요에 따라 시간대 조정)"""
+    dt = ensure_timezone(dt)
+    # DB가 KST로 설정되어 있으므로 KST 그대로 반환
+    return dt
+
+
+def format_for_json(dt: datetime) -> str:
+    """JSON 응답용 시간 포맷 (ISO 8601 형식)"""
+    dt = ensure_timezone(dt)
+    return dt.isoformat()
+
+
 def get_date_range_from_datetime(dt: datetime) -> Tuple[datetime, datetime]:
     """datetime으로부터 해당 일자의 시작과 끝 시간을 KST datetime으로 반환"""
     if dt.tzinfo is None:
