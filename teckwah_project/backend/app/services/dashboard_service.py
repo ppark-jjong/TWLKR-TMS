@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Tuple, Optional, Dict, Any
 from fastapi import HTTPException, status
 from app.repositories.dashboard_repository import DashboardRepository
+from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.schemas.dashboard_schema import (
     DashboardCreate,
     DashboardResponse,
@@ -26,12 +27,14 @@ from app.utils.exceptions import OptimisticLockException, PessimisticLockExcepti
 
 
 class DashboardService:
-    def __init__(self, repository: DashboardRepository):
+    def __init__(self, repository: DashboardRepository, remark_repository: Optional[DashboardRemarkRepository] = None
+):
         self.repository = repository
         self.kr_timezone = pytz.timezone("Asia/Seoul")
         self._date_range_cache = None
         self._cache_timestamp = None
         self._cache_ttl = 3600  # 캐시 유효시간 1시간
+        self.remark_repository = remark_repository  
 
     def get_dashboard_list_by_date(
         self, start_date: datetime, end_date: datetime, is_admin: bool = False
@@ -182,24 +185,37 @@ class DashboardService:
                 )
 
             # 대시보드 데이터 준비 및 생성
-            dashboard_data = data.model_dump()
+            dashboard_data = data.model_dump(exclude={"remark"})
             dashboard_data["department"] = department
             dashboard_data["eta"] = eta_kst
-            dashboard_data["status"] = "WAITING"  # 초기 상태는 대기 상태
-            dashboard_data["version"] = 1  # 초기 버전 설정
+            dashboard_data["status"] = "WAITING"
+            dashboard_data["version"] = 1
 
             # 현재 시간 (KST)을 create_time으로 설정
             current_time = datetime.now(self.kr_timezone)
             dashboard_data["create_time"] = current_time
 
-            # SLA 필드가 비어있는 경우 기본값 설정
-            if not dashboard_data.get("sla"):
-                dashboard_data["sla"] = "표준"
-
             # 변경 포인트: current_time을 repository 메서드에 전달
             dashboard = self.repository.create_dashboard(dashboard_data, current_time)
             log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
-            return DashboardDetail.model_validate(dashboard)
+            
+             # remark가 있고 remark_repository가 주입되었으면 메모 저장
+            remark_content = getattr(data, "remark", None)
+            if remark_content and self.remark_repository and user_id:
+                log_info(f"메모 데이터 저장 시작: dashboard_id={dashboard.dashboard_id}")
+                
+                # 메모 생성
+                self.remark_repository.create_remark(
+                    dashboard_id=dashboard.dashboard_id,
+                    content=remark_content,
+                    user_id=user_id
+                )
+                log_info(f"메모 저장 완료: dashboard_id={dashboard.dashboard_id}")
+                
+            log_info(f"대시보드 생성 완료: {dashboard.dashboard_id}")
+            
+            # 생성된 대시보드 상세 정보 조회 (메모 포함)
+            return self.get_dashboard_detail(dashboard.dashboard_id)
 
         except HTTPException:
             raise
@@ -209,7 +225,6 @@ class DashboardService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="대시보드 생성 중 오류가 발생했습니다",
             )
-
     def update_status(
         self,
         dashboard_id: int,

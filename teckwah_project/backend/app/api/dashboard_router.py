@@ -22,14 +22,16 @@ from app.api.deps import get_current_user, check_admin_access
 from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
 from app.repositories.dashboard_repository import DashboardRepository
+from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.utils.datetime_helper import get_date_range
 
 router = APIRouter()
 
-
 def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
+    """DashboardService 의존성 주입"""
     repository = DashboardRepository(db)
-    return DashboardService(repository)
+    remark_repository = DashboardRemarkRepository(db)  # 메모 리포지토리 인스턴스 생성
+    return DashboardService(repository, remark_repository)
 
 
 @router.get("/list", response_model=DashboardListResponse)
@@ -220,10 +222,17 @@ async def create_dashboard(
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 생성 API"""
+    """대시보드 생성 API (메모 포함)"""
     try:
         log_info(f"대시보드 생성 요청: {dashboard.model_dump()}")
-        result = service.create_dashboard(dashboard, current_user.department)
+        
+        # user_id를 전달하여 메모 작성자 정보 기록
+        result = service.create_dashboard(
+            dashboard, 
+            current_user.department, 
+            user_id=current_user.user_id
+        )
+        
         return DashboardDetailResponse(
             success=True,
             message="대시보드가 생성되었습니다",
@@ -237,7 +246,6 @@ async def create_dashboard(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="대시보드 생성 중 오류가 발생했습니다",
         )
-
 
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 async def get_dashboard_detail(
