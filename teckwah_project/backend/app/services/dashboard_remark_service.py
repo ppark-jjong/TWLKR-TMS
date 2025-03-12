@@ -6,8 +6,7 @@ from app.repositories.dashboard_remark_repository import DashboardRemarkReposito
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
 from app.schemas.dashboard_schema import RemarkResponse, RemarkCreate, RemarkUpdate
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import OptimisticLockException, PessimisticLockException
-
+from app.utils.exceptions import PessimisticLockException
 
 class DashboardRemarkService:
     def __init__(
@@ -35,23 +34,28 @@ class DashboardRemarkService:
     ) -> RemarkResponse:
         """새 메모 생성 (비관적 락 적용)"""
         try:
-            # 비관적 락 획득 시도
+            # 1. 비관적 락 획득 시도
             try:
-                self.lock_repository.acquire_lock(dashboard_id, user_id, "REMARK")
+                lock = self.lock_repository.acquire_lock(dashboard_id, user_id, "REMARK")
+                if not lock:
+                    raise PessimisticLockException("다른 사용자가 메모를 수정 중입니다.")
             except PessimisticLockException as e:
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
-                    detail=f"다른 사용자가 메모를 수정 중입니다: {e.locked_by}",
+                    detail=f"다른 사용자가 메모를 수정 중입니다: {e.locked_by if hasattr(e, 'locked_by') else ''}",
                 )
 
-            # 메모 생성
             try:
+                # 2. 사용자 ID 포함 형식으로 메모 내용 구성
+                formatted_content = f"{user_id}: {remark_data.content}"
+                
+                # 3. 메모 생성
                 remark = self.remark_repository.create_remark(
-                    dashboard_id, remark_data.content, user_id
+                    dashboard_id, formatted_content, user_id
                 )
                 return RemarkResponse.model_validate(remark)
             finally:
-                # 락 해제
+                # 4. 락 해제 (성공/실패 상관없이)
                 self.lock_repository.release_lock(dashboard_id, user_id)
 
         except HTTPException:
@@ -66,9 +70,9 @@ class DashboardRemarkService:
     def update_remark(
         self, remark_id: int, remark_data: RemarkUpdate, user_id: str
     ) -> RemarkResponse:
-        """메모 업데이트 (비관적 락 + 낙관적 락 적용)"""
+        """메모 업데이트 (비관적 락 적용)"""
         try:
-            # 메모 조회
+            # 1. 메모 조회
             remark = self.remark_repository.get_remark_by_id(remark_id)
             if not remark:
                 raise HTTPException(
@@ -76,33 +80,30 @@ class DashboardRemarkService:
                     detail="메모를 찾을 수 없습니다",
                 )
 
-            # 비관적 락 획득 시도
+            # 2. 비관적 락 획득 시도
             try:
-                self.lock_repository.acquire_lock(
+                lock = self.lock_repository.acquire_lock(
                     remark.dashboard_id, user_id, "REMARK"
                 )
+                if not lock:
+                    raise PessimisticLockException("다른 사용자가 메모를 수정 중입니다.")
             except PessimisticLockException as e:
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
-                    detail=f"다른 사용자가 메모를 수정 중입니다: {e.locked_by}",
+                    detail=f"다른 사용자가 메모를 수정 중입니다: {e.locked_by if hasattr(e, 'locked_by') else ''}",
                 )
 
-            # 메모 업데이트
             try:
-                updated_remark = self.remark_repository.update_remark(
-                    remark_id, remark_data.content, remark_data.version, user_id
+                # 3. 사용자 ID 포함 형식으로 메모 내용 구성
+                formatted_content = f"{user_id}: {remark_data.content}"
+                
+                # 4. 메모 업데이트
+                updated_remark = self.remark_repository.update_remark_without_version(
+                    remark_id, formatted_content, user_id
                 )
                 return RemarkResponse.model_validate(updated_remark)
-            except OptimisticLockException as e:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={
-                        "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                        "current_version": e.current_version,
-                    },
-                )
             finally:
-                # 락 해제
+                # 5. 락 해제 (성공/실패 상관없이)
                 self.lock_repository.release_lock(remark.dashboard_id, user_id)
 
         except HTTPException:

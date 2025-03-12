@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import DashboardService from '../services/DashboardService';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
-import { useAuth } from './AuthContext';
 
 const DashboardContext = createContext(null);
 
@@ -19,21 +18,15 @@ export const DashboardProvider = ({ children }) => {
   const [dateRange, setDateRange] = useState(null);
   const [availableDateRange, setAvailableDateRange] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
-  const [searchMode, setSearchMode] = useState(false);
-  const [userRole, setUserRole] = useState(null); // 사용자 역할 추가
-  const { user } = useAuth();
+  const [searchMode, setSearchMode] = useState(false); // 검색 모드 상태 추가
 
-  // 대시보드 목록 조회 (통합 API)
+  // 일반 대시보드 목록 조회 (날짜 범위)
   const fetchDashboards = useCallback(
     async (startDate, endDate, forceRefresh = false) => {
       // 이미 검색 모드인 경우와 강제 새로고침이 아닌 경우 데이터 재요청 방지
       if (searchMode && !forceRefresh && dashboards.length > 0) {
         console.log('검색 모드에서는 데이터를 재요청하지 않습니다.');
-        return {
-          items: dashboards,
-          date_range: availableDateRange,
-          user_role: userRole,
-        };
+        return { items: dashboards, date_range: availableDateRange };
       }
 
       try {
@@ -45,7 +38,6 @@ export const DashboardProvider = ({ children }) => {
           endDate.format('YYYY-MM-DD')
         );
 
-        // 통합 API 호출
         const response = await DashboardService.getDashboardList(
           startDate,
           endDate
@@ -55,14 +47,12 @@ export const DashboardProvider = ({ children }) => {
         // 항목과 날짜 범위 정보 처리
         const items = response.items || [];
         const dateRangeInfo = response.date_range || null;
-        const roleInfo = response.user_role || user?.user_role || 'USER';
 
         // 검색 모드가 아닌 경우에만 데이터 업데이트
         if (!searchMode || forceRefresh) {
           setDashboards(items);
           setDateRange([startDate, endDate]);
           setLastUpdate(Date.now());
-          setUserRole(roleInfo);
 
           // 날짜 범위 정보가 있으면 상태 업데이트
           if (dateRangeInfo) {
@@ -80,60 +70,71 @@ export const DashboardProvider = ({ children }) => {
           '데이터 조회 중 오류가 발생했습니다',
           MessageKeys.DASHBOARD.LOAD
         );
-        return {
-          items: [],
-          date_range: null,
-          user_role: user?.user_role || 'USER',
-        };
+        return { items: [], date_range: null };
       } finally {
         setLoading(false);
       }
     },
-    [dashboards, searchMode, availableDateRange, userRole, user]
+    [dashboards, searchMode, availableDateRange]
   );
 
-  /**
-   * 주문번호 검색 함수
-   * @param {string} orderNo - 검색할 주문번호
-   * @returns {Promise<Object>} - 검색 결과
-   */
-  const searchByOrderNo = useCallback(async (orderNo) => {
-    try {
-      setLoading(true);
-      setSearchMode(true);
+  // 관리자 대시보드 목록 조회 (날짜 범위)
+  const fetchAdminDashboards = useCallback(
+    async (startDate, endDate, forceRefresh = false) => {
+      // 이미 검색 모드인 경우와 강제 새로고침이 아닌 경우 데이터 재요청 방지
+      if (searchMode && !forceRefresh && dashboards.length > 0) {
+        console.log('검색 모드에서는 데이터를 재요청하지 않습니다.');
+        return { items: dashboards, date_range: availableDateRange };
+      }
 
-      console.log('주문번호 검색 요청:', orderNo);
-      const response = await DashboardService.searchDashboardsByOrderNo(
-        orderNo
-      );
+      try {
+        setLoading(true);
+        console.log(
+          '관리자 대시보드 데이터 요청:',
+          startDate.format('YYYY-MM-DD'),
+          '-',
+          endDate.format('YYYY-MM-DD')
+        );
 
-      // 백엔드 응답 형식 일치화
-      const items = response.items || [];
+        const response = await DashboardService.getAdminDashboardList(
+          startDate,
+          endDate
+        );
+        console.log('fetchAdminDashboards 결과:', response);
 
-      // 정렬 적용 후 데이터 설정
-      const sortedResults = DashboardService.sortDashboardsByStatus(items);
-      setDashboards(sortedResults);
-      setLastUpdate(Date.now());
+        // 항목과 날짜 범위 정보 처리
+        const items = response.items || [];
+        const dateRangeInfo = response.date_range || null;
 
-      return { items: sortedResults };
-    } catch (error) {
-      console.error('주문번호 검색 실패:', error);
-      message.error('검색 중 오류가 발생했습니다', MessageKeys.DASHBOARD.LOAD);
-      return { items: [] };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        // 검색 모드가 아닌 경우에만 데이터 업데이트
+        if (!searchMode || forceRefresh) {
+          setDashboards(items);
+          setDateRange([startDate, endDate]);
+          setLastUpdate(Date.now());
 
-  /**
-   * 검색 모드 초기화 (날짜 기준 데이터로 복귀)
-   */
-  const resetSearchMode = useCallback(() => {
-    setSearchMode(false);
-    if (dateRange && dateRange[0] && dateRange[1]) {
-      fetchDashboards(dateRange[0], dateRange[1], true);
-    }
-  }, [dateRange, fetchDashboards]);
+          // 날짜 범위 정보가 있으면 상태 업데이트
+          if (dateRangeInfo) {
+            setAvailableDateRange(dateRangeInfo);
+          }
+        }
+
+        return response;
+      } catch (error) {
+        console.error(
+          '관리자 대시보드 목록 조회 오류:',
+          error.response?.data || error
+        );
+        message.error(
+          '데이터 조회 중 오류가 발생했습니다',
+          MessageKeys.DASHBOARD.LOAD
+        );
+        return { items: [], date_range: null };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [dashboards, searchMode, availableDateRange]
+  );
 
   // 단일 대시보드 업데이트 (낙관적 락 고려)
   const updateDashboard = useCallback((dashboardId, updates) => {
@@ -151,7 +152,7 @@ export const DashboardProvider = ({ children }) => {
     );
   }, []);
 
-  // 여러 대시보드 업데이트 (새로운 항목 추가 로직 포함)
+  // 여러 대시보드 업데이트 (새로운 항목 추가 로직 포함) - 상태 및 필드 정보 정확히 유지
   const updateMultipleDashboards = useCallback((newDashboards) => {
     console.log('updateMultipleDashboards 호출됨:', newDashboards);
 
@@ -192,6 +193,47 @@ export const DashboardProvider = ({ children }) => {
     );
   }, []);
 
+  /**
+   * 주문번호 검색 함수
+   * @param {string} orderNo - 검색할 주문번호
+   * @returns {Promise<Object>} - 검색 결과
+   */
+  const searchByOrderNo = useCallback(async (orderNo) => {
+    try {
+      setLoading(true);
+      setSearchMode(true);
+
+      console.log('주문번호 검색 요청:', orderNo);
+      const searchResults = await DashboardService.searchDashboardsByOrderNo(
+        orderNo
+      );
+
+      // 정렬 적용 후 데이터 설정
+      const sortedResults =
+        DashboardService.sortDashboardsByStatus(searchResults);
+      setDashboards(sortedResults);
+      setLastUpdate(Date.now());
+
+      return { items: sortedResults };
+    } catch (error) {
+      console.error('주문번호 검색 실패:', error);
+      message.error('검색 중 오류가 발생했습니다', MessageKeys.DASHBOARD.LOAD);
+      return { items: [] };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * 검색 모드 초기화 (날짜 기준 데이터로 복귀)
+   */
+  const resetSearchMode = useCallback(() => {
+    setSearchMode(false);
+    if (dateRange && dateRange[0] && dateRange[1]) {
+      fetchDashboards(dateRange[0], dateRange[1], true);
+    }
+  }, [dateRange, fetchDashboards]);
+
   const value = {
     dashboards,
     loading,
@@ -199,9 +241,9 @@ export const DashboardProvider = ({ children }) => {
     lastUpdate,
     searchMode,
     availableDateRange,
-    userRole, // 사용자 역할 정보 추가
     setAvailableDateRange,
     fetchDashboards,
+    fetchAdminDashboards,
     searchByOrderNo,
     resetSearchMode,
     updateDashboard,

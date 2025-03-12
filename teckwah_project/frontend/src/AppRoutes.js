@@ -3,6 +3,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AdminPage from './pages/AdminPage';
 import VisualizationPage from './pages/VisualizationPage';
 import MainLayout from './components/common/MainLayout';
 import { useAuth } from './contexts/AuthContext';
@@ -33,25 +34,104 @@ const AppRoutes = () => {
 
   // 인증이 필요한 라우트를 위한 래퍼 컴포넌트
   const PrivateRoute = ({ children }) => {
+    if (authChecking) {
+      // 인증 체크 중일 때는 로딩 표시
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            flexDirection: 'column',
+            gap: '16px',
+          }}
+        >
+          <div className="loading-spinner"></div>
+          <p>인증 정보 확인 중...</p>
+        </div>
+      );
+    }
+
     if (!user) {
       // 인증되지 않은 경우 로그인 페이지로 리디렉션
       localStorage.setItem('returnUrl', location.pathname);
-      // 메시지 표시 전 상태 확인
       message.error('로그인이 필요합니다');
       return <Navigate to="/login" replace />;
     }
+
+    return children;
+  };
+
+  // 관리자 전용 라우트를 위한 래퍼 컴포넌트
+  const AdminRoute = ({ children }) => {
+    if (authChecking) {
+      // 인증 체크 중일 때는 로딩 표시
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            flexDirection: 'column',
+            gap: '16px',
+          }}
+        >
+          <div className="loading-spinner"></div>
+          <p>인증 정보 확인 중...</p>
+        </div>
+      );
+    }
+
+    if (!user) {
+      // 인증되지 않은 경우 로그인 페이지로 리디렉션
+      localStorage.setItem('returnUrl', location.pathname);
+      message.error('로그인이 필요합니다');
+      return <Navigate to="/login" replace />;
+    }
+
+    if (user.user_role !== 'ADMIN') {
+      // 관리자가 아닌 경우 대시보드로 리디렉션
+      message.error('관리자만 접근할 수 있습니다');
+      return <Navigate to="/dashboard" replace />;
+    }
+
     return children;
   };
 
   return (
     <Routes>
-      {/* 로그인 페이지 - 인증 상태에 따라 리디렉션 */}
+      {/* 로그인 페이지 */}
       <Route
         path="/login"
-        element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+        element={
+          authChecking ? (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+                flexDirection: 'column',
+                gap: '16px',
+              }}
+            >
+              <div className="loading-spinner"></div>
+              <p>인증 정보 확인 중...</p>
+            </div>
+          ) : user ? (
+            <Navigate
+              to={user.user_role === 'ADMIN' ? '/admin' : '/dashboard'}
+              replace
+            />
+          ) : (
+            <LoginPage />
+          )
+        }
       />
 
-      {/* 대시보드 페이지 - 인증 필요 */}
+      {/* 대시보드 페이지 - 일반 사용자용 */}
       <Route
         path="/dashboard"
         element={
@@ -63,8 +143,17 @@ const AppRoutes = () => {
         }
       />
 
-      {/* 관리자 페이지는 대시보드 페이지로 리디렉션 */}
-      <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+      {/* 관리자 페이지 - 관리자 전용 */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <MainLayout>
+              <AdminPage />
+            </MainLayout>
+          </AdminRoute>
+        }
+      />
 
       {/* 시각화 페이지 - 모든 사용자 접근 가능 */}
       <Route
@@ -78,7 +167,7 @@ const AppRoutes = () => {
         }
       />
 
-      {/* 기본 경로는 대시보드로 리디렉션 */}
+      {/* 기본 경로는 권한에 따라 다른 페이지로 리디렉션 */}
       <Route
         path="/"
         element={
@@ -98,6 +187,8 @@ const AppRoutes = () => {
             </div>
           ) : !user ? (
             <Navigate to="/login" replace />
+          ) : user.user_role === 'ADMIN' ? (
+            <Navigate to="/admin" replace />
           ) : (
             <Navigate to="/dashboard" replace />
           )

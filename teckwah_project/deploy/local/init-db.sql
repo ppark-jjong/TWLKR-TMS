@@ -170,7 +170,7 @@ END//
   
 DELIMITER ;
 
--- 11. 트리거 생성: dashboard 테이블 UPDATE 시 버전 자동 증가 (낙관적 락)
+-- 데이터 변경 추적용으로 트리거 수정
 DELIMITER //
 CREATE TRIGGER trg_dashboard_before_update_version
 BEFORE UPDATE ON dashboard

@@ -70,7 +70,7 @@ async def update_remark(
     service: DashboardRemarkService = Depends(get_remark_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """메모 업데이트 API (비관적 락 + 낙관적 락 적용)"""
+    """메모 업데이트 API (비관적 락 적용)"""
     try:
         log_info(f"메모 업데이트 요청: 메모 ID {remark_id}")
         result = service.update_remark(remark_id, remark_update, current_user.user_id)

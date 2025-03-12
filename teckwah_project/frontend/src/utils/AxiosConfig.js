@@ -133,23 +133,6 @@ const handleErrorResponse = (error) => {
   return Promise.reject(error);
 };
 
-// 안전한 리디렉션 함수
-const redirectToLogin = (reason) => {
-  // 로그인 페이지가 아닌 경우에만 리다이렉트
-  if (!window.location.pathname.includes('/login')) {
-    // 현재 URL 저장
-    localStorage.setItem('returnUrl', window.location.pathname);
-
-    // 디버깅 메시지
-    console.log(`인증 오류 리디렉션: ${reason}`);
-
-    // 확실한 리디렉션을 위해 replace 사용 및 캐시 방지 타임스탬프 추가
-    setTimeout(() => {
-      window.location.replace(`/login?refresh=${Date.now()}`);
-    }, 100);
-  }
-};
-
 const setupAxiosInterceptors = () => {
   // axios 기본 설정
   axios.defaults.baseURL = '/'; // 동일 도메인에서 실행하므로 루트 경로 설정
@@ -206,7 +189,7 @@ const setupAxiosInterceptors = () => {
         console.error('기타 에러:', error.message);
       }
 
-      // 토큰 만료 처리 - 더 명확한 상태 추적 및 재시도 메커니즘
+      // 토큰 만료 처리
       if (error.response?.status === 401 && !error.config._retry) {
         if (isRefreshing) {
           // 토큰 갱신 중인 경우 대기 후 재시도
@@ -236,35 +219,34 @@ const setupAxiosInterceptors = () => {
             throw new Error('No refresh token available');
           }
 
-          // 명시적 갱신 코드
-          console.log('토큰 갱신 시도 시작');
           const response = await AuthService.refreshToken(refreshToken);
-          console.log('토큰 갱신 성공:', response ? '성공' : '실패');
-
-          if (!response || !response.token || !response.token.access_token) {
-            throw new Error('유효하지 않은 토큰 갱신 응답');
-          }
 
           // 갱신된 토큰으로 원래 요청 재시도
-          const newToken = response.token.access_token;
-          localStorage.setItem('access_token', newToken);
+          const newToken = localStorage.getItem('access_token');
           error.config.headers.Authorization = `Bearer ${newToken}`;
           processQueue(null, newToken);
-
           return axios(error.config);
         } catch (refreshError) {
-          console.error('토큰 갱신 최종 실패:', refreshError);
           processQueue(refreshError, null);
-
-          // 메시지 표시 및 인증 데이터 초기화
           message.error(
             '세션이 만료되었습니다. 다시 로그인해주세요',
             MessageKeys.AUTH.SESSION_EXPIRED
           );
           AuthService.clearAuthData();
 
-          // 로그인 페이지로 리디렉션
-          redirectToLogin('토큰 갱신 실패');
+          // 현재 페이지가 로그인 페이지가 아닌 경우만 리다이렉트
+          if (!window.location.pathname.includes('/login')) {
+            // 현재 URL 저장
+            localStorage.setItem('returnUrl', window.location.pathname);
+
+            // 확실한 리디렉션을 위해 replace 사용 (브라우저 이력에 남지 않음)
+            console.log('인증 만료: 로그인 페이지로 강제 리다이렉션');
+
+            // 현재 실행 중인 코드 완료 후 리디렉션하도록 setTimeout 사용
+            setTimeout(() => {
+              window.location.replace('/login');
+            }, 100);
+          }
 
           return Promise.reject({ ...refreshError, handled: true });
         } finally {
@@ -272,65 +254,26 @@ const setupAxiosInterceptors = () => {
         }
       }
 
-      // 일반 에러 처리
       return handleErrorResponse(error);
     }
   );
 
-  // 전역 에러 핸들링 - 더 강력한 예외 처리
+  // 전역 에러 핸들링
   window.addEventListener('unhandledrejection', (event) => {
-    // 모든 정의되지 않은 Promise 거부를 잡음
-    const error = event.reason;
-
-    // 인증 관련 오류 탐지
-    const isAuthError =
-      error &&
-      ((error.isAxiosError &&
-        (error.response?.status === 401 || error.response?.status === 403)) ||
-        error.message?.includes('token') ||
-        error.message?.includes('auth') ||
-        error.message?.includes('인증'));
-
-    if (isAuthError) {
-      console.error('감지된 인증 관련 오류:', error);
-
-      // 이미 처리된 오류가 아닌 경우에만 처리
+    if (event.reason && event.reason.isAxiosError) {
+      const error = event.reason;
       if (!error.handled) {
-        AuthService.clearAuthData();
-
-        // 로그인 페이지로 강제 리디렉션 (비동기 처리)
-        redirectToLogin('비동기 인증 오류');
-      }
-      return;
-    }
-
-    // 기타 Axios 에러는 일반 에러 처리로
-    if (error && error.isAxiosError && !error.handled) {
-      handleErrorResponse(error);
-    }
-  });
-
-  // 심각한 JavaScript 오류 처리
-  window.addEventListener('error', (event) => {
-    // 인증/상태 관리 관련 오류로 보이는 경우
-    if (
-      event.error &&
-      (event.error.message?.includes('Cannot access') ||
-        event.error.message?.includes('undefined') ||
-        event.error.message?.includes('null') ||
-        event.error.message?.includes('token'))
-    ) {
-      console.error(
-        '심각한 JavaScript 오류 감지 - 앱 상태 초기화 필요:',
-        event.error
-      );
-
-      // 인증 데이터 초기화
-      AuthService.clearAuthData();
-
-      // 로그인 페이지로 리디렉트 (이미 로그인 페이지가 아닌 경우)
-      if (!window.location.pathname.includes('/login')) {
-        redirectToLogin('심각한 JavaScript 오류');
+        // 401 에러(인증 실패)인 경우에만 로그인 페이지로 이동
+        if (error.response?.status === 401) {
+          AuthService.clearAuthData();
+          if (!window.location.pathname.includes('/login')) {
+            localStorage.setItem('returnUrl', window.location.pathname);
+            window.location.replace('/login');
+          }
+          return;
+        }
+        // 다른 에러는 일반적인 에러 처리 로직으로 처리
+        handleErrorResponse(error);
       }
     }
   });

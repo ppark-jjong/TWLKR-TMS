@@ -18,7 +18,6 @@ class RemarkResponse(BaseModel):
     content: str
     created_at: datetime
     created_by: str
-    version: int
     formatted_content: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -30,7 +29,6 @@ class RemarkCreate(BaseModel):
 
 class RemarkUpdate(BaseModel):
     content: str = Field(max_length=2000, description="변경할 메모 내용")
-    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
 # 배송 상태 정의
@@ -122,6 +120,8 @@ class DashboardDetail(DashboardResponse):
 class DashboardListData(BaseModel):
     items: List[DashboardResponse]
     date_range: Dict[str, str]
+    user_role: Optional[str] = None
+    is_admin: Optional[bool] = False
 
 
 # 목록 응답
@@ -143,10 +143,9 @@ class DashboardDetailResponse(BaseResponse):
 class StatusUpdate(BaseModel):
     status: DeliveryStatus = Field(description="변경할 상태")
     is_admin: bool = Field(default=False, description="관리자 권한 사용 여부")
-    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
-# 필드 업데이트 (낙관적 락 추가)
+# 필드 업데이트 
 class FieldsUpdate(BaseModel):
     eta: Optional[datetime] = None
     customer: Optional[str] = Field(None, max_length=50)
@@ -155,11 +154,9 @@ class FieldsUpdate(BaseModel):
     postal_code: Optional[str] = Field(
         None, min_length=5, max_length=5, pattern=r"^\d{5}$"
     )
-    remark: Optional[str] = Field(None, max_length=2000)
-    version: int = Field(description="현재 버전 (낙관적 락을 위함)")
 
 
-# 배차 처리
+# 배차 처리 (비관적 락으로 전환)
 class DriverAssignment(BaseModel):
     dashboard_ids: List[int] = Field(description="대시보드 ID 목록")
     driver_name: str = Field(
@@ -168,21 +165,3 @@ class DriverAssignment(BaseModel):
     driver_contact: str = Field(
         pattern=r"^\d{2,3}-\d{3,4}-\d{4}$", description="배송 담당자 연락처"
     )
-    versions: Dict[int, int] = Field(
-        description="대시보드 ID별 버전 (낙관적 락을 위함)"
-    )
-
-
-# 낙관적 락 충돌 응답
-class OptimisticLockResponse(BaseResponse):
-    conflict: bool = True
-    current_version: int = 0
-
-class LockRequest(BaseModel):
-    """락 요청 스키마"""
-    lock_type: str = Field(description="락 유형 (EDIT, STATUS, ASSIGN, REMARK)")
-
-
-class LockResponse(BaseResponse):
-    """락 응답 스키마"""
-    data: Optional[Dict[str, Any]] = None

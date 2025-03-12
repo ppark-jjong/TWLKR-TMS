@@ -28,7 +28,7 @@ class AuthService:
                     detail="아이디 또는 비밀번호가 잘못되었습니다",
                 )
 
-            # 비밀번호 검증 (password 필드 사용)
+            # 비밀번호 검증 (user_password 필드 사용)
             if not verify_password(login_data.password, user.user_password):
                 log_error(
                     None,
@@ -84,7 +84,6 @@ class AuthService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="인증 처리 중 오류가 발생했습니다",
             )
-
     def refresh_token(self, refresh_token: str) -> Token:
         """리프레시 토큰을 사용하여 액세스 토큰 갱신"""
         try:

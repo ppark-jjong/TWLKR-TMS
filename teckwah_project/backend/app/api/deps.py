@@ -11,10 +11,20 @@ from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
 from app.models.dashboard_model import Dashboard
 from app.schemas.dashboard_schema import StatusUpdate
+from app.services.dashboard_service import DashboardService
+from app.repositories.dashboard_lock_repository import DashboardLockRepository
+from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
+from app.repositories.dashboard_repository import DashboardRepository
+
 
 settings = get_settings()
 
-
+def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
+    """DashboardService 의존성 주입"""
+    repository = DashboardRepository(db)
+    remark_repository = DashboardRemarkRepository(db)
+    lock_repository = DashboardLockRepository(db)
+    return DashboardService(repository, remark_repository, lock_repository)
 async def get_current_user(
     authorization: str = Header(None, alias="Authorization")
 ) -> TokenData:
@@ -53,7 +63,7 @@ async def get_current_user(
 
 
 async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
-    """관리자 권한 체크 - 필요한 경우에만 명시적으로 사용"""
+    """관리자 권한 체크"""
     if current_user.role != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="관리자만 접근할 수 있습니다"

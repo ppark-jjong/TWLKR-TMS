@@ -1,23 +1,8 @@
 // frontend/src/pages/DashboardPage.js
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Layout,
-  DatePicker,
-  Space,
-  Button,
-  Tooltip,
-  Empty,
-  Popconfirm,
-  Input,
-} from 'antd';
-import {
-  ReloadOutlined,
-  PlusOutlined,
-  CarOutlined,
-  DeleteOutlined,
-  SearchOutlined,
-} from '@ant-design/icons';
+import { Layout, DatePicker, Space, Button, Tooltip, Empty } from 'antd';
+import { ReloadOutlined, PlusOutlined, CarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import DashboardTable from '../components/dashboard/DashboardTable';
 import CreateDashboardModal from '../components/dashboard/CreateDashboardModal';
@@ -33,11 +18,10 @@ import { useDateRange } from '../utils/useDateRange';
 import { cancelAllPendingRequests } from '../utils/AxiosConfig';
 
 const { RangePicker } = DatePicker;
-const { Search } = Input;
 
 /**
- * 통합 대시보드 페이지 컴포넌트
- * 사용자 권한에 따라 기능을 제한하여 제공
+ * 대시보드 페이지 컴포넌트
+ * 배송 주문 목록 조회, 필터링, 배차 처리 등 기능 제공
  */
 const DashboardPage = () => {
   // 날짜 범위 커스텀 훅 사용
@@ -54,7 +38,6 @@ const DashboardPage = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchValue, setSearchValue] = useState('');
 
   // 필터링 상태
   const [typeFilter, setTypeFilter] = useState(null);
@@ -72,11 +55,9 @@ const DashboardPage = () => {
     updateDashboard,
     updateMultipleDashboards,
     searchMode,
-    userRole,
   } = useDashboard();
 
   const pageSize = 50;
-  const isAdmin = userRole === 'ADMIN' || user?.user_role === 'ADMIN';
 
   // 컴포넌트 언마운트 시 정리 로직 추가
   useEffect(() => {
@@ -160,46 +141,6 @@ const DashboardPage = () => {
     }
   };
 
-  // 삭제 핸들러 (관리자 전용)
-  // 삭제 핸들러 (관리자 전용)
-  const handleDelete = async () => {
-    if (!isAdmin) {
-      message.error('삭제 권한이 없습니다. 관리자에게 문의하세요.');
-      return;
-    }
-
-    const key = MessageKeys.DASHBOARD.DELETE;
-    try {
-      if (selectedRows.length === 0) {
-        message.warning('삭제할 항목을 선택해주세요');
-        return;
-      }
-
-      message.loading('삭제 처리 중...', key);
-      console.log(
-        '삭제 요청:',
-        selectedRows.map((row) => row.dashboard_id)
-      );
-
-      await DashboardService.deleteDashboards(
-        selectedRows.map((row) => row.dashboard_id)
-      );
-
-      // Context 상태 업데이트
-      removeDashboards(selectedRows.map((row) => row.dashboard_id));
-      setSelectedRows([]);
-      message.loadingToSuccess(
-        `선택한 ${selectedRows.length}개 항목이 삭제되었습니다`,
-        key
-      );
-    } catch (error) {
-      console.error('삭제 처리 실패:', error);
-      message.loadingToError(
-        '삭제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
-        key
-      );
-    }
-  };
   // 행 클릭 핸들러
   const handleRowClick = async (record) => {
     const key = MessageKeys.DASHBOARD.DETAIL;
@@ -262,37 +203,32 @@ const DashboardPage = () => {
       return;
     }
 
-    // 일반 사용자의 경우 대기 상태 항목만 배차 가능
-    if (!isAdmin) {
-      // 선택된 항목 중 대기 상태가 아닌 것이 있는지 확인
-      const invalidItems = selectedRows.filter(
-        (row) => row.status !== 'WAITING'
+    // 선택된 항목 중 대기 상태가 아닌 것이 있는지 확인
+    const invalidItems = selectedRows.filter((row) => row.status !== 'WAITING');
+    if (invalidItems.length > 0) {
+      const orderNos = invalidItems.map((item) => item.order_no).join(', ');
+      message.error(
+        `다음 주문은 대기 상태가 아니어서 배차할 수 없습니다: ${orderNos}`,
+        null,
+        5 // 더 긴 표시 시간 설정
       );
-      if (invalidItems.length > 0) {
-        const orderNos = invalidItems.map((item) => item.order_no).join(', ');
-        message.error(
-          `다음 주문은 대기 상태가 아니어서 배차할 수 없습니다: ${orderNos}`,
-          null,
-          5 // 더 긴 표시 시간 설정
-        );
-        return;
-      }
+      return;
     }
 
     setShowAssignModal(true);
   };
 
   // 주문번호 검색 핸들러 - API 호출 방식
-  const handleSearch = async (value) => {
+  const handleOrderNoSearch = async (value) => {
     if (!value || value.trim() === '') {
       // 검색어가 비어있으면 검색 모드 초기화
       resetSearchMode();
       loadDashboardData(dateRange[0], dateRange[1], true);
-      setSearchValue('');
+      setOrderNoSearch('');
       return;
     }
 
-    setSearchValue(value);
+    setOrderNoSearch(value);
     setCurrentPage(1);
 
     // 검색 중임을 표시
@@ -300,7 +236,7 @@ const DashboardPage = () => {
     message.loading('주문번호 검색 중...', key);
 
     try {
-      // 백엔드 API를 통한 검색 수행
+      // searchByOrderNo 함수 사용(DashboardContext에서 제공)
       const searchResults = await searchByOrderNo(value);
 
       if (
@@ -352,18 +288,6 @@ const DashboardPage = () => {
     setCurrentPage(1);
   };
 
-  // 대시보드 삭제 (관리자 전용)
-  const removeDashboards = (dashboardIds) => {
-    if (!Array.isArray(dashboardIds)) {
-      console.error('removeDashboards: dashboardIds는 배열이어야 합니다');
-      return;
-    }
-    // Context의 상태 업데이트 메서드 호출
-    updateMultipleDashboards(
-      dashboards.filter((dash) => !dashboardIds.includes(dash.dashboard_id))
-    );
-  };
-
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>
@@ -372,33 +296,20 @@ const DashboardPage = () => {
           align="center"
           style={{ width: '100%', justifyContent: 'space-between' }}
         >
-          <Space>
-            <RangePicker
-              value={dateRange}
-              onChange={handleDateRangeChange}
-              style={{ width: 350 }}
-              size="large"
-              allowClear={false}
-              disabledDate={disabledDate}
-              ranges={{
-                오늘: [dayjs(), dayjs()],
-                '최근 3일': [dayjs().subtract(2, 'day'), dayjs()],
-                '최근 7일': [dayjs().subtract(6, 'day'), dayjs()],
-                '최근 30일': [dayjs().subtract(29, 'day'), dayjs()],
-              }}
-            />
-
-            {/* 검색 컴포넌트 - 위치 조정 */}
-            <Search
-              placeholder="주문번호 검색"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onSearch={handleSearch}
-              style={{ width: 200 }}
-              size="large"
-              enterButton={<SearchOutlined />}
-            />
-          </Space>
+          <RangePicker
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            style={{ width: 350 }}
+            size="large"
+            allowClear={false}
+            disabledDate={disabledDate}
+            ranges={{
+              오늘: [dayjs(), dayjs()],
+              '최근 3일': [dayjs().subtract(2, 'day'), dayjs()],
+              '최근 7일': [dayjs().subtract(6, 'day'), dayjs()],
+              '최근 30일': [dayjs().subtract(29, 'day'), dayjs()],
+            }}
+          />
 
           <Space size="middle">
             <Button
@@ -417,28 +328,6 @@ const DashboardPage = () => {
             >
               배차
             </Button>
-
-            {/* 관리자만 삭제 버튼 표시 */}
-            {isAdmin && (
-              <Popconfirm
-                title="선택한 항목을 삭제하시겠습니까?"
-                description={`총 ${selectedRows.length}개 항목이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
-                onConfirm={handleDelete}
-                okText="삭제"
-                cancelText="취소"
-                disabled={selectedRows.length === 0}
-              >
-                <Button
-                  danger
-                  icon={<DeleteOutlined />}
-                  disabled={selectedRows.length === 0}
-                  size="large"
-                >
-                  삭제
-                </Button>
-              </Popconfirm>
-            )}
-
             <Tooltip title="새로고침">
               <Button
                 icon={<ReloadOutlined />}
@@ -465,7 +354,7 @@ const DashboardPage = () => {
           currentPage={currentPage}
           pageSize={pageSize}
           onPageChange={setCurrentPage}
-          isAdminPage={isAdmin}
+          isAdminPage={false}
           // 필터링 관련 props
           typeFilter={typeFilter}
           departmentFilter={departmentFilter}
@@ -474,7 +363,7 @@ const DashboardPage = () => {
           onTypeFilterChange={handleTypeFilter}
           onDepartmentFilterChange={handleDepartmentFilter}
           onWarehouseFilterChange={handleWarehouseFilter}
-          onOrderNoSearchChange={setOrderNoSearch}
+          onOrderNoSearchChange={handleOrderNoSearch}
           onResetFilters={resetFilters}
         />
       )}
@@ -506,7 +395,7 @@ const DashboardPage = () => {
             setSelectedDashboard(null);
           }}
           onSuccess={handleDetailSuccess}
-          isAdmin={isAdmin}
+          isAdmin={false}
         />
       )}
     </Layout.Content>

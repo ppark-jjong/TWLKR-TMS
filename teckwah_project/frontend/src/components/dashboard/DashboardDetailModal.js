@@ -16,7 +16,6 @@ import {
   DatePicker,
   message as antMessage,
 } from 'antd';
-import axios from 'axios';
 import {
   EditOutlined,
   CheckOutlined,
@@ -41,7 +40,6 @@ import {
 import DashboardService from '../../services/DashboardService';
 import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 import dayjs from 'dayjs';
-import LockService from '../../services/LockService';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -112,36 +110,9 @@ const DashboardDetailModal = ({
   const [editingFields, setEditingFields] = useState(false);
   const [currentDashboard, setCurrentDashboard] = useState(dashboard);
   const [selectedStatus, setSelectedStatus] = useState(null);
-  const [remarkLocked, setRemarkLocked] = useState(false);
-  const [lockedBy, setLockedBy] = useState('');
-  const [lockAcquired, setLockAcquired] = useState(false);
-  const [lockError, setLockError] = useState(null);
+
   // 낙관적 락을 위한 버전 관리
   const [currentVersion, setCurrentVersion] = useState(dashboard?.version || 1);
-  // 편집 모드 시작 시 락 획득 시도
-  const startEditingFields = async () => {
-    try {
-      await LockService.acquireLock(dashboard.dashboard_id, 'EDIT');
-      setLockAcquired(true);
-      initFieldsForm();
-      setEditingFields(true);
-    } catch (error) {
-      // 락 획득 실패 처리
-      setLockError(
-        error.response?.data?.detail || '편집을 시작할 수 없습니다.'
-      );
-    }
-  };
-
-  // 편집 취소 시 락 해제
-  const cancelEditingFields = async () => {
-    setEditingFields(false);
-    form.resetFields();
-    if (lockAcquired) {
-      await LockService.releaseLock(dashboard.dashboard_id);
-      setLockAcquired(false);
-    }
-  };
 
   // 필드 수정을 위한 폼 초기화
   const initFieldsForm = () => {
@@ -151,6 +122,7 @@ const DashboardDetailModal = ({
       contact: currentDashboard.contact || '',
       address: currentDashboard.address || '',
       postal_code: currentDashboard.postal_code || '',
+      remark: currentDashboard.remark || '',
       version: currentVersion,
     });
   };
@@ -182,7 +154,6 @@ const DashboardDetailModal = ({
 
     return hasDriverName && hasDriverContact;
   };
-
   // 상태 변경 가능한 상태 목록 가져오기
   const getAvailableStatuses = () => {
     // 관리자는 모든 상태로 변경 가능
@@ -332,38 +303,6 @@ const DashboardDetailModal = ({
     }
   };
 
-  // 메모 수정 시 비관적 락 획득 시도
-  const tryAcquireRemarkLock = async () => {
-    try {
-      setLoading(true);
-      // 비관적 락 획득 시도 API 호출 (가상 - 백엔드 명세에 없음)
-      // 실제 구현 시에는 백엔드에서 제공하는 락 획득 API 사용
-      const response = await axios.post(
-        `/dashboard/${dashboard.dashboard_id}/remark/lock`
-      );
-
-      setEditingRemark(true);
-      message.success('메모 수정 모드가 활성화되었습니다');
-      return true;
-    } catch (error) {
-      // 락 획득 실패 (다른 사용자가 이미 편집 중)
-      if (error.response?.status === 423) {
-        const lockedBy =
-          error.response?.data?.detail?.locked_by || '다른 사용자';
-        setRemarkLocked(true);
-        setLockedBy(lockedBy);
-        message.error(
-          `현재 ${lockedBy}님이 메모를 수정 중입니다. 잠시 후 다시 시도해주세요.`
-        );
-      } else {
-        message.error('메모 수정 모드 활성화에 실패했습니다');
-      }
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleRemarkUpdate = async () => {
     const key = MessageKeys.DASHBOARD.MEMO;
     try {
@@ -389,10 +328,6 @@ const DashboardDetailModal = ({
       setEditingRemark(false);
       message.loadingToSuccess('메모가 업데이트되었습니다', key);
       onSuccess();
-
-      // 비관적 락 해제 (가상 - 백엔드 명세에 없음)
-      // 실제 구현 시에는 백엔드에서 제공하는 락 해제 API 사용
-      await axios.delete(`/dashboard/${dashboard.dashboard_id}/remark/lock`);
     } catch (error) {
       console.error('메모 업데이트 실패:', error);
 
@@ -454,7 +389,7 @@ const DashboardDetailModal = ({
       );
 
       setCurrentDashboard(updatedDashboard);
-      setCurrentVersion(updatedDashboard.version);
+      setCurrentVersion(updatedDashboard.version); // 버전 업데이트
       setEditingFields(false);
       message.loadingToSuccess(
         '주문 정보가 성공적으로 업데이트되었습니다',
@@ -511,6 +446,18 @@ const DashboardDetailModal = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  // 필드 편집 시작
+  const startEditingFields = () => {
+    initFieldsForm();
+    setEditingFields(true);
+  };
+
+  // 필드 편집 취소
+  const cancelEditingFields = () => {
+    setEditingFields(false);
+    form.resetFields();
   };
 
   return (
@@ -642,7 +589,14 @@ const DashboardDetailModal = ({
                 <Input placeholder="010-1234-5678" />
               </Form.Item>
 
-              {/* 메모 필드는 제거 (백엔드 요구사항서에 따라 별도 수정 기능 사용) */}
+              <Form.Item name="remark" label="메모">
+                <TextArea
+                  rows={5}
+                  placeholder="메모를 입력하세요"
+                  maxLength={2000}
+                  showCount
+                />
+              </Form.Item>
             </Col>
           </Row>
 
@@ -837,15 +791,8 @@ const DashboardDetailModal = ({
                 </div>
                 <Button
                   icon={<EditOutlined />}
-                  onClick={() =>
-                    remarkLocked
-                      ? message.warning(
-                          `현재 ${lockedBy}님이 메모를 수정 중입니다`
-                        )
-                      : tryAcquireRemarkLock()
-                  }
+                  onClick={() => setEditingRemark(true)}
                   size="large"
-                  disabled={remarkLocked}
                 >
                   메모 수정
                 </Button>

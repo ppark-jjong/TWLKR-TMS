@@ -16,6 +16,7 @@ class DashboardRepository:
     def __init__(self, db: Session):
         self.db = db
         self.kr_timezone = pytz.timezone("Asia/Seoul")
+        self.lock_repository = DashboardLockRepository(db)
 
     def get_dashboards_by_date_range(
         self, start_time: datetime, end_time: datetime
@@ -155,35 +156,32 @@ class DashboardRepository:
                 f"대시보드 상세 조회 (비관적 락): {dashboard_id}, 사용자: {user_id}, 락 타입: {lock_type}"
             )
 
-            # DashboardLockRepository 인스턴스 생성
-            lock_repository = DashboardLockRepository(self.db)
-
             # 락 획득 시도
             try:
-                lock = lock_repository.acquire_lock(dashboard_id, user_id, lock_type)
+                lock = self.lock_repository.acquire_lock(dashboard_id, user_id, lock_type)
                 if not lock:
                     raise PessimisticLockException("다른 사용자가 수정 중입니다.")
             except PessimisticLockException as e:
                 log_info(f"락 획득 실패: {e.detail}")
                 raise
 
-            # SELECT FOR UPDATE로 DB 레벨 락 획득 - with_for_update 호출 위치 수정
+            # SELECT FOR UPDATE로 DB 레벨 락 획득
             try:
                 result = (
                     self.db.query(Dashboard)
                     .filter(Dashboard.dashboard_id == dashboard_id)
-                    .with_for_update(nowait=True)  # 위치 변경됨
+                    .with_for_update(nowait=True)
                     .first()
                 )
             except exc.OperationalError as e:
                 # 락 획득 실패 시 이미 획득한 락 해제
-                lock_repository.release_lock(dashboard_id, user_id)
+                self.lock_repository.release_lock(dashboard_id, user_id)
                 log_error(e, "대시보드 락 획득 실패", {"id": dashboard_id})
                 raise PessimisticLockException("데이터베이스 락을 획득할 수 없습니다.")
 
             if not result:
                 # 락을 획득했지만 데이터가 없는 경우 락 해제
-                lock_repository.release_lock(dashboard_id, user_id)
+                self.lock_repository.release_lock(dashboard_id, user_id)
                 log_info(f"대시보드 상세 조회 결과 없음 (락 해제): ID={dashboard_id}")
                 return None
 
@@ -199,8 +197,7 @@ class DashboardRepository:
             log_error(e, "대시보드 조회 실패", {"id": dashboard_id})
             # 에러 발생 시 락 해제 시도
             try:
-                lock_repository = DashboardLockRepository(self.db)
-                lock_repository.release_lock(dashboard_id, user_id)
+                self.lock_repository.release_lock(dashboard_id, user_id)
             except:
                 log_error(None, "락 해제 실패", {"id": dashboard_id})
             raise
@@ -243,7 +240,6 @@ class DashboardRepository:
 
         log_info(f"여러 대시보드 락 획득 시도: {dashboard_ids}, 사용자: {user_id}")
 
-        lock_repository = DashboardLockRepository(self.db)
         acquired_ids = []
         failed_ids = []
 
@@ -251,7 +247,7 @@ class DashboardRepository:
             # 각 대시보드에 대해 락 획득 시도
             for dashboard_id in dashboard_ids:
                 try:
-                    lock = lock_repository.acquire_lock(
+                    lock = self.lock_repository.acquire_lock(
                         dashboard_id, user_id, lock_type
                     )
                     if lock:
@@ -265,7 +261,7 @@ class DashboardRepository:
             if failed_ids:
                 log_info(f"일부 대시보드 락 획득 실패: {failed_ids}, 모든 락 해제")
                 for acquired_id in acquired_ids:
-                    lock_repository.release_lock(acquired_id, user_id)
+                    self.lock_repository.release_lock(acquired_id, user_id)
                 return []
 
             return acquired_ids
@@ -275,7 +271,7 @@ class DashboardRepository:
             log_error(e, "여러 대시보드 락 획득 실패", {"ids": dashboard_ids})
             for acquired_id in acquired_ids:
                 try:
-                    lock_repository.release_lock(acquired_id, user_id)
+                    self.lock_repository.release_lock(acquired_id, user_id)
                 except:
                     pass
             return []
@@ -329,28 +325,16 @@ class DashboardRepository:
             log_error(e, "대시보드 생성 실패", dashboard_data)
             raise
 
-    def update_dashboard_status(
-        self,
-        dashboard_id: int,
-        status: str,
-        current_time: datetime,
-        expected_version: int,
+    # 비관적 락 패턴으로 대체되는 메서드들
+    # 낙관적 락 검증 제거 버전
+    def update_dashboard_status_without_version(
+        self, dashboard_id: int, status: str, current_time: datetime
     ) -> Optional[Dashboard]:
-        """상태 업데이트 (낙관적 락만 적용)"""
+        """상태 업데이트 (비관적 락만 적용)"""
         try:
             dashboard = self.get_dashboard_detail(dashboard_id)
             if not dashboard:
                 return None
-
-            # 낙관적 락 검증
-            if dashboard.version != expected_version:
-                log_info(
-                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
-                )
-                raise OptimisticLockException(
-                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                    current_version=dashboard.version,
-                )
 
             old_status = dashboard.status
             dashboard.status = status
@@ -365,7 +349,7 @@ class DashboardRepository:
                 dashboard.depart_time = None
                 dashboard.complete_time = None
 
-            # 버전 증가
+            # 버전 증가 (데이터 무결성 추적용)
             dashboard.version += 1
 
             self.db.commit()
@@ -378,115 +362,27 @@ class DashboardRepository:
 
             return dashboard
 
-        except OptimisticLockException:
-            self.db.rollback()
-            raise
         except SQLAlchemyError as e:
             self.db.rollback()
             log_error(e, "상태 업데이트 실패", {"id": dashboard_id, "status": status})
             raise
 
-    def update_dashboard_status_with_lock(
-        self,
-        dashboard_id: int,
-        status: str,
-        current_time: datetime,
-        expected_version: int,
-        user_id: str,
+    def update_dashboard_fields_without_version(
+        self, dashboard_id: int, fields: Dict[str, Any]
     ) -> Optional[Dashboard]:
-        """상태 업데이트 (낙관적 락 + 비관적 락 적용)"""
-        try:
-            # 비관적 락으로 대시보드 조회
-            dashboard = self.get_dashboard_detail_with_lock(
-                dashboard_id, user_id, "STATUS"
-            )
-            if not dashboard:
-                return None
-
-            # 낙관적 락 검증
-            if dashboard.version != expected_version:
-                log_info(
-                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
-                )
-                # 락 해제
-                lock_repository = DashboardLockRepository(self.db)
-                lock_repository.release_lock(dashboard_id, user_id)
-
-                raise OptimisticLockException(
-                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                    current_version=dashboard.version,
-                )
-
-            old_status = dashboard.status
-            dashboard.status = status
-
-            # 상태 변경에 따른 시간 업데이트
-            if status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
-                dashboard.depart_time = current_time
-                dashboard.complete_time = None
-            elif status in ["COMPLETE", "ISSUE"]:
-                dashboard.complete_time = current_time
-            elif status in ["WAITING", "CANCEL"]:
-                dashboard.depart_time = None
-                dashboard.complete_time = None
-
-            # 버전 증가
-            dashboard.version += 1
-
-            self.db.commit()
-            self.db.refresh(dashboard)
-
-            # 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            lock_repository.release_lock(dashboard_id, user_id)
-
-            # 상태 업데이트 결과 로깅
-            log_info(
-                f"상태 업데이트 완료: ID={dashboard.dashboard_id}, {old_status} -> {status}, 버전={dashboard.version}"
-            )
-
-            return dashboard
-
-        except OptimisticLockException:
-            self.db.rollback()
-            # 락 해제는 이미 전에 수행됨
-            raise
-        except PessimisticLockException:
-            self.db.rollback()
-            raise
-        except SQLAlchemyError as e:
-            self.db.rollback()
-            # 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            lock_repository.release_lock(dashboard_id, user_id)
-            log_error(e, "상태 업데이트 실패", {"id": dashboard_id, "status": status})
-            raise
-
-    def update_dashboard_fields(
-        self, dashboard_id: int, fields: Dict[str, Any], expected_version: int
-    ) -> Optional[Dashboard]:
-        """대시보드 필드 업데이트 (낙관적 락 적용)"""
+        """대시보드 필드 업데이트 (비관적 락만 적용)"""
         try:
             dashboard = self.get_dashboard_detail(dashboard_id)
             if not dashboard:
                 return None
 
-            # 낙관적 락 검증
-            if dashboard.version != expected_version:
-                log_info(
-                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
-                )
-                raise OptimisticLockException(
-                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                    current_version=dashboard.version,
-                )
-
             # 필드 업데이트
             for field, value in fields.items():
                 if hasattr(dashboard, field) and field != "version":
                     setattr(dashboard, field, value)
 
-            dashboard.version += 1  # 버전 증가
+            # 버전 증가 (데이터 무결성 추적용)
+            dashboard.version += 1
 
             self.db.commit()
             self.db.refresh(dashboard)
@@ -498,155 +394,37 @@ class DashboardRepository:
 
             return dashboard
 
-        except OptimisticLockException:
-            self.db.rollback()
-            raise
         except SQLAlchemyError as e:
             self.db.rollback()
             log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
             raise
 
-    def update_dashboard_fields_with_lock(
-        self,
-        dashboard_id: int,
-        fields: Dict[str, Any],
-        expected_version: int,
-        user_id: str,
-    ) -> Optional[Dashboard]:
-        """대시보드 필드 업데이트 (낙관적 락 + 비관적 락 적용)"""
-        try:
-            # 비관적 락으로 대시보드 조회
-            dashboard = self.get_dashboard_detail_with_lock(
-                dashboard_id, user_id, "EDIT"
-            )
-            if not dashboard:
-                return None
-
-            # 낙관적 락 검증
-            if dashboard.version != expected_version:
-                log_info(
-                    f"낙관적 락 충돌 발생: 대시보드 ID {dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
-                )
-                # 락 해제
-                lock_repository = DashboardLockRepository(self.db)
-                lock_repository.release_lock(dashboard_id, user_id)
-
-                raise OptimisticLockException(
-                    f"다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-                    current_version=dashboard.version,
-                )
-
-            # 필드 업데이트
-            for field, value in fields.items():
-                if hasattr(dashboard, field) and field != "version":
-                    setattr(dashboard, field, value)
-
-            dashboard.version += 1  # 버전 증가
-
-            self.db.commit()
-            self.db.refresh(dashboard)
-
-            # 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            lock_repository.release_lock(dashboard_id, user_id)
-
-            # 필드 업데이트 결과 로깅
-            log_info(
-                f"필드 업데이트 완료: ID={dashboard.dashboard_id}, 필드={list(fields.keys())}, 버전={dashboard.version}"
-            )
-
-            return dashboard
-
-        except OptimisticLockException:
-            self.db.rollback()
-            # 락 해제는 이미 전에 수행됨
-            raise
-        except PessimisticLockException:
-            self.db.rollback()
-            raise
-        except SQLAlchemyError as e:
-            self.db.rollback()
-            # 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            lock_repository.release_lock(dashboard_id, user_id)
-            log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
-            raise
-
-    def assign_driver_with_lock(
+    def assign_driver_without_version(
         self,
         dashboard_ids: List[int],
         driver_name: str,
-        driver_contact: str,
-        versions: Dict[int, int],
-        user_id: str,
+        driver_contact: str
     ) -> List[Dashboard]:
-        """배차 처리 (낙관적 락 + 비관적 락 적용)"""
+        """배차 처리 (비관적 락만 적용)"""
         try:
-            log_info(f"배차 처리 (락 적용): {len(dashboard_ids)}건, 사용자: {user_id}")
+            log_info(f"배차 처리 (락 적용): {len(dashboard_ids)}건")
 
-            # 1. 먼저 모든 대시보드에 락 획득 시도
-            acquired_ids = self.acquire_locks_for_multiple_dashboards(
-                dashboard_ids, user_id, "ASSIGN"
-            )
-            if not acquired_ids or len(acquired_ids) != len(dashboard_ids):
-                log_info(f"일부 대시보드 락 획득 실패, 배차 처리 중단")
-                raise PessimisticLockException(f"다른 사용자가 배차 중입니다.")
-
-            # 2. 대상 대시보드 조회 (이미 락이 걸려있음)
+            # 대상 대시보드 조회 (이미 락이 걸려있다고 가정)
             dashboards = self.get_dashboards_by_ids(dashboard_ids)
             if not dashboards:
-                # 락 해제 후 종료
-                lock_repository = DashboardLockRepository(self.db)
-                for dashboard_id in acquired_ids:
-                    lock_repository.release_lock(dashboard_id, user_id)
                 return []
 
             successful_ids = []
-            failed_ids = []
 
-            # 3. 각 대시보드에 대해 낙관적 락 검증 후 배차 정보 업데이트
+            # 각 대시보드에 대해 배차 정보 업데이트
             for dashboard in dashboards:
-                if dashboard.dashboard_id not in versions:
-                    failed_ids.append(dashboard.dashboard_id)
-                    continue
-
-                expected_version = versions[dashboard.dashboard_id]
-
-                # 낙관적 락 검증
-                if dashboard.version != expected_version:
-                    log_info(
-                        f"낙관적 락 충돌 발생: 대시보드 ID {dashboard.dashboard_id}, 예상 버전 {expected_version}, 실제 버전 {dashboard.version}"
-                    )
-                    failed_ids.append(dashboard.dashboard_id)
-                    continue
-
                 # 배차 정보 업데이트
                 dashboard.driver_name = driver_name
                 dashboard.driver_contact = driver_contact
-                dashboard.version += 1  # 버전 증가
+                dashboard.version += 1  # 버전 증가 (데이터 무결성 추적용)
                 successful_ids.append(dashboard.dashboard_id)
 
-            if failed_ids:
-                # 실패한 항목이 있으면 롤백하고 예외 발생
-                self.db.rollback()
-                log_info(f"배차 처리 실패 항목: {failed_ids}")
-
-                # 모든 락 해제
-                lock_repository = DashboardLockRepository(self.db)
-                for dashboard_id in acquired_ids:
-                    lock_repository.release_lock(dashboard_id, user_id)
-
-                raise OptimisticLockException(
-                    f"일부 항목이 다른 사용자에 의해 수정되었습니다. 최신 데이터를 확인하세요.",
-                    current_version=0,  # 프론트엔드에서 재조회 하도록 함
-                )
-
             self.db.commit()
-
-            # 모든 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            for dashboard_id in acquired_ids:
-                lock_repository.release_lock(dashboard_id, user_id)
 
             # 배차 처리 결과 로깅
             log_info(f"배차 처리 완료: {len(successful_ids)}건")
@@ -654,24 +432,8 @@ class DashboardRepository:
             # 업데이트된 대시보드 다시 조회하여 반환
             return self.get_dashboards_by_ids(successful_ids)
 
-        except OptimisticLockException:
-            # 모든 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            for dashboard_id in dashboard_ids:
-                lock_repository.release_lock(dashboard_id, user_id)
-            raise
-        except PessimisticLockException:
-            # 모든 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            for dashboard_id in dashboard_ids:
-                lock_repository.release_lock(dashboard_id, user_id)
-            raise
         except SQLAlchemyError as e:
             self.db.rollback()
-            # 모든 락 해제
-            lock_repository = DashboardLockRepository(self.db)
-            for dashboard_id in dashboard_ids:
-                lock_repository.release_lock(dashboard_id, user_id)
             log_error(e, "배차 처리 실패", {"ids": dashboard_ids})
             raise
 

@@ -14,12 +14,13 @@ export function useDateRange(defaultDays = 7) {
 
   // 날짜 범위 로드
   useEffect(() => {
+    // frontend/src/utils/useDateRange.js - 수정 부분
     const fetchDateRange = async () => {
       try {
         setLoading(true);
         const response = await VisualizationService.getDateRange();
 
-        if (response && response.success && response.date_range) {
+        if (response && response.date_range) {
           const dateRangeInfo = response.date_range;
           setAvailableDateRange(dateRangeInfo);
           console.log('조회 가능 날짜 범위:', dateRangeInfo);

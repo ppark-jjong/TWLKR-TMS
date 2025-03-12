@@ -5,11 +5,12 @@ import { STATUS_TYPES } from '../utils/Constants';
 
 class DashboardService {
   /**
-   * 대시보드 목록 조회 (통합 API)
+   * 대시보드 목록 조회 (ETA 기준)
    * @param {dayjs} startDate - 시작 날짜
    * @param {dayjs} endDate - 종료 날짜
    * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
    */
+  // frontend/src/services/DashboardService.js
   async getDashboardList(startDate, endDate) {
     try {
       // 날짜 형식 확인
@@ -26,17 +27,38 @@ class DashboardService {
 
       console.log('대시보드 목록 응답:', response);
 
-      // 백엔드 응답 구조 확인
+      // 응답 데이터 구조 유연하게 처리
       if (!response.data) {
         console.error('응답에 데이터가 없습니다');
-        return { items: [], date_range: null, user_role: 'USER' };
+        return { items: [], date_range: null };
       }
 
-      // 백엔드 응답 구조 처리
-      const responseData = response.data.data || response.data;
-      const items = responseData.items || [];
-      const dateRange = responseData.date_range || response.data.date_range;
-      const userRole = responseData.user_role || 'USER';
+      // 다양한 응답 구조 처리
+      let items = [];
+      let dateRange = null;
+
+      // 백엔드 프롬프트에 정의된 성공 응답 구조
+      if (response.data.success && response.data.data) {
+        // { success: true, message: "...", data: { items: [...], date_range: {...} } }
+        items = response.data.data.items || [];
+        dateRange = response.data.data.date_range || response.data.date_range;
+      }
+      // 응답 구조가 다른 경우 대안적 처리
+      else if (response.data.items) {
+        // { items: [...], date_range: {...} } 구조인 경우
+        items = response.data.items;
+        dateRange = response.data.date_range;
+      } else if (Array.isArray(response.data)) {
+        // 배열 형태로 직접 반환된 경우
+        items = response.data;
+      } else if (response.data.data) {
+        // { data: [...] } 구조인 경우
+        items = Array.isArray(response.data.data) ? response.data.data : [];
+        dateRange = response.data.date_range;
+      } else {
+        console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
+        return { items: [], date_range: null };
+      }
 
       // 날짜 범위로 필터링 (프론트엔드에서 처리)
       const filteredItems = this.filterByDateRange(items, startDate, endDate);
@@ -47,10 +69,68 @@ class DashboardService {
       return {
         items: sortedItems,
         date_range: dateRange,
-        user_role: userRole,
       };
     } catch (error) {
       console.error('대시보드 목록 조회 실패:', error.response?.data || error);
+      throw error;
+    }
+  }
+
+  /**
+   * 관리자 대시보드 목록 조회
+   * @param {dayjs} startDate - 시작 날짜
+   * @param {dayjs} endDate - 종료 날짜
+   * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
+   */
+  async getAdminDashboardList(startDate, endDate) {
+    try {
+      // 날짜 형식 확인
+      const formattedStartDate = startDate.format('YYYY-MM-DD');
+      const formattedEndDate = endDate.format('YYYY-MM-DD');
+      console.log(
+        '관리자 대시보드 요청 날짜 범위:',
+        formattedStartDate,
+        '~',
+        formattedEndDate
+      );
+
+      const response = await axios.get('/dashboard/admin/list', {
+        params: {
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+        },
+      });
+
+      console.log('관리자 대시보드 목록 응답:', response.data);
+
+      // 응답 구조 확인 및 안전한 데이터 반환
+      if (response.data && response.data.success) {
+        const items = response.data.data?.items || [];
+        const dateRange =
+          response.data.data?.date_range || response.data.date_range;
+
+        // 날짜 범위로 필터링 (프론트엔드에서 처리)
+        const filteredItems = this.filterByDateRange(items, startDate, endDate);
+
+        // 상태와 ETA 기준으로 정렬
+        const sortedItems = this.sortDashboardsByStatus(filteredItems);
+
+        return {
+          items: sortedItems,
+          date_range: dateRange,
+        };
+      } else {
+        console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
+        return {
+          items: [],
+          date_range: null,
+        };
+      }
+    } catch (error) {
+      console.error(
+        '관리자 대시보드 목록 조회 실패:',
+        error.response?.data || error
+      );
       throw error;
     }
   }
@@ -69,14 +149,14 @@ class DashboardService {
 
       console.log('주문번호 검색 응답:', response.data);
 
-      // 백엔드 응답 구조 처리
-      const responseData = response.data.data || response.data;
-      const items = responseData.items || [];
-
-      return {
-        items: this.sortDashboardsByStatus(items),
-        user_role: responseData.user_role || 'USER',
-      };
+      // 응답 구조 확인 및 안전한 데이터 반환
+      if (response.data && response.data.success) {
+        const items = response.data.data?.items || [];
+        return this.sortDashboardsByStatus(items);
+      } else {
+        console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
+        return [];
+      }
     } catch (error) {
       console.error('주문번호 검색 실패:', error.response?.data || error);
       throw error;
@@ -150,17 +230,9 @@ class DashboardService {
       const response = await axios.get(`/dashboard/${dashboardId}`);
       console.log('대시보드 상세 정보:', response.data);
 
-      // 백엔드 응답 구조 처리
+      // 응답 구조 확인 및 안전한 데이터 반환
       if (response.data && response.data.success) {
-        // formatted_content 필드 NULL 처리
-        const data = response.data.data;
-        if (data && data.remarks) {
-          data.remarks = data.remarks.map((remark) => ({
-            ...remark,
-            formatted_content: remark.formatted_content || '',
-          }));
-        }
-        return data;
+        return response.data.data;
       } else {
         throw new Error('상세 정보 조회에 실패했습니다');
       }
@@ -181,7 +253,7 @@ class DashboardService {
       const response = await axios.post('/dashboard', dashboardData);
       console.log('대시보드 생성 응답:', response.data);
 
-      // 백엔드 응답 구조 확인 및 안전한 데이터 반환
+      // 응답 구조 확인 및 안전한 데이터 반환
       if (response.data && response.data.success) {
         return response.data.data;
       } else {

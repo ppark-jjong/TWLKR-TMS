@@ -54,8 +54,9 @@ def decode_token(token: str, is_refresh_token: bool = False) -> Dict:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """비밀번호 검증"""
     try:
+        # 해시된 비밀번호와 평문 비밀번호 비교
         return bcrypt.checkpw(
-            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+            plain_password.encode('utf-8'), hashed_password.encode('utf-8')
         )
     except Exception as e:
         log_error(e, "비밀번호 검증 실패")
