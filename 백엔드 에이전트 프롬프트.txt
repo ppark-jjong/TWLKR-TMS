@@ -1,797 +1,578 @@
-배송 관제 시스템 API 명세서
+1. 시스템 개요
+1.1 서비스 목적
 
-개요
-이 문서는 배송 관제 시스템의 백엔드 API에 대한 명세를 포함하고 있습니다. 모든 API는 RESTful 원칙을 따르며, JSON 형식으로 데이터를 주고받습니다. 시간대는 한국 시간(KST, UTC+9)을 기준으로 합니다.
+기업 내부 배송 실시간 관제 및 데이터 시각화 서비스
+ETA(예상 도착 시간) 기준 주문 관리 및 모니터링
+시간대별 주문 분석 및 효율적인 배차 관리
 
-기본 URL
-http://localhost:8000
+1.2 주요 특징
 
-인증 방식
-JWT(JSON Web Token) 기반 인증을 사용합니다. 인증이 필요한 API 호출 시 Authorization 헤더에 접두사 "Bearer "와 함께 토큰을 포함해야 합니다.
-Authorization: Bearer {access_token}
+실시간 배송 상태 관리 (대기, 진행, 완료, 이슈, 취소)
+배차 처리 및 담당자 배정
+권한 기반 접근 제어 (일반 사용자/관리자)
+낙관적 락과 비관적 락을 활용한 동시성 제어
+대시보드와 메모 관리 기능 분리
 
-인증 API
-로그인 (POST /auth/login)
-사용자 인증 및 토큰 발급을 위한 API입니다.
-요청
-{
-  "user_id": "user123",
-  "password": "password123"
+2. API 공통 규칙
+2.1 기본 응답 형식
+jsonCopy{
+  "success": true/false,
+  "message": "작업 결과 메시지",
+  "data": { /* 응답 데이터 */ }
 }
-응답
-{
+2.2 인증 헤더
+
+모든 API 요청에 JWT 토큰을 포함해야 함
+형식: Authorization: Bearer {access_token}
+
+2.3 오류 응답 코드
+
+400 Bad Request: 요청 데이터 형식 오류
+401 Unauthorized: 인증 실패/토큰 만료
+403 Forbidden: 권한 부족
+404 Not Found: 리소스 없음
+409 Conflict: 낙관적 락 충돌
+423 Locked: 비관적 락 충돌
+500 Internal Server Error: 서버 내부 오류
+
+2.4 날짜/시간 형식
+
+요청/응답 데이터: ISO 8601 형식 (YYYY-MM-DDThh:mm:ss)
+쿼리 파라미터: YYYY-MM-DD 형식
+시간대: KST (한국 표준시)
+
+3. 인증 API
+3.1 로그인
+
+URL: POST /auth/login
+설명: 사용자 인증 및 토큰 발급
+요청:
+jsonCopy{
+  "user_id": "사용자ID",
+  "password": "비밀번호"
+}
+
+응답:
+jsonCopy{
+  "success": true,
+  "message": "로그인 성공",
   "token": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "access_token": "JWT토큰",
+    "refresh_token": "JWT토큰"
   },
   "user": {
-    "user_id": "user123",
-    "user_department": "CS",
-    "user_role": "USER"
+    "user_id": "사용자ID",
+    "user_department": "CS|HES|LENOVO",
+    "user_role": "ADMIN|USER"
   }
 }
 
-백엔드 로직
 
-사용자 ID로 데이터베이스에서 사용자 정보 조회
-비밀번호 검증 (bcrypt 해시 비교)
-검증 성공 시 JWT 토큰(access, refresh) 발급
-Refresh 토큰은 데이터베이스에 저장 (사용자당 하나만 유효)
-사용자 정보와 토큰 반환
+3.2 세션 확인
 
-세션 체크 (GET /auth/check-session)
-현재 세션의 유효성을 확인하는 API입니다.
-요청
-헤더에 Authorization: Bearer {access_token} 포함
-응답
-{
+URL: GET /auth/check-session
+설명: 현재 토큰의 유효성 확인
+헤더: Authorization: Bearer {access_token}
+응답:
+jsonCopy{
   "success": true,
   "user": {
-    "user_id": "user123",
-    "user_department": "CS",
-    "user_role": "USER"
+    "user_id": "사용자ID",
+    "user_department": "CS|HES|LENOVO",
+    "user_role": "ADMIN|USER"
   }
 }
-백엔드 로직
 
-JWT 토큰 검증 (서명, 만료 시간)
-토큰 페이로드에서 사용자 정보 추출
-성공 시 사용자 정보 반환
 
-토큰 갱신 (POST /auth/refresh)
-만료된 액세스 토큰을 새로운 토큰으로 갱신하는 API입니다.
-요청
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+3.3 토큰 갱신
+
+URL: POST /auth/refresh
+설명: 리프레시 토큰으로 액세스 토큰 갱신
+요청:
+jsonCopy{
+  "refresh_token": "JWT리프레시토큰"
 }
-응답
-{
+
+응답:
+jsonCopy{
   "success": true,
   "message": "토큰이 갱신되었습니다",
   "token": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "access_token": "새로운JWT토큰",
+    "refresh_token": "새로운리프레시토큰"
   }
 }
-백엔드 로직
 
-Refresh 토큰 검증 (서명, 만료 시간)
-데이터베이스에서 해당 토큰의 유효성 확인
-새로운 Access 토큰과 Refresh 토큰 발급
-기존 Refresh 토큰은 무효화하고 새 토큰 저장
-새 토큰 반환
 
-로그아웃 (POST /auth/logout)
-현재 세션을 종료하고 토큰을 무효화하는 API입니다.
-요청
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+3.4 로그아웃
+
+URL: POST /auth/logout
+설명: 리프레시 토큰 제거를 통한 로그아웃
+요청:
+jsonCopy{
+  "refresh_token": "JWT리프레시토큰"
 }
-응답
-{
+
+응답:
+jsonCopy{
   "success": true,
   "message": "로그아웃이 완료되었습니다"
 }
-백엔드 로직
-
-데이터베이스에서 refresh_token 삭제
-성공 여부 반환
 
 
-대시보드 API
-대시보드 목록 조회 (GET /dashboard/list)
-날짜 범위를 기준으로 대시보드 목록을 조회하는 API입니다.
-요청 파라미터
+4. 대시보드 API
+4.1 대시보드 목록 조회
 
-start_date: 시작 날짜 (YYYY-MM-DD)
-end_date: 종료 날짜 (YYYY-MM-DD)
+URL: GET /dashboard/list
+설명: ETA 기준 대시보드 목록 조회 (권한 기반)
+쿼리 파라미터:
 
-응답
-{
+date: 단일 날짜(YYYY-MM-DD) - 선택적
+start_date: 시작일(YYYY-MM-DD) - 선택적
+end_date: 종료일(YYYY-MM-DD) - 선택적
+
+
+응답:
+jsonCopy{
   "success": true,
   "message": "데이터를 조회했습니다",
   "data": {
     "date_range": {
-      "oldest_date": "2025-01-01",
-      "latest_date": "2025-03-11"
+      "oldest_date": "YYYY-MM-DD",
+      "latest_date": "YYYY-MM-DD"
     },
     "items": [
       {
-        "dashboard_id": 1,
-        "type": "DELIVERY",
-        "order_no": "12345-6789",
-        "status": "WAITING",
-        "department": "CS",
-        "warehouse": "SEOUL",
-        "sla": "표준",
-        "eta": "2025-03-10T14:00:00+09:00",
-        "create_time": "2025-03-09T10:30:00+09:00",
-        "depart_time": null,
-        "customer": "홍길동",
-        "region": "서울 강남구 삼성동",
-        "driver_name": null,
-        "version": 1
+        "dashboard_id": 123,
+        "type": "DELIVERY|RETURN",
+        "department": "CS|HES|LENOVO",
+        "warehouse": "SEOUL|BUSAN|GWANGJU|DAEJEON",
+        "status": "WAITING|IN_PROGRESS|COMPLETE|ISSUE|CANCEL",
+        "order_no": "12345-67890",
+        "eta": "YYYY-MM-DDThh:mm:ss",
+        "create_time": "YYYY-MM-DDThh:mm:ss",
+        "depart_time": "YYYY-MM-DDThh:mm:ss",
+        "customer": "고객명",
+        "region": "서울 강남구 역삼동",
+        "driver_name": "배송기사명",
+        "version": 1,
+        "sla": "표준|특급|지정"
       }
-      // ... 더 많은 항목
+    ],
+    "user_role": "ADMIN|USER" // 추가: 권한 정보 포함
+  }
+}
+
+
+4.2 관리자 대시보드 목록 조회 (레거시 API)
+
+URL: GET /dashboard/admin/list
+설명: 관리자 전용 대시보드 목록 (4.1과 동일한 데이터 형식)
+참고: 프론트엔드 통합 시 /dashboard/list로 통일 예정
+
+4.3 대시보드 생성
+
+URL: POST /dashboard
+설명: 신규 배송 주문 생성 (메모 저장 포함)
+요청:
+jsonCopy{
+  "type": "DELIVERY|RETURN",
+  "warehouse": "SEOUL|BUSAN|GWANGJU|DAEJEON",
+  "order_no": "12345-67890",
+  "eta": "YYYY-MM-DDThh:mm:ss",
+  "sla": "표준|특급|지정",
+  "postal_code": "12345",
+  "address": "상세 주소",
+  "customer": "고객명",
+  "contact": "010-1234-5678",
+  "remark": "메모 내용"
+}
+
+응답: 생성된 대시보드 상세 정보 (4.4 참조)
+중요 기능:
+
+remark 필드가 있으면 별도의 DashboardRemark 테이블에 자동 저장
+메모 작성자는 API 호출한 사용자로 설정됨
+
+
+
+4.4 대시보드 상세 조회
+
+URL: GET /dashboard/{dashboard_id}
+설명: 특정 대시보드의 상세 정보 조회
+응답:
+jsonCopy{
+  "success": true,
+  "message": "상세 정보를 조회했습니다",
+  "data": {
+    "dashboard_id": 123,
+    "type": "DELIVERY|RETURN",
+    "department": "CS|HES|LENOVO",
+    "warehouse": "SEOUL|BUSAN|GWANGJU|DAEJEON",
+    "status": "WAITING|IN_PROGRESS|COMPLETE|ISSUE|CANCEL",
+    "order_no": "12345-67890",
+    "eta": "YYYY-MM-DDThh:mm:ss",
+    "create_time": "YYYY-MM-DDThh:mm:ss",
+    "depart_time": "YYYY-MM-DDThh:mm:ss",
+    "complete_time": "YYYY-MM-DDThh:mm:ss",
+    "postal_code": "12345",
+    "address": "상세 주소",
+    "customer": "고객명",
+    "contact": "010-1234-5678",
+    "driver_name": "배송기사명",
+    "driver_contact": "010-1234-5678",
+    "region": "서울 강남구 역삼동",
+    "city": "서울",
+    "county": "강남구",
+    "district": "역삼동",
+    "distance": 15,
+    "duration_time": 45,
+    "version": 1,
+    "sla": "표준|특급|지정",
+    "remarks": [
+      {
+        "remark_id": 456,
+        "dashboard_id": 123,
+        "content": "메모 내용",
+        "created_at": "YYYY-MM-DDThh:mm:ss",
+        "created_by": "작성자ID",
+        "version": 1,
+        "formatted_content": "메모 내용"
+      }
     ]
   }
 }
 
-백엔드 로직
 
-요청 파라미터에서 날짜 범위 파싱
-날짜 범위에 해당하는 대시보드 데이터 조회 (ETA 기준)
-날짜 범위 정보와 대시보드 목록 반환
-대시보드 목록은 상태에 따라 우선순위 정렬 (대기 > 진행 중 > 완료/이슈/취소)
+4.5 상태 업데이트
 
-대시보드 상세 조회 (GET /dashboard/{dashboard_id})
-특정 대시보드의 상세 정보를 조회하는 API입니다.
-요청 파라미터
-
-dashboard_id: 대시보드 ID (path parameter)
-
-응답
-{
-  "success": true,
-  "message": "상세 정보를 조회했습니다",
-  "data": {
-    "dashboard_id": 1,
-    "type": "DELIVERY",
-    "order_no": "12345-6789",
-    "status": "WAITING",
-    "department": "CS",
-    "warehouse": "SEOUL",
-    "sla": "표준",
-    "eta": "2025-03-10T14:00:00+09:00",
-    "create_time": "2025-03-09T10:30:00+09:00",
-    "depart_time": null,
-    "complete_time": null,
-    "postal_code": "12345",
-    "city": "서울",
-    "county": "강남구",
-    "district": "삼성동",
-    "region": "서울 강남구 삼성동",
-    "distance": 15,
-    "duration_time": 45,
-    "address": "서울 강남구 삼성동 123-45 삼성타워 1층",
-    "customer": "홍길동",
-    "contact": "010-1234-5678",
-    "driver_name": null,
-    "driver_contact": null,
-    "version": 1,
-    "remarks": []
-  }
+URL: PATCH /dashboard/{dashboard_id}/status
+설명: 주문 상태 변경 (권한 기반)
+요청:
+jsonCopy{
+  "status": "WAITING|IN_PROGRESS|COMPLETE|ISSUE|CANCEL",
+  "is_admin": false,
+  "version": 1
 }
-백엔드 로직
 
-데이터베이스에서 대시보드 ID로 상세 정보 조회
-상세 정보와 함께 관련된 메모(remarks) 목록 함께 조회
-대시보드 상세 정보 반환
+응답: 업데이트된 대시보드 상세 정보 (4.4 참조)
+권한 규칙:
 
-대시보드 생성 (POST /dashboard)
-새로운 대시보드를 생성하는 API입니다.
-요청
-{
-  "type": "DELIVERY",
-  "warehouse": "SEOUL",
-  "order_no": "12345-6789",
-  "eta": "2025-03-12T15:00:00+09:00",
-  "sla": "표준",
-  "postal_code": "12345",
-  "address": "서울 강남구 삼성동 123-45 삼성타워 1층",
-  "customer": "홍길동",
+일반 사용자: 정해진 상태 흐름만 가능 (WAITING → IN_PROGRESS → COMPLETE/ISSUE/CANCEL)
+관리자: 모든 상태 간 변경 가능
+is_admin=true로 요청 시 실제 관리자 권한 검증
+
+
+
+4.6 필드 업데이트
+
+URL: PATCH /dashboard/{dashboard_id}/fields
+설명: 주문 필드 정보 변경
+요청:
+jsonCopy{
+  "eta": "YYYY-MM-DDThh:mm:ss",
+  "customer": "고객명",
   "contact": "010-1234-5678",
-  "remark": "부재 시 경비실에 맡겨주세요"
+  "address": "상세 주소",
+  "postal_code": "12345",
+  "remark": "메모 내용",
+  "version": 1
 }
-응답
-{
-  "success": true,
-  "message": "대시보드가 생성되었습니다",
-  "data": {
-    "dashboard_id": 2,
-    "type": "DELIVERY",
-    "order_no": "12345-6789",
-    "status": "WAITING",
-    "department": "CS",
-    "warehouse": "SEOUL",
-    "sla": "표준",
-    "eta": "2025-03-12T15:00:00+09:00",
-    "create_time": "2025-03-11T10:30:00+09:00",
-    "depart_time": null,
-    "complete_time": null,
-    "postal_code": "12345",
-    "city": "서울",
-    "county": "강남구",
-    "district": "삼성동",
-    "region": "서울 강남구 삼성동",
-    "distance": 15,
-    "duration_time": 45,
-    "address": "서울 강남구 삼성동 123-45 삼성타워 1층",
-    "customer": "홍길동",
-    "contact": "010-1234-5678",
-    "driver_name": null,
-    "driver_contact": null,
-    "version": 1,
-    "remarks": []
-  }
-}
-백엔드 로직
 
-입력 데이터 유효성 검증 (우편번호, 연락처 형식 등)
-현재 사용자 부서 정보를 기준으로 부서 필드 설정
-초기 상태 "WAITING" 설정
-우편번호에 해당하는 지역정보와 거리/소요시간 정보 자동 설정 (DB 트리거)
-현재 시간을 create_time으로 설정
-생성된 대시보드 정보 반환
+응답: 업데이트된 대시보드 상세 정보 (4.4 참조)
 
-상태 업데이트 (PATCH /dashboard/{dashboard_id}/status)
-대시보드의 상태를 업데이트하는 API입니다. 낙관적 락이 적용되어 있습니다.
-요청
-{
-  "status": "IN_PROGRESS",
-  "version": 1,
-  "is_admin": false
-}
-응답
-{
-  "success": true,
-  "message": "IN_PROGRESS 상태로 변경되었습니다",
-  "data": {
-    "dashboard_id": 1,
-    // ... 대시보드 상세 정보
-    "status": "IN_PROGRESS",
-    "depart_time": "2025-03-11T11:30:00+09:00",
-    "version": 2
-  }
-}
-백엔드 로직
+4.7 배차 처리
 
-비관적 락을 획득하여 동시 수정 방지
-버전 번호를 검증하여 낙관적 락 충돌 감지
-상태 변경 가능 여부 검증 (상태 전이 규칙)
-상태에 따라 depart_time, complete_time 자동 업데이트
-버전 번호 증가
-업데이트된 대시보드 반환
-
-필드 업데이트 (PATCH /dashboard/{dashboard_id}/fields)
-대시보드의 특정 필드를 업데이트하는 API입니다. 낙관적 락이 적용되어 있습니다.
-요청
-{
-  "eta": "2025-03-13T16:00:00+09:00",
-  "customer": "김철수",
-  "contact": "010-9876-5432",
-  "version": 2
-}
-응답
-{
-  "success": true,
-  "message": "필드가 업데이트되었습니다",
-  "data": {
-    "dashboard_id": 1,
-    // ... 대시보드 상세 정보
-    "eta": "2025-03-13T16:00:00+09:00",
-    "customer": "김철수",
-    "contact": "010-9876-5432",
-    "version": 3
-  }
-}
-백엔드 로직
-
-비관적 락을 획득하여 동시 수정 방지
-버전 번호를 검증하여 낙관적 락 충돌 감지
-입력 데이터 유효성 검증 (우편번호, 연락처 형식 등)
-필드 업데이트
-버전 번호 증가
-업데이트된 대시보드 반환
-
-배차 처리 (POST /dashboard/assign)
-여러 대시보드에 대해 일괄적으로 배차 처리를 하는 API입니다. 낙관적 락이 적용되어 있습니다.
-요청
-{
-  "dashboard_ids": [1, 2, 3],
-  "driver_name": "이기사",
-  "driver_contact": "010-5555-5555",
+URL: POST /dashboard/assign
+설명: 여러 주문에 배송 담당자 배정
+요청:
+jsonCopy{
+  "dashboard_ids": [123, 456, 789],
+  "driver_name": "배송기사명",
+  "driver_contact": "010-1234-5678",
   "versions": {
-    "1": 3,
-    "2": 1,
-    "3": 2
+    "123": 1,
+    "456": 2,
+    "789": 1
   }
 }
-응답
-{
+
+응답:
+jsonCopy{
   "success": true,
   "message": "배차가 완료되었습니다",
   "data": {
     "updated_dashboards": [
-      {
-        "dashboard_id": 1,
-        "type": "DELIVERY",
-        "order_no": "12345-6789",
-        "status": "IN_PROGRESS",
-        "department": "CS",
-        "warehouse": "SEOUL",
-        "sla": "표준",
-        "eta": "2025-03-13T16:00:00+09:00",
-        "create_time": "2025-03-09T10:30:00+09:00",
-        "depart_time": "2025-03-11T11:30:00+09:00",
-        "driver_name": "이기사",
-        "driver_contact": "010-5555-5555",
-        "version": 4
-      },
-      // ... 더 많은 항목
+      // 업데이트된 대시보드 정보 (상세 내용 생략)
     ]
   }
 }
 
-백엔드 로직
 
-모든 대시보드에 대해 비관적 락 획득 시도
-각 대시보드별로 버전 검증 (낙관적 락)
-배차 정보 업데이트 (driver_name, driver_contact)
-각 대시보드의 버전 증가
-업데이트된 대시보드 목록 반환
+4.8 대시보드 삭제
 
-주문번호 검색 (GET /dashboard/search)
-주문번호를 기준으로 대시보드를 검색하는 API입니다.
-요청 파라미터
-
-order_no: 검색할 주문번호 (숫자와 하이픈으로 구성)
-
-응답
-{
+URL: DELETE /dashboard
+설명: 주문 삭제 (관리자 전용)
+요청 본문: 삭제할 대시보드 ID 배열 ([123, 456, 789])
+응답:
+jsonCopy{
   "success": true,
-  "message": "데이터를 조회했습니다",
+  "message": "선택한 항목이 삭제되었습니다",
   "data": {
-    "date_range": {
-      "oldest_date": "2025-01-01",
-      "latest_date": "2025-03-11"
-    },
-    "items": [
-      {
-        "dashboard_id": 1,
-        "type": "DELIVERY",
-        "order_no": "12345-6789",
-        // ... 더 많은 필드
-      }
-      // ... 더 많은 항목
-    ]
+    "deleted_count": 3
   }
 }
 
-백엔드 로직
+권한: 관리자(ADMIN) 전용
 
-주문번호 형식 검증 (숫자와 하이픈만 허용)
-주문번호와 정확히 일치하는 대시보드 검색
-상태에 따라 우선순위 정렬 (대기 > 진행 중 > 완료/이슈/취소)
-검색 결과 반환
+4.9 주문번호 검색
+
+URL: GET /dashboard/search?order_no={주문번호}
+설명: 주문번호로 대시보드 검색
+응답: 대시보드 목록 (4.1 참조)
+
+5. 메모 API
+5.1 메모 목록 조회
+
+URL: GET /dashboard/{dashboard_id}/remarks
+설명: 대시보드 ID별 메모 목록 조회
+응답:
+jsonCopy[
+  {
+    "remark_id": 456,
+    "dashboard_id": 123,
+    "content": "메모 내용",
+    "created_at": "YYYY-MM-DDThh:mm:ss",
+    "created_by": "작성자ID",
+    "version": 1,
+    "formatted_content": "메모 내용"
+  }
+]
 
 
-시각화 API
-배송 현황 데이터 (GET /visualization/delivery_status)
-부서별 배송 현황 통계 데이터를 조회하는 API입니다.
-요청 파라미터
+5.2 메모 생성
 
-start_date: 시작 날짜 (YYYY-MM-DD)
-end_date: 종료 날짜 (YYYY-MM-DD)
+URL: POST /dashboard/{dashboard_id}/remarks
+설명: 새 메모 생성 (비관적 락 적용)
+요청:
+jsonCopy{
+  "content": "메모 내용"
+}
 
-응답
-{
+응답: 생성된 메모 정보 (5.1 참조)
+
+5.3 메모 업데이트
+
+URL: PUT /dashboard/remarks/{remark_id}
+설명: 메모 내용 업데이트 (낙관적 락 + 비관적 락)
+요청:
+jsonCopy{
+  "content": "변경할 메모 내용",
+  "version": 1
+}
+
+응답: 업데이트된 메모 정보 (5.1 참조)
+
+6. 시각화 API
+6.1 배송 현황 데이터
+
+URL: GET /visualization/delivery_status?start_date={시작일}&end_date={종료일}
+설명: create_time 기준 배송 상태별 통계
+응답:
+jsonCopy{
   "success": true,
   "message": "데이터를 조회했습니다",
   "data": {
     "type": "delivery_status",
-    "total_count": 150,
+    "total_count": 124,
     "department_breakdown": {
       "CS": {
-        "total": 50,
+        "total": 45,
         "status_breakdown": [
-          {
-            "status": "WAITING",
-            "count": 10,
-            "percentage": 20.0
-          },
-          {
-            "status": "IN_PROGRESS",
-            "count": 15,
-            "percentage": 30.0
-          },
-          // ... 더 많은 상태
+          {"status": "WAITING", "count": 15, "percentage": 33.33},
+          {"status": "IN_PROGRESS", "count": 20, "percentage": 44.44},
+          {"status": "COMPLETE", "count": 5, "percentage": 11.11},
+          {"status": "ISSUE", "count": 3, "percentage": 6.67},
+          {"status": "CANCEL", "count": 2, "percentage": 4.44}
         ]
       },
-      "HES": {
-        // ... HES 부서 데이터
-      },
-      "LENOVO": {
-        // ... LENOVO 부서 데이터
-      }
+      "HES": { /* 생략 */ },
+      "LENOVO": { /* 생략 */ }
     }
   },
   "date_range": {
-    "oldest_date": "2025-01-01",
-    "latest_date": "2025-03-11"
+    "oldest_date": "YYYY-MM-DD",
+    "latest_date": "YYYY-MM-DD"
   }
 }
 
-백엔드 로직
 
-요청 파라미터에서 날짜 범위 파싱
-날짜 범위에 해당하는 배송 데이터 조회 (create_time 기준)
-부서별, 상태별로 집계 (pandas 사용)
-백분율 계산 및 포맷팅
-집계 결과 반환
+6.2 시간대별 접수량 데이터
 
-시간대별 접수량 (GET /visualization/hourly_orders)
-부서별 시간대별 접수량 데이터를 조회하는 API입니다.
-요청 파라미터
-
-start_date: 시작 날짜 (YYYY-MM-DD)
-end_date: 종료 날짜 (YYYY-MM-DD)
-
-응답
-{
+URL: GET /visualization/hourly_orders?start_date={시작일}&end_date={종료일}
+설명: create_time 기준 시간대별 주문 접수 통계
+응답:
+jsonCopy{
   "success": true,
   "message": "데이터를 조회했습니다",
   "data": {
     "type": "hourly_orders",
-    "total_count": 150,
-    "average_count": 30.0,
+    "total_count": 124,
+    "average_count": 41.3,
     "department_breakdown": {
       "CS": {
-        "total": 50,
+        "total": 45,
         "hourly_counts": {
           "09-10": 5,
           "10-11": 8,
-          // ... 더 많은 시간대
-          "야간(19-09)": 12
+          // ... 생략
+          "18-19": 4,
+          "야간(19-09)": 7
         }
       },
-      "HES": {
-        // ... HES 부서 데이터
-      },
-      "LENOVO": {
-        // ... LENOVO 부서 데이터
-      }
+      "HES": { /* 생략 */ },
+      "LENOVO": { /* 생략 */ }
     },
     "time_slots": [
-      {
-        "label": "09-10",
-        "start": 9,
-        "end": 10
-      },
-      // ... 더 많은 시간대
-      {
-        "label": "야간(19-09)",
-        "start": 19,
-        "end": 9
-      }
+      {"label": "09-10", "start": 9, "end": 10},
+      {"label": "10-11", "start": 10, "end": 11},
+      // ... 생략
+      {"label": "18-19", "start": 18, "end": 19},
+      {"label": "야간(19-09)", "start": 19, "end": 9}
     ]
   },
   "date_range": {
-    "oldest_date": "2025-01-01",
-    "latest_date": "2025-03-11"
+    "oldest_date": "YYYY-MM-DD",
+    "latest_date": "YYYY-MM-DD"
   }
 }
-백엔드 로직
 
-요청 파라미터에서 날짜 범위 파싱
-날짜 범위에 해당하는 접수 데이터 조회 (create_time 기준)
-시간대 정의 (주간: 09-19시 1시간 단위, 야간: 19-09시 통합)
-부서별, 시간대별로 집계 (pandas 사용)
-일평균 접수량 계산
-집계 결과 반환
 
-조회 가능 날짜 범위 (GET /visualization/date_range)
-시각화 데이터 조회 가능한 날짜 범위를 조회하는 API입니다.
-응답
-{
+6.3 조회 가능 날짜 범위
+
+URL: GET /visualization/date_range
+설명: 시스템에서 조회 가능한 날짜 범위 정보
+응답:
+jsonCopy{
   "success": true,
   "message": "조회 가능 날짜 범위를 조회했습니다",
   "date_range": {
-    "oldest_date": "2025-01-01",
-    "latest_date": "2025-03-11"
-  }
-}
-백엔드 로직
-
-데이터베이스에서 create_time 컬럼의 최소값, 최대값 조회
-날짜 범위 정보 반환
-
-
-메모 API
-메모 목록 조회 (GET /dashboard/{dashboard_id}/remarks)
-특정 대시보드에 작성된 메모 목록을 조회하는 API입니다.
-요청 파라미터
-
-dashboard_id: 대시보드 ID (path parameter)
-
-응답
-[
-  {
-    "remark_id": 1,
-    "dashboard_id": 1,
-    "content": "고객 부재 시 경비실에 맡겨달라고 요청함",
-    "created_at": "2025-03-10T14:30:00+09:00",
-    "created_by": "user123",
-    "version": 1,
-    "formatted_content": "user123: 고객 부재 시 경비실에 맡겨달라고 요청함"
-  },
-  // ... 더 많은 메모
-]
-백엔드 로직
-
-데이터베이스에서 대시보드 ID에 해당하는 메모 목록 조회 (최신순)
-메모 목록 반환
-
-메모 작성 (POST /dashboard/{dashboard_id}/remarks)
-특정 대시보드에 새 메모를 작성하는 API입니다. 비관적 락이 적용되어 있습니다.
-요청 파라미터
-
-dashboard_id: 대시보드 ID (path parameter)
-
-요청
-{
-  "content": "고객이 배송 시간 변경 요청함. 오후 2시 이후 방문 요망"
-}
-응답
-{
-  "remark_id": 2,
-  "dashboard_id": 1,
-  "content": "고객이 배송 시간 변경 요청함. 오후 2시 이후 방문 요망",
-  "created_at": "2025-03-11T10:15:00+09:00",
-  "created_by": "user123",
-  "version": 1,
-  "formatted_content": "user123: 고객이 배송 시간 변경 요청함. 오후 2시 이후 방문 요망"
-}
-백엔드 로직
-
-비관적 락을 획득하여 동시 수정 방지
-사용자 ID와 메모 내용으로 새 메모 생성
-작성된 메모 정보 반환
-락 해제
-
-메모 수정 (PUT /dashboard/remarks/{remark_id})
-특정 메모를 수정하는 API입니다. 비관적 락과 낙관적 락이 함께 적용되어 있습니다.
-요청 파라미터
-
-remark_id: 메모 ID (path parameter)
-
-요청
-{
-  "content": "고객이 배송 시간 변경 요청함. 오후 3시 이후 방문 요망",
-  "version": 1
-}
-응답
-{
-  "remark_id": 3,
-  "dashboard_id": 1,
-  "content": "고객이 배송 시간 변경 요청함. 오후 3시 이후 방문 요망",
-  "created_at": "2025-03-11T10:20:00+09:00",
-  "created_by": "user123",
-  "version": 1,
-  "formatted_content": "user123: 고객이 배송 시간 변경 요청함. 오후 3시 이후 방문 요망"
-}
-
-백엔드 로직
-
-비관적 락을 획득하여 동시 수정 방지
-버전 번호를 검증하여 낙관적 락 충돌 감지
-기존 메모는 보존하고 새 메모를 생성 (이력 관리)
-작성된 메모 정보 반환
-락 해제
-
-
-공통 응답 형식
-모든 API 응답은 다음과 같은 기본 구조를 가집니다:
-{
-  "success": true,
-  "message": "작업 결과 메시지",
-  "data": {
-    // 응답 데이터 (API에 따라 구조 다름)
-  }
-}
-오류가 발생한 경우:
-{
-  "success": false,
-  "message": "오류 메시지",
-  "error": {
-    "code": "ERROR_CODE",
-    "detail": "상세 오류 설명",
-    "fields": {
-      // 입력 필드별 오류 정보 (해당하는 경우)
-    }
+    "oldest_date": "YYYY-MM-DD",
+    "latest_date": "YYYY-MM-DD"
   }
 }
 
-데이터 모델
-주요 데이터 모델의 스키마입니다:
 
-대시보드 (Dashboard)
-dashboard_id: 정수 (PK, 자동 증가)
-order_no: 문자열 (최대 15자)
-type: 열거형 ("DELIVERY", "RETURN")
-status: 열거형 ("WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL")
-department: 열거형 ("CS", "HES", "LENOVO")
-warehouse: 열거형 ("SEOUL", "BUSAN", "GWANGJU", "DAEJEON")
-sla: 문자열 (최대 10자)
-eta: 날짜/시간
-create_time: 날짜/시간
-depart_time: 날짜/시간 (Nullable)
-complete_time: 날짜/시간 (Nullable)
-postal_code: 문자열 (5자)
-city: 문자열 (최대 21자, Nullable)
-county: 문자열 (최대 51자, Nullable)
-district: 문자열 (최대 51자, Nullable)
-region: 문자열 (최대 153자, 자동 생성 필드)
-distance: 정수 (Nullable)
-duration_time: 정수 (Nullable)
-address: 텍스트
-customer: 문자열 (최대 150자)
-contact: 문자열 (최대 20자, Nullable)
-driver_name: 문자열 (최대 153자, Nullable)
-driver_contact: 문자열 (최대 50자, Nullable)
-version: 정수 (낙관적 락용)
+7. 권한 체계
+7.1 사용자 권한 레벨
 
-메모 (DashboardRemark)
-remark_id: 정수 (PK, 자동 증가)
-dashboard_id: 정수 (FK, Dashboard 참조)
-content: 텍스트 (Nullable)
-created_at: 날짜/시간 (기본값: 현재 시간)
-created_by: 문자열 (최대 50자)
-version: 정수 (낙관적 락용)
+USER: 일반 사용자
 
-락 (DashboardLock)
-dashboard_id: 정수 (PK, FK, Dashboard 참조)
-locked_by: 문자열 (최대 50자)
-locked_at: 날짜/시간
-lock_type: 열거형 ("EDIT", "STATUS", "ASSIGN", "REMARK")
-expires_at: 날짜/시간
+조회, 생성, 제한된 상태 변경 가능
+상태 변경 규칙: WAITING → IN_PROGRESS → COMPLETE/ISSUE/CANCEL
 
-사용자 (User)
-user_id: 문자열 (PK, 최대 50자)
-user_password: 문자열 (최대 255자)
-user_department: 열거형 ("CS", "HES", "LENOVO")
-user_role: 열거형 ("ADMIN", "USER")
 
-리프레시 토큰 (RefreshToken)
-refresh_token_id: 정수 (PK, 자동 증가)
-user_id: 문자열 (FK, User 참조)
-refresh_token: 문자열 (최대 255자)
-expires_at: 날짜/시간
-created_at: 날짜/시간 (기본값: 현재 시간)
+ADMIN: 관리자
 
-오류 처리
-
-공통 오류 코드
-상태 코드오류 코드 
-설명400BAD_REQUEST잘못된 요청 형식 또는 데이터401UNAUTHORIZED인증 실패 또는 만료된 토큰403FORBIDDEN권한 부족404NOT_FOUND요청한 리소스를 찾을 수 없음409CONFLICT낙관적 락 충돌 (버전 불일치)422VALIDATION_ERROR입력 데이터 유효성 검증 실패423LOCKED비관적 락 충돌 (이미 다른 사용자가 수정 중)500SERVER_ERROR서버 내부 오류
-
-낙관적 락 충돌 응답 예시
-{
-  "success": false,
-  "message": "다른 사용자가 이미 데이터를 수정했습니다. 최신 데이터를 확인하세요.",
-  "error": {
-    "code": "CONFLICT",
-    "detail": {
-      "current_version": 5
-    }
-  }
-}
-비관적 락 충돌 응답 예시
-{
-  "success": false,
-  "message": "다른 사용자가 편집 중입니다.",
-  "error": {
-    "code": "LOCKED",
-    "detail": {
-      "locked_by": "user456"
-    }
-  }
-}
-유효성 검증 실패 응답 예시
-{
-  "success": false,
-  "message": "입력 데이터가 유효하지 않습니다.",
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "detail": "유효하지 않은 우편번호입니다",
-    "fields": {
-      "postal_code": "5자리 숫자로 입력해주세요"
-    }
-  }
-}
-
-백엔드 구현 상세 정보
-아키텍처 개요
-배송 관제 시스템은 다음과 같은 아키텍처로 설계되어 있습니다:
-
-웹 프레임워크: FastAPI
-데이터베이스: MySQL
-ORM: SQLAlchemy
-인증: JWT 기반 인증
-컨테이너화: Docker
-레이어 구조:
-
-API 레이어 (app/api/): 엔드포인트 정의 및 요청/응답 처리
-서비스 레이어 (app/services/): 비즈니스 로직 처리
-레포지토리 레이어 (app/repositories/): 데이터 접근 로직
-모델 레이어 (app/models/): 데이터베이스 모델 정의
-스키마 레이어 (app/schemas/): 요청/응답 데이터 스키마 정의
-유틸리티 (app/utils/): 공통 유틸리티 함수 및 클래스
+모든 작업 가능 (삭제, 무제한 상태 변경)
+대시보드 삭제 등 특수 기능 접근 가능
 
 
 
-동시성 제어 메커니즘
-동시 편집 충돌을 방지하기 위해 두 가지 락 메커니즘을 적용하고 있습니다:
+7.2 프론트엔드 권한 활용 방식
 
-낙관적 락 (Optimistic Locking):
+API 응답에 user_role 정보를 포함하여 UI 조건부 렌더링
+권한 부족 시 403 Forbidden 응답으로 처리
+접근 불가 기능을 UI에서 비활성화 또는 숨김 처리
 
-모든 대시보드와 메모에 version 필드 사용
-데이터 수정 시마다 버전 번호 증가
-클라이언트는 수정 요청 시 현재 알고 있는 버전 번호를 함께 전송
-서버에서 버전 불일치 확인 시 충돌 오류 반환 (409 Conflict)
+7.3 관리자 기능 사용 예시
 
+대시보드 목록 통합 조회 (권한에 따라 기능 활성화)
+상태 변경 시 일반 사용자는 정해진 흐름만 가능하도록 UI 제어
+관리자만 삭제 버튼 표시 (권한 기반 UI 렌더링)
 
-비관적 락 (Pessimistic Locking):
+8. 데이터 모델 참조
+8.1 주요 모델
 
-dashboard_lock 테이블을 통한 락 관리
-편집 작업 시작 시 락 획득, 완료 시 락 해제
-락 획득 실패 시 충돌 오류 반환 (423 Locked)
-락은 5분 후 자동 만료 (무한 락 방지)
+Dashboard: 배송 주문 정보
+DashboardRemark: 주문 관련 메모
+DashboardLock: 비관적 락 관리
+PostalCode: 우편번호 및 지역 정보
+User: 사용자 정보
 
+8.2 낙관적 락과 비관적 락
 
+낙관적 락(Optimistic Lock):
 
-캐싱 전략
-시스템은 다음과 같은 캐싱 전략을 사용합니다:
-
-메모리 캐싱:
-
-날짜 범위 조회 결과를 메모리에 캐싱 (1시간 TTL)
-캐시 키: 서비스별 고유 키
-방어적 프로그래밍 적용하여 서버 재시작 시 캐시 초기화 문제 방지
-
-
-데이터베이스 인덱싱:
-
-주요 검색 필드에 인덱스 적용
-복합 인덱스로 검색 성능 최적화
+version 필드를 통한 충돌 감지
+수정 시 version 증가
+충돌 시 409 Conflict 응답
 
 
+비관적 락(Pessimistic Lock):
 
-시간대 처리
-시스템의 모든 시간 처리는 한국 시간(KST, UTC+9)을 기준으로 합니다:
-
-데이터베이스 시간대 설정:
-
-MySQL 연결 시 SET time_zone = '+09:00' 실행
+DashboardLock 테이블을 통한 편집 잠금
+동시 편집 시도 시 423 Locked 응답
+일정 시간 후 자동 해제 (기본 5분)
 
 
-시간 처리 유틸리티:
 
-datetime_helper.py에 KST 관련 유틸리티 함수 구현
-모든 시간 관련 처리에 일관된 시간대 적용
+9. 주요 수정사항 및 개선 방향
+9.1 대시보드 생성 시 메모 처리
+
+현재 상태: remark 필드 처리 로직 누락으로 오류 발생
+개선 방향:
+
+DashboardService에 DashboardRemarkRepository 의존성 주입
+대시보드 생성 시 remark 필드를 별도 DashboardRemark 테이블에 저장
+메모 작성자 정보 함께 기록
 
 
-JWT 토큰:
+프론트엔드 고려사항:
 
-토큰 만료 시간은 UTC 기준 (datetime.utcnow())
-JWT 표준에 맞춰 처리
+대시보드 생성 시 remark 필드를 포함해 요청
+생성 후 메모 정보는 remarks 배열에서 확인 가능
+
+
+
+9.2 메모 필드 NULL 처리
+
+현재 상태: formatted_content 필드 NULL 값으로 오류 발생
+개선 방향:
+
+RemarkResponse 스키마에서 formatted_content 필드를 Optional로 설정
+NULL 값 조회 시 빈 문자열("")로 기본값 처리
+
+
+프론트엔드 고려사항:
+
+메모 데이터 처리 시 formatted_content 필드가 빈 문자열일 수 있음을 고려
+
+
+
+9.3 API 통합 및 권한 기반 접근 제어
+
+현재 상태: 일반/관리자 API가 분리되어 있음
+개선 방향:
+
+대시보드 목록 조회 API 통합 (/dashboard/list)
+응답에 사용자 권한 정보 포함
+권한 기반으로 기능 접근 제어
+
+
+프론트엔드 고려사항:
+
+단일 목록 API 사용
+권한 정보에 따라 UI 컴포넌트 조건부 렌더링
+삭제 버튼 등은 관리자에게만 표시
+
+
+
+9.4 요약 및 구현 우선순위
+
+대시보드 생성 시 메모 저장 로직 구현 (높은 우선순위)
+formatted_content NULL 처리 오류 해결 (높은 우선순위)
+일반/관리자 대시보드 API 통합 (중간 우선순위)
+API 응답 형식 통일 및 개선 (낮은 우선순위)
+
+프론트엔드 개발자는 본 명세서를 참고하여 백엔드 API와의 통합을 진행해 주시기 바랍니다. 특히 권한 기반 UI 처리와 메모 관련 기능에 주의가 필요합니다.

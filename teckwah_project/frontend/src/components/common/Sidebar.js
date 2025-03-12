@@ -6,10 +6,10 @@ import {
   BarChartOutlined,
   LogoutOutlined,
   UserOutlined,
-  SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDashboard } from '../../contexts/DashboardContext';
 
 const { Sider } = Layout;
 const { Title } = Typography;
@@ -18,6 +18,10 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { userRole } = useDashboard();
+
+  // 사용자 역할 확인 (Context에서 우선 확인, 없으면 Auth Context 사용)
+  const isAdmin = userRole === 'ADMIN' || user?.user_role === 'ADMIN';
 
   const handleLogout = async () => {
     try {
@@ -29,59 +33,27 @@ const Sidebar = () => {
     }
   };
 
-  // 권한별 접근 가능 메뉴 설정
-  const getAuthorizedMenuItems = () => {
-    // 사용자 권한 확인
-    const isAdmin = user?.user_role === 'ADMIN';
-
-    // 기본 메뉴 아이템 (로그아웃은 공통)
-    const baseMenuItems = [
-      {
-        key: 'logout',
-        icon: <LogoutOutlined />,
-        label: '로그아웃',
-        onClick: handleLogout,
-      },
-    ];
-
-    // 관리자 권한인 경우 - 관리, 통계 메뉴 표시
-    if (isAdmin) {
-      return [
-        {
-          key: '/admin',
-          icon: <SettingOutlined />,
-          label: '관리',
-          onClick: () => navigate('/admin'),
-        },
-        {
-          key: '/visualization',
-          icon: <BarChartOutlined />,
-          label: '통계',
-          onClick: () => navigate('/visualization'),
-        },
-        ...baseMenuItems,
-      ];
-    }
-
-    // 일반 사용자 권한인 경우 - 배차, 통계 메뉴 표시
-    return [
-      {
-        key: '/dashboard',
-        icon: <DashboardOutlined />,
-        label: '배차',
-        onClick: () => navigate('/dashboard'),
-      },
-      {
-        key: '/visualization',
-        icon: <BarChartOutlined />,
-        label: '통계',
-        onClick: () => navigate('/visualization'),
-      },
-      ...baseMenuItems,
-    ];
-  };
-
-  const menuItems = getAuthorizedMenuItems();
+  // 메뉴 아이템 (모든 사용자 공통)
+  const menuItems = [
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: isAdmin ? '관리' : '배차', // 역할에 따라 다른 레이블 표시
+      onClick: () => navigate('/dashboard'),
+    },
+    {
+      key: '/visualization',
+      icon: <BarChartOutlined />,
+      label: '통계',
+      onClick: () => navigate('/visualization'),
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '로그아웃',
+      onClick: handleLogout,
+    },
+  ];
 
   return (
     <Sider width={200} theme="light">
@@ -98,7 +70,7 @@ const Sidebar = () => {
               {user?.user_id}
             </Title>
             <Typography.Text type="secondary">
-              {user?.user_department}
+              {user?.user_department} {isAdmin ? '[관리자]' : ''}
             </Typography.Text>
           </div>
         </div>

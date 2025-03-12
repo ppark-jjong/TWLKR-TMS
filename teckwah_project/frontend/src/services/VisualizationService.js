@@ -1,8 +1,6 @@
 // frontend/src/services/VisualizationService.js
-
 import axios from 'axios';
-import message from '../utils/message';
-import { MessageKeys, MessageTemplates } from '../utils/message';
+import message, { MessageKeys, MessageTemplates } from '../utils/message';
 
 class VisualizationService {
   /**
@@ -28,12 +26,16 @@ class VisualizationService {
       // 응답 데이터 로깅을 추가하여 실제 구조 확인
       console.log('배송 현황 응답 데이터:', response.data);
 
-      // 응답 데이터 안전 검증 - 변경된 백엔드 응답 구조에 맞게 수정
+      // 백엔드 응답 구조 확인
       if (!response.data) {
         console.error('응답이 없습니다:', response);
         message.error('서버 응답이 없습니다', key);
         return null;
       }
+
+      // 백엔드 응답 구조 처리 - 표준 형식 적용
+      const responseData = response.data.data || response.data;
+      const dateRange = response.data.date_range || null;
 
       // 기본 빈 데이터 구조 준비
       const defaultData = {
@@ -42,17 +44,14 @@ class VisualizationService {
         department_breakdown: {},
       };
 
-      // 백엔드 응답이 data 필드 없이 직접 반환될 경우를 처리
-      const data = response.data.data || response.data || defaultData;
+      // 응답 데이터 확인 및 기본값 처리
+      const data = responseData || defaultData;
 
       if (!data.total_count) {
         message.info(MessageTemplates.DATA.LOAD_EMPTY, key);
       } else {
         message.success(MessageTemplates.DATA.LOAD_SUCCESS, key);
       }
-
-      // date_range 정보도 추출
-      const dateRange = response.data.date_range || null;
 
       return {
         success: true,
@@ -106,12 +105,16 @@ class VisualizationService {
       // 응답 데이터 로깅
       console.log('시간대별 접수량 응답 데이터:', response.data);
 
-      // 응답 데이터 안전 검증
+      // 백엔드 응답 구조 확인 및 표준화
       if (!response.data) {
         console.error('응답이 없습니다:', response);
         message.error('서버 응답이 없습니다', key);
         return null;
       }
+
+      // 백엔드 응답 구조 처리 - 표준 형식 적용
+      const responseData = response.data.data || response.data;
+      const dateRange = response.data.date_range || null;
 
       // 기본 빈 데이터 구조 준비
       const defaultData = {
@@ -121,17 +124,41 @@ class VisualizationService {
         time_slots: [],
       };
 
-      // 백엔드 응답이 data 필드 없이 직접 반환될 경우를 처리
-      const data = response.data.data || response.data || defaultData;
+      // 응답 데이터 확인 및 기본값 처리
+      const data = responseData || defaultData;
+
+      // time_slots 필드 검증 및 정규화
+      if (data.time_slots && Array.isArray(data.time_slots)) {
+        data.time_slots = data.time_slots.map((slot) => {
+          if (typeof slot === 'string') {
+            return slot;
+          } else if (typeof slot === 'object' && slot !== null && slot.label) {
+            return slot.label;
+          } else {
+            return String(slot);
+          }
+        });
+      } else if (!data.time_slots || !Array.isArray(data.time_slots)) {
+        data.time_slots = [
+          '09-10',
+          '10-11',
+          '11-12',
+          '12-13',
+          '13-14',
+          '14-15',
+          '15-16',
+          '16-17',
+          '17-18',
+          '18-19',
+          '야간(19-09)',
+        ];
+      }
 
       if (!data.total_count) {
         message.info(MessageTemplates.DATA.LOAD_EMPTY, key);
       } else {
         message.success(MessageTemplates.DATA.LOAD_SUCCESS, key);
       }
-
-      // date_range 정보도 추출
-      const dateRange = response.data.date_range || null;
 
       return {
         success: true,
@@ -156,7 +183,19 @@ class VisualizationService {
           type: 'hourly_orders',
           total_count: 0,
           department_breakdown: {},
-          time_slots: [],
+          time_slots: [
+            '09-10',
+            '10-11',
+            '11-12',
+            '12-13',
+            '13-14',
+            '14-15',
+            '15-16',
+            '16-17',
+            '17-18',
+            '18-19',
+            '야간(19-09)',
+          ],
         },
         date_range: null,
       };
@@ -175,21 +214,42 @@ class VisualizationService {
         withCredentials: true,
       });
 
-      // 응답 데이터 검증
-      if (!response.data || !response.data.date_range) {
-        console.error('유효하지 않은 날짜 범위 응답:', response);
+      // 응답 데이터 로깅
+      console.log('날짜 범위 응답:', response.data);
+
+      // 백엔드 응답 구조 확인 및 표준화
+      if (!response.data) {
+        console.error('응답이 없습니다:', response);
+        throw new Error('날짜 범위 조회 중 오류가 발생했습니다');
+      }
+
+      // 백엔드 표준 응답 형식 처리
+      const dateRange =
+        response.data.date_range ||
+        (response.data.data && response.data.data.date_range);
+
+      if (!dateRange) {
+        console.warn('날짜 범위 정보가 없습니다:', response.data);
+        // 기본 날짜 범위 제공 (오늘 기준 30일)
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+
         return {
           success: false,
-          message: '날짜 범위 정보를 가져올 수 없습니다',
+          message: '날짜 범위 정보를 찾을 수 없습니다',
           date_range: {
-            oldest_date: new Date().toISOString().split('T')[0],
-            latest_date: new Date().toISOString().split('T')[0],
+            oldest_date: thirtyDaysAgo.toISOString().split('T')[0],
+            latest_date: today.toISOString().split('T')[0],
           },
         };
       }
 
-      console.log('날짜 범위 응답:', response.data);
-      return response.data;
+      return {
+        success: true,
+        message: '조회 가능 날짜 범위를 조회했습니다',
+        date_range: dateRange,
+      };
     } catch (error) {
       console.error('날짜 범위 조회 실패:', error);
 

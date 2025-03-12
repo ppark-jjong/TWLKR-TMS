@@ -30,7 +30,7 @@ const HourlyBarChart = ({ data }) => {
       }
 
       // 데이터 구조 보존 로깅 (디버깅용)
-      console.log('데이터 구조:', {
+      console.log('HourlyBarChart 데이터 구조:', {
         type: data.type,
         totalCount: data.total_count,
         departments: Object.keys(data.department_breakdown),
@@ -148,7 +148,7 @@ const HourlyBarChart = ({ data }) => {
       setDepartmentStats(stats);
       setLoading(false);
 
-      console.log('차트 데이터 처리 완료:', {
+      console.log('HourlyBarChart 차트 데이터 처리 완료:', {
         chartDataCount: sortedChartData.length,
         departmentStatsCount: stats.length,
         timeSlotsCount: processedTimeSlots.length,

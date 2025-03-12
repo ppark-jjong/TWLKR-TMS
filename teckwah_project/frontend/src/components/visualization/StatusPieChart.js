@@ -57,7 +57,7 @@ const StatusPieCharts = ({ data }) => {
         return;
       }
 
-      console.log('원본 데이터:', {
+      console.log('StatusPieChart 원본 데이터:', {
         type: data.type,
         total: data.total_count,
         departments: Object.keys(data.department_breakdown),
@@ -117,7 +117,7 @@ const StatusPieCharts = ({ data }) => {
         statusTotals,
       });
 
-      console.log('가공된 데이터:', {
+      console.log('StatusPieChart 가공된 데이터:', {
         total: totalSum,
         departments: Object.keys(departmentBreakdown),
         statusTotals,
