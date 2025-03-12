@@ -9,6 +9,7 @@ from app.api import (
     dashboard_router,
     visualization_router,
     dashboard_remark_router,
+    dashboard_lock_router
 )
 from app.config.settings import get_settings
 
@@ -29,6 +30,7 @@ app.include_router(
     visualization_router.router, prefix="/visualization", tags=["시각화"]
 )
 app.include_router(dashboard_remark_router.router, prefix="/dashboard", tags=["메모"])
+app.include_router(dashboard_lock_router.router, prefix="/dashboard", tags=["락"])
 
 
 # SPA 라우팅 처리

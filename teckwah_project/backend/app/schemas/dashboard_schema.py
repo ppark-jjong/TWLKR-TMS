@@ -177,3 +177,12 @@ class DriverAssignment(BaseModel):
 class OptimisticLockResponse(BaseResponse):
     conflict: bool = True
     current_version: int = 0
+
+class LockRequest(BaseModel):
+    """락 요청 스키마"""
+    lock_type: str = Field(description="락 유형 (EDIT, STATUS, ASSIGN, REMARK)")
+
+
+class LockResponse(BaseResponse):
+    """락 응답 스키마"""
+    data: Optional[Dict[str, Any]] = None

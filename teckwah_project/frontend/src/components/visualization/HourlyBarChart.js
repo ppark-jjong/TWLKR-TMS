@@ -159,7 +159,6 @@ const HourlyBarChart = ({ data }) => {
       setLoading(false);
     }
   }, [data]);
-
   if (error) {
     return (
       <Empty

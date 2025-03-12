@@ -33,64 +33,25 @@ const AppRoutes = () => {
 
   // 인증이 필요한 라우트를 위한 래퍼 컴포넌트
   const PrivateRoute = ({ children }) => {
-    if (authChecking) {
-      // 인증 체크 중일 때는 로딩 표시
-      return (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '100vh',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-        >
-          <div className="loading-spinner"></div>
-          <p>인증 정보 확인 중...</p>
-        </div>
-      );
-    }
-
     if (!user) {
       // 인증되지 않은 경우 로그인 페이지로 리디렉션
       localStorage.setItem('returnUrl', location.pathname);
+      // 메시지 표시 전 상태 확인
       message.error('로그인이 필요합니다');
       return <Navigate to="/login" replace />;
     }
-
     return children;
   };
 
   return (
     <Routes>
-      {/* 로그인 페이지 */}
+      {/* 로그인 페이지 - 인증 상태에 따라 리디렉션 */}
       <Route
         path="/login"
-        element={
-          authChecking ? (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                flexDirection: 'column',
-                gap: '16px',
-              }}
-            >
-              <div className="loading-spinner"></div>
-              <p>인증 정보 확인 중...</p>
-            </div>
-          ) : user ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <LoginPage />
-          )
-        }
+        element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
       />
 
-      {/* 대시보드 페이지 - 통합 */}
+      {/* 대시보드 페이지 - 인증 필요 */}
       <Route
         path="/dashboard"
         element={

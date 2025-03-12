@@ -16,6 +16,7 @@ import {
   DatePicker,
   message as antMessage,
 } from 'antd';
+import axios from 'axios';
 import {
   EditOutlined,
   CheckOutlined,
@@ -40,6 +41,7 @@ import {
 import DashboardService from '../../services/DashboardService';
 import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 import dayjs from 'dayjs';
+import LockService from '../../services/LockService';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -112,9 +114,34 @@ const DashboardDetailModal = ({
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [remarkLocked, setRemarkLocked] = useState(false);
   const [lockedBy, setLockedBy] = useState('');
-
+  const [lockAcquired, setLockAcquired] = useState(false);
+  const [lockError, setLockError] = useState(null);
   // 낙관적 락을 위한 버전 관리
   const [currentVersion, setCurrentVersion] = useState(dashboard?.version || 1);
+  // 편집 모드 시작 시 락 획득 시도
+  const startEditingFields = async () => {
+    try {
+      await LockService.acquireLock(dashboard.dashboard_id, 'EDIT');
+      setLockAcquired(true);
+      initFieldsForm();
+      setEditingFields(true);
+    } catch (error) {
+      // 락 획득 실패 처리
+      setLockError(
+        error.response?.data?.detail || '편집을 시작할 수 없습니다.'
+      );
+    }
+  };
+
+  // 편집 취소 시 락 해제
+  const cancelEditingFields = async () => {
+    setEditingFields(false);
+    form.resetFields();
+    if (lockAcquired) {
+      await LockService.releaseLock(dashboard.dashboard_id);
+      setLockAcquired(false);
+    }
+  };
 
   // 필드 수정을 위한 폼 초기화
   const initFieldsForm = () => {
@@ -427,7 +454,7 @@ const DashboardDetailModal = ({
       );
 
       setCurrentDashboard(updatedDashboard);
-      setCurrentVersion(updatedDashboard.version); // 버전 업데이트
+      setCurrentVersion(updatedDashboard.version);
       setEditingFields(false);
       message.loadingToSuccess(
         '주문 정보가 성공적으로 업데이트되었습니다',
@@ -484,18 +511,6 @@ const DashboardDetailModal = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  // 필드 편집 시작
-  const startEditingFields = () => {
-    initFieldsForm();
-    setEditingFields(true);
-  };
-
-  // 필드 편집 취소
-  const cancelEditingFields = () => {
-    setEditingFields(false);
-    form.resetFields();
   };
 
   return (
