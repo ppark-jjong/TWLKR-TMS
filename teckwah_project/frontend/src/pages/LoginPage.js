@@ -18,7 +18,10 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      // 이미 인증된 경우 적절한 페이지로 리다이렉트
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const redirectTo = user.user_role === 'ADMIN' ? '/admin' : '/dashboard';
+      navigate(redirectTo);
     }
   }, [isAuthenticated, navigate]);
 
@@ -30,22 +33,23 @@ const LoginPage = () => {
     message.loading('로그인 중...', 'login');
 
     try {
-      // 요구사항에 맞게 login 함수 호출 (AuthContext에서 제공)
-      // 명확한 필드명 사용 (user_id, password)
+      // 백엔드 API 요구사항에 맞게 login 함수 호출
+      // user_id와 password 필드 전달
       const result = await login(values.user_id, values.password);
       console.log('로그인 성공:', result);
 
       // 성공 메시지
       message.success('로그인되었습니다');
 
-      // login 함수 내에서 리다이렉트 처리됨
+      // login 함수 내에서 권한에 따른 리다이렉트 처리
     } catch (err) {
       console.error('Login error:', err);
 
-      // 에러 메시지 개선
+      // 구체적인 에러 메시지 추출 및 표시
       const errorMessage =
         err.response?.data?.detail ||
-        '로그인에 실패했습니다. 다시 시도해주세요.';
+        err.response?.data?.message ||
+        '로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.';
 
       setError(errorMessage);
       form.setFields([
@@ -69,12 +73,18 @@ const LoginPage = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: '#f0f2f5',
       }}
     >
       {loading && <LoadingSpin />}
 
-      <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+      <Card
+        style={{
+          width: 400,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          borderRadius: '8px',
+        }}
+      >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img
             src="/static/logo.png"

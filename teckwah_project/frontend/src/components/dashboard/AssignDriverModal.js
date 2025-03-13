@@ -16,22 +16,14 @@ import message, { MessageKeys, MessageTemplates } from '../../utils/message';
 
 const { Text } = Typography;
 
+/**
+ * 배차 처리 모달 컴포넌트
+ * 관리자/일반 사용자 모두 사용 가능
+ * 권한별 제약은 상위 컴포넌트(DashboardPage)에서 처리
+ */
 const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
-
-  // 낙관적 락을 위한 버전 정보 수집
-  useEffect(() => {
-    if (visible && selectedRows.length > 0) {
-      // 각 대시보드 ID별 버전 정보 수집
-      const versions = {};
-      selectedRows.forEach((row) => {
-        versions[row.dashboard_id] = row.version || 1;
-      });
-      // 폼에 버전 정보 설정 (내부적으로만 사용)
-      form.setFieldsValue({ versions });
-    }
-  }, [visible, selectedRows, form]);
 
   // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
@@ -66,14 +58,13 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
-        versions: values.versions, // 낙관적 락을 위한 버전 정보
       });
 
-      await DashboardService.assignDriver({
+      // DashboardService의 배차 처리 API 호출
+      const result = await DashboardService.assignDriver({
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
-        versions: values.versions, // 낙관적 락을 위한 버전 정보
       });
 
       message.loadingToSuccess('배차가 완료되었습니다', key);
@@ -82,23 +73,8 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
     } catch (error) {
       console.error('배차 처리 실패:', error);
 
-      // 낙관적 락 충돌 확인 - 사용자 친화적인 오류 메시지
-      if (error.response?.status === 409) {
-        const errorDetail = error.response?.data?.detail;
-        const currentVersion = errorDetail?.current_version;
-        let errorMessage =
-          '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.';
-
-        // 충돌한 주문번호가 응답에 포함되어 있을 경우 표시
-        if (errorDetail?.conflicted_orders) {
-          const conflictedOrders = errorDetail.conflicted_orders.join(', ');
-          errorMessage = `다음 주문(${conflictedOrders})이 이미 다른 사용자에 의해 수정되었습니다. 새로고침 후 다시 시도해주세요.`;
-        }
-
-        antMessage.error(errorMessage);
-        // 부모 컴포넌트에 알림 (데이터 리로드 유도)
-        onSuccess();
-      } else if (error.response?.status === 423) {
+      // 비관적 락 충돌 처리 (423 Locked)
+      if (error.response?.status === 423) {
         // 비관적 락 충돌 처리
         const lockedBy =
           error.response?.data?.detail?.locked_by || '다른 사용자';
@@ -198,11 +174,6 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
             maxLength={13}
             style={FONT_STYLES.BODY.MEDIUM}
           />
-        </Form.Item>
-
-        {/* 버전 정보는 숨겨진 필드로 관리 */}
-        <Form.Item name="versions" hidden>
-          <Input />
         </Form.Item>
       </Form>
     </Modal>

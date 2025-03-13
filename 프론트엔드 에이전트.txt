@@ -1,415 +1,311 @@
-배송 관제 대시보드 프로젝트 프론트엔드 에이전트 프롬프트
-역할 및 목적
-당신은 배송 관제 대시보드 프로젝트의 프론트엔드 개발을 담당하는 에이전트입니다. React와 Ant Design 컴포넌트를 활용하여 사용자 친화적인 인터페이스를 구현하고, 백엔드 API와 통신하여 배송 데이터를 효과적으로 조회, 관리, 시각화해야 합니다. 컴포넌트 재사용성과 사용자 경험을 극대화하는 방향으로 개발을 진행합니다.
-페이지별 구현 요구사항과 데이터 교환 형식
-1. 로그인 페이지 (LoginPage.js)
-화면 구성 요소
+배송 관제 대시보드 시스템 종합 개선 계획
+핵심 요약
+현재 배송 관제 대시보드 시스템의 프론트엔드는 백엔드 API와의 연동이 불완전하며, 핵심 기능들이 정상적으로 작동하지 않는 심각한 문제를 안고 있습니다. 특히 인증 시스템, 대시보드 관리, 동시성 제어, 권한 관리 등 핵심 영역에서 구조적인 개선이 필요합니다. 아래는 시스템 안정화를 위한 체계적이고 구체적인 개선 계획입니다.
+1. 인증 시스템 전면 재구성
+1.1. 인증 흐름 최적화
 
-로고 및 시스템 타이틀
-사용자 ID 입력 필드
-비밀번호 입력 필드 (마스킹 처리)
-로그인 버튼
-로딩 상태 표시
+강제 리디렉션 메커니즘 구현
 
-CSR 처리 요소
+AuthContext.js에 글로벌 인증 상태 감시 로직 추가
+인증되지 않은 모든 페이지 접근 시 /login 경로로 자동 리디렉션
+인증 실패 이벤트(401 응답) 발생 시 로그인 페이지로 강제 이동
+AxiosConfig.js의 응답 인터셉터에 인증 만료 감지 및 리디렉션 로직 구현
 
-폼 입력값 유효성 검증
 
-ID: 필수 입력, 공백 불가
-비밀번호: 필수 입력, 최소 4자 이상
 
+1.2. 토큰 관리 체계 재설계
 
-로딩 상태에 따른 UI 변경 (버튼 비활성화, 스피너 표시)
-로그인 성공 시 대시보드 페이지로 리다이렉션
-로그인 실패 시 에러 메시지 표시
+LocalStorage 활용 최적화
 
-RESTful API 연동
+AuthService.js의 토큰 저장/조회 로직 개선: access_token, refresh_token, user 정보 일관된 처리
+토큰 만료 시간 관리 추가: 액세스 토큰(60분), 리프레시 토큰(7일)
+세션 스토리지 대신 LocalStorage로 통일하여 브라우저 탭 간 상태 공유
 
-POST /auth/login
 
-요청 데이터: { user_id: string, password: string }
-응답 데이터: { success: boolean, message: string, data: { token: { access_token: string, refresh_token: string }, user: { user_id: string, user_department: string, user_role: string } } }
-로컬 스토리지 저장: access_token, refresh_token, user 정보
 
+1.3. 로그인 프로세스 개선
 
+LoginPage.js 재구성
 
-2. 대시보드/배차 페이지 (DashboardPage.js)
-화면 구성 요소
+백엔드 API 응답 구조(success, token, user 필드)에 맞게 처리 로직 수정
+로그인 성공 시 LocalStorage에 사용자 정보 및 토큰 저장 메커니즘 최적화
+로그인 실패 시 구체적인 오류 메시지 표시 및 사용자 경험 개선
 
-날짜 범위 선택기 (RangePicker)
-필터링 컨트롤 (타입, 부서, 창고, 주문번호)
-주문 데이터 테이블 (DashboardTable)
-작업 버튼 (신규 등록, 배차, 새로고침)
-모달 창 (생성, 배차, 상세 정보)
 
-CSR 처리 요소
 
-테이블 데이터 표시:
+1.4. 토큰 갱신 자동화
 
-상태별 행 색상 적용 (각 상태별로 행 전체에 배경색 지정)
-선택된 행 관리 (체크박스 선택 상태)
-페이징 처리 (현재 페이지, 페이지 크기)
+AuthService.refreshToken() 함수 개선
 
+리프레시 토큰을 사용한 액세스 토큰 갱신 로직 최적화
+갱신 실패 시 로그아웃 처리 및 로그인 페이지로 리디렉션
+백엔드 API 요청 구조: POST /auth/refresh 엔드포인트 호출 방식 수정
 
-필터링 및 정렬:
 
-타입(Type): DELIVERY, RETURN
-부서(Department): CS, HES, LENOVO
-창고(Warehouse): SEOUL, BUSAN, GWANGJU, DAEJEON
-주문번호(order_no) 검색
-상태 및 ETA 기준 정렬
 
+2. 대시보드 핵심 기능 정상화
+2.1. 대시보드 생성 기능
 
-모달 창 상태 관리:
+CreateDashboardModal.js 개선
 
-표시/숨김 상태
-폼 데이터 관리
-유효성 검증
+백엔드 API 요청/응답 구조에 맞게 수정: POST /dashboard 엔드포인트 호출 형식 최적화
+날짜/시간 필드(eta)의 ISO 형식 변환 로직 개선
+필수 필드 유효성 검증 강화(우편번호, 연락처 등)
 
 
 
-RESTful API 연동
+2.2. 상세 정보 조회 기능
 
-GET /dashboard/list
+DashboardDetailModal.js 재구성
 
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터: { success: boolean, message: string, data: { date_range: { oldest_date: string, latest_date: string }, items: [{ dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, region: string, driver_name: string, customer: string, version: number }] } }
+백엔드 API 호출 구조 최적화: GET /dashboard/{dashboard_id} 엔드포인트 처리
+비관적 락 감지 및 사용자 피드백 메커니즘 구현(423 상태 코드 처리)
+메모 관리 기능과 필드 수정 기능 명확히 분리
 
 
-POST /dashboard
 
-요청 데이터: { type: string, warehouse: string, order_no: number, sla: string, eta: string, postal_code: string, address: string, customer: string, contact: string, remark: string }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, ... } }
+2.3. 날짜 기간 조회 개선
 
+useDateRange.js 커스텀 훅 최적화
 
-POST /dashboard/assign
+백엔드 API 응답 구조(date_range 객체)에 맞게 처리 로직 수정
+날짜 범위 유효성 검증 및 예외 처리 강화
+백엔드 API 호출: GET /visualization/date_range 응답 처리 개선
 
-요청 데이터: { dashboard_ids: number[], driver_name: string, driver_contact: string, versions: { [key: number]: number } }
-응답 데이터: { success: boolean, message: string, data: { updated_dashboards: [{ dashboard_id: number, ... }] } }
 
 
-GET /dashboard/{dashboard_id}
+2.4. 필드 수정 기능
 
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, complete_time: string, address: string, postal_code: string, distance: number, duration_time: number, customer: string, contact: string, remark: string, driver_name: string, driver_contact: string, version: number } }
+필드 수정 로직 재구현
 
+메모 수정 UI/기능을 필드 수정에서 완전히 분리
+낙관적 락을 위한 버전 관리 로직 구현: version 필드 추적 및 충돌 처리
+백엔드 API 호출 구조 최적화: PATCH /dashboard/{dashboard_id}/fields 엔드포인트 처리
 
-PATCH /dashboard/{dashboard_id}/status
 
-요청 데이터: { status: string, is_admin: boolean, version: number }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, status: string, ... version: number } }
 
+2.5. 메모 수정 기능
 
-PATCH /dashboard/{dashboard_id}/fields
+독립적 메모 관리 시스템 구현
 
-요청 데이터: { eta: string, customer: string, contact: string, address: string, postal_code: string, remark: string, version: number }
-응답 데이터: { success: boolean, message: string, data: { dashboard_id: number, ... version: number } }
+별도의 메모 수정 UI를 통해서만 접근 가능하도록 설계
+비관적 락 처리 로직 구현(423 상태 코드)
+백엔드 API 호출 구조: PATCH /dashboard/{dashboard_id}/remark 엔드포인트 처리
 
 
-GET /dashboard/search
 
-요청 파라미터: { order_no: string }
-응답 데이터: { success: boolean, message: string, data: { items: [{ dashboard_id: number, ... }] } }
+2.6. 상태 변경 기능
 
+권한별 상태 변경 제약 구현
 
+USER 권한: WAITING → IN_PROGRESS → COMPLETE/ISSUE/CANCEL 흐름 제한
+ADMIN 권한: 모든 상태 간 변경 허용
+비관적 락 및 낙관적 락 충돌 처리 메커니즘 구현
 
-낙관적 락 처리
 
-모든 데이터 수정 요청에 version 필드 포함
-409 Conflict 응답 처리: { success: false, message: string, data: { current_version: number } }
-충돌 발생 시 사용자에게 알림 표시 후 데이터 새로고침
 
-3. 관리자 페이지 (AdminPage.js)
-화면 구성 요소
+2.7. 배차 처리 기능
 
-대시보드 페이지와 동일한 기본 구성
-추가 관리자 기능 버튼 (삭제)
-확인 대화상자 (삭제 확인)
+AssignDriverModal.js 개선
 
-CSR 처리 요소
+다중 선택 배차 처리 로직 최적화
+각 대시보드별 버전 관리 및 낙관적 락 충돌 처리
+백엔드 API 호출 구조: POST /dashboard/assign 엔드포인트 요청 형식 수정
 
-권한 기반 UI:
 
-관리자 권한 확인 및 페이지 접근 제어
-관리자 전용 버튼 표시
 
+3. 검색 및 필터링 기능 재설계
+3.1. 검색 기능 개선
 
-데이터 관리:
+주문번호 검색 UI 재배치
 
-선택된 주문 관리
-삭제 작업 확인 절차
-상태 변경 없는 배차 허용
+RangePicker와 같은 위치에 배치하여 시각적 일관성 확보
+검색 기능은 백엔드 API 호출 방식으로 구현: GET /dashboard/search?order_no={value}
+검색 결과 표시 및 초기화 메커니즘 개선
 
 
 
-RESTful API 연동
+3.2. 필터링 기능 최적화
 
-GET /dashboard/admin/list
+클라이언트 사이드 렌더링(CSR) 방식 구현
 
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터: 대시보드 목록 조회와 동일한 구조
+타입, 부서, 출발 허브 등의 필터링은 프론트엔드에서 처리
+이미 로드된 데이터에 대한 필터링으로 서버 부하 감소
+필터링 상태 관리 및 UI 피드백 개선
 
 
-DELETE /dashboard
 
-요청 데이터: dashboard_ids: number[]
-응답 데이터: { success: boolean, message: string, data: { deleted_count: number } }
+3.3. 검색과 필터링 분리
 
+기능적/시각적 분리를 통한 사용자 혼란 방지
 
+검색(서버 API 호출)과 필터링(CSR)의 차이를 UI로 명확히 표현
+검색 결과에 대한 필터링 적용 가능하도록 구현
+검색 모드와 일반 모드 전환 시 상태 초기화 로직 개선
 
-4. 시각화 페이지 (VisualizationPage.js)
-화면 구성 요소
 
-날짜 범위 선택기 (RangePicker)
-차트 타입 선택기 (배송 현황, 시간대별 접수량)
-배송 현황 차트 (StatusPieChart)
-시간대별 접수량 차트 (HourlyBarChart)
 
-CSR 처리 요소
+4. 페이지 통합 및 권한 관리 체계 개선
+4.1. 관리자/사용자 페이지 통합
 
-차트 렌더링:
+단일 컴포넌트 구조로 재설계
 
-Ant Design Plots 라이브러리 활용
-데이터 변환 및 포맷팅
-차트 타입에 따른 컴포넌트 전환
+AdminPage.js와 DashboardPage.js를 통합하여 중복 코드 제거
+사용자 권한(user.user_role)에 따른 조건부 렌더링 로직 구현
+공통 기능과 권한별 특수 기능 명확히 분리
 
 
-인터랙션 처리:
 
-차트 호버/클릭 이벤트
-날짜 변경에 따른 데이터 갱신
+4.2. 권한별 UI 요소 조건부 렌더링
 
+ADMIN 전용 기능 구현
 
-데이터 없음 상태 처리:
+삭제 버튼: user.user_role === 'ADMIN' 조건부 렌더링
+제한 없는 상태 변경: 권한별 상태 변경 옵션 필터링
+전체 주문에 대한 배차 기능: 대기 상태 제약 없이 배차 가능
 
-Empty 컴포넌트 표시
 
 
+4.3. 권한 검증 로직 강화
 
-RESTful API 연동
+API 호출 전 권한 검증
 
-GET /visualization/delivery_status
+관리자 전용 기능 접근 시 사전 권한 검증
+권한 부족 시 적절한 사용자 피드백 제공
+비인가 접근 시도 감지 및 로깅
 
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터:
-Copy{
-  success: boolean,
-  message: string,
-  data: {
-    type: "delivery_status",
-    total_count: number,
-    department_breakdown: {
-      [department: string]: {
-        total: number,
-        status_breakdown: [
-          {
-            status: string,
-            count: number,
-            percentage: number
-          }
-        ]
-      }
-    }
-  },
-  date_range: {
-    oldest_date: string,
-    latest_date: string
-  }
-}
 
 
+5. 동시성 제어 메커니즘 구현
+5.1. 비관적 락(Pessimistic Lock) 처리
 
-GET /visualization/hourly_orders
+423 상태 코드(Locked) 처리 로직 구현
 
-요청 파라미터: { start_date: string, end_date: string }
-응답 데이터:
-Copy{
-  success: boolean,
-  message: string,
-  data: {
-    type: "hourly_orders",
-    total_count: number,
-    average_count: number,
-    department_breakdown: {
-      [department: string]: {
-        total: number,
-        hourly_counts: {
-          [timeSlot: string]: number
-        }
-      }
-    },
-    time_slots: [
-      {
-        label: string,
-        start: number,
-        end: number
-      }
-    ]
-  },
-  date_range: {
-    oldest_date: string,
-    latest_date: string
-  }
-}
+락 충돌 시 사용자 친화적인 메시지 표시: "현재 {locked_by}님이 편집 중입니다"
+대기 및 재시도 옵션 제공
+락 타입별 차별화된 메시지 제공(편집, 상태 변경, 배차, 메모 작성)
 
 
 
-GET /visualization/date_range
+5.2. 낙관적 락(Optimistic Lock) 충돌 관리
 
-응답 데이터: { success: boolean, message: string, date_range: { oldest_date: string, latest_date: string } }
+409 Conflict 상태 코드 처리 로직 구현
 
+버전 불일치 감지 및 사용자 피드백 제공
+응답에 포함된 최신 버전 정보(current_version)를 활용한 자동 재시도 메커니즘
+충돌 해결을 위한 UI 가이드 제공
 
 
-5. 공통 컴포넌트 및 기능
-Context API를 활용한 상태 관리
 
-AuthContext: 인증 상태, 사용자 정보, 로그인/로그아웃 함수
+5.3. 락 관련 UX 개선
 
-상태: { user: User, isAuthenticated: boolean, authChecking: boolean }
-함수: login(userId, password), logout(), resetAuthAndRedirect()
+락 상태 시각적 표시
 
+편집 중인 항목에 대한 시각적 표시(아이콘, 색상 등)
+락 획득/해제 상태에 따른 UI 요소 활성화/비활성화
+락 만료 시간 표시 및 카운트다운(해당하는 경우)
 
-DashboardContext: 대시보드 데이터, 선택 항목, 로딩 상태, API 함수
 
-상태: { dashboards: Dashboard[], loading: boolean, lastUpdate: number }
-함수: fetchDashboards(startDate, endDate), updateDashboard(dashboardId, updates), removeDashboards(dashboardIds)
 
+6. 백엔드 연동 표준화
+6.1. API 요청/응답 구조 일관화
 
+AxiosConfig.js 최적화
 
-공통 컴포넌트
+모든 API 호출의 기본 설정 통일(타임아웃, withCredentials 등)
+응답 형식(success, message, data) 처리 로직 표준화
+토큰 처리 및 인증 헤더 설정 로직 개선
 
-MainLayout: 레이아웃 구조, 네비게이션, 헤더, 컨텐츠 영역
-Sidebar: 사용자 정보, 메뉴 항목, 로그아웃 버튼
-DashboardTable: 주문 데이터 테이블, 필터링, 정렬, 선택 기능
 
-Props: dataSource, loading, selectedRows, onSelectRows, onRowClick, onRefresh, currentPage, pageSize, onPageChange, isAdminPage
 
+6.2. 에러 처리 체계화
 
-ErrorBoundary: 오류 처리 및 폴백 UI
-LoadingSpin: 로딩 상태 표시
-모달 컴포넌트:
+ErrorHandler.js 확장
 
-CreateDashboardModal: 주문 생성 폼
-AssignDriverModal: 배차 처리 폼
-DashboardDetailModal: 주문 상세 정보 및 편집
+HTTP 상태 코드별 에러 처리 로직 구현(400, 401, 403, 404, 409, 423, 500 등)
+특수 상태 코드(낙관적/비관적 락) 전용 처리 함수 추가
+사용자 친화적인 에러 메시지 시스템 구축
 
 
 
-유틸리티 함수
+6.3. 서비스 레이어 최적화
 
-API 클라이언트: Axios 인스턴스 및 인터셉터
+각 서비스 클래스 개선
 
-토큰 자동 첨부
-401 오류 시 토큰 갱신 처리
-409 충돌 감지 및 처리
+AuthService, DashboardService, VisualizationService 등의 API 호출 로직 표준화
+요청/응답 데이터 변환 및 검증 로직 강화
+백엔드 API 명세와 완벽하게 일치하는 인터페이스 구현
 
 
-날짜/시간 포맷터: KST 기준 날짜/시간 포맷팅
 
-formatDateTime(date, format): 날짜/시간 포맷팅
-formatPhoneNumber(phone): 전화번호 포맷팅
-formatDistance(distance): 거리 포맷팅
-formatDuration(duration): 소요시간 포맷팅
+7. 컴포넌트별 구체적 개선 사항
+7.1. AuthContext.js
 
+인증 상태 관리 개선
 
-메시지 유틸리티: 알림 및 오류 메시지 표시
+토큰 만료 감지 및 자동 갱신 로직 구현
+인증 상태 변경 이벤트 처리 메커니즘 보완
+강제 리디렉션 로직 구현: 인증되지 않은 모든 페이지 접근 시 로그인 페이지로 이동
 
-success(content, key): 성공 메시지
-error(content, key): 오류 메시지
-loading(content, key): 로딩 메시지
-loadingToSuccess(content, key): 로딩→성공 상태 전환
 
 
+7.2. DashboardContext.js
 
-컴포넌트 데이터 구조
-주요 모델 데이터 구조
+데이터 관리 로직 강화
 
-User: { user_id: string, user_department: string, user_role: string }
-Dashboard: { dashboard_id: number, order_no: number, type: string, status: string, department: string, warehouse: string, sla: string, eta: string, create_time: string, depart_time: string, region: string, driver_name: string, customer: string, version: number }
-DashboardDetail: Dashboard에 complete_time, postal_code, city, county, district, distance, duration_time, address, contact, remark, driver_contact 추가
+검색 모드와 일반 모드의 명확한 구분 및 전환 메커니즘
+낙관적 락을 위한 버전 관리 통합
+데이터 조회 및 갱신 로직 최적화
 
-폼 데이터 구조
 
-LoginForm: { user_id: string, password: string }
-CreateDashboardForm: { type: string, warehouse: string, order_no: number, sla: string, eta: string, postal_code: string, address: string, customer: string, contact: string, remark: string }
-AssignDriverForm: { driver_name: string, driver_contact: string }
-StatusUpdateForm: { status: string, is_admin: boolean, version: number }
-FieldsUpdateForm: { eta: string, customer: string, contact: string, address: string, postal_code: string, remark: string, version: number }
 
-시각적 요구사항 및 스타일링
-1. 상태별 색상 및 스타일
+7.3. DashboardTable.js
 
-대기(WAITING): 배경색 #d4e6ff, hover #bdd7ff
-진행(IN_PROGRESS): 배경색 #FFF4DE, hover #FFE2B5
-완료(COMPLETE): 배경색 #e6f7e6, hover #d4f0d4
-이슈(ISSUE): 배경색 #FFE9E9, hover #FFD1D1
-취소(CANCEL): 배경색 #F5F5F5, hover #E0E0E0
+테이블 컴포넌트 개선
 
-2. 시각화 차트 요구사항
+검색 UI 재배치 및 기능 분리
+필터링 로직 CSR 방식으로 최적화
+권한별 조건부 렌더링 및 기능 제한 구현
 
-배송 현황 파이 차트:
 
-상태별 색상 구분:
 
-WAITING: #BAE7FF
-IN_PROGRESS: #FFE2B5
-COMPLETE: #C5F5E1
-ISSUE: #FFD1D1
-CANCEL: #D9D9D9
+7.4. 모달 컴포넌트 개선
 
+CreateDashboardModal.js, DashboardDetailModal.js, AssignDriverModal.js
 
-부서별 개별 차트 표시
-도넛 차트 형태 (innerRadius 적용)
+비관적 락 및 낙관적 락 처리 로직 통합
+폼 유효성 검증 강화
+사용자 피드백 메커니즘 개선
 
 
-시간대별 접수량 막대 그래프:
 
-주간(09~19시): 각 시간대별 개별 막대
-야간(19~09시): 하나의 통합 막대 (강조 표시)
-부서별 색상 구분:
+7.5. 시각화 컴포넌트 최적화
 
-CS: #1890FF
-HES: #722ED1
-LENOVO: #13C2C2
+StatusPieChart.js, HourlyBarChart.js
 
+백엔드 데이터 형식에 맞는 처리 로직 구현
+데이터 누락 및 형식 불일치에 대한 방어적 코딩
+차트 렌더링 성능 최적화
 
 
 
+8. 테스트 및 품질 보증 계획
+8.1. 단위 테스트 확장
 
-낙관적 락 처리 로직
-낙관적 락을 이용한 데이터 수정 흐름
+핵심 기능별 테스트 케이스 구현
+에러 상황 및 예외 처리 테스트
+락 충돌 시나리오 테스트
 
-모든 데이터 수정 요청에 현재 버전 정보 포함
-응답으로 받은 데이터에서 업데이트된 버전 정보 저장
-409 충돌 발생 시 최신 데이터 재조회 및 버전 정보 업데이트
-사용자에게 충돌 알림 표시
+8.2. 통합 테스트 구현
 
-배차 처리에서의 낙관적 락 처리
+백엔드 API와의 연동 테스트
+전체 사용자 흐름 테스트
+권한별 기능 접근 제어 테스트
 
-각 대시보드 ID별 버전 정보를 수집하여 요청에 포함
-충돌 발생 시 전체 데이터 새로고침 및 사용자에게 알림
-사용자가 최신 데이터로 다시 시도할 수 있도록 안내
+8.3. 성능 최적화
 
-인증 및 권한 관리
-인증 흐름
+대량 데이터 처리 성능 테스트
+렌더링 최적화 및 메모리 사용 분석
+네트워크 요청 최소화 전략 구현
 
-로그인: ID/비밀번호로 인증 후 토큰 수신
-토큰 저장: localStorage에 access_token, refresh_token 저장
-요청 인증: Authorization 헤더에 Bearer 토큰 첨부
-토큰 갱신: 401 오류 시 refresh_token으로 새 access_token 요청
-인증 실패: 갱신 실패 시 로그인 페이지로 리다이렉트
-
-권한 기반 UI 제어
-
-관리자(ADMIN): 모든 기능 접근 가능, 삭제 버튼 표시
-일반 사용자(USER): 제한된 상태 변경, 관리자 페이지 접근 불가
-조건부 렌더링: 사용자 역할에 따른 컴포넌트 표시/숨김
-
-구현 가능성 평가
-제시된 요구사항은 React와 Ant Design을 활용하여 구현 가능합니다. 다만 다음 사항들에 주의해야 합니다:
-
-낙관적 락 처리: 모든 데이터 수정 작업에서 충돌 감지 및 재시도 메커니즘 필요
-상태별 테이블 행 스타일링: CSS 클래스를 활용한 일관된 스타일 적용
-시간대별 데이터 시각화: 주간/야간 구분에 따른 데이터 가공 로직 필요
-권한 기반 UI 제어: 사용자 역할에 따른 컴포넌트 조건부 렌더링
-
-현재 제공된 코드 구조를 기반으로, Context API를 활용한 상태 관리와 컴포넌트 계층 구조를 유지하면서 요구사항을 충족하는 프론트엔드 구현이 가능합니다.
+이 종합적인 개선 계획을 체계적으로 구현함으로써, 현재 기능이 정상 작동하지 않는 배송 관제 대시보드 시스템을 안정적이고 효율적인 시스템으로 변모시킬 수 있습니다. 백엔드 API와의 완벽한 통합을 통해 업무 효율성을 극대화하고, 사용자 경험을 크게 향상시킬 것입니다.

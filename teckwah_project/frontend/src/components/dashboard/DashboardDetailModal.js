@@ -1,5 +1,5 @@
 // frontend/src/components/dashboard/DashboardDetailModal.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Typography,
@@ -154,6 +154,7 @@ const DashboardDetailModal = ({
 
     return hasDriverName && hasDriverContact;
   };
+
   // 상태 변경 가능한 상태 목록 가져오기
   const getAvailableStatuses = () => {
     // 관리자는 모든 상태로 변경 가능
@@ -235,16 +236,13 @@ const DashboardDetailModal = ({
         '상태 변경 요청:',
         dashboard.dashboard_id,
         newStatus,
-        isAdmin,
-        '버전:',
-        currentVersion
+        isAdmin
       );
 
       const updatedDashboard = await DashboardService.updateStatus(
         dashboard.dashboard_id,
         newStatus,
-        isAdmin,
-        currentVersion // 낙관적 락을 위한 버전 전송
+        isAdmin
       );
 
       // 업데이트된 대시보드 정보로 화면 갱신
@@ -312,15 +310,12 @@ const DashboardDetailModal = ({
       console.log(
         '메모 업데이트 요청:',
         dashboard.dashboard_id,
-        currentDashboard.remark,
-        '버전:',
-        currentVersion
+        currentDashboard.remark
       );
 
       const updatedDashboard = await DashboardService.updateRemark(
         dashboard.dashboard_id,
-        currentDashboard.remark,
-        currentVersion // 낙관적 락을 위한 버전 전송
+        currentDashboard.remark
       );
 
       setCurrentDashboard(updatedDashboard);
@@ -331,26 +326,8 @@ const DashboardDetailModal = ({
     } catch (error) {
       console.error('메모 업데이트 실패:', error);
 
-      // 낙관적 락 충돌 확인 - 사용자 친화적인 메시지
-      if (error.response?.status === 409) {
-        const errorDetail = error.response?.data?.detail;
-        const newVersion = errorDetail?.current_version;
-
-        if (newVersion) {
-          antMessage.error(
-            '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보로 업데이트합니다.'
-          );
-          setCurrentVersion(newVersion);
-          onSuccess();
-        } else {
-          message.loadingToError(
-            '데이터 충돌이 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.',
-            key
-          );
-        }
-        setCurrentDashboard(dashboard); // 에러 시 원래 상태로 복구
-      } else if (error.response?.status === 423) {
-        // 비관적 락 충돌
+      // 비관적 락 충돌 확인 - 사용자 친화적인 메시지
+      if (error.response?.status === 423) {
         const lockedBy =
           error.response?.data?.detail?.locked_by || '다른 사용자';
         message.loadingToError(
@@ -378,14 +355,24 @@ const DashboardDetailModal = ({
       setLoading(true);
       message.loading('필드 업데이트 중...', key);
 
-      // 버전 정보 추가
-      values.version = currentVersion;
+      // 필드 업데이트 데이터 준비
+      const fieldsData = {
+        eta: values.eta,
+        customer: values.customer,
+        contact: values.contact,
+        address: values.address,
+        postal_code: values.postal_code,
+      };
 
-      console.log('필드 업데이트 요청:', dashboard.dashboard_id, values);
+      console.log(
+        '필드 업데이트 요청 데이터:',
+        dashboard.dashboard_id,
+        fieldsData
+      );
 
       const updatedDashboard = await DashboardService.updateFields(
         dashboard.dashboard_id,
-        values
+        fieldsData
       );
 
       setCurrentDashboard(updatedDashboard);

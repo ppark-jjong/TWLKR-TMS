@@ -67,7 +67,7 @@ const AuthService = {
     } catch (error) {
       console.error('로그인 오류:', error);
       // 로그인 실패 시 로컬 인증 데이터 정리
-      this.clearAuthData();
+      AuthService.clearAuthData();
       throw error;
     }
   },

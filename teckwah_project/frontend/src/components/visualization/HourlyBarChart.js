@@ -9,7 +9,7 @@ import { formatNumber } from '../../utils/Formatter';
 
 const { Title, Text } = Typography;
 
-const HourlyBarChart = ({ data }) => {
+const HourlyBarChart = ({ data, dateRange }) => {
   const [chartData, setChartData] = useState([]);
   const [departmentStats, setDepartmentStats] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
@@ -271,6 +271,12 @@ const HourlyBarChart = ({ data }) => {
         >
           시간대별 접수량
         </Title>
+        {dateRange && dateRange.length === 2 && (
+          <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
+            {dateRange[0].format('YYYY-MM-DD')} ~{' '}
+            {dateRange[1].format('YYYY-MM-DD')}
+          </Text>
+        )}
       </div>
 
       {/* 부서별 통계 카드 - 한 줄로 최적화 */}

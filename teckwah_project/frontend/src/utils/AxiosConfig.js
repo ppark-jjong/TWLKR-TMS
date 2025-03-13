@@ -240,7 +240,7 @@ const setupAxiosInterceptors = () => {
             localStorage.setItem('returnUrl', window.location.pathname);
 
             // 확실한 리디렉션을 위해 replace 사용 (브라우저 이력에 남지 않음)
-            console.log('인증 만료: 로그인 페이지로 강제 리다이렉션');
+            console.log('인증 만료: 로그인 페이지로 강제 리디렉션');
 
             // 현재 실행 중인 코드 완료 후 리디렉션하도록 setTimeout 사용
             setTimeout(() => {

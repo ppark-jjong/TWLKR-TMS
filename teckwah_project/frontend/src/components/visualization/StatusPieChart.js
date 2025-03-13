@@ -35,7 +35,7 @@ const DEPARTMENT_TEXTS = {
   LENOVO: 'LENOVO 부서',
 };
 
-const StatusPieCharts = ({ data }) => {
+const StatusPieCharts = ({ data, dateRange }) => {
   const [processedData, setProcessedData] = useState({
     departmentBreakdown: {},
     total: 0,
@@ -222,6 +222,12 @@ const StatusPieCharts = ({ data }) => {
         >
           부서별 배송 현황
         </Title>
+        {dateRange && dateRange.length === 2 && (
+          <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
+            {dateRange[0].format('YYYY-MM-DD')} ~{' '}
+            {dateRange[1].format('YYYY-MM-DD')}
+          </Text>
+        )}
       </div>
 
       {/* 상태별 카드 - 한 줄로 배치하고 크기 조정 */}

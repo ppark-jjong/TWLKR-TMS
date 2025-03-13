@@ -1,8 +1,13 @@
 // frontend/src/components/dashboard/DashboardTable.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Tag, Tooltip, Input, Select, Space, Button } from 'antd';
-import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  SearchOutlined,
+  ReloadOutlined,
+  FilterOutlined,
+  ClearOutlined,
+} from '@ant-design/icons';
 import {
   STATUS_TYPES,
   STATUS_TEXTS,
@@ -56,9 +61,10 @@ const DashboardTable = ({
     useState(warehouseFilter);
   const [localOrderNoSearch, setLocalOrderNoSearch] = useState(orderNoSearch);
   const [filteredData, setFilteredData] = useState([]);
+  const [searchInput, setSearchInput] = useState('');
 
   // 데이터 검증 로직 추가
-  const normalizeData = (data) => {
+  const normalizeData = useCallback((data) => {
     if (!Array.isArray(data)) return [];
 
     return data.map((item) => {
@@ -87,7 +93,7 @@ const DashboardTable = ({
 
       return normalized;
     });
-  };
+  }, []);
 
   // 외부 props가 변경되면 로컬 상태 업데이트
   useEffect(() => {
@@ -105,17 +111,6 @@ const DashboardTable = ({
     // 데이터가 비어있는 경우 필터링 스킵
     if (safeDataSource.length === 0) {
       setFilteredData([]);
-      return;
-    }
-
-    // 필터링이 없고, 검색어도 없는 경우 원본 데이터 사용
-    if (
-      !localTypeFilter &&
-      !localDepartmentFilter &&
-      !localWarehouseFilter &&
-      !localOrderNoSearch
-    ) {
-      setFilteredData(safeDataSource);
       return;
     }
 
@@ -176,7 +171,7 @@ const DashboardTable = ({
         return aGroup - bGroup;
       }
 
-      // 같은 그룹 내에서는 ETA 기준 오름차순 정렬
+      // 같은 상태 그룹 내에서는 ETA 기준 오름차순 정렬
       const aEta = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
       const bEta = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
       return aEta - bEta;
@@ -208,32 +203,21 @@ const DashboardTable = ({
     onWarehouseFilterChange(value);
   };
 
-  // 주문번호 검색 핸들러 수정
-  const handleOrderNoSearchChange = (e) => {
-    const value = e.target.value;
-    setLocalOrderNoSearch(value);
-
-    // 입력값이 없으면 백엔드 API 검색을 호출하지 않고 로컬 필터링 초기화
-    if (!value || value.trim() === '') {
-      if (onResetFilters) {
-        onResetFilters(); // 상위 컴포넌트에서 필터 초기화
-      }
-      return;
-    }
-
-    // 주문번호 검색은 엔터키나 검색 버튼 클릭 시에만 실행
+  // 검색 입력 핸들러
+  const handleSearchInputChange = (e) => {
+    setSearchInput(e.target.value);
   };
 
-  // 검색 버튼 클릭 핸들러 추가
+  // 검색 버튼 클릭 핸들러
   const handleSearch = () => {
-    if (localOrderNoSearch && localOrderNoSearch.trim() !== '') {
-      onOrderNoSearchChange(localOrderNoSearch);
+    if (searchInput.trim()) {
+      onOrderNoSearchChange(searchInput);
     }
   };
 
-  // 엔터키 핸들러 추가
+  // 엔터키 핸들러
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && localOrderNoSearch) {
+    if (e.key === 'Enter' && searchInput.trim()) {
       handleSearch();
     }
   };
@@ -244,6 +228,7 @@ const DashboardTable = ({
     setLocalDepartmentFilter(null);
     setLocalWarehouseFilter(null);
     setLocalOrderNoSearch('');
+    setSearchInput('');
     onResetFilters(); // 상위 컴포넌트에 전달
   };
 
@@ -346,8 +331,8 @@ const DashboardTable = ({
         <div>
           <Input.Search
             placeholder="주문번호 검색"
-            value={localOrderNoSearch}
-            onChange={handleOrderNoSearchChange}
+            value={searchInput}
+            onChange={handleSearchInputChange}
             onSearch={handleSearch}
             onKeyPress={handleKeyPress}
             style={{ width: 200 }}
@@ -356,13 +341,14 @@ const DashboardTable = ({
         </div>
 
         <Button
-          icon={<ReloadOutlined />}
+          type="default"
+          icon={<ClearOutlined />}
           onClick={resetFilters}
           disabled={
             !localTypeFilter &&
             !localDepartmentFilter &&
             !localWarehouseFilter &&
-            !localOrderNoSearch
+            !searchInput
           }
         >
           필터 초기화

@@ -10,7 +10,6 @@ class DashboardService {
    * @param {dayjs} endDate - 종료 날짜
    * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
    */
-  // frontend/src/services/DashboardService.js
   async getDashboardList(startDate, endDate) {
     try {
       // 날짜 형식 확인
@@ -25,51 +24,46 @@ class DashboardService {
         },
       });
 
-      console.log('대시보드 목록 응답:', response);
+      console.log('대시보드 목록 응답:', response.data);
 
-      // 응답 데이터 구조 유연하게 처리
+      // 응답 데이터 구조 검증
       if (!response.data) {
         console.error('응답에 데이터가 없습니다');
         return { items: [], date_range: null };
       }
 
-      // 다양한 응답 구조 처리
-      let items = [];
-      let dateRange = null;
-
-      // 백엔드 프롬프트에 정의된 성공 응답 구조
+      // 백엔드 API 응답 구조 처리 (success, message, data 구조)
       if (response.data.success && response.data.data) {
-        // { success: true, message: "...", data: { items: [...], date_range: {...} } }
-        items = response.data.data.items || [];
-        dateRange = response.data.data.date_range || response.data.date_range;
-      }
-      // 응답 구조가 다른 경우 대안적 처리
-      else if (response.data.items) {
-        // { items: [...], date_range: {...} } 구조인 경우
-        items = response.data.items;
-        dateRange = response.data.date_range;
-      } else if (Array.isArray(response.data)) {
-        // 배열 형태로 직접 반환된 경우
-        items = response.data;
-      } else if (response.data.data) {
-        // { data: [...] } 구조인 경우
-        items = Array.isArray(response.data.data) ? response.data.data : [];
-        dateRange = response.data.date_range;
+        // 성공 응답 처리
+        const items = response.data.data.items || [];
+        const dateRange = response.data.data.date_range;
+
+        return {
+          items,
+          date_range: dateRange,
+          user_role: response.data.data.user_role,
+          is_admin: response.data.data.is_admin,
+        };
       } else {
-        console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
-        return { items: [], date_range: null };
+        // 응답은 성공했지만 데이터 형식이 다른 경우
+        console.warn('서버 응답 데이터 형식이 예상과 다릅니다:', response.data);
+
+        // 다양한 응답 구조 대응 (하위 호환성)
+        let items = [];
+        let dateRange = null;
+
+        if (response.data.items) {
+          items = response.data.items;
+          dateRange = response.data.date_range;
+        } else if (Array.isArray(response.data)) {
+          items = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          items = response.data.data;
+          dateRange = response.data.date_range;
+        }
+
+        return { items, date_range: dateRange };
       }
-
-      // 날짜 범위로 필터링 (프론트엔드에서 처리)
-      const filteredItems = this.filterByDateRange(items, startDate, endDate);
-
-      // 상태와 ETA 기준으로 정렬
-      const sortedItems = this.sortDashboardsByStatus(filteredItems);
-
-      return {
-        items: sortedItems,
-        date_range: dateRange,
-      };
     } catch (error) {
       console.error('대시보드 목록 조회 실패:', error.response?.data || error);
       throw error;
@@ -94,7 +88,7 @@ class DashboardService {
         formattedEndDate
       );
 
-      const response = await axios.get('/dashboard/admin/list', {
+      const response = await axios.get('/dashboard/list', {
         params: {
           start_date: formattedStartDate,
           end_date: formattedEndDate,
@@ -106,18 +100,13 @@ class DashboardService {
       // 응답 구조 확인 및 안전한 데이터 반환
       if (response.data && response.data.success) {
         const items = response.data.data?.items || [];
-        const dateRange =
-          response.data.data?.date_range || response.data.date_range;
-
-        // 날짜 범위로 필터링 (프론트엔드에서 처리)
-        const filteredItems = this.filterByDateRange(items, startDate, endDate);
-
-        // 상태와 ETA 기준으로 정렬
-        const sortedItems = this.sortDashboardsByStatus(filteredItems);
+        const dateRange = response.data.data?.date_range;
 
         return {
-          items: sortedItems,
+          items,
           date_range: dateRange,
+          user_role: response.data.data?.user_role,
+          is_admin: response.data.data?.is_admin,
         };
       } else {
         console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
@@ -266,19 +255,17 @@ class DashboardService {
   }
 
   /**
-   * 상태 업데이트 (낙관적 락 적용)
+   * 상태 업데이트 (비관적 락 적용)
    * @param {number} dashboardId - 대시보드 ID
    * @param {string} status - 변경할 상태
    * @param {boolean} isAdmin - 관리자 여부
-   * @param {number} version - 현재 버전 (낙관적 락을 위함)
    * @returns {Promise<Object>} - 업데이트된 대시보드 정보
    */
-  async updateStatus(dashboardId, status, isAdmin = false, version) {
+  async updateStatus(dashboardId, status, isAdmin = false) {
     try {
       const response = await axios.patch(`/dashboard/${dashboardId}/status`, {
         status,
         is_admin: isAdmin,
-        version, // 낙관적 락을 위한 버전 정보 전송
       });
       console.log('상태 업데이트 응답:', response.data);
 
@@ -295,17 +282,15 @@ class DashboardService {
   }
 
   /**
-   * 메모 업데이트 (낙관적 락 적용)
+   * 메모 업데이트 (비관적 락 적용)
    * @param {number} dashboardId - 대시보드 ID
    * @param {string} remark - 메모 내용
-   * @param {number} version - 현재 버전 (낙관적 락을 위함)
    * @returns {Promise<Object>} - 업데이트된 대시보드 정보
    */
-  async updateRemark(dashboardId, remark, version) {
+  async updateRemark(dashboardId, remark) {
     try {
       const response = await axios.patch(`/dashboard/${dashboardId}/remark`, {
-        remark,
-        version, // 낙관적 락을 위한 버전 정보 전송
+        content: remark,
       });
       console.log('메모 업데이트 응답:', response.data);
 
@@ -322,7 +307,7 @@ class DashboardService {
   }
 
   /**
-   * 필드 업데이트 (낙관적 락 적용)
+   * 필드 업데이트 (비관적 락 적용)
    * @param {number} dashboardId - 대시보드 ID
    * @param {Object} fields - 업데이트할 필드 데이터
    * @returns {Promise<Object>} - 업데이트된 대시보드 정보
@@ -349,22 +334,13 @@ class DashboardService {
   }
 
   /**
-   * 배차 처리 (낙관적 락 적용)
-   * @param {Object} driverData - 배차 정보 (dashboard_ids, driver_name, driver_contact, versions)
+   * 배차 처리 (비관적 락 적용)
+   * @param {Object} driverData - 배차 정보 (dashboard_ids, driver_name, driver_contact)
    * @returns {Promise<Array>} - 업데이트된 대시보드 정보 배열
    */
   async assignDriver(driverData) {
     try {
       console.log('배차 요청 데이터:', driverData);
-
-      // dashboard_ids별 버전 정보 확인
-      if (!driverData.versions) {
-        // 버전 정보가 없는 경우 초기화
-        driverData.versions = {};
-        driverData.dashboard_ids.forEach((id) => {
-          driverData.versions[id] = 1; // 기본 버전 1 설정
-        });
-      }
 
       const response = await axios.post('/dashboard/assign', driverData);
       console.log('배차 응답:', response.data);
@@ -399,6 +375,36 @@ class DashboardService {
     } catch (error) {
       console.error('대시보드 삭제 실패:', error.response?.data || error);
       throw error;
+    }
+  }
+
+  /**
+   * 날짜 범위 조회
+   * @returns {Promise<Object>} - 조회 가능한 날짜 범위
+   */
+  async getDateRange() {
+    try {
+      const response = await axios.get('/visualization/date_range');
+      console.log('날짜 범위 조회 응답:', response.data);
+
+      if (response.data && response.data.success && response.data.date_range) {
+        return {
+          oldest_date: response.data.date_range.oldest_date,
+          latest_date: response.data.date_range.latest_date,
+        };
+      } else {
+        return {
+          oldest_date: new Date().toISOString().split('T')[0],
+          latest_date: new Date().toISOString().split('T')[0],
+        };
+      }
+    } catch (error) {
+      console.error('날짜 범위 조회 실패:', error.response?.data || error);
+      // 에러 발생 시 기본값 반환
+      return {
+        oldest_date: new Date().toISOString().split('T')[0],
+        latest_date: new Date().toISOString().split('T')[0],
+      };
     }
   }
 }
