@@ -1,5 +1,5 @@
 # backend/app/schemas/dashboard_schema.py
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .common_schema import BaseResponse, DateRangeInfo
@@ -18,10 +18,22 @@ class RemarkResponse(BaseModel):
     content: str
     created_at: datetime
     created_by: str
-    formatted_content: str
+    formatted_content: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator('formatted_content', mode='before')
+    @classmethod
+    def set_formatted_content_default(cls, v, info):
+        # None인 경우 content와 created_by 필드로 자동 생성
+        if v is None:
+            try:
+                content = info.data.get('content', '')
+                created_by = info.data.get('created_by', '')
+                return f"{created_by}: {content}"
+            except Exception:
+                return ""  # 예외 발생 시 빈 문자열 반환
+        return v
 
 class RemarkCreate(BaseModel):
     content: str = Field(max_length=2000, description="메모 내용(2000자 이내)")

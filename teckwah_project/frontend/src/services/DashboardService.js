@@ -132,9 +132,22 @@ class DashboardService {
   async searchDashboardsByOrderNo(orderNo) {
     try {
       console.log('주문번호 검색 요청:', orderNo);
+
+      // 이전 요청 취소를 위한 CancelToken 생성 (중복 요청 방지)
+      const source = axios.CancelToken.source();
+
+      // 검색 요청 타임아웃 설정 (30초)
+      const timeoutId = setTimeout(() => {
+        source.cancel('검색 요청 타임아웃');
+      }, 30000);
+
       const response = await axios.get('/dashboard/search', {
         params: { order_no: orderNo },
+        cancelToken: source.token,
       });
+
+      // 타임아웃 해제
+      clearTimeout(timeoutId);
 
       console.log('주문번호 검색 응답:', response.data);
 
@@ -147,6 +160,12 @@ class DashboardService {
         return [];
       }
     } catch (error) {
+      // 요청 취소인 경우 별도 처리
+      if (axios.isCancel(error)) {
+        console.log('검색 요청이 취소되었습니다:', error.message);
+        return [];
+      }
+
       console.error('주문번호 검색 실패:', error.response?.data || error);
       throw error;
     }

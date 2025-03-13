@@ -6,6 +6,7 @@ import React, {
   useContext,
   useCallback,
   useEffect,
+  useRef,
 } from 'react';
 import DashboardService from '../services/DashboardService';
 import message, { MessageKeys, MessageTemplates } from '../utils/message';
@@ -25,9 +26,21 @@ export const DashboardProvider = ({ children }) => {
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const [searchMode, setSearchMode] = useState(false); // 검색 모드 상태
 
+  // 요청 상태 추적을 위한 ref 추가
+  const requestInProgressRef = useRef(false);
+  const searchRequestInProgressRef = useRef(false);
+
   // 데이터 조회 함수 (권한 구분 없이 통합)
   const fetchDashboards = useCallback(
     async (startDate, endDate, forceRefresh = false) => {
+      // 요청 중복 방지 체크
+      if (requestInProgressRef.current && !forceRefresh) {
+        console.log(
+          '이미 데이터 요청이.진행 중입니다. 중복 요청을 방지합니다.'
+        );
+        return { items: dashboards, date_range: availableDateRange };
+      }
+
       // 이미 검색 모드인 경우와 강제 새로고침이 아닌 경우 데이터 재요청 방지
       if (searchMode && !forceRefresh && dashboards.length > 0) {
         console.log('검색 모드에서는 데이터를 재요청하지 않습니다.');
@@ -35,7 +48,10 @@ export const DashboardProvider = ({ children }) => {
       }
 
       try {
+        // 요청 시작 표시
+        requestInProgressRef.current = true;
         setLoading(true);
+
         console.log(
           '대시보드 데이터 요청:',
           startDate.format('YYYY-MM-DD'),
@@ -78,6 +94,8 @@ export const DashboardProvider = ({ children }) => {
         );
         return { items: [], date_range: null };
       } finally {
+        // 요청 완료 표시
+        requestInProgressRef.current = false;
         setLoading(false);
       }
     },
@@ -89,36 +107,58 @@ export const DashboardProvider = ({ children }) => {
    * @param {string} orderNo - 검색할 주문번호
    * @returns {Promise<Object>} - 검색 결과
    */
-  const searchByOrderNo = useCallback(async (orderNo) => {
-    try {
-      setLoading(true);
-      setSearchMode(true);
+  const searchByOrderNo = useCallback(
+    async (orderNo) => {
+      // 요청 중복 방지 체크
+      if (searchRequestInProgressRef.current) {
+        console.log('이미 검색 요청이 진행 중입니다. 중복 요청을 방지합니다.');
+        return { items: dashboards };
+      }
 
-      console.log('주문번호 검색 요청:', orderNo);
-      const searchResults = await DashboardService.searchDashboardsByOrderNo(
-        orderNo
-      );
+      try {
+        // 검색 요청 시작 표시
+        searchRequestInProgressRef.current = true;
+        setLoading(true);
+        setSearchMode(true);
 
-      // 정렬 적용 후 데이터 설정
-      const sortedResults =
-        DashboardService.sortDashboardsByStatus(searchResults);
-      setDashboards(sortedResults);
-      setLastUpdate(Date.now());
+        console.log('주문번호 검색 요청:', orderNo);
+        const searchResults = await DashboardService.searchDashboardsByOrderNo(
+          orderNo
+        );
 
-      return { items: sortedResults };
-    } catch (error) {
-      console.error('주문번호 검색 실패:', error);
-      message.error('검색 중 오류가 발생했습니다', MessageKeys.DASHBOARD.LOAD);
-      return { items: [] };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        // 정렬 적용 후 데이터 설정
+        const sortedResults =
+          DashboardService.sortDashboardsByStatus(searchResults);
+        setDashboards(sortedResults);
+        setLastUpdate(Date.now());
+
+        return { items: sortedResults };
+      } catch (error) {
+        console.error('주문번호 검색 실패:', error);
+        message.error(
+          '검색 중 오류가 발생했습니다',
+          MessageKeys.DASHBOARD.LOAD
+        );
+        return { items: [] };
+      } finally {
+        // 검색 요청 완료 표시
+        searchRequestInProgressRef.current = false;
+        setLoading(false);
+      }
+    },
+    [dashboards]
+  );
 
   /**
    * 검색 모드 초기화 (날짜 기준 데이터로 복귀)
    */
   const resetSearchMode = useCallback(() => {
+    // 이미 요청 중인 경우 중복 요청 방지
+    if (requestInProgressRef.current) {
+      console.log('이미 요청이 진행 중입니다. 초기화 요청을 무시합니다.');
+      return;
+    }
+
     setSearchMode(false);
     if (dateRange && dateRange[0] && dateRange[1]) {
       fetchDashboards(dateRange[0], dateRange[1], true);

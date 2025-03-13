@@ -1,6 +1,6 @@
 // frontend/src/components/dashboard/DashboardTable.js
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Table, Tag, Tooltip, Input, Select, Space, Button } from 'antd';
 import {
   SearchOutlined,
@@ -63,6 +63,9 @@ const DashboardTable = ({
   const [filteredData, setFilteredData] = useState([]);
   const [searchInput, setSearchInput] = useState('');
 
+  // 필터링 중복 실행 방지 플래그
+  const isFilteringRef = useRef(false);
+
   // 데이터 검증 로직 추가
   const normalizeData = useCallback((data) => {
     if (!Array.isArray(data)) return [];
@@ -106,7 +109,7 @@ const DashboardTable = ({
   // 안전한 데이터 소스 확인 및 정규화
   const safeDataSource = normalizeData(dataSource);
 
-  // 필터링된 데이터 계산 및 정렬
+  // 필터링된 데이터 계산 및 정렬 (한 번만 실행되도록 최적화)
   useEffect(() => {
     // 데이터가 비어있는 경우 필터링 스킵
     if (safeDataSource.length === 0) {
@@ -114,6 +117,12 @@ const DashboardTable = ({
       return;
     }
 
+    // 필터링이 이미 진행 중인 경우 중복 실행 방지
+    if (isFilteringRef.current) {
+      return;
+    }
+
+    // 필터링 로그 출력 (디버깅용)
     console.log('필터링 적용 시작:', {
       dataCount: safeDataSource.length,
       typeFilter: localTypeFilter,
@@ -122,63 +131,77 @@ const DashboardTable = ({
       orderNoSearch: localOrderNoSearch,
     });
 
-    // 원본 데이터 복사 (불변성 유지)
-    let result = [...safeDataSource];
+    // 필터링 시작 플래그 설정
+    isFilteringRef.current = true;
 
-    // 필터링 적용
-    if (localTypeFilter) {
-      result = result.filter((item) => item.type === localTypeFilter);
-      console.log(
-        `타입 필터 적용: ${localTypeFilter}, 결과 건수: ${result.length}`
-      );
-    }
+    try {
+      // 원본 데이터 복사 (불변성 유지)
+      let result = [...safeDataSource];
 
-    if (localDepartmentFilter) {
-      result = result.filter(
-        (item) => item.department === localDepartmentFilter
-      );
-      console.log(
-        `부서 필터 적용: ${localDepartmentFilter}, 결과 건수: ${result.length}`
-      );
-    }
-
-    if (localWarehouseFilter) {
-      result = result.filter((item) => item.warehouse === localWarehouseFilter);
-      console.log(
-        `허브 필터 적용: ${localWarehouseFilter}, 결과 건수: ${result.length}`
-      );
-    }
-
-    if (localOrderNoSearch) {
-      result = result.filter((item) =>
-        String(item.order_no).includes(localOrderNoSearch)
-      );
-      console.log(
-        `주문번호 검색 적용: ${localOrderNoSearch}, 결과 건수: ${result.length}`
-      );
-    }
-
-    // 정렬 로직: 요구사항에 맞게 단순화
-    // 1. 완료/이슈/취소 상태와 대기/진행 상태로 그룹화
-    // 2. 각 그룹 내에서 ETA 기준 오름차순 정렬
-    result.sort((a, b) => {
-      // 상태 그룹화 (대기, 진행 vs 완료, 이슈, 취소)
-      const aGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(a.status) ? 1 : 0;
-      const bGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(b.status) ? 1 : 0;
-
-      // 그룹이 다르면 그룹 기준으로 정렬 (대기,진행 우선)
-      if (aGroup !== bGroup) {
-        return aGroup - bGroup;
+      // 필터링 적용
+      if (localTypeFilter) {
+        result = result.filter((item) => item.type === localTypeFilter);
+        console.log(
+          `타입 필터 적용: ${localTypeFilter}, 결과 건수: ${result.length}`
+        );
       }
 
-      // 같은 상태 그룹 내에서는 ETA 기준 오름차순 정렬
-      const aEta = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
-      const bEta = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
-      return aEta - bEta;
-    });
+      if (localDepartmentFilter) {
+        result = result.filter(
+          (item) => item.department === localDepartmentFilter
+        );
+        console.log(
+          `부서 필터 적용: ${localDepartmentFilter}, 결과 건수: ${result.length}`
+        );
+      }
 
-    console.log(`정렬 및 필터링 완료, 최종 결과 건수: ${result.length}`);
-    setFilteredData(result);
+      if (localWarehouseFilter) {
+        result = result.filter(
+          (item) => item.warehouse === localWarehouseFilter
+        );
+        console.log(
+          `허브 필터 적용: ${localWarehouseFilter}, 결과 건수: ${result.length}`
+        );
+      }
+
+      if (localOrderNoSearch) {
+        result = result.filter((item) =>
+          String(item.order_no).includes(localOrderNoSearch)
+        );
+        console.log(
+          `주문번호 검색 적용: ${localOrderNoSearch}, 결과 건수: ${result.length}`
+        );
+      }
+
+      // 정렬 로직: 요구사항에 맞게 단순화
+      // 1. 완료/이슈/취소 상태와 대기/진행 상태로 그룹화
+      // 2. 각 그룹 내에서 ETA 기준 오름차순 정렬
+      result.sort((a, b) => {
+        // 상태 그룹화 (대기, 진행 vs 완료, 이슈, 취소)
+        const aGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(a.status)
+          ? 1
+          : 0;
+        const bGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(b.status)
+          ? 1
+          : 0;
+
+        // 그룹이 다르면 그룹 기준으로 정렬 (대기,진행 우선)
+        if (aGroup !== bGroup) {
+          return aGroup - bGroup;
+        }
+
+        // 같은 상태 그룹 내에서는 ETA 기준 오름차순 정렬
+        const aEta = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
+        const bEta = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
+        return aEta - bEta;
+      });
+
+      console.log(`정렬 및 필터링 완료, 최종 결과 건수: ${result.length}`);
+      setFilteredData(result);
+    } finally {
+      // 필터링 완료 플래그 해제
+      isFilteringRef.current = false;
+    }
   }, [
     safeDataSource,
     localTypeFilter,
@@ -188,55 +211,67 @@ const DashboardTable = ({
   ]);
 
   // 필터 변경 핸들러 - 상위 컴포넌트 콜백 호출
-  const handleTypeFilterChange = (value) => {
-    setLocalTypeFilter(value);
-    onTypeFilterChange(value);
-  };
+  const handleTypeFilterChange = useCallback(
+    (value) => {
+      setLocalTypeFilter(value);
+      onTypeFilterChange(value);
+    },
+    [onTypeFilterChange]
+  );
 
-  const handleDepartmentFilterChange = (value) => {
-    setLocalDepartmentFilter(value);
-    onDepartmentFilterChange(value);
-  };
+  const handleDepartmentFilterChange = useCallback(
+    (value) => {
+      setLocalDepartmentFilter(value);
+      onDepartmentFilterChange(value);
+    },
+    [onDepartmentFilterChange]
+  );
 
-  const handleWarehouseFilterChange = (value) => {
-    setLocalWarehouseFilter(value);
-    onWarehouseFilterChange(value);
-  };
+  const handleWarehouseFilterChange = useCallback(
+    (value) => {
+      setLocalWarehouseFilter(value);
+      onWarehouseFilterChange(value);
+    },
+    [onWarehouseFilterChange]
+  );
 
   // 검색 입력 핸들러
-  const handleSearchInputChange = (e) => {
+  const handleSearchInputChange = useCallback((e) => {
     setSearchInput(e.target.value);
-  };
+  }, []);
 
   // 검색 버튼 클릭 핸들러
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     if (searchInput.trim()) {
       onOrderNoSearchChange(searchInput);
     }
-  };
+  }, [searchInput, onOrderNoSearchChange]);
 
   // 엔터키 핸들러
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
-      handleSearch();
-    }
-  };
+  const handleKeyPress = useCallback(
+    (e) => {
+      if (e.key === 'Enter' && searchInput.trim()) {
+        handleSearch();
+      }
+    },
+    [searchInput, handleSearch]
+  );
 
   // 필터 초기화 함수
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setLocalTypeFilter(null);
     setLocalDepartmentFilter(null);
     setLocalWarehouseFilter(null);
     setLocalOrderNoSearch('');
     setSearchInput('');
     onResetFilters(); // 상위 컴포넌트에 전달
-  };
+  }, [onResetFilters]);
 
   /**
    * 행 스타일 생성 함수 - 상태별 배경색 적용
    * 요구사항: 각 상태별 색상대로 각 행 전체에 색이 반영되어야 함
    */
-  const getRowStyle = (record) => {
+  const getRowStyle = useCallback((record) => {
     // 기본 상태 검증
     const status = record.status || 'WAITING';
 
@@ -253,12 +288,12 @@ const DashboardTable = ({
     }
 
     return style;
-  };
+  }, []);
 
   /**
    * 행 Hover 이벤트 처리 - 동적 상태별 시각적 피드백
    */
-  const onRowOver = (record) => {
+  const onRowOver = useCallback((record) => {
     const status = record.status || 'WAITING';
 
     return {
@@ -271,90 +306,88 @@ const DashboardTable = ({
           STATUS_BG_COLORS[status]?.normal || '#ffffff';
       },
     };
-  };
+  }, []);
 
   // 필터 컴포넌트 (검색 기능 개선)
-  const renderFilters = () => (
-    <div className="dashboard-filters">
-      <Space size="middle" wrap>
-        <div>
-          <span style={{ marginRight: 8 }}>타입:</span>
-          <Select
-            allowClear
-            style={{ width: 120 }}
-            placeholder="타입 선택"
-            value={localTypeFilter}
-            onChange={handleTypeFilterChange}
+  const renderFilters = useCallback(
+    () => (
+      <div className="dashboard-filters">
+        <Space size="middle" wrap>
+          <div>
+            <span style={{ marginRight: 8 }}>타입:</span>
+            <Select
+              allowClear
+              style={{ width: 120 }}
+              placeholder="타입 선택"
+              value={localTypeFilter}
+              onChange={handleTypeFilterChange}
+            >
+              {Object.entries(TYPE_TYPES).map(([key, value]) => (
+                <Option key={key} value={value}>
+                  {TYPE_TEXTS[key]}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <span style={{ marginRight: 8 }}>부서:</span>
+            <Select
+              allowClear
+              style={{ width: 120 }}
+              placeholder="부서 선택"
+              value={localDepartmentFilter}
+              onChange={handleDepartmentFilterChange}
+            >
+              {Object.entries(DEPARTMENT_TYPES).map(([key, value]) => (
+                <Option key={key} value={value}>
+                  {DEPARTMENT_TEXTS[key]}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <span style={{ marginRight: 8 }}>출발 허브:</span>
+            <Select
+              allowClear
+              style={{ width: 120 }}
+              placeholder="허브 선택"
+              value={localWarehouseFilter}
+              onChange={handleWarehouseFilterChange}
+            >
+              {Object.entries(WAREHOUSE_TYPES).map(([key, value]) => (
+                <Option key={key} value={value}>
+                  {WAREHOUSE_TEXTS[key]}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
+          <Button
+            type="default"
+            icon={<ClearOutlined />}
+            onClick={resetFilters}
+            disabled={
+              !localTypeFilter &&
+              !localDepartmentFilter &&
+              !localWarehouseFilter
+            }
           >
-            {Object.entries(TYPE_TYPES).map(([key, value]) => (
-              <Option key={key} value={value}>
-                {TYPE_TEXTS[key]}
-              </Option>
-            ))}
-          </Select>
-        </div>
-
-        <div>
-          <span style={{ marginRight: 8 }}>부서:</span>
-          <Select
-            allowClear
-            style={{ width: 120 }}
-            placeholder="부서 선택"
-            value={localDepartmentFilter}
-            onChange={handleDepartmentFilterChange}
-          >
-            {Object.entries(DEPARTMENT_TYPES).map(([key, value]) => (
-              <Option key={key} value={value}>
-                {DEPARTMENT_TEXTS[key]}
-              </Option>
-            ))}
-          </Select>
-        </div>
-
-        <div>
-          <span style={{ marginRight: 8 }}>출발 허브:</span>
-          <Select
-            allowClear
-            style={{ width: 120 }}
-            placeholder="허브 선택"
-            value={localWarehouseFilter}
-            onChange={handleWarehouseFilterChange}
-          >
-            {Object.entries(WAREHOUSE_TYPES).map(([key, value]) => (
-              <Option key={key} value={value}>
-                {WAREHOUSE_TEXTS[key]}
-              </Option>
-            ))}
-          </Select>
-        </div>
-
-        <div>
-          <Input.Search
-            placeholder="주문번호 검색"
-            value={searchInput}
-            onChange={handleSearchInputChange}
-            onSearch={handleSearch}
-            onKeyPress={handleKeyPress}
-            style={{ width: 200 }}
-            enterButton
-          />
-        </div>
-
-        <Button
-          type="default"
-          icon={<ClearOutlined />}
-          onClick={resetFilters}
-          disabled={
-            !localTypeFilter &&
-            !localDepartmentFilter &&
-            !localWarehouseFilter &&
-            !searchInput
-          }
-        >
-          필터 초기화
-        </Button>
-      </Space>
-    </div>
+            필터 초기화
+          </Button>
+        </Space>
+      </div>
+    ),
+    [
+      localTypeFilter,
+      localDepartmentFilter,
+      localWarehouseFilter,
+      handleTypeFilterChange,
+      handleDepartmentFilterChange,
+      handleWarehouseFilterChange,
+      resetFilters,
+    ]
   );
 
   // 열 정의 - 요구사항에 명시된 순서 준수

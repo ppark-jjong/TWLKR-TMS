@@ -136,7 +136,13 @@ class DashboardService:
                 dashboard.version = 1
             if not hasattr(dashboard, "customer") or dashboard.customer is None:
                 dashboard.customer = ""
-                
+            
+            # remarks 필드 방어적 처리 추가
+            if hasattr(dashboard, "remarks") and dashboard.remarks:
+                for remark in dashboard.remarks:
+                    if not hasattr(remark, "formatted_content") or remark.formatted_content is None:
+                        remark.formatted_content = f"{remark.created_by}: {remark.content}"
+                    
             log_info(
                 f"대시보드 상세 조회 결과: ID={dashboard.dashboard_id}, customer={dashboard.customer}"
             )

@@ -39,16 +39,22 @@ class DashboardRemarkRepository:
             log_error(e, "메모 조회 실패", {"remark_id": remark_id})
             raise
 
+    
     def create_remark(
-        self, dashboard_id: int, content: str, user_id: str
-    ) -> DashboardRemark:
+    self, dashboard_id: int, content: str, user_id: str
+) -> DashboardRemark:
         """새 메모 생성"""
         try:
+            # formatted_content 필드 방어적 처리
+            formatted_content = content
+            if not content.startswith(f"{user_id}:"):
+                formatted_content = f"{user_id}: {content}"
+                
             remark = DashboardRemark(
                 dashboard_id=dashboard_id,
                 content=content,
                 created_by=user_id,
-                formatted_content=content  # 포맷팅된 내용 저장
+                formatted_content=formatted_content
             )
             self.db.add(remark)
             self.db.flush()
@@ -63,6 +69,7 @@ class DashboardRemarkRepository:
             log_error(e, "메모 생성 실패", {"dashboard_id": dashboard_id})
             raise
 
+    
     def update_remark_without_version(
         self, remark_id: int, content: str, user_id: str
     ) -> DashboardRemark:
