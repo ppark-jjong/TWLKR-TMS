@@ -27,6 +27,7 @@ export const MessageKeys = {
     STATUS: 'dashboard-status',
     ASSIGN: 'dashboard-assign',
     MEMO: 'dashboard-memo',
+    SEARCH: 'dashboard-search', // 검색 전용 키 추가
   },
   VISUALIZATION: {
     LOAD: 'visualization-load',
@@ -59,6 +60,10 @@ export const MessageTemplates = {
     INVALID_PHONE: '올바른 연락처 형식이 아닙니다',
     INVALID_WAITING: (orderNos) =>
       `대기 상태가 아닌 주문이 포함되어 있습니다: ${orderNos}`,
+    SEARCH_SUCCESS: (count) => `검색 결과: ${count}건`,
+    SEARCH_EMPTY: (keyword) =>
+      `주문번호 "${keyword}"에 대한 검색 결과가 없습니다`,
+    SEARCH_ERROR: '검색 중 오류가 발생했습니다',
   },
 
   // 유효성 검사 관련
@@ -114,8 +119,14 @@ class MessageService {
 
     const finalDuration = duration ?? this.defaultDurations[type];
 
+    // 문자열이 아닌 경우 안전하게 처리
+    const safeContent =
+      typeof content === 'string'
+        ? content
+        : content?.toString?.() || '알 수 없는 메시지';
+
     message[type]({
-      content,
+      content: safeContent,
       key,
       duration: finalDuration,
       onClose: () => {

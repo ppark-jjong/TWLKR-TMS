@@ -1,6 +1,6 @@
 // frontend/src/pages/VisualizationPage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Layout,
   Select,
@@ -11,6 +11,7 @@ import {
   Alert,
   Empty,
   Button,
+  Typography,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -26,6 +27,7 @@ import message, { MessageKeys } from '../utils/message';
 import { useDateRange } from '../utils/useDateRange';
 
 const { RangePicker } = DatePicker;
+const { Title, Text } = Typography;
 
 const VisualizationPage = () => {
   // 커스텀 훅을 사용하여 날짜 범위 관리
@@ -42,20 +44,37 @@ const VisualizationPage = () => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [loadAttempted, setLoadAttempted] = useState(false);
+
+  // 안전하게 데이터 로드하는 함수
+  const safeLoadData = useCallback(async () => {
+    if (!dateRange || !dateRange[0] || !dateRange[1] || dateRangeLoading) {
+      return;
+    }
+
+    setLoadAttempted(true);
+    await loadVisualizationData();
+  }, [dateRange, dateRangeLoading]);
 
   // 날짜 범위가 설정되면 시각화 데이터 로드
   useEffect(() => {
-    if (dateRange[0] && dateRange[1] && !dateRangeLoading) {
-      loadVisualizationData();
+    if (
+      dateRange &&
+      dateRange[0] &&
+      dateRange[1] &&
+      !dateRangeLoading &&
+      !loadAttempted
+    ) {
+      safeLoadData();
     }
-  }, [dateRange, dateRangeLoading]);
+  }, [dateRange, dateRangeLoading, loadAttempted, safeLoadData]);
 
   // 차트 타입이 변경되면 데이터 다시 로드
   useEffect(() => {
-    if (!initialLoad && !dateRangeLoading) {
+    if (!initialLoad && !dateRangeLoading && loadAttempted) {
       loadVisualizationData();
     }
-  }, [chartType, initialLoad, dateRangeLoading]);
+  }, [chartType, initialLoad, dateRangeLoading, loadAttempted]);
 
   // 데이터 로드 함수
   const loadVisualizationData = async () => {
@@ -100,10 +119,59 @@ const VisualizationPage = () => {
           message.loadingToError('데이터 형식이 올바르지 않습니다', key);
           setData(null);
         } else {
-          setData(response.data);
+          // 차트 타입에 따라 기본 필드 검사 및 추가
+          if (chartType === CHART_TYPES.DELIVERY_STATUS) {
+            // 필수 필드 확인 및 추가
+            const processedData = {
+              ...response.data,
+              type: 'delivery_status',
+              total_count: response.data.total_count || 0,
+              department_breakdown: response.data.department_breakdown || {},
+            };
+            setData(processedData);
+          } else {
+            // 시간대별 접수량 차트 필수 필드 검사
+            const processedData = {
+              ...response.data,
+              type: 'hourly_orders',
+              total_count: response.data.total_count || 0,
+              average_count: response.data.average_count || 0,
+              department_breakdown: response.data.department_breakdown || {},
+              time_slots: response.data.time_slots || [],
+            };
 
-          if (!response.data.total_count) {
-            message.info(
+            // 시간대 정보가 없거나 유효하지 않은 경우 기본값 제공
+            if (
+              !processedData.time_slots ||
+              !Array.isArray(processedData.time_slots) ||
+              processedData.time_slots.length === 0
+            ) {
+              // 주간 시간대 생성 (09-19시)
+              const daySlots = [];
+              for (let h = 9; h < 19; h++) {
+                daySlots.push({
+                  label: `${h.toString().padStart(2, '0')}-${(h + 1)
+                    .toString()
+                    .padStart(2, '0')}`,
+                  start: h,
+                  end: h + 1,
+                });
+              }
+              // 야간 시간대 추가
+              daySlots.push({
+                label: '야간(19-09)',
+                start: 19,
+                end: 9,
+              });
+
+              processedData.time_slots = daySlots;
+            }
+
+            setData(processedData);
+          }
+
+          if (response.data.total_count === 0) {
+            message.loadingToInfo(
               `해당 기간(${dateRange[0].format(
                 'YYYY-MM-DD'
               )} ~ ${dateRange[1].format('YYYY-MM-DD')})에 데이터가 없습니다`,
@@ -114,17 +182,75 @@ const VisualizationPage = () => {
           }
         }
       } else {
-        setError('데이터 조회에 실패했습니다. 잠시 후 다시 시도해주세요.');
-        message.loadingToError('데이터 조회 중 오류가 발생했습니다', key);
-        setData(null);
+        // 응답은 성공했지만 success가 false인 경우
+        setError(
+          response?.message ||
+            '데이터 조회에 실패했습니다. 잠시 후 다시 시도해주세요.'
+        );
+        message.loadingToError(
+          response?.message || '데이터 조회 중 오류가 발생했습니다',
+          key
+        );
+
+        // 빈 데이터 구조 제공
+        if (chartType === CHART_TYPES.DELIVERY_STATUS) {
+          setData({
+            type: 'delivery_status',
+            total_count: 0,
+            department_breakdown: {},
+          });
+        } else {
+          setData({
+            type: 'hourly_orders',
+            total_count: 0,
+            average_count: 0,
+            department_breakdown: {},
+            time_slots: [],
+          });
+        }
       }
     } catch (error) {
       console.error(`${chartType} 데이터 조회 실패:`, error);
       setError(
-        '서버 연결 중 오류가 발생했습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해주세요.'
+        `서버 연결 중 오류가 발생했습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해주세요. (${
+          error.message || '알 수 없는 오류'
+        })`
       );
       message.loadingToError('데이터 조회 중 오류가 발생했습니다', key);
-      setData(null);
+
+      // 에러 발생 시 기본 데이터 구조 제공
+      if (chartType === CHART_TYPES.DELIVERY_STATUS) {
+        setData({
+          type: 'delivery_status',
+          total_count: 0,
+          department_breakdown: {},
+        });
+      } else {
+        // 시간대별 접수량 기본 데이터 구조
+        const defaultTimeSlots = [];
+        for (let h = 9; h < 19; h++) {
+          defaultTimeSlots.push({
+            label: `${h.toString().padStart(2, '0')}-${(h + 1)
+              .toString()
+              .padStart(2, '0')}`,
+            start: h,
+            end: h + 1,
+          });
+        }
+        defaultTimeSlots.push({
+          label: '야간(19-09)',
+          start: 19,
+          end: 9,
+        });
+
+        setData({
+          type: 'hourly_orders',
+          total_count: 0,
+          average_count: 0,
+          department_breakdown: {},
+          time_slots: defaultTimeSlots,
+        });
+      }
     } finally {
       setLoading(false);
       setInitialLoad(false);
@@ -150,16 +276,33 @@ const VisualizationPage = () => {
     if (type === CHART_TYPES.DELIVERY_STATUS) {
       return (
         data.department_breakdown &&
+        typeof data.department_breakdown === 'object' &&
         Object.keys(data.department_breakdown).length > 0
       );
     } else if (type === CHART_TYPES.HOURLY_ORDERS) {
       return (
         data.department_breakdown &&
-        Object.keys(data.department_breakdown).length > 0
+        typeof data.department_breakdown === 'object' &&
+        Object.keys(data.department_breakdown).length > 0 &&
+        Array.isArray(data.time_slots) &&
+        data.time_slots.length > 0
       );
     }
 
     return false;
+  };
+
+  // 에러가 발생했을 때 ErrorBoundary로 전파하지 않고 컴포넌트 내에서 처리
+  const handleError = (error) => {
+    console.error('시각화 컴포넌트 내부 오류:', error);
+    return (
+      <Alert
+        message="차트 렌더링 오류"
+        description="차트를 표시하는 중 문제가 발생했습니다. 다시 시도해 주세요."
+        type="error"
+        showIcon
+      />
+    );
   };
 
   // 렌더링 컴포넌트 결정 함수
@@ -205,10 +348,14 @@ const VisualizationPage = () => {
       );
     }
 
-    if (chartType === CHART_TYPES.DELIVERY_STATUS) {
-      return <StatusPieCharts data={data} dateRange={dateRange} />;
-    } else {
-      return <HourlyBarChart data={data} dateRange={dateRange} />;
+    try {
+      if (chartType === CHART_TYPES.DELIVERY_STATUS) {
+        return <StatusPieCharts data={data} dateRange={dateRange} />;
+      } else {
+        return <HourlyBarChart data={data} dateRange={dateRange} />;
+      }
+    } catch (renderError) {
+      return handleError(renderError);
     }
   };
 

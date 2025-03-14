@@ -50,10 +50,27 @@ const StatusPieCharts = ({ data, dateRange }) => {
       setError(null);
 
       // 데이터 검증
-      if (!data || !data.department_breakdown) {
+      if (
+        !data ||
+        !data.department_breakdown ||
+        typeof data.department_breakdown !== 'object'
+      ) {
         console.warn('부서별 배송 현황 데이터 오류:', data);
         setError('데이터 형식이 올바르지 않습니다');
         setLoading(false);
+
+        // 기본 빈 데이터 구조 반환
+        setProcessedData({
+          departmentBreakdown: {},
+          total: 0,
+          statusTotals: {
+            WAITING: 0,
+            IN_PROGRESS: 0,
+            COMPLETE: 0,
+            ISSUE: 0,
+            CANCEL: 0,
+          },
+        });
         return;
       }
 
@@ -80,6 +97,11 @@ const StatusPieCharts = ({ data, dateRange }) => {
         // 부서 데이터가 없거나 형식이 올바르지 않은 경우 건너뛰기
         if (!deptData || !deptData.status_breakdown) {
           console.warn(`${dept} 부서 데이터 형식 오류:`, deptData);
+          // 기본 구조 생성
+          departmentBreakdown[dept] = {
+            total: 0,
+            status_breakdown: [],
+          };
           return;
         }
 
@@ -87,8 +109,30 @@ const StatusPieCharts = ({ data, dateRange }) => {
         const deptTotal = deptData.total || 0;
         totalSum += deptTotal;
 
+        // status_breakdown이 배열인지 확인
+        if (!Array.isArray(deptData.status_breakdown)) {
+          console.warn(
+            `${dept} 부서의 status_breakdown이 배열이 아닙니다:`,
+            deptData.status_breakdown
+          );
+          deptData.status_breakdown = [];
+        }
+
         // 상태별 데이터 가공
         const statusBreakdown = deptData.status_breakdown.map((item) => {
+          // 항목이 객체인지 확인
+          if (typeof item !== 'object' || item === null) {
+            console.warn(
+              `${dept} 부서의 status_breakdown 항목이 객체가 아닙니다:`,
+              item
+            );
+            return {
+              status: 'WAITING',
+              count: 0,
+              percentage: 0,
+            };
+          }
+
           const status = item.status || 'WAITING';
           const count = item.count || 0;
           const percentage = item.percentage || 0;
@@ -128,6 +172,19 @@ const StatusPieCharts = ({ data, dateRange }) => {
       console.error('배송 현황 데이터 처리 오류:', err);
       setError('데이터 처리 중 오류가 발생했습니다');
       setLoading(false);
+
+      // 에러 시 기본 빈 데이터 구조 제공
+      setProcessedData({
+        departmentBreakdown: {},
+        total: 0,
+        statusTotals: {
+          WAITING: 0,
+          IN_PROGRESS: 0,
+          COMPLETE: 0,
+          ISSUE: 0,
+          CANCEL: 0,
+        },
+      });
     }
   }, [data]);
 
@@ -152,63 +209,101 @@ const StatusPieCharts = ({ data, dateRange }) => {
   }
 
   // 파이 차트 설정 함수
-  const getPieConfig = (department, departmentData) => ({
-    data: departmentData.status_breakdown,
-    angleField: 'count',
-    colorField: 'status',
-    radius: 0.8,
-    innerRadius: 0.7,
-    color: (datum) =>
-      VISUALIZATION_COLORS.STATUS[datum.status] ||
-      VISUALIZATION_COLORS.STATUS.WAITING,
-    label: {
-      type: 'spider',
-      labelHeight: 40,
-      content: ({ status, percentage }) =>
-        `${STATUS_TEXTS[status] || status}\n${percentage.toFixed(1)}%`,
-      style: {
-        ...FONT_STYLES.BODY.SMALL,
-        fill: '#666',
-      },
-    },
-    legend: false,
-    statistic: {
-      title: {
-        style: {
-          ...FONT_STYLES.TITLE.SMALL,
-          color: (
-            VISUALIZATION_COLORS.DEPARTMENT[department] ||
-            VISUALIZATION_COLORS.DEPARTMENT.CS
-          ).primary,
+  const getPieConfig = (department, departmentData) => {
+    try {
+      // 데이터 검증
+      if (!departmentData || !departmentData.status_breakdown) {
+        console.warn(
+          `${department} 부서의 데이터가 올바르지 않습니다:`,
+          departmentData
+        );
+        return null;
+      }
+
+      // 유효한 status_breakdown 필드 확인
+      if (!Array.isArray(departmentData.status_breakdown)) {
+        console.warn(
+          `${department} 부서의 status_breakdown이 배열이 아닙니다:`,
+          departmentData.status_breakdown
+        );
+        return null;
+      }
+
+      return {
+        data: departmentData.status_breakdown,
+        angleField: 'count',
+        colorField: 'status',
+        radius: 0.8,
+        innerRadius: 0.7,
+        color: (datum) => {
+          if (!datum || !datum.status)
+            return VISUALIZATION_COLORS.STATUS.WAITING;
+          return (
+            VISUALIZATION_COLORS.STATUS[datum.status] ||
+            VISUALIZATION_COLORS.STATUS.WAITING
+          );
         },
-        customHtml: () => DEPARTMENT_TEXTS[department] || department,
-      },
-      content: {
-        style: {
-          ...FONT_STYLES.TITLE.MEDIUM,
-          color: (
-            VISUALIZATION_COLORS.DEPARTMENT[department] ||
-            VISUALIZATION_COLORS.DEPARTMENT.CS
-          ).primary,
+        label: {
+          type: 'spider',
+          labelHeight: 40,
+          content: ({ status, percentage }) => {
+            if (!status) return '';
+            return `${STATUS_TEXTS[status] || status}\n${(
+              percentage || 0
+            ).toFixed(1)}%`;
+          },
+          style: {
+            ...FONT_STYLES.BODY.SMALL,
+            fill: '#666',
+          },
         },
-        customHtml: () => `${formatNumber(departmentData.total)}건`,
-      },
-    },
-    tooltip: {
-      formatter: (datum) => ({
-        name: STATUS_TEXTS[datum.status] || datum.status,
-        value: `${formatNumber(datum.count)}건 (${datum.percentage.toFixed(
-          1
-        )}%)`,
-      }),
-    },
-    animation: {
-      appear: {
-        animation: 'wave-in',
-        duration: 1000,
-      },
-    },
-  });
+        legend: false,
+        statistic: {
+          title: {
+            style: {
+              ...FONT_STYLES.TITLE.SMALL,
+              color: (
+                VISUALIZATION_COLORS.DEPARTMENT[department] ||
+                VISUALIZATION_COLORS.DEPARTMENT.CS
+              ).primary,
+            },
+            customHtml: () => DEPARTMENT_TEXTS[department] || department,
+          },
+          content: {
+            style: {
+              ...FONT_STYLES.TITLE.MEDIUM,
+              color: (
+                VISUALIZATION_COLORS.DEPARTMENT[department] ||
+                VISUALIZATION_COLORS.DEPARTMENT.CS
+              ).primary,
+            },
+            customHtml: () => `${formatNumber(departmentData.total)}건`,
+          },
+        },
+        tooltip: {
+          formatter: (datum) => {
+            if (!datum || !datum.status)
+              return { name: '알 수 없음', value: '0건 (0.0%)' };
+            return {
+              name: STATUS_TEXTS[datum.status] || datum.status,
+              value: `${formatNumber(datum.count || 0)}건 (${(
+                datum.percentage || 0
+              ).toFixed(1)}%)`,
+            };
+          },
+        },
+        animation: {
+          appear: {
+            animation: 'wave-in',
+            duration: 1000,
+          },
+        },
+      };
+    } catch (err) {
+      console.error(`${department} 부서 차트 설정 중 오류:`, err);
+      return null;
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -285,7 +380,7 @@ const StatusPieCharts = ({ data, dateRange }) => {
                   height: '320px', // 높이 고정
                 }}
               >
-                {deptData.total > 0 ? (
+                {deptData.total > 0 && getPieConfig(dept, deptData) ? (
                   <Pie {...getPieConfig(dept, deptData)} />
                 ) : (
                   <div
@@ -310,27 +405,31 @@ const StatusPieCharts = ({ data, dateRange }) => {
                       justifyContent: 'center',
                     }}
                   >
-                    {deptData.status_breakdown
-                      .filter((item) => item.count > 0)
-                      .map(({ status, count, percentage }) => (
-                        <div
-                          key={status}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: '#f5f5f5',
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                          }}
-                        >
-                          {STATUS_ICONS[status]}
-                          <span style={FONT_STYLES.BODY.SMALL}>
-                            {`${formatNumber(count)}건`}
-                          </span>
-                        </div>
-                      ))}
+                    {Array.isArray(deptData.status_breakdown) &&
+                      deptData.status_breakdown
+                        .filter((item) => item && item.count > 0)
+                        .map(({ status, count, percentage }) => {
+                          if (!status) return null;
+                          return (
+                            <div
+                              key={status}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: '#f5f5f5',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                              }}
+                            >
+                              {STATUS_ICONS[status]}
+                              <span style={FONT_STYLES.BODY.SMALL}>
+                                {`${formatNumber(count)}건`}
+                              </span>
+                            </div>
+                          );
+                        })}
                   </div>
                 )}
               </Card>

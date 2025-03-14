@@ -494,19 +494,6 @@ const DashboardPage = () => {
                 '최근 30일': [dayjs().subtract(29, 'day'), dayjs()],
               }}
             />
-            {/* 검색바를 DateRangePicker와 같은 라인에 배치 */}
-            <Input.Search
-              placeholder="주문번호 검색"
-              value={searchInput}
-              onChange={handleSearchInputChange}
-              onSearch={handleOrderNoSearch}
-              onKeyPress={handleSearchKeyPress}
-              style={{ width: 200 }}
-              size="large"
-              enterButton
-              loading={searchLoading}
-              allowClear
-            />
           </Space>
 
           <Space size="middle">

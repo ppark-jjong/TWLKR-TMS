@@ -1,5 +1,4 @@
 // frontend/src/components/dashboard/DashboardTable.js
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Table, Tag, Tooltip, Input, Select, Space, Button } from 'antd';
 import {
@@ -65,6 +64,7 @@ const DashboardTable = ({
 
   // 필터링 중복 실행 방지 플래그
   const isFilteringRef = useRef(false);
+  const skipEffectRef = useRef(false);
 
   // 데이터 검증 로직 추가
   const normalizeData = useCallback((data) => {
@@ -100,6 +100,11 @@ const DashboardTable = ({
 
   // 외부 props가 변경되면 로컬 상태 업데이트
   useEffect(() => {
+    if (skipEffectRef.current) {
+      skipEffectRef.current = false;
+      return;
+    }
+
     setLocalTypeFilter(typeFilter);
     setLocalDepartmentFilter(departmentFilter);
     setLocalWarehouseFilter(warehouseFilter);
@@ -210,30 +215,18 @@ const DashboardTable = ({
     localOrderNoSearch,
   ]);
 
-  // 필터 변경 핸들러 - 상위 컴포넌트 콜백 호출
-  const handleTypeFilterChange = useCallback(
-    (value) => {
-      setLocalTypeFilter(value);
-      onTypeFilterChange(value);
-    },
-    [onTypeFilterChange]
-  );
+  // 필터 변경 핸들러 - 상위 컴포넌트 콜백 호출하지 않고 로컬 상태만 변경
+  const handleTypeFilterChange = useCallback((value) => {
+    setLocalTypeFilter(value);
+  }, []);
 
-  const handleDepartmentFilterChange = useCallback(
-    (value) => {
-      setLocalDepartmentFilter(value);
-      onDepartmentFilterChange(value);
-    },
-    [onDepartmentFilterChange]
-  );
+  const handleDepartmentFilterChange = useCallback((value) => {
+    setLocalDepartmentFilter(value);
+  }, []);
 
-  const handleWarehouseFilterChange = useCallback(
-    (value) => {
-      setLocalWarehouseFilter(value);
-      onWarehouseFilterChange(value);
-    },
-    [onWarehouseFilterChange]
-  );
+  const handleWarehouseFilterChange = useCallback((value) => {
+    setLocalWarehouseFilter(value);
+  }, []);
 
   // 검색 입력 핸들러
   const handleSearchInputChange = useCallback((e) => {
@@ -242,10 +235,8 @@ const DashboardTable = ({
 
   // 검색 버튼 클릭 핸들러
   const handleSearch = useCallback(() => {
-    if (searchInput.trim()) {
-      onOrderNoSearchChange(searchInput);
-    }
-  }, [searchInput, onOrderNoSearchChange]);
+    setLocalOrderNoSearch(searchInput);
+  }, [searchInput]);
 
   // 엔터키 핸들러
   const handleKeyPress = useCallback(
@@ -257,6 +248,26 @@ const DashboardTable = ({
     [searchInput, handleSearch]
   );
 
+  // 필터 적용 버튼 클릭 핸들러
+  const handleApplyFilters = useCallback(() => {
+    skipEffectRef.current = true;
+    // 모든 필터를 한꺼번에 부모 컴포넌트로 전달
+    onTypeFilterChange(localTypeFilter);
+    onDepartmentFilterChange(localDepartmentFilter);
+    onWarehouseFilterChange(localWarehouseFilter);
+    onOrderNoSearchChange(localOrderNoSearch || searchInput);
+  }, [
+    localTypeFilter,
+    localDepartmentFilter,
+    localWarehouseFilter,
+    localOrderNoSearch,
+    searchInput,
+    onTypeFilterChange,
+    onDepartmentFilterChange,
+    onWarehouseFilterChange,
+    onOrderNoSearchChange,
+  ]);
+
   // 필터 초기화 함수
   const resetFilters = useCallback(() => {
     setLocalTypeFilter(null);
@@ -264,6 +275,9 @@ const DashboardTable = ({
     setLocalWarehouseFilter(null);
     setLocalOrderNoSearch('');
     setSearchInput('');
+
+    // 부모 컴포넌트 상태 업데이트
+    skipEffectRef.current = true;
     onResetFilters(); // 상위 컴포넌트에 전달
   }, [onResetFilters]);
 
@@ -364,6 +378,25 @@ const DashboardTable = ({
             </Select>
           </div>
 
+          <div>
+            <span style={{ marginRight: 8 }}>주문번호:</span>
+            <Input
+              placeholder="주문번호 입력"
+              value={searchInput}
+              onChange={handleSearchInputChange}
+              onKeyPress={handleKeyPress}
+              style={{ width: 150 }}
+            />
+          </div>
+
+          <Button
+            type="primary"
+            icon={<FilterOutlined />}
+            onClick={handleApplyFilters}
+          >
+            필터 적용
+          </Button>
+
           <Button
             type="default"
             icon={<ClearOutlined />}
@@ -371,7 +404,9 @@ const DashboardTable = ({
             disabled={
               !localTypeFilter &&
               !localDepartmentFilter &&
-              !localWarehouseFilter
+              !localWarehouseFilter &&
+              !searchInput &&
+              !localOrderNoSearch
             }
           >
             필터 초기화
@@ -383,9 +418,14 @@ const DashboardTable = ({
       localTypeFilter,
       localDepartmentFilter,
       localWarehouseFilter,
+      searchInput,
+      localOrderNoSearch,
       handleTypeFilterChange,
       handleDepartmentFilterChange,
       handleWarehouseFilterChange,
+      handleSearchInputChange,
+      handleKeyPress,
+      handleApplyFilters,
       resetFilters,
     ]
   );

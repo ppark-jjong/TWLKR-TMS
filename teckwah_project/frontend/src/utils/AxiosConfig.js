@@ -98,15 +98,31 @@ axios.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // 토큰 갱신 중이 아닌 경우에만 갱신 요청
-      if (!isRefreshing) {
-        isRefreshing = true;
-
+      // 이미 토큰 갱신 중인 경우 갱신 완료 후 원래 요청 재시도
+      if (isRefreshing) {
         try {
-          // 토큰 갱신 요청
-          const response = await AuthService.refreshToken(refreshToken);
+          // 갱신 완료를 기다리는 새 프로미스 생성
+          return new Promise((resolve) => {
+            refreshQueue.push((token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(axios(originalRequest));
+            });
+          });
+        } catch (e) {
+          console.error('토큰 갱신 대기 중 오류:', e);
+          return Promise.reject(error);
+        }
+      }
 
-          // 갱신 성공
+      // 토큰 갱신 중이 아닌 경우에만 갱신 요청
+      isRefreshing = true;
+
+      try {
+        // 토큰 갱신 요청
+        const response = await AuthService.refreshToken(refreshToken);
+
+        // 갱신 성공
+        if (response && response.token) {
           const { access_token, refresh_token } = response.token;
           localStorage.setItem('access_token', access_token);
           localStorage.setItem('refresh_token', refresh_token);
@@ -118,26 +134,32 @@ axios.interceptors.response.use(
           refreshQueue.forEach((cb) => cb(access_token));
           refreshQueue = [];
 
-          return axios(originalRequest);
-        } catch (refreshError) {
-          // 갱신 실패
-          console.error('토큰 갱신 실패:', refreshError);
-          AuthService.clearAuthData();
-          message.error('인증 세션이 만료되었습니다. 다시 로그인해주세요.');
-          window.location.href = '/login';
-          return Promise.reject(error);
-        } finally {
           isRefreshing = false;
+          return axios(originalRequest);
+        } else {
+          throw new Error('토큰 갱신 실패: 응답 형식 오류');
         }
-      } else {
-        // 이미 토큰 갱신 중인 경우, 큐에 추가하고, 갱신 완료 시 재시도
-        return new Promise((resolve) => {
-          refreshQueue.push((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(axios(originalRequest));
-          });
-        });
+      } catch (refreshError) {
+        // 갱신 실패
+        console.error('토큰 갱신 실패:', refreshError);
+        isRefreshing = false;
+        AuthService.clearAuthData();
+        message.error('인증 세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href = '/login';
+        return Promise.reject(error);
       }
+    }
+
+    // 서버 에러(500) 처리 - 즉시 알림 표시하지 않고 호출자에서 처리하도록 함
+    if (error.response && error.response.status >= 500) {
+      console.error('서버 오류 발생:', error.response.data);
+      // 서버 오류는 각 컴포넌트의 try-catch에서 처리
+    }
+
+    // 네트워크 오류 처리
+    if (!error.response) {
+      console.error('네트워크 오류:', error);
+      message.error('네트워크 연결을 확인해주세요.');
     }
 
     return Promise.reject(error);

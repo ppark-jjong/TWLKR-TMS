@@ -1,9 +1,9 @@
 // frontend/src/components/visualization/HourlyBarChart.js
 
 import React, { useEffect, useState } from 'react';
-import { Typography, Empty, Card, Row, Col, Statistic } from 'antd';
+import { Typography, Empty, Card, Row, Col, Statistic, Alert } from 'antd';
 import { Column } from '@ant-design/plots';
-import { ClockCircleOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import { FONT_STYLES, VISUALIZATION_COLORS } from '../../utils/Constants';
 import { formatNumber } from '../../utils/Formatter';
 
@@ -21,18 +21,41 @@ const HourlyBarChart = ({ data, dateRange }) => {
       setLoading(true);
       setError(null);
 
-      // 데이터 검증 및 가공 로직
-      if (!data || !data.department_breakdown) {
-        console.warn('데이터 형식 오류:', data);
-        setError('데이터 형식이 올바르지 않습니다');
+      // 데이터 검증
+      if (!data) {
+        console.warn('HourlyBarChart: 데이터가 없음');
+        setError('데이터가 제공되지 않았습니다');
         setLoading(false);
         return;
       }
 
-      // 데이터 구조 보존 로깅 (디버깅용)
-      console.log('데이터 구조:', {
+      // 타입 검증
+      if (data.type !== 'hourly_orders') {
+        console.warn('잘못된 차트 데이터 타입:', data.type);
+        setError('잘못된 데이터 타입입니다');
+        setLoading(false);
+        return;
+      }
+
+      // department_breakdown 검증
+      if (
+        !data.department_breakdown ||
+        typeof data.department_breakdown !== 'object'
+      ) {
+        console.warn('부서별 시간대 데이터 오류:', data);
+        setError('부서별 데이터 형식이 올바르지 않습니다');
+        setLoading(false);
+
+        // 기본 빈 데이터 구조 설정
+        setChartData([]);
+        setDepartmentStats([]);
+        setTimeSlots([]);
+        return;
+      }
+
+      console.log('시간대별 원본 데이터:', {
         type: data.type,
-        totalCount: data.total_count,
+        total: data.total_count,
         departments: Object.keys(data.department_breakdown),
         timeSlots: data.time_slots,
       });
@@ -40,37 +63,58 @@ const HourlyBarChart = ({ data, dateRange }) => {
       // 시간대 슬롯 정보 가져오기 (주간 + 야간)
       let processedTimeSlots = [];
 
-      // 서버 응답의 time_slots 필드에 대한 방어적 처리
-      if (Array.isArray(data.time_slots) && data.time_slots.length > 0) {
+      // 시간대 슬롯이 없거나 형식이 잘못된 경우 기본값 생성
+      if (!Array.isArray(data.time_slots) || data.time_slots.length === 0) {
+        // 기본 시간대 정의 (09-19시 1시간 단위 + 야간)
+        for (let h = 9; h < 19; h++) {
+          processedTimeSlots.push({
+            label: `${h.toString().padStart(2, '0')}-${(h + 1)
+              .toString()
+              .padStart(2, '0')}`,
+            start: h,
+            end: h + 1,
+          });
+        }
+        processedTimeSlots.push({
+          label: '야간(19-09)',
+          start: 19,
+          end: 9,
+        });
+
+        console.warn(
+          '시간대 정보가 없거나 잘못됨, 기본값 사용:',
+          processedTimeSlots
+        );
+      } else {
         // 서버에서 제공하는 형식이 다양할 수 있으므로 모든 케이스 처리
         processedTimeSlots = data.time_slots.map((slot) => {
           if (typeof slot === 'string') {
-            return slot;
-          } else if (typeof slot === 'object' && slot !== null && slot.label) {
-            return slot.label;
+            // 문자열 형식인 경우
+            const isNight = slot.includes('야간');
+            if (isNight) {
+              return { label: slot, start: 19, end: 9 };
+            } else {
+              // "09-10" 형식 파싱
+              const [start, end] = slot.split('-').map((h) => parseInt(h, 10));
+              return { label: slot, start, end };
+            }
+          } else if (typeof slot === 'object' && slot !== null) {
+            // 이미 객체 형식인 경우
+            if (slot.label && slot.start !== undefined) {
+              return slot;
+            } else {
+              console.warn('불완전한 시간대 객체:', slot);
+              return {
+                label: String(slot.label || 'unknown'),
+                start: 0,
+                end: 0,
+              };
+            }
           } else {
-            return String(slot);
+            console.warn('알 수 없는 시간대 형식:', slot);
+            return { label: String(slot), start: 0, end: 0 };
           }
         });
-
-        // 추가 디버깅 정보
-        console.log('처리된 시간대 정보:', processedTimeSlots);
-      } else {
-        // 시간대 정보가 없거나 형식이 예상과 다른 경우 기본값 사용
-        processedTimeSlots = [
-          '09-10',
-          '10-11',
-          '11-12',
-          '12-13',
-          '13-14',
-          '14-15',
-          '15-16',
-          '16-17',
-          '17-18',
-          '18-19',
-          '야간(19-09)',
-        ];
-        console.warn('시간대 정보 형식 오류, 기본값 사용:', processedTimeSlots);
       }
 
       setTimeSlots(processedTimeSlots);
@@ -85,46 +129,57 @@ const HourlyBarChart = ({ data, dateRange }) => {
         let dayCount = 0;
         let deptTotal = 0;
 
-        if (deptData && deptData.hourly_counts) {
-          // hourly_counts 필드의 존재 여부와 형식 검증
-          let hourly_counts = deptData.hourly_counts;
-          if (typeof hourly_counts !== 'object' || hourly_counts === null) {
-            console.warn(
-              `${dept} 부서의 hourly_counts 형식 오류:`,
-              hourly_counts
-            );
-            hourly_counts = {}; // 기본값 설정
-          }
+        // hourly_counts 필드 검증 및 기본값 설정
+        const hourly_counts =
+          deptData && typeof deptData.hourly_counts === 'object'
+            ? deptData.hourly_counts
+            : {};
 
-          // 각 시간대별로 처리
-          processedTimeSlots.forEach((slot) => {
-            // 시간대별 데이터 가져오기 (없으면 0)
-            const count = hourly_counts[slot] || 0;
+        // 각 시간대별로 처리
+        processedTimeSlots.forEach((slot) => {
+          // 시간대별 데이터 가져오기 (없으면 0)
+          const count = hourly_counts[slot.label] || 0;
 
-            // 차트 데이터 추가
-            processedChartData.push({
-              timeSlot: slot,
-              department: dept,
-              departmentName: `${dept} 부서`,
-              count: count,
-              isNight: slot === '야간(19-09)', // 야간 여부 표시
-            });
-
-            // 통계 계산
-            if (slot === '야간(19-09)') {
-              nightCount += count;
-            } else {
-              dayCount += count;
-            }
-            deptTotal += count;
+          // 차트 데이터 추가
+          processedChartData.push({
+            timeSlot: slot.label,
+            department: dept,
+            departmentName: `${dept} 부서`,
+            count: count,
+            isNight:
+              slot.label === '야간(19-09)' ||
+              slot.start >= 19 ||
+              slot.start < 9, // 야간 여부 표시
           });
-        }
+
+          // 통계 계산
+          if (
+            slot.label === '야간(19-09)' ||
+            slot.start >= 19 ||
+            slot.start < 9
+          ) {
+            nightCount += count;
+          } else {
+            dayCount += count;
+          }
+          deptTotal += count;
+        });
 
         // 일평균 계산 (최소 1로 나누기)
+        const daysInRange =
+          dateRange && dateRange.length === 2
+            ? Math.max(1, dateRange[1].diff(dateRange[0], 'day') + 1)
+            : 1;
         const avgPerHour =
-          deptTotal > 0 ? Math.round((deptTotal / 24) * 10) / 10 : 0;
+          deptTotal > 0
+            ? Math.round((deptTotal / (daysInRange * 24)) * 10) / 10
+            : 0;
 
         // 부서별 통계 저장
+        const deptColors =
+          VISUALIZATION_COLORS.DEPARTMENT[dept] ||
+          VISUALIZATION_COLORS.DEPARTMENT.CS;
+
         stats.push({
           department: dept,
           title: `${dept} 부서`,
@@ -132,8 +187,7 @@ const HourlyBarChart = ({ data, dateRange }) => {
           nightCount,
           dayCount,
           avgPerHour,
-          ...(VISUALIZATION_COLORS.DEPARTMENT[dept] ||
-            VISUALIZATION_COLORS.DEPARTMENT.CS),
+          ...deptColors,
         });
       });
 
@@ -155,26 +209,46 @@ const HourlyBarChart = ({ data, dateRange }) => {
       });
     } catch (err) {
       console.error('시간대별 접수량 차트 데이터 처리 오류:', err);
-      setError('데이터 처리 중 오류가 발생했습니다');
+      setError(
+        `데이터 처리 중 오류가 발생했습니다: ${
+          err.message || '알 수 없는 오류'
+        }`
+      );
       setLoading(false);
+
+      // 오류 시에도 기본 구조 유지
+      setChartData([]);
+      setDepartmentStats([]);
     }
-  }, [data]);
+  }, [data, dateRange]);
 
   if (error) {
     return (
-      <Empty
-        description={<span style={FONT_STYLES.BODY.MEDIUM}>{error}</span>}
+      <Alert
+        message="차트 데이터 오류"
+        description={error}
+        type="error"
+        showIcon
+        icon={<WarningOutlined />}
       />
     );
   }
 
-  if (loading || !chartData.length) {
+  if (loading) {
     return (
       <Empty
         description={
-          <span style={FONT_STYLES.BODY.MEDIUM}>
-            {loading ? '데이터 로딩 중...' : '데이터가 없습니다'}
-          </span>
+          <span style={FONT_STYLES.BODY.MEDIUM}>데이터 로딩 중...</span>
+        }
+      />
+    );
+  }
+
+  if (!chartData.length) {
+    return (
+      <Empty
+        description={
+          <span style={FONT_STYLES.BODY.MEDIUM}>데이터가 없습니다</span>
         }
       />
     );
@@ -214,7 +288,7 @@ const HourlyBarChart = ({ data, dateRange }) => {
         },
         formatter: (value) => {
           // 야간은 강조 표시
-          if (value === '야간(19-09)') {
+          if (value === '야간(19-09)' || value.includes('야간')) {
             return {
               content: value,
               style: {
@@ -346,7 +420,7 @@ const HourlyBarChart = ({ data, dateRange }) => {
         ))}
       </Row>
 
-      {/* 차트 영역 - 높이 최적화 */}
+      {/* 차트 영역 - 높이 조정 */}
       <Card
         bordered={false}
         style={{
