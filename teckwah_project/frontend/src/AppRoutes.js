@@ -1,18 +1,13 @@
-// frontend/src/AppRoutes.js
-import React from 'react';
+// frontend/src/AppRoutes.js - 지연 로딩 적용 버전
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import VisualizationPage from './pages/VisualizationPage';
 import MainLayout from './components/common/MainLayout';
 import { useAuth } from './contexts/AuthContext';
 import message from './utils/message';
+import LoadingSpin from './components/common/LoadingSpin';
+import ErrorBoundaryWithFallback from './utils/ErrorBoundaryWithFallback';
+import { DashboardPage, VisualizationPage, LoginPage } from './lazyComponents';
 
-/**
- * 애플리케이션 라우팅 컴포넌트
- * - AdminPage 라우트를 제거하고 DashboardPage로 통합
- * - 권한 기반 리디렉션 로직 수정
- */
 const AppRoutes = () => {
   const { user, authChecking } = useAuth();
   const location = useLocation();
@@ -36,25 +31,26 @@ const AppRoutes = () => {
     );
   }
 
+  // 지연 로딩 컴포넌트를 위한 Suspense Fallback
+  const SuspenseFallback = (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        flexDirection: 'column',
+        gap: '16px',
+      }}
+    >
+      <LoadingSpin tip="컴포넌트 로딩 중..." />
+    </div>
+  );
+
   // 인증이 필요한 라우트를 위한 래퍼 컴포넌트
   const PrivateRoute = ({ children }) => {
     if (authChecking) {
-      // 인증 체크 중일 때는 로딩 표시
-      return (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '100vh',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-        >
-          <div className="loading-spinner"></div>
-          <p>인증 정보 확인 중...</p>
-        </div>
-      );
+      return SuspenseFallback;
     }
 
     if (!user) {
@@ -68,114 +64,108 @@ const AppRoutes = () => {
   };
 
   return (
-    <Routes>
-      {/* 로그인 페이지 */}
-      <Route
-        path="/login"
-        element={
-          authChecking ? (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                flexDirection: 'column',
-                gap: '16px',
-              }}
-            >
-              <div className="loading-spinner"></div>
-              <p>인증 정보 확인 중...</p>
-            </div>
-          ) : user ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <LoginPage />
-          )
-        }
-      />
+    <ErrorBoundaryWithFallback name="라우팅">
+      <Routes>
+        {/* 로그인 페이지 */}
+        <Route
+          path="/login"
+          element={
+            authChecking ? (
+              SuspenseFallback
+            ) : user ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Suspense fallback={SuspenseFallback}>
+                <ErrorBoundaryWithFallback name="로그인 페이지">
+                  <LoginPage />
+                </ErrorBoundaryWithFallback>
+              </Suspense>
+            )
+          }
+        />
 
-      {/* 대시보드 페이지 - 통합된 관리자/일반 사용자 페이지 */}
-      <Route
-        path="/dashboard"
-        element={
-          <PrivateRoute>
+        {/* 대시보드 페이지 */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <MainLayout>
+                <Suspense fallback={SuspenseFallback}>
+                  <ErrorBoundaryWithFallback name="대시보드 페이지">
+                    <DashboardPage />
+                  </ErrorBoundaryWithFallback>
+                </Suspense>
+              </MainLayout>
+            </PrivateRoute>
+          }
+        />
+
+        {/* 관리자 페이지 */}
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute>
+              <MainLayout>
+                <Suspense fallback={SuspenseFallback}>
+                  <ErrorBoundaryWithFallback name="대시보드 페이지">
+                    <DashboardPage />
+                  </ErrorBoundaryWithFallback>
+                </Suspense>
+              </MainLayout>
+            </PrivateRoute>
+          }
+        />
+
+        {/* 시각화 페이지 */}
+        <Route
+          path="/visualization"
+          element={
+            <PrivateRoute>
+              <MainLayout>
+                <Suspense fallback={SuspenseFallback}>
+                  <ErrorBoundaryWithFallback name="시각화 페이지">
+                    <VisualizationPage />
+                  </ErrorBoundaryWithFallback>
+                </Suspense>
+              </MainLayout>
+            </PrivateRoute>
+          }
+        />
+
+        {/* 기본 경로 */}
+        <Route
+          path="/"
+          element={
+            authChecking ? (
+              SuspenseFallback
+            ) : !user ? (
+              <Navigate to="/login" replace />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+
+        {/* 404 페이지 */}
+        <Route
+          path="*"
+          element={
             <MainLayout>
-              <DashboardPage />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  height: '100%',
+                }}
+              >
+                <h1>페이지를 찾을 수 없습니다</h1>
+              </div>
             </MainLayout>
-          </PrivateRoute>
-        }
-      />
-
-      {/* 관리자 전용 페이지(AdminPage를 제거하고 대신 대시보드 페이지로 리디렉션) */}
-      <Route
-        path="/admin"
-        element={
-          <PrivateRoute>
-            <MainLayout>
-              <DashboardPage />
-            </MainLayout>
-          </PrivateRoute>
-        }
-      />
-
-      {/* 시각화 페이지 - 모든 사용자 접근 가능 */}
-      <Route
-        path="/visualization"
-        element={
-          <PrivateRoute>
-            <MainLayout>
-              <VisualizationPage />
-            </MainLayout>
-          </PrivateRoute>
-        }
-      />
-
-      {/* 기본 경로는 권한에 따라 대시보드 페이지로 리디렉션 */}
-      <Route
-        path="/"
-        element={
-          authChecking ? (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                flexDirection: 'column',
-                gap: '16px',
-              }}
-            >
-              <div className="loading-spinner"></div>
-              <p>인증 정보 확인 중...</p>
-            </div>
-          ) : !user ? (
-            <Navigate to="/login" replace />
-          ) : (
-            <Navigate to="/dashboard" replace />
-          )
-        }
-      />
-
-      {/* 404 페이지 */}
-      <Route
-        path="*"
-        element={
-          <MainLayout>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-              }}
-            >
-              <h1>페이지를 찾을 수 없습니다</h1>
-            </div>
-          </MainLayout>
-        }
-      />
-    </Routes>
+          }
+        />
+      </Routes>
+    </ErrorBoundaryWithFallback>
   );
 };
 

@@ -1,18 +1,13 @@
-// frontend/src/components/dashboard/AssignDriverModal.js
-import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  Form,
-  Input,
-  Typography,
-  Space,
-  message as antMessage,
-} from 'antd';
+// src/components/dashboard/AssignDriverModal.js
+import React from 'react';
+import { Form, Input, Typography, Space } from 'antd';
 import { formatPhoneNumber } from '../../utils/Formatter';
 import { FONT_STYLES } from '../../utils/Constants';
 import DashboardService from '../../services/DashboardService';
 import { validateAssignmentForm } from '../../utils/validator';
-import message, { MessageKeys, MessageTemplates } from '../../utils/message';
+import { MessageKeys } from '../../utils/message';
+import BaseModal from '../common/BaseModal';
+import useForm from '../../hooks/useForm';
 
 const { Text } = Typography;
 
@@ -22,38 +17,12 @@ const { Text } = Typography;
  * 권한별 제약은 상위 컴포넌트(DashboardPage)에서 처리
  */
 const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
-  const [form] = Form.useForm();
-  const [submitting, setSubmitting] = useState(false);
-
-  // 연락처 포맷팅 처리
-  const handlePhoneChange = (e) => {
-    const formattedNumber = formatPhoneNumber(e.target.value);
-    form.setFieldsValue({ driver_contact: formattedNumber });
-  };
-
-  const handleSubmit = async () => {
-    const key = MessageKeys.DASHBOARD.ASSIGN;
-    try {
-      const values = await form.validateFields();
-      setSubmitting(true);
-      message.loading('배차 처리 중...', key);
-
-      // 추가 유효성 검증
-      const errors = validateAssignmentForm(values);
-      if (Object.keys(errors).length > 0) {
-        form.setFields(
-          Object.entries(errors).map(([name, error]) => ({
-            name,
-            errors: error ? [error] : [],
-          }))
-        );
-        message.loadingToError('입력 정보를 확인해주세요', key);
-        setSubmitting(false);
-        return;
-      }
-
+  // 폼 관련 상태 및 함수
+  const { form, loading, submitForm } = useForm({
+    onSubmit: async (values) => {
       // 선택된 대시보드 ID 추출
       const dashboardIds = selectedRows.map((row) => row.dashboard_id);
+
       console.log('배차 처리 요청:', {
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
@@ -61,52 +30,37 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       });
 
       // DashboardService의 배차 처리 API 호출
-      const result = await DashboardService.assignDriver({
+      return await DashboardService.assignDriver({
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
       });
-
-      message.loadingToSuccess('배차가 완료되었습니다', key);
+    },
+    validate: validateAssignmentForm,
+    messageKey: MessageKeys.DASHBOARD.ASSIGN,
+    loadingMessage: '배차 처리 중...',
+    successMessage: '배차가 완료되었습니다',
+    errorMessage: '배차 처리 중 오류가 발생했습니다',
+    onSuccess: () => {
       form.resetFields();
       onSuccess();
-    } catch (error) {
-      console.error('배차 처리 실패:', error);
+    },
+  });
 
-      // 비관적 락 충돌 처리 (423 Locked)
-      if (error.response?.status === 423) {
-        // 비관적 락 충돌 처리
-        const lockedBy =
-          error.response?.data?.detail?.locked_by || '다른 사용자';
-        antMessage.error(
-          `현재 ${lockedBy}님이 이 데이터를 수정 중입니다. 잠시 후 다시 시도해주세요.`
-        );
-      } else {
-        const errorMessage =
-          error.response?.data?.detail || '배차 처리 중 오류가 발생했습니다';
-        message.loadingToError(errorMessage, key);
-      }
-    } finally {
-      setSubmitting(false);
-    }
+  // 연락처 포맷팅 처리
+  const handlePhoneChange = (e) => {
+    const formattedNumber = formatPhoneNumber(e.target.value);
+    form.setFieldsValue({ driver_contact: formattedNumber });
   };
 
   return (
-    <Modal
-      title={
-        <Space direction="vertical" size={4}>
-          <Text strong style={FONT_STYLES.TITLE.MEDIUM}>
-            배차 정보 입력
-          </Text>
-          <Text type="secondary" style={FONT_STYLES.BODY.MEDIUM}>
-            선택된 주문: {selectedRows.length}건
-          </Text>
-        </Space>
-      }
-      open={visible}
+    <BaseModal
+      title="배차 정보 입력"
+      subTitle={`선택된 주문: ${selectedRows.length}건`}
+      visible={visible}
       onCancel={onCancel}
-      onOk={handleSubmit}
-      confirmLoading={submitting}
+      onOk={submitForm}
+      confirmLoading={loading}
       maskClosable={false}
       width={600}
     >
@@ -176,7 +130,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
           />
         </Form.Item>
       </Form>
-    </Modal>
+    </BaseModal>
   );
 };
 

@@ -130,44 +130,52 @@ BEGIN
   DECLARE v_distance INT;
   DECLARE v_duration_time INT;
   DECLARE v_count INT;
+  DECLARE v_postal_exists INT;
 
-  -- (1) postal_code 테이블에서 지역정보 조회
-  SELECT COALESCE(city, ''), COALESCE(county, ''), COALESCE(district, '')
-  INTO v_city, v_county, v_district
-  FROM postal_code
-  WHERE postal_code = NEW.postal_code;
-
-  SET NEW.city = v_city;
-  SET NEW.county = v_county;
-  SET NEW.district = v_district;
-
-  -- (2) 통합 postal_code_detail 테이블에서 distance와 duration_time 조회
-  SELECT COUNT(*) INTO v_count 
-  FROM postal_code_detail 
-  WHERE postal_code = NEW.postal_code AND warehouse = NEW.warehouse;
+  -- 우편번호가 존재하는지 확인
+  SELECT COUNT(*) INTO v_postal_exists FROM postal_code WHERE postal_code = NEW.postal_code;
   
-  IF v_count > 0 THEN
-    SELECT distance, duration_time INTO v_distance, v_duration_time
+  -- 우편번호가 존재하면 지역 정보 가져오기
+  IF v_postal_exists > 0 THEN
+    SELECT city, county, district
+    INTO v_city, v_county, v_district
+    FROM postal_code
+    WHERE postal_code = NEW.postal_code;
+    
+    SET NEW.city = v_city;
+    SET NEW.county = v_county;
+    SET NEW.district = v_district;
+    
+    -- postal_code_detail에서 거리/시간 정보 조회
+    SELECT COUNT(*) INTO v_count 
     FROM postal_code_detail 
     WHERE postal_code = NEW.postal_code AND warehouse = NEW.warehouse;
-  ELSE
-    SET v_distance = 0;
-    SET v_duration_time = 0;
     
-    -- 거리 정보 자동 추가
-    INSERT INTO postal_code_detail (postal_code, warehouse, distance, duration_time)
-    VALUES (NEW.postal_code, NEW.warehouse, v_distance, v_duration_time);
+    IF v_count > 0 THEN
+      SELECT distance, duration_time INTO v_distance, v_duration_time
+      FROM postal_code_detail 
+      WHERE postal_code = NEW.postal_code AND warehouse = NEW.warehouse;
+      
+      SET NEW.distance = v_distance;
+      SET NEW.duration_time = v_duration_time;
+    ELSE
+      -- 해당 허브 정보가 없으면 기본값 0 설정
+      SET NEW.distance = 0;
+      SET NEW.duration_time = 0;
+    END IF;
+  ELSE
+    -- 우편번호가 존재하지 않으면 기본값 설정
+    -- 데이터베이스 레벨에서는 최소한의 처리만 수행 (NULL 유지)
+    SET NEW.distance = 0;
+    SET NEW.duration_time = 0;
   END IF;
-
-  SET NEW.distance = v_distance;
-  SET NEW.duration_time = v_duration_time;
   
-  -- (3) 초기 버전 값 설정 (낙관적 락을 위함)
+  -- 초기 버전 설정
   IF NEW.version IS NULL THEN
     SET NEW.version = 1;
   END IF;
 END//
-  
+
 DELIMITER ;
 
 -- 데이터 변경 추적용으로 트리거 수정

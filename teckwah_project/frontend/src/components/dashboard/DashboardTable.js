@@ -1,12 +1,17 @@
 // frontend/src/components/dashboard/DashboardTable.js
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
+
 import { Table, Tag, Tooltip, Input, Select, Space, Button } from 'antd';
-import {
-  SearchOutlined,
-  ReloadOutlined,
-  FilterOutlined,
-  ClearOutlined,
-} from '@ant-design/icons';
+import SearchOutlined from '@ant-design/icons/SearchOutlined';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import FilterOutlined from '@ant-design/icons/FilterOutlined';
+import ClearOutlined from '@ant-design/icons/ClearOutlined';
 import {
   STATUS_TYPES,
   STATUS_TEXTS,

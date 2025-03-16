@@ -149,6 +149,8 @@ class AdminDashboardListResponse(BaseResponse):
 # 상세 응답
 class DashboardDetailResponse(BaseResponse):
     data: Optional[DashboardDetail] = None
+    postal_code_error: bool = False  # 우편번호 오류 플래그 추가
+
 
 
 # 상태 변경

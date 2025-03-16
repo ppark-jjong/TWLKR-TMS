@@ -62,9 +62,9 @@ async def create_remark(
             detail="메모 생성 중 오류가 발생했습니다",
         )
 
-
-@router.put("/remarks/{remark_id}", response_model=RemarkResponse)
+@router.patch("/{dashboard_id}/remarks/{remark_id}", response_model=RemarkResponse)
 async def update_remark(
+    dashboard_id: int,
     remark_id: int,
     remark_update: RemarkUpdate,
     service: DashboardRemarkService = Depends(get_remark_service),

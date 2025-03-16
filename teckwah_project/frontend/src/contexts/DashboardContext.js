@@ -30,13 +30,16 @@ export const DashboardProvider = ({ children }) => {
   const requestInProgressRef = useRef(false);
   const searchRequestInProgressRef = useRef(false);
 
+  // 명시적 필터링 트리거를 위한 ref 추가
+  const filterTriggerRef = useRef(false);
+
   // 데이터 조회 함수 (권한 구분 없이 통합)
   const fetchDashboards = useCallback(
     async (startDate, endDate, forceRefresh = false) => {
       // 요청 중복 방지 체크
       if (requestInProgressRef.current && !forceRefresh) {
         console.log(
-          '이미 데이터 요청이.진행 중입니다. 중복 요청을 방지합니다.'
+          '이미 데이터 요청이 진행 중입니다. 중복 요청을 방지합니다.'
         );
         return { items: dashboards, date_range: availableDateRange };
       }
@@ -70,7 +73,7 @@ export const DashboardProvider = ({ children }) => {
         const items = response.items || [];
         const dateRangeInfo = response.date_range || null;
 
-        // 검색 모드가 아닌 경우에만 데이터 업데이트
+        // 검색 모드가 아니거나 강제 새로고침인 경우에만 데이터 업데이트
         if (!searchMode || forceRefresh) {
           setDashboards(items);
           setDateRange([startDate, endDate]);
@@ -81,6 +84,9 @@ export const DashboardProvider = ({ children }) => {
             setAvailableDateRange(dateRangeInfo);
           }
         }
+
+        // 필터링 트리거 초기화
+        filterTriggerRef.current = false;
 
         return response;
       } catch (error) {
@@ -115,6 +121,14 @@ export const DashboardProvider = ({ children }) => {
         return { items: dashboards };
       }
 
+      // 검색어가 없으면 검색 모드 초기화
+      if (!orderNo || !orderNo.trim()) {
+        if (searchMode) {
+          resetSearchMode();
+        }
+        return { items: dashboards };
+      }
+
       try {
         // 검색 요청 시작 표시
         searchRequestInProgressRef.current = true;
@@ -122,6 +136,8 @@ export const DashboardProvider = ({ children }) => {
         setSearchMode(true);
 
         console.log('주문번호 검색 요청:', orderNo);
+
+        // 백엔드 API 직접 호출로 변경
         const searchResults = await DashboardService.searchDashboardsByOrderNo(
           orderNo
         );
@@ -146,7 +162,7 @@ export const DashboardProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [dashboards]
+    [dashboards, searchMode]
   );
 
   /**
@@ -161,6 +177,8 @@ export const DashboardProvider = ({ children }) => {
 
     setSearchMode(false);
     if (dateRange && dateRange[0] && dateRange[1]) {
+      // 필터링 트리거 설정
+      filterTriggerRef.current = true;
       fetchDashboards(dateRange[0], dateRange[1], true);
     }
   }, [dateRange, fetchDashboards]);

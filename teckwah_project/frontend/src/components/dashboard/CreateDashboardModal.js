@@ -1,6 +1,7 @@
-// frontend/src/components/dashboard/CreateDashboardModal.js
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, Row, Col } from 'antd';
+// src/components/dashboard/CreateDashboardModal.js
+import React, { useEffect } from 'react';
+import { Form, Input, Select, DatePicker, Row, Col } from 'antd';
+import dayjs from 'dayjs';
 import DashboardService from '../../services/DashboardService';
 import {
   TYPE_TYPES,
@@ -11,20 +12,47 @@ import {
 } from '../../utils/Constants';
 import { validateDashboardForm } from '../../utils/validator';
 import { formatPhoneNumber } from '../../utils/Formatter';
-import message, { MessageKeys, MessageTemplates } from '../../utils/message';
-import dayjs from 'dayjs';
+import { MessageKeys } from '../../utils/message';
+import BaseModal from '../common/BaseModal';
+import useForm from '../../hooks/useForm';
 
 const { Option } = Select;
 const { TextArea } = Input;
 
+/**
+ * 대시보드 생성 모달 컴포넌트
+ */
 const CreateDashboardModal = ({
   visible,
   onCancel,
   onSuccess,
   userDepartment,
 }) => {
-  const [form] = Form.useForm();
-  const [submitting, setSubmitting] = useState(false);
+  // 폼 관련 상태 및 함수
+  const { form, loading, submitForm } = useForm({
+    onSubmit: async (values) => {
+      console.log('대시보드 생성 요청 데이터:', values);
+
+      // API 요청에 맞는 데이터 구조로 변환
+      const dashboardData = {
+        ...values,
+        // ISO 형식으로 날짜 변환
+        eta: values.eta.toISOString(),
+      };
+
+      // API 호출
+      return await DashboardService.createDashboard(dashboardData);
+    },
+    validate: validateDashboardForm,
+    messageKey: MessageKeys.DASHBOARD.CREATE,
+    loadingMessage: '대시보드 생성 중...',
+    successMessage: '대시보드가 생성되었습니다',
+    errorMessage: '대시보드 생성 중 오류가 발생했습니다',
+    onSuccess: () => {
+      form.resetFields();
+      onSuccess();
+    },
+  });
 
   // 폼 초기화
   useEffect(() => {
@@ -40,53 +68,6 @@ const CreateDashboardModal = ({
   const handlePhoneChange = (e) => {
     const formattedNumber = formatPhoneNumber(e.target.value);
     form.setFieldsValue({ contact: formattedNumber });
-  };
-
-  const handleSubmit = async () => {
-    const key = MessageKeys.DASHBOARD.CREATE;
-    try {
-      const values = await form.validateFields();
-      setSubmitting(true);
-      message.loading('대시보드 생성 중...', key);
-
-      console.log('대시보드 생성 요청 데이터:', values);
-
-      // 우편번호 5자리 검증
-      if (!/^\d{5}$/.test(values.postal_code)) {
-        message.error('올바른 우편번호가 아닙니다', key);
-        setSubmitting(false);
-        return;
-      }
-
-      // 연락처 형식 검증
-      if (values.contact && !/^\d{2,3}-\d{3,4}-\d{4}$/.test(values.contact)) {
-        message.error('올바른 연락처 형식이 아닙니다', key);
-        setSubmitting(false);
-        return;
-      }
-
-      // API 요청에 맞는 데이터 구조로 변환
-      const dashboardData = {
-        ...values,
-        // ISO 형식으로 날짜 변환
-        eta: values.eta.toISOString(),
-      };
-
-      // API 호출
-      const result = await DashboardService.createDashboard(dashboardData);
-      message.loadingToSuccess('대시보드가 생성되었습니다', key);
-      form.resetFields();
-      onSuccess();
-    } catch (error) {
-      console.error('대시보드 생성 오류:', error);
-
-      // 구체적인 에러 메시지 추출
-      const errorDetail =
-        error.response?.data?.detail || '대시보드 생성 중 오류가 발생했습니다';
-      message.loadingToError(errorDetail, key);
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   // ETA 선택 제한 (현재 시간 이후만 선택 가능)
@@ -109,26 +90,15 @@ const CreateDashboardModal = ({
   };
 
   return (
-    <Modal
-      title={
-        <div
-          style={{
-            padding: '8px 0',
-            borderBottom: '2px solid #1890ff',
-            marginBottom: '16px',
-          }}
-        >
-          <span style={{ ...FONT_STYLES.TITLE.LARGE, color: '#1890ff' }}>
-            대시보드 생성
-          </span>
-        </div>
-      }
-      open={visible}
+    <BaseModal
+      title="대시보드 생성"
+      visible={visible}
       onCancel={onCancel}
-      onOk={handleSubmit}
-      confirmLoading={submitting}
+      onOk={submitForm}
+      confirmLoading={loading}
       width={1000}
       maskClosable={false}
+      destroyOnClose
     >
       <Form
         form={form}
@@ -288,7 +258,7 @@ const CreateDashboardModal = ({
           </Col>
         </Row>
       </Form>
-    </Modal>
+    </BaseModal>
   );
 };
 

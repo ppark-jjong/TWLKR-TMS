@@ -17,12 +17,22 @@ class DashboardService {
       const formattedEndDate = endDate.format('YYYY-MM-DD');
       console.log('요청 날짜 범위:', formattedStartDate, '~', formattedEndDate);
 
+      // 중복 요청 방지를 위한 CancelToken 생성
+      const source = axios.CancelToken.source();
+      const timeoutId = setTimeout(() => {
+        source.cancel('조회 요청 타임아웃');
+      }, 30000);
+
       const response = await axios.get('/dashboard/list', {
         params: {
           start_date: formattedStartDate,
           end_date: formattedEndDate,
         },
+        cancelToken: source.token,
       });
+
+      // 타임아웃 클리어
+      clearTimeout(timeoutId);
 
       console.log('대시보드 목록 응답:', response.data);
 
@@ -65,73 +75,30 @@ class DashboardService {
         return { items, date_range: dateRange };
       }
     } catch (error) {
+      // 요청 취소인 경우 별도 처리
+      if (axios.isCancel(error)) {
+        console.log('조회 요청이 취소되었습니다:', error.message);
+        return { items: [], date_range: null };
+      }
+
       console.error('대시보드 목록 조회 실패:', error.response?.data || error);
       throw error;
     }
   }
 
   /**
-   * 관리자 대시보드 목록 조회
-   * @param {dayjs} startDate - 시작 날짜
-   * @param {dayjs} endDate - 종료 날짜
-   * @returns {Promise<Object>} - 대시보드 항목 배열과 날짜 범위 정보
-   */
-  async getAdminDashboardList(startDate, endDate) {
-    try {
-      // 날짜 형식 확인
-      const formattedStartDate = startDate.format('YYYY-MM-DD');
-      const formattedEndDate = endDate.format('YYYY-MM-DD');
-      console.log(
-        '관리자 대시보드 요청 날짜 범위:',
-        formattedStartDate,
-        '~',
-        formattedEndDate
-      );
-
-      const response = await axios.get('/dashboard/list', {
-        params: {
-          start_date: formattedStartDate,
-          end_date: formattedEndDate,
-        },
-      });
-
-      console.log('관리자 대시보드 목록 응답:', response.data);
-
-      // 응답 구조 확인 및 안전한 데이터 반환
-      if (response.data && response.data.success) {
-        const items = response.data.data?.items || [];
-        const dateRange = response.data.data?.date_range;
-
-        return {
-          items,
-          date_range: dateRange,
-          user_role: response.data.data?.user_role,
-          is_admin: response.data.data?.is_admin,
-        };
-      } else {
-        console.warn('서버 응답이 예상 형식과 다릅니다:', response.data);
-        return {
-          items: [],
-          date_range: null,
-        };
-      }
-    } catch (error) {
-      console.error(
-        '관리자 대시보드 목록 조회 실패:',
-        error.response?.data || error
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * 주문번호로 대시보드 검색
+   * 주문번호로 대시보드 검색 API 호출
    * @param {string} orderNo - 검색할 주문번호
    * @returns {Promise<Array>} - 검색 결과 배열
    */
   async searchDashboardsByOrderNo(orderNo) {
     try {
       console.log('주문번호 검색 요청:', orderNo);
+
+      // 검색어가 없는 경우 빈 배열 반환
+      if (!orderNo || !orderNo.trim()) {
+        return [];
+      }
 
       // 이전 요청 취소를 위한 CancelToken 생성 (중복 요청 방지)
       const source = axios.CancelToken.source();
@@ -141,8 +108,9 @@ class DashboardService {
         source.cancel('검색 요청 타임아웃');
       }, 30000);
 
+      // 백엔드 API 직접 호출
       const response = await axios.get('/dashboard/search', {
-        params: { order_no: orderNo },
+        params: { order_no: orderNo.trim() },
         cancelToken: source.token,
       });
 
@@ -169,32 +137,6 @@ class DashboardService {
       console.error('주문번호 검색 실패:', error.response?.data || error);
       throw error;
     }
-  }
-
-  /**
-   * 날짜 범위에 따른 필터링 처리
-   * @param {Array} items - 대시보드 항목 목록
-   * @param {dayjs} startDate - 시작 날짜
-   * @param {dayjs} endDate - 종료 날짜
-   * @returns {Array} - 필터링된 항목 목록
-   */
-  filterByDateRange(items, startDate, endDate) {
-    if (!Array.isArray(items)) return [];
-
-    // 일별 비교를 위해 시작/종료일 문자열 변환
-    const startDateStr = startDate.format('YYYY-MM-DD');
-    const endDateStr = endDate.format('YYYY-MM-DD');
-
-    return items.filter((item) => {
-      // ETA를 기준으로 필터링
-      if (!item.eta) return false;
-
-      // 날짜만 비교 (시간 제외)
-      const itemDate = new Date(item.eta).toISOString().split('T')[0];
-
-      // 시작일 <= 항목 날짜 <= 종료일
-      return itemDate >= startDateStr && itemDate <= endDateStr;
-    });
   }
 
   /**
@@ -235,7 +177,12 @@ class DashboardService {
    */
   async getDashboardDetail(dashboardId) {
     try {
-      const response = await axios.get(`/dashboard/${dashboardId}`);
+      // 중복 요청 방지
+      const source = axios.CancelToken.source();
+      const response = await axios.get(`/dashboard/${dashboardId}`, {
+        cancelToken: source.token,
+      });
+
       console.log('대시보드 상세 정보:', response.data);
 
       // 응답 구조 확인 및 안전한 데이터 반환
@@ -247,6 +194,36 @@ class DashboardService {
     } catch (error) {
       console.error('대시보드 상세 조회 실패:', error.response?.data || error);
       throw error;
+    }
+  }
+
+  /**
+   * 날짜 범위 조회
+   * @returns {Promise<Object>} - 조회 가능한 날짜 범위
+   */
+  async getDateRange() {
+    try {
+      const response = await axios.get('/visualization/date_range');
+      console.log('날짜 범위 조회 응답:', response.data);
+
+      if (response.data && response.data.success && response.data.date_range) {
+        return {
+          oldest_date: response.data.date_range.oldest_date,
+          latest_date: response.data.date_range.latest_date,
+        };
+      } else {
+        return {
+          oldest_date: new Date().toISOString().split('T')[0],
+          latest_date: new Date().toISOString().split('T')[0],
+        };
+      }
+    } catch (error) {
+      console.error('날짜 범위 조회 실패:', error.response?.data || error);
+      // 에러 발생 시 기본값 반환
+      return {
+        oldest_date: new Date().toISOString().split('T')[0],
+        latest_date: new Date().toISOString().split('T')[0],
+      };
     }
   }
 
@@ -394,36 +371,6 @@ class DashboardService {
     } catch (error) {
       console.error('대시보드 삭제 실패:', error.response?.data || error);
       throw error;
-    }
-  }
-
-  /**
-   * 날짜 범위 조회
-   * @returns {Promise<Object>} - 조회 가능한 날짜 범위
-   */
-  async getDateRange() {
-    try {
-      const response = await axios.get('/visualization/date_range');
-      console.log('날짜 범위 조회 응답:', response.data);
-
-      if (response.data && response.data.success && response.data.date_range) {
-        return {
-          oldest_date: response.data.date_range.oldest_date,
-          latest_date: response.data.date_range.latest_date,
-        };
-      } else {
-        return {
-          oldest_date: new Date().toISOString().split('T')[0],
-          latest_date: new Date().toISOString().split('T')[0],
-        };
-      }
-    } catch (error) {
-      console.error('날짜 범위 조회 실패:', error.response?.data || error);
-      // 에러 발생 시 기본값 반환
-      return {
-        oldest_date: new Date().toISOString().split('T')[0],
-        latest_date: new Date().toISOString().split('T')[0],
-      };
     }
   }
 }

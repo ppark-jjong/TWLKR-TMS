@@ -23,7 +23,7 @@ from app.utils.constants import (
     WAREHOUSE_TEXT_MAP,
     DEPARTMENT_TEXT_MAP,
 )
-from app.utils.logger import log_info, log_error
+from app.utils.logger import log_info, log_error, log_warning
 from app.utils.exceptions import OptimisticLockException, PessimisticLockException
 
 
@@ -163,60 +163,49 @@ class DashboardService:
             )
 
     def create_dashboard(
-        self, data: DashboardCreate, department: str, user_id: str = None
-    ) -> DashboardDetail:
-        """대시보드 생성 (메모 포함)"""
+    self, data: DashboardCreate, department: str, user_id: str = None
+) -> Tuple[DashboardDetail, bool]:  # 반환 타입 수정: (대시보드 객체, 우편번호 오류 여부)
+        """대시보드 생성 (메모 포함) - 우편번호 처리 로직 개선"""
         try:
-            # 우편번호 형식 검증 (5자리 숫자)
-            if not data.postal_code.isdigit() or len(data.postal_code) != 5:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"유효하지 않은 우편번호입니다: {data.postal_code}",
-                )
+            # 우편번호 형식 검증
+            if data.postal_code and not (data.postal_code.isdigit() and len(data.postal_code) == 5):
+                log_warning(f"유효하지 않은 우편번호 형식: {data.postal_code}")
+                # 형식이 잘못되어도 계속 진행
 
             # 연락처 형식 검증
             if data.contact and not bool(
                 re.match(r"^\d{2,3}-\d{3,4}-\d{4}$", data.contact)
             ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="올바른 연락처 형식이 아닙니다",
-                )
-            # order_no 추가 검증 (15자 제한)
-            if len(data.order_no) > 15:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="주문번호는 15자를 초과할 수 없습니다",
-                )
+                log_warning(f"올바르지 않은 연락처 형식: {data.contact}")
+                # 잘못된 형식도 계속 진행
 
             # ETA가 현재 시간 이후인지 검증
             eta_kst = data.eta.astimezone(self.kr_timezone)
             if eta_kst <= datetime.now(self.kr_timezone):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="ETA는 현재 시간 이후여야 합니다",
-                )
+                log_warning("ETA가 현재 시간 이전으로 설정됨, 현재 시간 + 1시간으로 자동 조정")
+                eta_kst = datetime.now(self.kr_timezone) + timedelta(hours=1)
+                data.eta = eta_kst
 
-            # 대시보드 데이터 준비 및 생성
+            # 대시보드 데이터 준비
             dashboard_data = data.model_dump(exclude={"remark"})
             dashboard_data["department"] = department
             dashboard_data["eta"] = eta_kst
             dashboard_data["status"] = "WAITING"
             dashboard_data["version"] = 1
 
-            # 현재 시간 (KST)을 create_time으로 설정
+            # 현재 시간 설정
             current_time = datetime.now(self.kr_timezone)
             dashboard_data["create_time"] = current_time
 
-            # 대시보드 생성
-            dashboard = self.repository.create_dashboard(dashboard_data, current_time)
-            
-            # 메모 저장 (remark 필드가 있고 비어있지 않을 경우)
+            # 대시보드 생성 - 수정된 반환 값 처리
+            dashboard, postal_code_error = self.repository.create_dashboard(dashboard_data, current_time)
+                
+            # 메모 저장 처리
             remark_content = getattr(data, "remark", None)
             if remark_content and self.remark_repository and user_id:
                 log_info(f"메모 생성: dashboard_id={dashboard.dashboard_id}")
                 
-                # 사용자 ID를 포함한 형식으로 메모 내용 구성
+                # 메모 형식 지정
                 formatted_content = f"{user_id}: {remark_content}"
                 
                 # 메모 저장
@@ -227,8 +216,11 @@ class DashboardService:
                 )
                 log_info(f"메모 저장 완료: dashboard_id={dashboard.dashboard_id}")
             
-            # 생성된 대시보드 상세 정보 조회 (메모 포함)
-            return self.get_dashboard_detail(dashboard.dashboard_id)
+            # 생성된 대시보드 상세 정보 조회
+            detail = self.get_dashboard_detail(dashboard.dashboard_id)
+            
+            # 대시보드 상세 정보와 우편번호 오류 여부 반환
+            return detail, postal_code_error
 
         except HTTPException:
             raise
@@ -238,7 +230,6 @@ class DashboardService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="대시보드 생성 중 오류가 발생했습니다",
             )
-
     def update_status(
         self,
         dashboard_id: int,
