@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from app.models.dashboard_model import Dashboard
 from app.models.postal_code_model import PostalCode, PostalCodeDetail
 from app.utils.logger import log_error, log_info
-from app.utils.exceptions import OptimisticLockException, PessimisticLockException
+from app.utils.exceptions import PessimisticLockException
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
 import time
 import pytz
@@ -280,116 +280,56 @@ class DashboardRepository:
         self,
         dashboard_data: Dict[str, Any],
         current_time: datetime,
-    ) -> Tuple[Dashboard, bool]:  # 반환 값 수정: (대시보드 객체, 우편번호 오류 여부)
-        """대시보드 생성 - 우편번호 자동 생성 기능 추가"""
-        
-        postal_code_error = False  # 우편번호 오류 여부 추적 플래그
-        
+    ) -> Dashboard:
+        """대시보드 생성"""
         try:
             log_info(f"대시보드 생성 시작")
 
-            # 우편번호 처리
-            postal_code = dashboard_data.get("postal_code")
-            warehouse = dashboard_data.get("warehouse")
-            
-            # 우편번호 존재 여부 검증
-            postal_exists = False
-            if postal_code:
-                postal_exists = self.db.query(exists().where(
-                    PostalCode.postal_code == postal_code
-                )).scalar()
-            
-            # 우편번호가 존재하지 않는 경우 자동 생성
-            if not postal_exists and postal_code:
-                try:
-                    log_info(f"우편번호 '{postal_code}' 존재하지 않음, 자동 생성 시작")
-                    postal_code_error = True  # 우편번호 오류 플래그 설정
-                    
-                    # 1. postal_code 테이블에 새 우편번호 추가 (다른 필드는 NULL 허용)
-                    new_postal = PostalCode(
-                        postal_code=postal_code,
-                        city=None,
-                        county=None,
-                        district=None
-                    )
-                    self.db.add(new_postal)
-                    self.db.flush()
-                    log_info(f"우편번호 '{postal_code}' 기본 정보 생성 완료")
-                    
-                    # 2. postal_code_detail 테이블에 각 허브별 기본 정보 추가
-                    warehouses = ["SEOUL", "BUSAN", "GWANGJU", "DAEJEON"]
-                    for hub in warehouses:
-                        postal_detail = PostalCodeDetail(
-                            postal_code=postal_code,
-                            warehouse=hub,
-                            distance=0,
-                            duration_time=0
-                        )
-                        self.db.add(postal_detail)
-                    
-                    self.db.flush()
-                    log_info(f"우편번호 '{postal_code}'에 대한 허브별 정보 생성 완료")
-                    
-                except SQLAlchemyError as e:
-                    # 우편번호 생성 중 오류 발생 시 로깅 후 계속 진행
-                    log_error(e, f"우편번호 '{postal_code}' 자동 생성 실패")
-                    self.db.rollback()  # 롤백 후 대시보드 생성 계속 시도
-                    
-                    # 대시보드 데이터에서 우편번호 관련 필드 초기화
-                    dashboard_data["city"] = None
-                    dashboard_data["county"] = None
-                    dashboard_data["district"] = None
-                    dashboard_data["distance"] = 0
-                    dashboard_data["duration_time"] = 0
-            
-            # 대시보드 객체 생성 및 저장
             dashboard = Dashboard(**dashboard_data)
-            dashboard.version = 1
-            dashboard.create_time = current_time
-            
-            # 거리 및 시간 정보 기본값 설정 (우편번호 오류 시)
-            if postal_code_error:
-                dashboard.distance = 0
-                dashboard.duration_time = 0
-            
+            dashboard.version = 1  # 초기 버전 설정
+            dashboard.create_time = current_time  # KST 시간을 직접 설정
             self.db.add(dashboard)
-            self.db.flush()
-            
-            # 정상적인 우편번호인 경우 관련 정보 조회
-            if not postal_code_error and postal_exists:
-                # 거리/시간 정보 조회
-                postal_detail = (
-                    self.db.query(PostalCodeDetail)
-                    .filter(
-                        and_(
-                            PostalCodeDetail.postal_code == dashboard.postal_code,
-                            PostalCodeDetail.warehouse == dashboard.warehouse,
-                        )
-                    )
-                    .first()
-                )
 
-                # 정보가 있으면 업데이트
-                if postal_detail:
-                    dashboard.distance = postal_detail.distance
-                    dashboard.duration_time = postal_detail.duration_time
-            
+            # postal_code_detail 정보 연결 위해 flush
+            self.db.flush()
+
+            # 거리/시간 정보 조회 시도
+            postal_detail = (
+                self.db.query(PostalCodeDetail)
+                .filter(
+                    and_(
+                        PostalCodeDetail.postal_code == dashboard.postal_code,
+                        PostalCodeDetail.warehouse == dashboard.warehouse,
+                    )
+                )
+                .first()
+            )
+
+            # 정보가 있으면 업데이트
+            if postal_detail:
+                dashboard.distance = postal_detail.distance
+                dashboard.duration_time = postal_detail.duration_time
+
             self.db.commit()
             self.db.refresh(dashboard)
-            
-            log_info(f"대시보드 생성 완료: ID={dashboard.dashboard_id}, 우편번호 오류={postal_code_error}")
-            return dashboard, postal_code_error  # 대시보드 객체와 우편번호 오류 여부 반환
+
+            # 생성된 대시보드 정보 로깅
+            log_info(
+                f"대시보드 생성 완료: ID={dashboard.dashboard_id}, 상태={dashboard.status}, SLA={dashboard.sla}"
+            )
+
+            return dashboard
 
         except SQLAlchemyError as e:
             self.db.rollback()
             log_error(e, "대시보드 생성 실패", dashboard_data)
             raise
-    # 비관적 락 패턴으로 대체되는 메서드들
-    # 낙관적 락 검증 제거 버전
-    def update_dashboard_status_without_version(
+
+    # 변경: without_version 접미사 제거, 함수 이름 개선
+    def update_dashboard_status(
         self, dashboard_id: int, status: str, current_time: datetime
     ) -> Optional[Dashboard]:
-        """상태 업데이트 (비관적 락만 적용)"""
+        """상태 업데이트 (비관적 락 구현에 의존)"""
         try:
             dashboard = self.get_dashboard_detail(dashboard_id)
             if not dashboard:
@@ -426,10 +366,11 @@ class DashboardRepository:
             log_error(e, "상태 업데이트 실패", {"id": dashboard_id, "status": status})
             raise
 
-    def update_dashboard_fields_without_version(
+    # 변경: without_version 접미사 제거, 함수 이름 개선
+    def update_dashboard_fields(
         self, dashboard_id: int, fields: Dict[str, Any]
     ) -> Optional[Dashboard]:
-        """대시보드 필드 업데이트 (비관적 락만 적용)"""
+        """대시보드 필드 업데이트 (비관적 락 구현에 의존)"""
         try:
             dashboard = self.get_dashboard_detail(dashboard_id)
             if not dashboard:
@@ -458,13 +399,14 @@ class DashboardRepository:
             log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
             raise
 
-    def assign_driver_without_version(
+    # 변경: without_version 접미사 제거, 함수 이름 개선
+    def assign_driver(
         self,
         dashboard_ids: List[int],
         driver_name: str,
         driver_contact: str
     ) -> List[Dashboard]:
-        """배차 처리 (비관적 락만 적용)"""
+        """배차 처리 (비관적 락 구현에 의존)"""
         try:
             log_info(f"배차 처리 (락 적용): {len(dashboard_ids)}건")
 
