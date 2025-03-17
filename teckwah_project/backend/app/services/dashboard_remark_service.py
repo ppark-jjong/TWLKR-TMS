@@ -8,7 +8,6 @@ from app.schemas.dashboard_schema import RemarkResponse, RemarkCreate, RemarkUpd
 from app.utils.logger import log_info, log_error
 from app.utils.exceptions import PessimisticLockException
 
-
 class DashboardRemarkService:
     def __init__(
         self,
@@ -37,13 +36,9 @@ class DashboardRemarkService:
         try:
             # 1. 비관적 락 획득 시도
             try:
-                lock = self.lock_repository.acquire_lock(
-                    dashboard_id, user_id, "REMARK"
-                )
+                lock = self.lock_repository.acquire_lock(dashboard_id, user_id, "REMARK")
                 if not lock:
-                    raise PessimisticLockException(
-                        "다른 사용자가 메모를 수정 중입니다."
-                    )
+                    raise PessimisticLockException("다른 사용자가 메모를 수정 중입니다.")
             except PessimisticLockException as e:
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
@@ -53,7 +48,7 @@ class DashboardRemarkService:
             try:
                 # 2. 사용자 ID 포함 형식으로 메모 내용 구성
                 formatted_content = f"{user_id}: {remark_data.content}"
-
+                
                 # 3. 메모 생성
                 remark = self.remark_repository.create_remark(
                     dashboard_id, formatted_content, user_id
@@ -91,9 +86,7 @@ class DashboardRemarkService:
                     remark.dashboard_id, user_id, "REMARK"
                 )
                 if not lock:
-                    raise PessimisticLockException(
-                        "다른 사용자가 메모를 수정 중입니다."
-                    )
+                    raise PessimisticLockException("다른 사용자가 메모를 수정 중입니다.")
             except PessimisticLockException as e:
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
@@ -103,7 +96,7 @@ class DashboardRemarkService:
             try:
                 # 3. 사용자 ID 포함 형식으로 메모 내용 구성
                 formatted_content = f"{user_id}: {remark_data.content}"
-
+                
                 # 4. 메모 업데이트 (변경: 메서드 이름 without_version 접미사 제거)
                 updated_remark = self.remark_repository.update_remark(
                     remark_id, formatted_content, user_id

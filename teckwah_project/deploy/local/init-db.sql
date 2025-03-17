@@ -178,17 +178,6 @@ END//
 
 DELIMITER ;
 
--- 데이터 변경 추적용으로 트리거 수정
-DELIMITER //
-CREATE TRIGGER trg_dashboard_before_update_version
-BEFORE UPDATE ON dashboard
-FOR EACH ROW
-BEGIN
-  IF OLD.version = NEW.version THEN
-    SET NEW.version = OLD.version + 1;
-  END IF;
-END//
-DELIMITER ;
 
 -- 12. 트리거 생성: dashboard_remark 테이블 INSERT 시 검증
 DELIMITER //

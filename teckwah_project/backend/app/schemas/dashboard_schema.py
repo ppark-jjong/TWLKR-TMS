@@ -150,6 +150,7 @@ class AdminDashboardListResponse(BaseResponse):
 class DashboardDetailResponse(BaseResponse):
     data: Optional[DashboardDetail] = None
     postal_code_error: bool = False  # 우편번호 오류 플래그 추가
+    is_latest: bool = True
 
 
 

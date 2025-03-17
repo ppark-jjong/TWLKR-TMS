@@ -485,3 +485,146 @@ class DashboardRepository:
             # 에러 시 기본값 반환 (현재 기준 전/후 30일)
             now = datetime.now()
             return now - timedelta(days=30), now
+    
+    def update_dashboard_fields_with_version(
+    self, dashboard_id: int, fields: Dict[str, Any], 
+    client_version: Optional[int] = None, increment_version: bool = True
+) -> Optional[Dashboard]:
+        """대시보드 필드 업데이트 (낙관적 락 적용)"""
+        try:
+            dashboard = self.get_dashboard_detail(dashboard_id)
+            if not dashboard:
+                return None
+
+            # 낙관적 락 충돌 검사
+            if client_version is not None and dashboard.version > client_version:
+                log_info(
+                    f"낙관적 락 충돌: ID={dashboard_id}, 클라이언트 버전={client_version}, " 
+                    f"서버 버전={dashboard.version}"
+                )
+                return None  # 충돌 발생, None 반환
+
+            # 필드 업데이트
+            for field, value in fields.items():
+                if hasattr(dashboard, field) and field != "version":
+                    setattr(dashboard, field, value)
+
+            # 버전 증가 여부에 따라 처리
+            if increment_version:
+                dashboard.version += 1
+
+            self.db.commit()
+            self.db.refresh(dashboard)
+
+            log_info(
+                f"필드 업데이트 완료: ID={dashboard.dashboard_id}, 필드={list(fields.keys())}, "
+                f"버전={dashboard.version}"
+            )
+
+            return dashboard
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_error(e, "필드 업데이트 실패", {"id": dashboard_id, "fields": fields})
+            raise
+        
+    def update_dashboard_status_with_version(
+    self, dashboard_id: int, status: str, current_time: datetime, 
+    client_version: Optional[int] = None, increment_version: bool = True
+) -> Optional[Dashboard]:
+        """상태 업데이트 (낙관적 락 적용)"""
+        try:
+            dashboard = self.get_dashboard_detail(dashboard_id)
+            if not dashboard:
+                return None
+
+            # 낙관적 락 충돌 검사
+            if client_version is not None and dashboard.version > client_version:
+                log_info(
+                    f"낙관적 락 충돌: ID={dashboard_id}, 클라이언트 버전={client_version}, "
+                    f"서버 버전={dashboard.version}"
+                )
+                return None  # 충돌 발생, None 반환
+
+            old_status = dashboard.status
+            dashboard.status = status
+
+            # 상태 변경에 따른 시간 업데이트
+            if status == "IN_PROGRESS" and old_status != "IN_PROGRESS":
+                dashboard.depart_time = current_time
+                dashboard.complete_time = None
+            elif status in ["COMPLETE", "ISSUE"]:
+                dashboard.complete_time = current_time
+            elif status in ["WAITING", "CANCEL"]:
+                dashboard.depart_time = None
+                dashboard.complete_time = None
+
+            # 버전 증가 여부에 따라 처리
+            if increment_version:
+                dashboard.version += 1
+
+            self.db.commit()
+            self.db.refresh(dashboard)
+
+            log_info(
+                f"상태 업데이트 완료: ID={dashboard.dashboard_id}, {old_status} -> {status}, "
+                f"버전={dashboard.version}"
+            )
+
+            return dashboard
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_error(e, "상태 업데이트 실패", {"id": dashboard_id, "status": status})
+            raise
+        
+    def assign_driver_with_version(
+    self, dashboard_ids: List[int], driver_name: str, driver_contact: str,
+    client_versions: Optional[Dict[int, int]] = None, increment_version: bool = True
+) -> Tuple[List[Dashboard], List[int]]:
+        """배차 처리 (낙관적 락 적용)"""
+        try:
+            log_info(f"배차 처리 시작 (낙관적 락 적용): {len(dashboard_ids)}건")
+
+            # 대상 대시보드 조회
+            dashboards = self.get_dashboards_by_ids(dashboard_ids)
+            if not dashboards:
+                return [], []
+
+            successful_ids = []
+            conflict_ids = []  # 충돌이 발생한 대시보드 ID 목록
+
+            # 각 대시보드에 대해 배차 정보 업데이트
+            for dashboard in dashboards:
+                # 낙관적 락 충돌 검사
+                if (client_versions and dashboard.dashboard_id in client_versions and 
+                    dashboard.version > client_versions[dashboard.dashboard_id]):
+                    conflict_ids.append(dashboard.dashboard_id)
+                    continue
+
+                # 배차 정보 업데이트
+                dashboard.driver_name = driver_name
+                dashboard.driver_contact = driver_contact
+                
+                # 버전 증가
+                if increment_version:
+                    dashboard.version += 1
+                    
+                successful_ids.append(dashboard.dashboard_id)
+
+            # 충돌이 발생한 ID가 없는 경우에만 커밋
+            if not conflict_ids:
+                self.db.commit()
+                log_info(f"배차 처리 완료: {len(successful_ids)}건")
+            else:
+                self.db.rollback()
+                log_info(f"배차 처리 충돌: {len(conflict_ids)}건")
+                successful_ids = []
+
+            # 업데이트된 대시보드와 충돌 ID 반환
+            return self.get_dashboards_by_ids(successful_ids), conflict_ids
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            log_error(e, "배차 처리 실패", {"ids": dashboard_ids})
+            raise

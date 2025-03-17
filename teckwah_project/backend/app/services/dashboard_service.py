@@ -29,10 +29,10 @@ from app.utils.exceptions import PessimisticLockException
 
 class DashboardService:
     def __init__(
-        self,
-        repository: DashboardRepository,
+        self, 
+        repository: DashboardRepository, 
         remark_repository: Optional[DashboardRemarkRepository] = None,
-        lock_repository: Optional[DashboardLockRepository] = None,
+        lock_repository: Optional[DashboardLockRepository] = None
     ):
         self.repository = repository
         self.remark_repository = remark_repository
@@ -136,18 +136,13 @@ class DashboardService:
                 dashboard.version = 1
             if not hasattr(dashboard, "customer") or dashboard.customer is None:
                 dashboard.customer = ""
-
+            
             # remarks 필드 방어적 처리 추가
             if hasattr(dashboard, "remarks") and dashboard.remarks:
                 for remark in dashboard.remarks:
-                    if (
-                        not hasattr(remark, "formatted_content")
-                        or remark.formatted_content is None
-                    ):
-                        remark.formatted_content = (
-                            f"{remark.created_by}: {remark.content}"
-                        )
-
+                    if not hasattr(remark, "formatted_content") or remark.formatted_content is None:
+                        remark.formatted_content = f"{remark.created_by}: {remark.content}"
+                    
             log_info(
                 f"대시보드 상세 조회 결과: ID={dashboard.dashboard_id}, customer={dashboard.customer}"
             )
@@ -193,7 +188,8 @@ class DashboardService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="주문번호는 15자를 초과할 수 없습니다",
                 )
-            # ETA가 현재 시간 이후인지 검증
+
+# ETA가 현재 시간 이후인지 검증
             eta_kst = data.eta.astimezone(self.kr_timezone)
             if eta_kst <= datetime.now(self.kr_timezone):
                 raise HTTPException(
@@ -214,23 +210,23 @@ class DashboardService:
 
             # 대시보드 생성
             dashboard = self.repository.create_dashboard(dashboard_data, current_time)
-
+            
             # 메모 저장 (remark 필드가 있고 비어있지 않을 경우)
             remark_content = getattr(data, "remark", None)
             if remark_content and self.remark_repository and user_id:
                 log_info(f"메모 생성: dashboard_id={dashboard.dashboard_id}")
-
+                
                 # 사용자 ID를 포함한 형식으로 메모 내용 구성
                 formatted_content = f"{user_id}: {remark_content}"
-
+                
                 # 메모 저장
                 self.remark_repository.create_remark(
                     dashboard_id=dashboard.dashboard_id,
                     content=formatted_content,
-                    user_id=user_id,
+                    user_id=user_id
                 )
                 log_info(f"메모 저장 완료: dashboard_id={dashboard.dashboard_id}")
-
+            
             # 생성된 대시보드 상세 정보 조회 (메모 포함)
             return self.get_dashboard_detail(dashboard.dashboard_id)
 
@@ -264,9 +260,7 @@ class DashboardService:
 
             # 비관적 락 획득 시도
             try:
-                lock = self.lock_repository.acquire_lock(
-                    dashboard_id, user_id, "STATUS"
-                )
+                lock = self.lock_repository.acquire_lock(dashboard_id, user_id, "STATUS")
                 if not lock:
                     raise HTTPException(
                         status_code=status.HTTP_423_LOCKED,
@@ -292,7 +286,7 @@ class DashboardService:
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="대시보드를 찾을 수 없습니다",
                     )
-
+                
                 # 관리자가 아닐 경우, 상태 변경 규칙 검증
                 if not is_admin:
                     # 배차 정보 확인
@@ -301,7 +295,7 @@ class DashboardService:
                             status_code=status.HTTP_400_BAD_REQUEST,
                             detail="배차 담당자가 할당되지 않아 상태를 변경할 수 없습니다",
                         )
-
+                    
                     # 상태 변경 규칙 검증
                     allowed_transitions = {
                         "WAITING": ["IN_PROGRESS", "CANCEL"],
@@ -310,7 +304,7 @@ class DashboardService:
                         "ISSUE": [],
                         "CANCEL": [],
                     }
-
+                    
                     if status not in allowed_transitions.get(dashboard.status, []):
                         status_text_map = {
                             "WAITING": "대기",
@@ -324,22 +318,22 @@ class DashboardService:
                             detail=f"{status_text_map[dashboard.status]} 상태에서는 "
                             f"{status_text_map[status]}(으)로 변경할 수 없습니다",
                         )
-
+                
                 # 변경: 메서드 이름 without_version 접미사 제거
                 updated = self.repository.update_dashboard_status(
                     dashboard_id, status, current_time
                 )
-
+                
                 if not updated:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="대시보드를 찾을 수 없습니다",
                     )
-
+                
                 # 업데이트된 대시보드 상세 정보 반환
                 result = self.get_dashboard_detail(dashboard_id)
                 return result
-
+                
             finally:
                 # 락 해제 (예외 발생 여부와 무관하게 실행)
                 try:
@@ -408,18 +402,20 @@ class DashboardService:
 
             try:
                 # 변경: 메서드 이름 without_version 접미사 제거
-                updated = self.repository.update_dashboard_fields(dashboard_id, fields)
-
+                updated = self.repository.update_dashboard_fields(
+                    dashboard_id, fields
+                )
+                
                 if not updated:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="대시보드를 찾을 수 없습니다",
                     )
-
+                
                 # 업데이트된 대시보드 상세 정보 반환
                 result = self.get_dashboard_detail(dashboard_id)
                 return result
-
+                
             finally:
                 # 락 해제 (예외 발생 여부와 무관하게 실행)
                 try:
@@ -456,7 +452,7 @@ class DashboardService:
             acquired_ids = self.repository.acquire_locks_for_multiple_dashboards(
                 assignment.dashboard_ids, user_id, "ASSIGN"
             )
-
+            
             if not acquired_ids or len(acquired_ids) != len(assignment.dashboard_ids):
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
@@ -469,7 +465,7 @@ class DashboardService:
                 updated_dashboards = self.repository.assign_driver(
                     assignment.dashboard_ids,
                     assignment.driver_name,
-                    assignment.driver_contact,
+                    assignment.driver_contact
                 )
 
                 if len(updated_dashboards) != len(assignment.dashboard_ids):
@@ -479,9 +475,9 @@ class DashboardService:
                     )
 
                 return [DashboardResponse.model_validate(d) for d in updated_dashboards]
-
+                
             finally:
-                # 모든 락 해제
+                # 모든 락 해제 
                 for dashboard_id in acquired_ids:
                     try:
                         self.lock_repository.release_lock(dashboard_id, user_id)
@@ -604,3 +600,21 @@ class DashboardService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="주문번호 검색 중 오류가 발생했습니다",
             )
+    def get_dashboard_with_version_check(self, dashboard_id: int, client_version: int = None) -> Tuple[DashboardDetail, bool]:
+        """
+        대시보드 정보 조회 시 버전 확인
+        
+        Returns:
+            Tuple[DashboardDetail, bool]: 대시보드 정보와 최신 버전 여부
+        """
+        dashboard = self.repository.get_dashboard_detail(dashboard_id)
+        if not dashboard:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="대시보드를 찾을 수 없습니다"
+            )
+        
+        # 클라이언트 버전과 서버 버전 비교
+        is_latest = client_version is None or dashboard.version <= client_version
+        
+        return self.get_dashboard_detail(dashboard_id), is_latest

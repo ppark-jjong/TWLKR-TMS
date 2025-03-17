@@ -38,11 +38,10 @@ class DashboardRemarkRepository:
         except SQLAlchemyError as e:
             log_error(e, "메모 조회 실패", {"remark_id": remark_id})
             raise
-
     
     def create_remark(
-    self, dashboard_id: int, content: str, user_id: str
-) -> DashboardRemark:
+        self, dashboard_id: int, content: str, user_id: str
+    ) -> DashboardRemark:
         """새 메모 생성"""
         try:
             # formatted_content 필드 방어적 처리
@@ -69,11 +68,11 @@ class DashboardRemarkRepository:
             log_error(e, "메모 생성 실패", {"dashboard_id": dashboard_id})
             raise
 
-    
-    def update_remark_without_version(
+    # 변경: without_version 접미사 제거
+    def update_remark(
         self, remark_id: int, content: str, user_id: str
     ) -> DashboardRemark:
-        """메모 업데이트 (비관적 락만 적용)"""
+        """메모 업데이트 (비관적 락 적용)"""
         try:
             remark = self.get_remark_by_id(remark_id)
             if not remark:
@@ -95,5 +94,5 @@ class DashboardRemarkRepository:
             )
             return new_remark
         except SQLAlchemyError as e:
-                    log_error(e, "메모 업데이트 실패", {"remark_id": remark_id})
-                    raise
+            log_error(e, "메모 업데이트 실패", {"remark_id": remark_id})
+            raise

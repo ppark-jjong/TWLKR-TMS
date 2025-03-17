@@ -164,17 +164,19 @@ async def create_dashboard(
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 async def get_dashboard_detail(
     dashboard_id: int,
+    version: Optional[int] = Query(None, description="클라이언트 버전"),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 상세 정보 조회 API"""
+    """대시보드 상세 정보 조회 API (버전 확인 지원)"""
     try:
-        log_info(f"대시보드 상세 정보 조회 요청: {dashboard_id}")
-        result = service.get_dashboard_detail(dashboard_id)
+        result, is_latest = service.get_dashboard_with_version_check(dashboard_id, version)
+        
         return DashboardDetailResponse(
             success=True,
             message="상세 정보를 조회했습니다",
             data=result,
+            is_latest=is_latest  # 응답에 최신 버전 여부 추가
         )
     except HTTPException:
         raise
@@ -184,7 +186,6 @@ async def get_dashboard_detail(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="상세 정보 조회 중 오류가 발생했습니다",
         )
-
 
 
 @router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
