@@ -1,5 +1,5 @@
 # backend/app/api/dashboard_router.py
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -25,6 +25,7 @@ from app.repositories.dashboard_repository import DashboardRepository
 from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
 from app.utils.datetime_helper import get_date_range
+from app.utils.exceptions import OptimisticLockException
 
 router = APIRouter()
 
@@ -161,22 +162,33 @@ async def create_dashboard(
             detail="대시보드 생성 중 오류가 발생했습니다",
         )
 
+
+# 대시보드 상세 조회 API 수정
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 async def get_dashboard_detail(
     dashboard_id: int,
-    version: Optional[int] = Query(None, description="클라이언트 버전"),
+    client_version: Optional[int] = Query(None, description="클라이언트 버전"),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 상세 정보 조회 API (버전 확인 지원)"""
+    """대시보드 상세 정보 조회 API"""
     try:
-        result, is_latest = service.get_dashboard_with_version_check(dashboard_id, version)
+        log_info(f"대시보드 상세 정보 조회 요청: {dashboard_id}, 클라이언트 버전: {client_version}")
+        
+        # 버전 체크 기능 추가
+        result, is_latest = service.get_dashboard_with_version_check(dashboard_id, client_version)
+        
+        # 버전 정보 포함
+        version_info = {
+            "current_version": result.version
+        }
         
         return DashboardDetailResponse(
             success=True,
             message="상세 정보를 조회했습니다",
             data=result,
-            is_latest=is_latest  # 응답에 최신 버전 여부 추가
+            version_info=version_info,
+            is_latest=is_latest
         )
     except HTTPException:
         raise
@@ -188,69 +200,60 @@ async def get_dashboard_detail(
         )
 
 
-@router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
-async def update_status(
-    dashboard_id: int,
-    status_update: StatusUpdate,
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
-):
-    """상태 업데이트 API (비관적 락 적용)"""
-    try:
-        log_info(
-            f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}"
-        )
-        result = service.update_status(
-            dashboard_id,
-            status_update.status,
-            current_user.user_id,  # 사용자 ID 전달
-            is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
-        )
-
-        return DashboardDetailResponse(
-            success=True,
-            message=f"{status_update.status} 상태로 변경되었습니다",
-            data=result,
-        )
-    except HTTPException as e:
-        # 락 충돌 (423 Locked) 처리
-        if e.status_code == status.HTTP_423_LOCKED:
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=None,
-            )
-        raise
-    except Exception as e:
-        log_error(e, "상태 업데이트 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="상태 업데이트 중 오류가 발생했습니다",
-        )
-
-
-
+# 필드 업데이트 API 수정
 @router.patch("/{dashboard_id}/fields", response_model=DashboardDetailResponse)
 async def update_fields(
     dashboard_id: int,
     fields_update: FieldsUpdate,
+    client_version: Optional[int] = Query(None, description="클라이언트 버전"),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """필드 업데이트 API (비관적 락 적용)"""
+    """필드 업데이트 API (비관적 락 및 낙관적 락 적용)"""
     try:
-        log_info(f"필드 업데이트 요청: {dashboard_id}")
+        log_info(f"필드 업데이트 요청: {dashboard_id}, 클라이언트 버전: {client_version}")
         result = service.update_dashboard_fields(
-            dashboard_id, fields_update, current_user.user_id  # 사용자 ID 전달
+            dashboard_id, 
+            fields_update, 
+            current_user.user_id,
+            client_version
         )
+        
+        # 버전 정보 포함
+        version_info = {
+            "current_version": result.version
+        }
+        
         return DashboardDetailResponse(
             success=True,
             message="필드가 업데이트되었습니다",
             data=result,
+            version_info=version_info
         )
+    except OptimisticLockException as e:
+        # 낙관적 락 충돌 처리 - 최신 데이터 자동 조회
+        try:
+            latest_data = service.get_dashboard_detail(dashboard_id)
+            
+            return DashboardDetailResponse(
+                success=False,
+                message=str(e.detail),
+                data=latest_data,  # 최신 데이터 포함
+                version_info={"current_version": e.current_version},
+                is_latest=False
+            )
+        except Exception as fetch_error:
+            # 최신 데이터 조회 실패 시
+            log_error(fetch_error, "최신 데이터 조회 실패")
+            return DashboardDetailResponse(
+                success=False,
+                message=str(e.detail),
+                data=None,
+                version_info={"current_version": e.current_version}
+            )
     except HTTPException as e:
-        # 락 충돌 (423 Locked) 처리
-        if e.status_code == status.HTTP_423_LOCKED:
+        # 비관적 락 충돌 등 다른 HTTP 예외 처리
+        if e.status_code in [status.HTTP_423_LOCKED]:
             return DashboardDetailResponse(
                 success=False,
                 message=str(e.detail),
@@ -264,24 +267,105 @@ async def update_fields(
             detail="필드 업데이트 중 오류가 발생했습니다",
         )
 
+# 상태 업데이트 API도 유사하게 수정
+@router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
+async def update_status(
+    dashboard_id: int,
+    status_update: StatusUpdate,
+    client_version: Optional[int] = Query(None, description="클라이언트 버전"),
+    service: DashboardService = Depends(get_dashboard_service),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """상태 업데이트 API (비관적 락 및 낙관적 락 적용)"""
+    try:
+        log_info(
+            f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}, 클라이언트 버전: {client_version}"
+        )
+        result = service.update_status(
+            dashboard_id,
+            status_update.status,
+            current_user.user_id,
+            client_version,
+            is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
+        )
+
+        # 버전 정보 포함
+        version_info = {
+            "current_version": result.version
+        }
+        
+        return DashboardDetailResponse(
+            success=True,
+            message=f"{status_update.status} 상태로 변경되었습니다",
+            data=result,
+            version_info=version_info
+        )
+    except OptimisticLockException as e:
+        # 낙관적 락 충돌 처리 - 최신 데이터 자동 조회
+        try:
+            latest_data = service.get_dashboard_detail(dashboard_id)
+            
+            return DashboardDetailResponse(
+                success=False,
+                message=str(e.detail),
+                data=latest_data,  # 최신 데이터 포함
+                version_info={"current_version": e.current_version},
+                is_latest=False
+            )
+        except Exception as fetch_error:
+            # 최신 데이터 조회 실패 시
+            log_error(fetch_error, "최신 데이터 조회 실패")
+            return DashboardDetailResponse(
+                success=False,
+                message=str(e.detail),
+                data=None,
+                version_info={"current_version": e.current_version}
+            )
+    except HTTPException as e:
+        # 락 충돌 (423 Locked) 또는 기타 HTTP 예외 처리
+        if e.status_code in [status.HTTP_423_LOCKED]:
+            return DashboardDetailResponse(
+                success=False,
+                message=str(e.detail),
+                data=None,
+            )
+        raise
+    except Exception as e:
+        log_error(e, "상태 업데이트 실패")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="상태 업데이트 중 오류가 발생했습니다",
+        )
 
 @router.post("/assign", response_model=BaseResponse)
 async def assign_driver(
     assignment: DriverAssignment,
+    client_versions: Optional[Dict[int, int]] = Body(None, description="대시보드 별 클라이언트 버전"),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """배차 처리 API (비관적 락 적용)"""
+    """배차 처리 API (비관적 락 및 낙관적 락 적용)"""
     try:
-        log_info(f"배차 처리 요청: {assignment.model_dump()}")
-        result = service.assign_driver(assignment, current_user.user_id)
+        log_info(f"배차 처리 요청: {assignment.model_dump()}, 클라이언트 버전: {client_versions}")
+        result = service.assign_driver(
+            assignment, 
+            current_user.user_id,
+            client_versions  # 클라이언트 버전 전달
+        )
         return BaseResponse(
             success=True,
             message="배차가 완료되었습니다",
             data={"updated_dashboards": [item.model_dump() for item in result]},
         )
+    except OptimisticLockException as e:
+        # 낙관적 락 충돌 처리
+        return BaseResponse(
+            success=False,
+            message=str(e.detail),
+            data=None,
+        )
     except HTTPException as e:
-        # 락 충돌 (423 Locked) 처리
+        # 비관적 락 충돌 처리
         if e.status_code == status.HTTP_423_LOCKED:
             return BaseResponse(
                 success=False,
@@ -295,7 +379,6 @@ async def assign_driver(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="배차 처리 중 오류가 발생했습니다",
         )
-
 
 @router.delete("", response_model=BaseResponse)
 async def delete_dashboards(

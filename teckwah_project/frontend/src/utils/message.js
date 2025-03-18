@@ -27,7 +27,11 @@ export const MessageKeys = {
     STATUS: 'dashboard-status',
     ASSIGN: 'dashboard-assign',
     MEMO: 'dashboard-memo',
-    SEARCH: 'dashboard-search', // 검색 전용 키 추가
+    SEARCH: 'dashboard-search',
+    LOCK_ACQUIRE: 'dashboard-lock-acquire',
+    LOCK_RELEASE: 'dashboard-lock-release',
+    OPTIMISTIC_LOCK: 'dashboard-optimistic-lock',
+    PESSIMISTIC_LOCK: 'dashboard-pessimistic-lock',
   },
   VISUALIZATION: {
     LOAD: 'visualization-load',
@@ -64,6 +68,13 @@ export const MessageTemplates = {
     SEARCH_EMPTY: (keyword) =>
       `주문번호 "${keyword}"에 대한 검색 결과가 없습니다`,
     SEARCH_ERROR: '검색 중 오류가 발생했습니다',
+    LOCK_ACQUIRE_SUCCESS: '편집 모드가 활성화되었습니다',
+    LOCK_ACQUIRE_ERROR: '편집 모드 활성화에 실패했습니다',
+    LOCK_RELEASE_SUCCESS: '편집 모드가 종료되었습니다',
+    OPTIMISTIC_LOCK_ERROR:
+      '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인하세요.',
+    PESSIMISTIC_LOCK_ERROR: (lockedBy, lockType) =>
+      `현재 ${lockedBy}님이 ${lockType} 중입니다. 잠시 후 다시 시도해주세요.`,
   },
 
   // 유효성 검사 관련
@@ -225,6 +236,22 @@ class MessageService {
   }
 
   /**
+   * 로딩에서 경고로 상태 전환
+   */
+  loadingToWarning(content, key) {
+    if (key && activeMessages.has(key)) {
+      message.warning({
+        content,
+        key,
+        duration: this.defaultDurations[MessageTypes.WARNING],
+      });
+      activeMessages.set(key, MessageTypes.WARNING);
+    } else {
+      this.warning(content, key);
+    }
+  }
+
+  /**
    * 특정 메시지 혹은 모든 메시지 제거
    */
   destroy(key) {
@@ -242,6 +269,88 @@ class MessageService {
    */
   getActiveMessages() {
     return Array.from(activeMessages.keys());
+  }
+
+  /**
+   * API 응답에서 메시지 추출하여 표시
+   * @param {Object} response - API 응답 객체
+   * @param {string} key - 메시지 키
+   * @param {string} defaultSuccessMessage - 기본 성공 메시지
+   * @param {string} defaultErrorMessage - 기본 에러 메시지
+   */
+  handleApiResponse(response, key, defaultSuccessMessage, defaultErrorMessage) {
+    if (!response) return;
+
+    if (response.success) {
+      this.loadingToSuccess(response.message || defaultSuccessMessage, key);
+    } else {
+      this.loadingToError(
+        response.message || response.error?.detail || defaultErrorMessage,
+        key
+      );
+    }
+  }
+
+  /**
+   * 오류 응답 처리
+   * @param {Error} error - 오류 객체
+   * @param {string} key - 메시지 키
+   * @param {string} defaultMessage - 기본 오류 메시지
+   */
+  handleApiError(error, key, defaultMessage) {
+    const response = error.response?.data;
+    const statusCode = error.response?.status;
+
+    // 서버에서 메시지가 제공된 경우
+    if (response?.message) {
+      this.loadingToError(response.message, key);
+      return;
+    }
+
+    // 오류 세부 정보가 제공된 경우
+    if (response?.error?.detail) {
+      this.loadingToError(response.error.detail, key);
+      return;
+    }
+
+    // 상태 코드별 메시지
+    if (statusCode) {
+      switch (statusCode) {
+        case 401:
+          this.loadingToError('인증이 필요합니다. 다시 로그인해주세요.', key);
+          break;
+        case 403:
+          this.loadingToError('접근 권한이 없습니다.', key);
+          break;
+        case 404:
+          this.loadingToError('요청한 리소스를 찾을 수 없습니다.', key);
+          break;
+        case 409:
+          this.loadingToError('다른 사용자가 이미 데이터를 수정했습니다.', key);
+          break;
+        case 423:
+          this.loadingToError('다른 사용자가 편집 중입니다.', key);
+          break;
+        case 500:
+          this.loadingToError('서버 오류가 발생했습니다.', key);
+          break;
+        default:
+          this.loadingToError(defaultMessage, key);
+      }
+      return;
+    }
+
+    // 네트워크 오류
+    if (error.request && !error.response) {
+      this.loadingToError(
+        '서버와 통신할 수 없습니다. 네트워크 연결을 확인해주세요.',
+        key
+      );
+      return;
+    }
+
+    // 기본 메시지
+    this.loadingToError(defaultMessage, key);
   }
 }
 

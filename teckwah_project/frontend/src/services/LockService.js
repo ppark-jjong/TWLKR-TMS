@@ -1,4 +1,4 @@
-// frontend/src/services/LockService.js
+// src/services/LockService.js
 import axios from 'axios';
 import message from '../utils/message';
 import { MessageKeys } from '../utils/message';
@@ -26,20 +26,28 @@ class LockService {
         lock_type: lockType,
       });
 
+      // 응답 구조 검증
+      if (!response.data || !response.data.success) {
+        throw new Error('락 획득 응답이 올바르지 않습니다');
+      }
+
       message.loadingToSuccess('편집 모드가 활성화되었습니다', key);
       console.log(
         `[LockService] 락 획득 성공: ${JSON.stringify(response.data)}`
       );
-      return response.data;
+      return response.data.data;
     } catch (error) {
       console.error('[LockService] 락 획득 실패:', error);
 
       // 이미 락이 걸려있는 경우 (423 Locked)
       if (error.response?.status === 423) {
-        const lockedBy =
-          error.response.data?.detail?.locked_by || '다른 사용자';
+        const detail = error.response.data?.error?.detail || {};
+        const lockedBy = detail.locked_by || '다른 사용자';
+        const lockType = detail.lock_type || '';
+        let lockTypeText = this._getLockTypeText(lockType);
+
         message.loadingToError(
-          `현재 ${lockedBy}님이 이 데이터를 수정 중입니다. 잠시 후 다시 시도해주세요.`,
+          `현재 ${lockedBy}님이 이 데이터를 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`,
           key
         );
       } else {
@@ -58,6 +66,15 @@ class LockService {
     try {
       console.log(`[LockService] 락 해제 요청: dashboardId=${dashboardId}`);
       const response = await axios.delete(`/dashboard/${dashboardId}/lock`);
+
+      // 응답 구조 검증
+      if (!response.data || !response.data.success) {
+        console.warn(
+          '[LockService] 락 해제 응답이 올바르지 않습니다:',
+          response.data
+        );
+      }
+
       console.log('[LockService] 락 해제 성공');
       return true;
     } catch (error) {
@@ -76,6 +93,15 @@ class LockService {
     try {
       console.log(`[LockService] 락 상태 확인: dashboardId=${dashboardId}`);
       const response = await axios.get(`/dashboard/${dashboardId}/lock/status`);
+
+      if (!response.data || !response.data.success) {
+        console.warn(
+          '[LockService] 락 상태 확인 응답이 올바르지 않습니다:',
+          response.data
+        );
+        return { is_locked: false };
+      }
+
       const lockInfo = response.data.data || {};
 
       console.log(
@@ -96,6 +122,28 @@ class LockService {
   }
 
   /**
+   * 락 갱신 요청
+   * @param {number} dashboardId - 대시보드 ID
+   * @returns {Promise<Object>} - 갱신된 락 정보
+   */
+  async renewLock(dashboardId) {
+    try {
+      console.log(`[LockService] 락 갱신 요청: dashboardId=${dashboardId}`);
+      const response = await axios.put(`/dashboard/${dashboardId}/lock`);
+
+      if (!response.data || !response.data.success) {
+        throw new Error('락 갱신 응답이 올바르지 않습니다');
+      }
+
+      console.log(`[LockService] 락 갱신 성공`);
+      return response.data.data;
+    } catch (error) {
+      console.error('[LockService] 락 갱신 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 관리자 전용 강제 락 해제
    * @param {number} dashboardId - 대시보드 ID
    * @returns {Promise<boolean>} - 성공 여부
@@ -108,6 +156,11 @@ class LockService {
       const response = await axios.delete(
         `/dashboard/${dashboardId}/lock/force`
       );
+
+      if (!response.data || !response.data.success) {
+        throw new Error('강제 락 해제 응답이 올바르지 않습니다');
+      }
+
       message.success('락이 강제로 해제되었습니다');
       return true;
     } catch (error) {
@@ -134,35 +187,56 @@ class LockService {
         `[LockService] 다중 락 획득 요청: ${dashboardIds.join(', ')}`
       );
 
-      // 개별 락 획득 요청을 배열로 생성
-      const lockPromises = dashboardIds.map((id) =>
-        this.acquireLock(id, lockType)
-          .then(() => successIds.push(id))
-          .catch(() => failedIds.push(id))
-      );
+      const key = MessageKeys.DASHBOARD.LOCK_ACQUIRE || 'lock-acquire';
+      message.loading('배차 준비 중...', key);
 
-      // 모든 락 획득 요청 처리 대기
-      await Promise.all(lockPromises);
+      // 다중 락 획득 요청
+      const response = await axios.post('/dashboard/locks', {
+        dashboard_ids: dashboardIds,
+        lock_type: lockType,
+      });
 
-      // 일부 락 획득 실패 시 이미 획득한 락도 모두 해제
-      if (failedIds.length > 0) {
-        console.warn(
-          `[LockService] 일부 항목 락 획득 실패: ${failedIds.join(', ')}`
-        );
-
-        // 이미 획득한 락 모두 해제
-        await Promise.all(successIds.map((id) => this.releaseLock(id)));
-
-        return [];
+      if (!response.data || !response.data.success) {
+        throw new Error('다중 락 획득 응답이 올바르지 않습니다');
       }
 
-      console.log(`[LockService] 다중 락 획득 성공: ${successIds.join(', ')}`);
-      return successIds;
+      const lockedIds = response.data.data?.locked_ids || [];
+
+      if (lockedIds.length === dashboardIds.length) {
+        message.loadingToSuccess('배차 준비가 완료되었습니다', key);
+        console.log(`[LockService] 다중 락 획득 성공: ${lockedIds.join(', ')}`);
+        return lockedIds;
+      } else if (lockedIds.length > 0) {
+        // 일부만 성공한 경우
+        message.loadingToWarning(
+          `일부 항목만 준비되었습니다 (${lockedIds.length}/${dashboardIds.length})`,
+          key
+        );
+        console.warn(
+          `[LockService] 일부 항목 락 획득 성공: ${lockedIds.join(', ')}`
+        );
+        return lockedIds;
+      } else {
+        throw new Error('락 획득에 실패했습니다');
+      }
     } catch (error) {
       console.error('[LockService] 다중 락 획득 중 예외 발생:', error);
 
-      // 예외 발생 시 이미 획득한 락 모두 해제
-      await Promise.all(successIds.map((id) => this.releaseLock(id)));
+      // 423 Locked 에러 처리
+      if (error.response?.status === 423) {
+        const detail = error.response.data?.error?.detail || {};
+        const lockedBy = detail.locked_by || '다른 사용자';
+        const conflictIds = detail.conflict_ids || [];
+
+        let errorMessage = `일부 항목이 이미 ${lockedBy}님에 의해 편집 중입니다.`;
+        if (conflictIds.length > 0) {
+          errorMessage += ` (주문번호: ${conflictIds.join(', ')})`;
+        }
+
+        message.error(errorMessage);
+      } else {
+        message.error('배차 준비 중 오류가 발생했습니다');
+      }
 
       return [];
     }
@@ -206,6 +280,59 @@ class LockService {
     }
 
     throw new Error(`최대 재시도 횟수(${maxRetries})를 초과했습니다.`);
+  }
+
+  /**
+   * 여러 대시보드에 대한 락 해제
+   * @param {Array<number>} dashboardIds - 대시보드 ID 배열
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async releaseMultipleLocks(dashboardIds) {
+    if (!dashboardIds || !dashboardIds.length) return true;
+
+    try {
+      console.log(
+        `[LockService] 다중 락 해제 요청: ${dashboardIds.join(', ')}`
+      );
+
+      const response = await axios.delete('/dashboard/locks', {
+        data: { dashboard_ids: dashboardIds },
+      });
+
+      if (!response.data || !response.data.success) {
+        console.warn(
+          '[LockService] 다중 락 해제 응답이 올바르지 않습니다:',
+          response.data
+        );
+      }
+
+      console.log('[LockService] 다중 락 해제 성공');
+      return true;
+    } catch (error) {
+      console.error('[LockService] 다중 락 해제 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 락 타입에 따른 표시 텍스트 반환
+   * @param {string} lockType - 락 타입
+   * @returns {string} - 표시 텍스트
+   * @private
+   */
+  _getLockTypeText(lockType) {
+    switch (lockType) {
+      case 'EDIT':
+        return '편집';
+      case 'STATUS':
+        return '상태 변경';
+      case 'ASSIGN':
+        return '배차';
+      case 'REMARK':
+        return '메모 작성';
+      default:
+        return '수정';
+    }
   }
 }
 
