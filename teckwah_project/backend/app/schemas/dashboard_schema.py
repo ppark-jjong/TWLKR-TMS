@@ -146,12 +146,12 @@ class AdminDashboardListResponse(BaseResponse):
     data: Optional[Dict[str, Any]] = None
 
 
-# 상세 응답
+# 상세 응답 - 버전 정보 필드 추가
 class DashboardDetailResponse(BaseResponse):
     data: Optional[DashboardDetail] = None
     postal_code_error: bool = False  # 우편번호 오류 플래그 추가
-    is_latest: bool = True
-
+    is_latest: bool = True  # 클라이언트 버전이 최신인지 여부
+    version_info: Optional[Dict[str, Any]] = None  # 버전 정보 추가
 
 
 # 상태 변경

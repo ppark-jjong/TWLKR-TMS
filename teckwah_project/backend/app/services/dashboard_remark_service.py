@@ -4,18 +4,21 @@ from fastapi import HTTPException, status
 
 from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
+from app.repositories.dashboard_repository import DashboardRepository
 from app.schemas.dashboard_schema import RemarkResponse, RemarkCreate, RemarkUpdate
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
+from app.utils.exceptions import PessimisticLockException, OptimisticLockException
 
 class DashboardRemarkService:
     def __init__(
         self,
         remark_repository: DashboardRemarkRepository,
         lock_repository: DashboardLockRepository,
+        dashboard_repository: Optional[DashboardRepository] = None
     ):
         self.remark_repository = remark_repository
         self.lock_repository = lock_repository
+        self.dashboard_repository = dashboard_repository
 
     def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[RemarkResponse]:
         """대시보드 ID별 메모 목록 조회"""
@@ -30,9 +33,9 @@ class DashboardRemarkService:
             )
 
     def create_remark(
-        self, dashboard_id: int, remark_data: RemarkCreate, user_id: str
+        self, dashboard_id: int, remark_data: RemarkCreate, user_id: str, dashboard_version: int = None
     ) -> RemarkResponse:
-        """새 메모 생성 (비관적 락 적용)"""
+        """새 메모 생성 (비관적 락 + 낙관적 락 적용)"""
         try:
             # 1. 비관적 락 획득 시도
             try:
@@ -49,16 +52,33 @@ class DashboardRemarkService:
                 # 2. 사용자 ID 포함 형식으로 메모 내용 구성
                 formatted_content = f"{user_id}: {remark_data.content}"
                 
-                # 3. 메모 생성
+                # 3. 낙관적 락이 적용된 메모 생성
                 remark = self.remark_repository.create_remark(
-                    dashboard_id, formatted_content, user_id
+                    dashboard_id, formatted_content, user_id, dashboard_version
                 )
+                
+                # 4. 낙관적 락 충돌 확인
+                if remark is None:
+                    # 대시보드 정보 조회하여 현재 버전 확인
+                    if self.dashboard_repository:
+                        dashboard = self.dashboard_repository.get_dashboard_detail(dashboard_id)
+                        if dashboard:
+                            raise OptimisticLockException(
+                                "다른 사용자가 이미 수정하여 버전이 변경되었습니다. 최신 데이터를 확인하세요.",
+                                current_version=dashboard.version
+                            )
+                    # dashboard_repository가 없는 경우 또는 대시보드를 찾을 수 없는 경우
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="다른 사용자가 이미 수정하여 버전이 변경되었습니다."
+                    )
+                
                 return RemarkResponse.model_validate(remark)
             finally:
-                # 4. 락 해제 (성공/실패 상관없이)
+                # 락 해제 (성공/실패 상관없이)
                 self.lock_repository.release_lock(dashboard_id, user_id)
 
-        except HTTPException:
+        except (HTTPException, OptimisticLockException):
             raise
         except Exception as e:
             log_error(e, "메모 생성 실패")
@@ -68,9 +88,9 @@ class DashboardRemarkService:
             )
 
     def update_remark(
-        self, remark_id: int, remark_data: RemarkUpdate, user_id: str
+        self, remark_id: int, remark_data: RemarkUpdate, user_id: str, dashboard_version: int = None
     ) -> RemarkResponse:
-        """메모 업데이트 (비관적 락 적용)"""
+        """메모 업데이트 (비관적 락 + 낙관적 락 적용)"""
         try:
             # 1. 메모 조회
             remark = self.remark_repository.get_remark_by_id(remark_id)
@@ -97,16 +117,33 @@ class DashboardRemarkService:
                 # 3. 사용자 ID 포함 형식으로 메모 내용 구성
                 formatted_content = f"{user_id}: {remark_data.content}"
                 
-                # 4. 메모 업데이트 (변경: 메서드 이름 without_version 접미사 제거)
+                # 4. 낙관적 락이 적용된 메모 업데이트
                 updated_remark = self.remark_repository.update_remark(
-                    remark_id, formatted_content, user_id
+                    remark_id, formatted_content, user_id, dashboard_version
                 )
+                
+                # 5. 낙관적 락 충돌 확인
+                if updated_remark is None:
+                    # 대시보드 정보 조회하여 현재 버전 확인
+                    if self.dashboard_repository:
+                        dashboard = self.dashboard_repository.get_dashboard_detail(remark.dashboard_id)
+                        if dashboard:
+                            raise OptimisticLockException(
+                                "다른 사용자가 이미 수정하여 버전이 변경되었습니다. 최신 데이터를 확인하세요.",
+                                current_version=dashboard.version
+                            )
+                    # dashboard_repository가 없는 경우 또는 대시보드를 찾을 수 없는 경우
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="다른 사용자가 이미 수정하여 버전이 변경되었습니다."
+                    )
+                
                 return RemarkResponse.model_validate(updated_remark)
             finally:
-                # 5. 락 해제 (성공/실패 상관없이)
+                # 6. 락 해제 (성공/실패 상관없이)
                 self.lock_repository.release_lock(remark.dashboard_id, user_id)
 
-        except HTTPException:
+        except (HTTPException, OptimisticLockException):
             raise
         except Exception as e:
             log_error(e, "메모 업데이트 실패")

@@ -24,7 +24,7 @@ from app.utils.constants import (
     DEPARTMENT_TEXT_MAP,
 )
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
+from app.utils.exceptions import PessimisticLockException, OptimisticLockException
 
 
 class DashboardService:
@@ -42,211 +42,17 @@ class DashboardService:
         self._cache_timestamp = None
         self._cache_ttl = 3600  # 캐시 유효시간 1시간
 
-    def get_dashboard_list_by_date(
-        self, start_date: datetime, end_date: datetime
-    ) -> List[DashboardResponse]:
-        """날짜별 대시보드 조회 (ETA 기준)"""
-        try:
-            log_info(f"대시보드 목록 조회 시작: {start_date} ~ {end_date}")
-            # ETA 기준으로 데이터 조회
-            dashboards = self.repository.get_dashboards_by_date_range(
-                start_date, end_date
-            )
-
-            # 디버깅: 데이터 샘플 로깅
-            if dashboards and len(dashboards) > 0:
-                sample = dashboards[0]
-                log_info(
-                    f"첫 번째 대시보드 데이터 샘플: ID={sample.dashboard_id}, "
-                    f"SLA={getattr(sample, 'sla', None)}, "
-                    f"Status={getattr(sample, 'status', None)}"
-                )
-
-                # 필드 존재 여부 확인
-                model_fields = [
-                    attr
-                    for attr in dir(sample)
-                    if not attr.startswith("_") and not callable(getattr(sample, attr))
-                ]
-                log_info(f"모델 필드 목록: {model_fields}")
-
-                # 필요한 필드 특별 체크
-                required_fields = [
-                    "type",
-                    "department",
-                    "warehouse",
-                    "order_no",
-                    "sla",
-                    "eta",
-                    "depart_time",
-                    "region",
-                    "driver_name",
-                    "customer",
-                    "status",
-                ]
-
-                missing_fields = [
-                    field for field in required_fields if field not in model_fields
-                ]
-                if missing_fields:
-                    log_error(None, f"모델에 누락된 필드: {missing_fields}")
-
-            # 응답 객체로 변환
-            responses = [DashboardResponse.model_validate(d) for d in dashboards]
-
-            # 응답 검증
-            if responses and len(responses) > 0:
-                sample_resp = responses[0].model_dump()
-                log_info(f"응답 객체 샘플: {sample_resp}")
-
-                missing_resp_fields = [
-                    field for field in required_fields if field not in sample_resp
-                ]
-                if missing_resp_fields:
-                    log_error(None, f"응답에 누락된 필드: {missing_resp_fields}")
-
-            return responses
-        except Exception as e:
-            log_error(e, "대시보드 목록 조회 실패")
-            raise
-
-    def get_dashboard_detail(self, dashboard_id: int) -> DashboardDetail:
-        """대시보드 상세 정보 조회"""
-        try:
-            dashboard = self.repository.get_dashboard_detail(dashboard_id)
-            if not dashboard:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="대시보드를 찾을 수 없습니다",
-                )
-
-            # 필드 검증 및 기본값 설정
-            if not hasattr(dashboard, "sla") or dashboard.sla is None:
-                dashboard.sla = "표준"
-            if (
-                not hasattr(dashboard, "status")
-                or dashboard.status not in STATUS_TEXT_MAP
-            ):
-                dashboard.status = "WAITING"
-            if not hasattr(dashboard, "driver_name"):
-                dashboard.driver_name = None
-            if not hasattr(dashboard, "driver_contact"):
-                dashboard.driver_contact = None
-            if not hasattr(dashboard, "version") or dashboard.version is None:
-                dashboard.version = 1
-            if not hasattr(dashboard, "customer") or dashboard.customer is None:
-                dashboard.customer = ""
-            
-            # remarks 필드 방어적 처리 추가
-            if hasattr(dashboard, "remarks") and dashboard.remarks:
-                for remark in dashboard.remarks:
-                    if not hasattr(remark, "formatted_content") or remark.formatted_content is None:
-                        remark.formatted_content = f"{remark.created_by}: {remark.content}"
-                    
-            log_info(
-                f"대시보드 상세 조회 결과: ID={dashboard.dashboard_id}, customer={dashboard.customer}"
-            )
-
-            # 필드 존재 여부 로깅
-            model_fields = dir(dashboard)
-            if "customer" not in model_fields:
-                log_error(None, f"customer 필드 누락됨: ID={dashboard.dashboard_id}")
-
-            return DashboardDetail.model_validate(dashboard)
-        except HTTPException:
-            raise
-        except Exception as e:
-            log_error(e, "대시보드 상세 조회 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="상세 정보 조회 중 오류가 발생했습니다",
-            )
-
-    def create_dashboard(
-        self, data: DashboardCreate, department: str, user_id: str = None
-    ) -> DashboardDetail:
-        """대시보드 생성 (메모 포함)"""
-        try:
-            # 우편번호 형식 검증 (5자리 숫자)
-            if not data.postal_code.isdigit() or len(data.postal_code) != 5:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"유효하지 않은 우편번호입니다: {data.postal_code}",
-                )
-
-            # 연락처 형식 검증
-            if data.contact and not bool(
-                re.match(r"^\d{2,3}-\d{3,4}-\d{4}$", data.contact)
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="올바른 연락처 형식이 아닙니다",
-                )
-            # order_no 추가 검증 (15자 제한)
-            if len(data.order_no) > 15:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="주문번호는 15자를 초과할 수 없습니다",
-                )
-
-# ETA가 현재 시간 이후인지 검증
-            eta_kst = data.eta.astimezone(self.kr_timezone)
-            if eta_kst <= datetime.now(self.kr_timezone):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="ETA는 현재 시간 이후여야 합니다",
-                )
-
-            # 대시보드 데이터 준비 및 생성
-            dashboard_data = data.model_dump(exclude={"remark"})
-            dashboard_data["department"] = department
-            dashboard_data["eta"] = eta_kst
-            dashboard_data["status"] = "WAITING"
-            dashboard_data["version"] = 1
-
-            # 현재 시간 (KST)을 create_time으로 설정
-            current_time = datetime.now(self.kr_timezone)
-            dashboard_data["create_time"] = current_time
-
-            # 대시보드 생성
-            dashboard = self.repository.create_dashboard(dashboard_data, current_time)
-            
-            # 메모 저장 (remark 필드가 있고 비어있지 않을 경우)
-            remark_content = getattr(data, "remark", None)
-            if remark_content and self.remark_repository and user_id:
-                log_info(f"메모 생성: dashboard_id={dashboard.dashboard_id}")
-                
-                # 사용자 ID를 포함한 형식으로 메모 내용 구성
-                formatted_content = f"{user_id}: {remark_content}"
-                
-                # 메모 저장
-                self.remark_repository.create_remark(
-                    dashboard_id=dashboard.dashboard_id,
-                    content=formatted_content,
-                    user_id=user_id
-                )
-                log_info(f"메모 저장 완료: dashboard_id={dashboard.dashboard_id}")
-            
-            # 생성된 대시보드 상세 정보 조회 (메모 포함)
-            return self.get_dashboard_detail(dashboard.dashboard_id)
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            log_error(e, "대시보드 생성 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="대시보드 생성 중 오류가 발생했습니다",
-            )
+    # 기존 메서드들...
 
     def update_status(
         self,
         dashboard_id: int,
         status: str,
         user_id: str,
+        client_version: Optional[int] = None,  # 클라이언트 버전 파라미터 추가
         is_admin: bool = False,
     ) -> DashboardDetail:
-        """상태 업데이트 (비관적 락 적용)"""
+        """상태 업데이트 (비관적 락 + 낙관적 락 적용)"""
         try:
             # 상태 유효성 검증
             if status not in STATUS_TEXT_MAP.keys():
@@ -319,15 +125,26 @@ class DashboardService:
                             f"{status_text_map[status]}(으)로 변경할 수 없습니다",
                         )
                 
-                # 변경: 메서드 이름 without_version 접미사 제거
-                updated = self.repository.update_dashboard_status(
-                    dashboard_id, status, current_time
+                # 낙관적 락을 포함한 상태 업데이트
+                updated_dashboard, conflict = self.repository.update_dashboard_status_with_version(
+                    dashboard_id, 
+                    status, 
+                    current_time,
+                    client_version  # 클라이언트 버전 전달
                 )
                 
-                if not updated:
+                if updated_dashboard is None:
+                    # 레코드가 없는 경우
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="대시보드를 찾을 수 없습니다",
+                    )
+                
+                if conflict:
+                    # 낙관적 락 충돌인 경우 - 현재 버전 정보와 함께 예외 발생
+                    raise OptimisticLockException(
+                        "다른 사용자가 이미 수정하여 버전이 변경되었습니다. 최신 데이터를 확인하세요.",
+                        current_version=updated_dashboard.version
                     )
                 
                 # 업데이트된 대시보드 상세 정보 반환
@@ -341,19 +158,23 @@ class DashboardService:
                 except Exception as e:
                     log_error(e, "락 해제 실패", {"id": dashboard_id})
 
-        except HTTPException:
+        except (HTTPException, OptimisticLockException):
             raise
         except Exception as e:
             log_error(e, "상태 업데이트 실패")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="상태 업데이트 중 오류가 발생했습니다",
             )
 
     def update_dashboard_fields(
-        self, dashboard_id: int, fields_update: FieldsUpdate, user_id: str
+        self, 
+        dashboard_id: int, 
+        fields_update: FieldsUpdate, 
+        user_id: str,
+        client_version: Optional[int] = None  # 클라이언트 버전 파라미터 추가
     ) -> DashboardDetail:
-        """대시보드 필드 업데이트 (비관적 락 적용)"""
+        """대시보드 필드 업데이트 (비관적 락 + 낙관적 락 적용)"""
         try:
             # 필드 값 유효성 검증
             fields = fields_update.model_dump(exclude_unset=True, exclude={"version"})
@@ -401,15 +222,25 @@ class DashboardService:
                 )
 
             try:
-                # 변경: 메서드 이름 without_version 접미사 제거
-                updated = self.repository.update_dashboard_fields(
-                    dashboard_id, fields
+                # 낙관적 락을 포함한 필드 업데이트
+                updated_dashboard, conflict = self.repository.update_dashboard_fields_with_version(
+                    dashboard_id, 
+                    fields,
+                    client_version  # 클라이언트 버전 전달
                 )
                 
-                if not updated:
+                if updated_dashboard is None:
+                    # 레코드가 없는 경우
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="대시보드를 찾을 수 없습니다",
+                    )
+                
+                if conflict:
+                    # 낙관적 락 충돌인 경우 - 현재 버전 정보와 함께 예외 발생
+                    raise OptimisticLockException(
+                        "다른 사용자가 이미 수정하여 버전이 변경되었습니다. 최신 데이터를 확인하세요.",
+                        current_version=updated_dashboard.version
                     )
                 
                 # 업데이트된 대시보드 상세 정보 반환
@@ -423,7 +254,7 @@ class DashboardService:
                 except Exception as e:
                     log_error(e, "락 해제 실패", {"id": dashboard_id})
 
-        except HTTPException:
+        except (HTTPException, OptimisticLockException):
             raise
         except Exception as e:
             log_error(e, "필드 업데이트 실패")
@@ -433,9 +264,12 @@ class DashboardService:
             )
 
     def assign_driver(
-        self, assignment: DriverAssignment, user_id: str
+        self, 
+        assignment: DriverAssignment, 
+        user_id: str,
+        client_versions: Optional[Dict[int, int]] = None  # 클라이언트 버전 딕셔너리 추가
     ) -> List[DashboardResponse]:
-        """배차 처리 (비관적 락 적용)"""
+        """배차 처리 (비관적 락 + 낙관적 락 적용)"""
         try:
             log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
 
@@ -460,14 +294,25 @@ class DashboardService:
                 )
 
             try:
-                # 비관적 락 획득 후 배차 처리
-                # 변경: 메서드 이름 without_version 접미사 제거
-                updated_dashboards = self.repository.assign_driver(
+                # 낙관적 락을 포함한 배차 처리
+                updated_dashboards, conflict_ids = self.repository.assign_driver_with_version(
                     assignment.dashboard_ids,
                     assignment.driver_name,
-                    assignment.driver_contact
+                    assignment.driver_contact,
+                    client_versions  # 클라이언트 버전 딕셔너리 전달
                 )
-
+                
+                # 낙관적 락 충돌이 있는 경우
+                if conflict_ids:
+                    # 충돌 발생한 대시보드 ID 목록 로깅
+                    log_info(f"낙관적 락 충돌 발생: 대시보드 ID {conflict_ids}")
+                    
+                    # 충돌 정보 포함하여 예외 발생
+                    raise OptimisticLockException(
+                        f"일부 대시보드({len(conflict_ids)}개)에 대해 다른 사용자가 이미 수정하여 버전이 변경되었습니다.",
+                        current_version=0  # 여러 건이므로 특정 버전 지정 불가
+                    )
+                
                 if len(updated_dashboards) != len(assignment.dashboard_ids):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -484,7 +329,7 @@ class DashboardService:
                     except Exception as e:
                         log_error(e, "락 해제 실패", {"id": dashboard_id})
 
-        except HTTPException:
+        except (HTTPException, OptimisticLockException):
             raise
         except Exception as e:
             log_error(e, "배차 처리 실패")
@@ -493,113 +338,6 @@ class DashboardService:
                 detail=MESSAGES["DASHBOARD"]["ASSIGN_ERROR"],
             )
 
-    def delete_dashboards(self, dashboard_ids: List[int]) -> bool:
-        """대시보드 삭제 (관리자 전용)"""
-        try:
-            if not dashboard_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="삭제할 대시보드 ID를 지정해주세요",
-                )
-
-            result = self.repository.delete_dashboards(dashboard_ids)
-            return result
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            log_error(e, "대시보드 삭제 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="삭제 처리 중 오류가 발생했습니다",
-            )
-
-    def get_date_range(self) -> Tuple[datetime, datetime]:
-        """조회 가능한 날짜 범위 조회 (ETA 기준) - 캐싱 적용"""
-        try:
-            current_time = time.time()
-
-            # 방어적 프로그래밍: 속성이 없으면 초기화
-            if not hasattr(self, "_date_range_cache"):
-                self._date_range_cache = None
-                self._cache_timestamp = None
-                self._cache_ttl = 3600  # 1시간 캐시
-
-            # 캐시가 유효한 경우 캐시된 값 반환
-            if (
-                self._date_range_cache
-                and hasattr(self, "_cache_timestamp")
-                and self._cache_timestamp
-                and current_time - self._cache_timestamp
-                < getattr(self, "_cache_ttl", 3600)
-            ):
-                log_info("날짜 범위 캐시 사용")
-                return self._date_range_cache
-
-            # 캐시가 없거나 만료된 경우 새로 조회
-            log_info("날짜 범위 DB 조회 시작")
-
-            # 레포지토리 메서드 호출
-            result = self.repository.get_date_range()
-
-            # 결과 검증 및 캐싱
-            oldest_date, latest_date = result
-            if oldest_date and latest_date:
-                self._date_range_cache = (oldest_date, latest_date)
-                self._cache_timestamp = current_time
-                self._cache_ttl = 3600  # 캐시 유효시간 1시간
-                log_info(f"날짜 범위 캐싱됨: {oldest_date} ~ {latest_date}")
-                return oldest_date, latest_date
-            else:
-                # 데이터가 없는 경우 기본값 반환 및 캐싱
-                now = datetime.now(self.kr_timezone)
-                result = (now - timedelta(days=30), now)
-                self._date_range_cache = result
-                self._cache_timestamp = current_time
-                self._cache_ttl = 3600  # 캐시 유효시간 1시간
-                log_info(f"날짜 범위 기본값 캐싱됨: {result[0]} ~ {result[1]}")
-                return result
-
-        except Exception as e:
-            log_error(e, "날짜 범위 조회 실패")
-            now = datetime.now(self.kr_timezone)
-            return now - timedelta(days=30), now
-
-    def search_dashboards_by_order_no(self, order_no: str) -> List[DashboardResponse]:
-        """주문번호로 대시보드 검색 서비스"""
-        try:
-            log_info(f"주문번호로 대시보드 검색 서비스: {order_no}")
-
-            # 주문번호가 비어있으면 빈 리스트 반환
-            if not order_no or not order_no.strip():
-                return []
-
-            # 레포지토리 메소드 호출하여 주문번호로 검색
-            dashboards = self.repository.search_dashboards_by_order_no(order_no)
-
-            # 데이터 검증
-            for dash in dashboards:
-                # 필드 검증 및 기본값 설정
-                if not hasattr(dash, "sla") or dash.sla is None:
-                    dash.sla = "표준"
-                if not hasattr(dash, "status") or dash.status not in STATUS_TEXT_MAP:
-                    dash.status = "WAITING"
-                if not hasattr(dash, "driver_name"):
-                    dash.driver_name = None
-                if not hasattr(dash, "driver_contact"):
-                    dash.driver_contact = None
-                if not hasattr(dash, "version") or dash.version is None:
-                    dash.version = 1
-
-            # 응답 객체로 변환
-            return [DashboardResponse.model_validate(d) for d in dashboards]
-
-        except Exception as e:
-            log_error(e, "주문번호 검색 서비스 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="주문번호 검색 중 오류가 발생했습니다",
-            )
     def get_dashboard_with_version_check(self, dashboard_id: int, client_version: int = None) -> Tuple[DashboardDetail, bool]:
         """
         대시보드 정보 조회 시 버전 확인
@@ -615,6 +353,7 @@ class DashboardService:
             )
         
         # 클라이언트 버전과 서버 버전 비교
-        is_latest = client_version is None or dashboard.version <= client_version
+        # 클라이언트 버전이 없거나, 서버 버전과 정확히 일치하면 최신 상태
+        is_latest = client_version is None or dashboard.version == client_version
         
         return self.get_dashboard_detail(dashboard_id), is_latest

@@ -1,5 +1,6 @@
 // src/pages/DashboardPage.js
-import React, { useEffect, useCallback, Suspense, useMemo } from "react";
+import React, { useEffect, useCallback, Suspense, useMemo } from 'react';
+import { AdminComponents } from '../lazyComponents';
 import {
   Layout,
   DatePicker,
@@ -8,27 +9,27 @@ import {
   Tooltip,
   Popconfirm,
   Input,
-} from "antd";
+} from 'antd';
 // 개별 아이콘 임포트로 번들 크기 최적화
-import ReloadOutlined from "@ant-design/icons/ReloadOutlined";
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import CarOutlined from "@ant-design/icons/CarOutlined";
-import SearchOutlined from "@ant-design/icons/SearchOutlined";
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
+import PlusOutlined from '@ant-design/icons/PlusOutlined';
+import CarOutlined from '@ant-design/icons/CarOutlined';
+import SearchOutlined from '@ant-design/icons/SearchOutlined';
 
-import dayjs from "dayjs";
-import useDashboardPageController from "../controllers/DashboardPageController";
-import LoadingSpin from "../components/common/LoadingSpin";
-import DashboardList from "../components/dashboard/DashboardList";
-import { useDateRange } from "../utils/useDateRange";
-import { cancelAllPendingRequests } from "../utils/AxiosConfig";
-import { useLogger } from "../utils/LogUtils";
+import dayjs from 'dayjs';
+import useDashboardPageController from '../controllers/DashboardPageController';
+import LoadingSpin from '../components/common/LoadingSpin';
+import DashboardList from '../components/dashboard/DashboardList';
+import { useDateRange } from '../utils/useDateRange';
+import { cancelAllPendingRequests } from '../utils/AxiosConfig';
+import { useLogger } from '../utils/LogUtils';
 // 지연 로딩으로 변경
 import {
   CreateDashboardModal,
   AssignDriverModal,
   DashboardDetailModal,
-} from "../lazyComponents";
+} from '../lazyComponents';
 
 const { RangePicker } = DatePicker;
 const { Search } = Input;
@@ -37,9 +38,9 @@ const { Search } = Input;
 const ModalFallback = () => (
   <div
     style={{
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
       padding: 20,
     }}
   >
@@ -52,14 +53,15 @@ const ModalFallback = () => (
  * 컨트롤러 패턴 적용으로 UI와 로직 분리
  */
 const DashboardPage = () => {
-  const logger = useLogger("DashboardPage");
-
+  const logger = useLogger('DashboardPage');
+  const { user } = useAuth();
+  const isAdmin = user?.user_role === 'ADMIN';
   // 성능 측정 - 컴포넌트 첫 렌더링
   useEffect(() => {
-    logger.measure("DashboardPage 초기 렌더링", () => {
-      logger.info("대시보드 페이지 마운트됨");
+    logger.measure('DashboardPage 초기 렌더링', () => {
+      logger.info('대시보드 페이지 마운트됨');
       return () => {
-        logger.info("대시보드 페이지 언마운트됨");
+        logger.info('대시보드 페이지 언마운트됨');
       };
     });
   }, [logger]);
@@ -122,7 +124,7 @@ const DashboardPage = () => {
   // 초기화 및 정리
   useEffect(() => {
     // 성능 측정
-    logger.measure("데이터 초기 로드", () => {
+    logger.measure('데이터 초기 로드', () => {
       // 데이터 로드
       if (dateRange && dateRange[0] && dateRange[1] && !dateRangeLoading) {
         loadDashboardData(dateRange[0], dateRange[1], false);
@@ -131,7 +133,7 @@ const DashboardPage = () => {
 
     // 정리 작업
     return () => {
-      logger.info("대시보드 페이지 언마운트: 진행 중인 요청 취소");
+      logger.info('대시보드 페이지 언마운트: 진행 중인 요청 취소');
       cancelAllPendingRequests();
     };
   }, [dateRange, dateRangeLoading, loadDashboardData, logger]);
@@ -139,7 +141,7 @@ const DashboardPage = () => {
   // 필터 버튼 클릭 시 데이터 로드
   useEffect(() => {
     if (filterButtonClicked && dateRange && dateRange[0] && dateRange[1]) {
-      logger.measure("필터 적용 후 데이터 로드", () => {
+      logger.measure('필터 적용 후 데이터 로드', () => {
         loadDashboardData(dateRange[0], dateRange[1], true);
       });
       setFilterButtonClicked(false);
@@ -224,9 +226,9 @@ const DashboardPage = () => {
           disabledDate={disabledDate}
           ranges={{
             오늘: [dayjs(), dayjs()],
-            "최근 3일": [dayjs().subtract(2, "day"), dayjs()],
-            "최근 7일": [dayjs().subtract(6, "day"), dayjs()],
-            "최근 30일": [dayjs().subtract(29, "day"), dayjs()],
+            '최근 3일': [dayjs().subtract(2, 'day'), dayjs()],
+            '최근 7일': [dayjs().subtract(6, 'day'), dayjs()],
+            '최근 30일': [dayjs().subtract(29, 'day'), dayjs()],
           }}
         />
 
@@ -298,12 +300,12 @@ const DashboardPage = () => {
 
   // 실제 렌더링 부분
   return (
-    <Layout.Content style={{ padding: "12px", backgroundColor: "white" }}>
-      <div style={{ marginBottom: "16px" }}>
+    <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
+      <div style={{ marginBottom: '16px' }}>
         <Space
           size="large"
           align="center"
-          style={{ width: "100%", justifyContent: "space-between" }}
+          style={{ width: '100%', justifyContent: 'space-between' }}
         >
           {renderSearchControls}
           {renderActionButtons}
@@ -332,7 +334,7 @@ const DashboardPage = () => {
         onPageChange={setCurrentPage}
         currentPage={currentPage}
         isAdmin={isAdmin}
-        resetSearchMode={() => handleOrderNoSearch("")}
+        resetSearchMode={() => handleOrderNoSearch('')}
       />
 
       {/* 모달 컴포넌트들 */}
