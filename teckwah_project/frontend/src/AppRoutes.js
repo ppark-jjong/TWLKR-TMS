@@ -1,4 +1,4 @@
-// frontend/src/AppRoutes.js - 지연 로딩 적용 버전
+// src/AppRoutes.js - 업데이트된 버전
 import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import MainLayout from './components/common/MainLayout';
@@ -48,7 +48,7 @@ const AppRoutes = () => {
   );
 
   // 인증이 필요한 라우트를 위한 래퍼 컴포넌트
-  const PrivateRoute = ({ children }) => {
+  const PrivateRoute = ({ children, requireAdmin = false }) => {
     if (authChecking) {
       return SuspenseFallback;
     }
@@ -58,6 +58,12 @@ const AppRoutes = () => {
       localStorage.setItem('returnUrl', location.pathname);
       message.error('로그인이 필요합니다');
       return <Navigate to="/login" replace />;
+    }
+
+    // 관리자 권한이 필요한 라우트에 대한 추가 검증
+    if (requireAdmin && user.user_role !== 'ADMIN') {
+      message.error('관리자 권한이 필요합니다');
+      return <Navigate to="/dashboard" replace />;
     }
 
     return children;
@@ -100,15 +106,15 @@ const AppRoutes = () => {
           }
         />
 
-        {/* 관리자 페이지 */}
+        {/* 관리자 페이지 - requireAdmin 속성 추가 */}
         <Route
           path="/admin"
           element={
-            <PrivateRoute>
+            <PrivateRoute requireAdmin={true}>
               <MainLayout>
                 <Suspense fallback={SuspenseFallback}>
-                  <ErrorBoundaryWithFallback name="대시보드 페이지">
-                    <DashboardPage />
+                  <ErrorBoundaryWithFallback name="관리자 페이지">
+                    <DashboardPage isAdminPage={true} />
                   </ErrorBoundaryWithFallback>
                 </Suspense>
               </MainLayout>

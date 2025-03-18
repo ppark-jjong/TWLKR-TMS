@@ -1,6 +1,8 @@
-// frontend/src/services/AuthService.js - 리팩토링 버전
+// src/services/AuthService.js
 import axios from 'axios';
 import TokenManager from '../utils/TokenManager';
+import message from '../utils/message';
+import { MessageKeys } from '../utils/message';
 
 /**
  * 인증 서비스
@@ -35,25 +37,26 @@ class AuthService {
       console.log('로그인 응답:', response.data);
 
       // 응답 유효성 검증
-      if (!response.data) {
-        throw new Error('로그인 응답이 없습니다');
+      if (!response.data || !response.data.success) {
+        throw new Error('로그인 응답이 올바르지 않습니다');
       }
 
       // 토큰 및 사용자 정보 저장
-      if (response.data.token) {
-        TokenManager.setAccessToken(response.data.token.access_token);
-        TokenManager.setRefreshToken(response.data.token.refresh_token);
+      if (response.data.data?.token) {
+        const { access_token, refresh_token } = response.data.data.token;
+        TokenManager.setAccessToken(access_token);
+        TokenManager.setRefreshToken(refresh_token);
       } else {
         throw new Error('로그인 응답에 토큰 정보가 없습니다');
       }
 
-      if (response.data.user) {
-        TokenManager.setUser(response.data.user);
+      if (response.data.data?.user) {
+        TokenManager.setUser(response.data.data.user);
       } else {
         throw new Error('로그인 응답에 사용자 정보가 없습니다');
       }
 
-      return response.data;
+      return response.data.data;
     } catch (error) {
       console.error('로그인 오류:', error);
       // 로그인 실패 시 로컬 인증 데이터 정리
@@ -83,23 +86,28 @@ class AuthService {
       });
 
       // 응답 유효성 검증
-      if (!response.data || !response.data.token) {
-        throw new Error('토큰 갱신 응답이 유효하지 않습니다');
+      if (!response.data || !response.data.success) {
+        throw new Error('토큰 갱신 응답이 올바르지 않습니다');
+      }
+
+      const { access_token, refresh_token } = response.data.data?.token || {};
+      if (!access_token) {
+        throw new Error('토큰 갱신 응답에 액세스 토큰이 없습니다');
       }
 
       // 새 토큰 저장
-      TokenManager.setAccessToken(response.data.token.access_token);
-      if (response.data.token.refresh_token) {
-        TokenManager.setRefreshToken(response.data.token.refresh_token);
+      TokenManager.setAccessToken(access_token);
+      if (refresh_token) {
+        TokenManager.setRefreshToken(refresh_token);
       }
 
       // 사용자 정보 갱신 (존재하는 경우)
-      if (response.data.user) {
-        TokenManager.setUser(response.data.user);
+      if (response.data.data?.user) {
+        TokenManager.setUser(response.data.data.user);
       }
 
       console.log('토큰 갱신 성공');
-      return response.data;
+      return response.data.data;
     } catch (error) {
       console.error('토큰 갱신 실패:', error);
       // 갱신 실패 시 로컬 인증 데이터 정리
@@ -138,11 +146,19 @@ class AuthService {
       }
 
       // 서버 측 세션 검증
-      const response = await axios.get('/auth/check-session', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get('/auth/check-session');
 
-      return response.data && response.data.success;
+      // 응답 유효성 검증
+      if (!response.data || !response.data.success) {
+        return false;
+      }
+
+      // 사용자 정보 업데이트 (있는 경우)
+      if (response.data.data?.user) {
+        TokenManager.setUser(response.data.data.user);
+      }
+
+      return true;
     } catch (error) {
       console.error('세션 검증 실패:', error);
       return false;
@@ -221,6 +237,60 @@ class AuthService {
    */
   static clearReturnUrl() {
     TokenManager.clearReturnUrl();
+  }
+
+  /**
+   * 자동 토큰 갱신 타이머 설정
+   * @param {Function} onRefreshSuccess - 갱신 성공 시 콜백
+   * @param {Function} onRefreshError - 갱신 실패 시 콜백
+   * @returns {number} - 타이머 ID
+   */
+  static setupRefreshTimer(onRefreshSuccess, onRefreshError) {
+    // 토큰 만료 시간 계산
+    const token = TokenManager.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expiryTime = payload.exp * 1000; // UNIX 타임스탬프를 밀리초로 변환
+      const currentTime = Date.now();
+      const timeRemaining = expiryTime - currentTime;
+
+      // 만료 10분 전에 갱신 시작 (최소 1초)
+      const refreshTime = Math.max(timeRemaining - 10 * 60 * 1000, 1000);
+
+      console.log(`토큰 갱신 타이머 설정: ${refreshTime / 1000}초 후 갱신`);
+
+      return setTimeout(async () => {
+        try {
+          const result = await this.refreshToken();
+          if (onRefreshSuccess) {
+            onRefreshSuccess(result);
+          }
+
+          // 갱신 성공 시 다시 타이머 설정
+          this.setupRefreshTimer(onRefreshSuccess, onRefreshError);
+        } catch (error) {
+          console.error('자동 토큰 갱신 실패:', error);
+          if (onRefreshError) {
+            onRefreshError(error);
+          }
+        }
+      }, refreshTime);
+    } catch (error) {
+      console.error('토큰 갱신 타이머 설정 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 타이머 정리
+   * @param {number} timerId - 타이머 ID
+   */
+  static clearRefreshTimer(timerId) {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
   }
 }
 

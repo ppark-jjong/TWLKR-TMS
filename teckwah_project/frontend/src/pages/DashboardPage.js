@@ -54,8 +54,7 @@ const ModalFallback = () => (
  */
 const DashboardPage = () => {
   const logger = useLogger('DashboardPage');
-  const { user } = useAuth();
-  const isAdmin = user?.user_role === 'ADMIN';
+
   // 성능 측정 - 컴포넌트 첫 렌더링
   useEffect(() => {
     logger.measure('DashboardPage 초기 렌더링', () => {
