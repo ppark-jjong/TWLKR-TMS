@@ -3,6 +3,11 @@ import pandas as pd
 import time
 import os
 
+CSV_FILE = "C:/MyMain/teckwah-dashboard/data/zipcode_address.csv"
+START_ADDRESS = "대전광역시 중구 대종로 434"
+NAVER_CLIENT_ID = "2qxc1i2ijz"
+NAVER_CLIENT_SECRET = "J9UWJv3QUeIPgwFNGOPMLqgcfatqh83uPTf8vXmG"
+
 
 # 네이버 지도 API를 사용하여 주소의 좌표를 가져옵니다.
 def get_naver_coordinates(address, client_id, client_secret):
@@ -12,7 +17,6 @@ def get_naver_coordinates(address, client_id, client_secret):
         "X-NCP-APIGW-API-KEY": client_secret,
     }
     params = {"query": address}
-
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         result = response.json()
@@ -164,7 +168,7 @@ def process_new_rows(
     if not start_x or not start_y:
         raise ValueError("출발지 주소를 찾을 수 없습니다.")
 
-    # (6) 새로 계산한 결과 담을 목록
+    # 시작! (6) 새로 계산한 결과 담을 목록
     new_results = []
     count = 0
     for idx, row in df_new.iterrows():
@@ -219,10 +223,6 @@ def process_new_rows(
 
 if __name__ == "__main__":
     # 설정
-    CSV_FILE = "C:/MyMain/teckwah-dashboard/data/zipcode_address.csv"
-    START_ADDRESS = "대전광역시 중구 대종로 434"
-    NAVER_CLIENT_ID = "2qxc1i2ijz"
-    NAVER_CLIENT_SECRET = "J9UWJv3QUeIPgwFNGOPMLqgcfatqh83uPTf8vXmG"
 
     try:
         df_final = process_new_rows(
