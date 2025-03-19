@@ -25,7 +25,7 @@ from app.repositories.dashboard_repository import DashboardRepository
 from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
 from app.utils.datetime_helper import get_date_range
-from app.utils.exceptions import OptimisticLockException
+from app.utils.exceptions import PessimisticLockException
 
 router = APIRouter()
 
@@ -57,406 +57,350 @@ async def get_dashboard_list(
             except ValueError:
                 log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
                 return DashboardListResponse(
-                    success=False,
-                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                    data={
-                        "date_range": {
-                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                        },
-                        "items": [],
-                    },
-                )
-        # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
+                   success=False,
+                   message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+                   data={
+                       "date_range": {
+                           "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                           "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                       },
+                       "items": [],
+                   },
+               )
+       # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
         elif date:
-            log_info(f"대시보드 목록 조회 요청 (단일): {date}")
-            try:
-                start_date_obj, end_date_obj = get_date_range(date)
-            except ValueError:
-                log_error(None, f"날짜 형식 오류: {date}")
-                return DashboardListResponse(
-                    success=False,
-                    message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                    data={
-                        "date_range": {
-                            "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                        },
-                        "items": [],
-                    },
-                )
+           log_info(f"대시보드 목록 조회 요청 (단일): {date}")
+           try:
+               start_date_obj, end_date_obj = get_date_range(date)
+           except ValueError:
+               log_error(None, f"날짜 형식 오류: {date}")
+               return DashboardListResponse(
+                   success=False,
+                   message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+                   data={
+                       "date_range": {
+                           "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                           "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                       },
+                       "items": [],
+                   },
+               )
         else:
-            # 날짜 정보가 없는 경우 현재 날짜 사용
-            log_info("날짜 정보 없음, 현재 날짜 사용")
-            today = datetime.now()
-            date_str = today.strftime("%Y-%m-%d")
-            start_date_obj, end_date_obj = get_date_range(date_str)
+           # 날짜 정보가 없는 경우 현재 날짜 사용
+           log_info("날짜 정보 없음, 현재 날짜 사용")
+           today = datetime.now()
+           date_str = today.strftime("%Y-%m-%d")
+           start_date_obj, end_date_obj = get_date_range(date_str)
 
         # 대시보드 목록 조회 (ETA 기준) - 모든 사용자에게 동일한 데이터 제공
         items = service.get_dashboard_list_by_date(start_date_obj, end_date_obj)
         oldest_date, latest_date = service.get_date_range()
 
-        # 응답 데이터 구성
+         # 응답 데이터 구성
         message_text = (
             "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
         )
 
-        # 사용자의 권한 정보 추가
+       # 사용자의 권한 정보 추가
         is_admin = current_user.role == "ADMIN"
 
         return DashboardListResponse(
-            success=True,
-            message=message_text,
-            data={
-                "date_range": {
-                    "oldest_date": oldest_date.strftime("%Y-%m-%d"),
-                    "latest_date": latest_date.strftime("%Y-%m-%d"),
-                },
-                "items": items,
-                "user_role": current_user.role,  # 사용자 권한 정보 추가
-                "is_admin": is_admin,  # 관리자 여부 추가
-            },
-        )
+           success=True,
+           message=message_text,
+           data={
+               "date_range": {
+                   "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+                   "latest_date": latest_date.strftime("%Y-%m-%d"),
+               },
+               "items": items,
+               "user_role": current_user.role,  # 사용자 권한 정보 추가
+               "is_admin": is_admin,  # 관리자 여부 추가
+           },
+       )
     except Exception as e:
-        log_error(e, "대시보드 목록 조회 실패")
-        return DashboardListResponse(
-            success=False,
-            message="데이터 조회 중 오류가 발생했습니다",
-            data={
-                "date_range": {
-                    "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                    "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                },
-                "items": [],
-            },
-        )
+       log_error(e, "대시보드 목록 조회 실패")
+       return DashboardListResponse(
+           success=False,
+           message="데이터 조회 중 오류가 발생했습니다",
+           data={
+               "date_range": {
+                   "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                   "latest_date": datetime.now().strftime("%Y-%m-%d"),
+               },
+               "items": [],
+           },
+       )
 
 @router.post("", response_model=DashboardDetailResponse)
 async def create_dashboard(
-    dashboard: DashboardCreate,
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+   dashboard: DashboardCreate,
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 생성 API (메모 포함)"""
-    try:
-        log_info(f"대시보드 생성 요청: {dashboard.model_dump()}")
-        
-        # user_id를 전달하여 메모 작성자 정보 기록
-        result = service.create_dashboard(
-            dashboard, 
-            current_user.department, 
-            user_id=current_user.user_id
-        )
-        
-        return DashboardDetailResponse(
-            success=True,
-            message="대시보드가 생성되었습니다",
-            data=result,
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_error(e, "대시보드 생성 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="대시보드 생성 중 오류가 발생했습니다",
-        )
+   """대시보드 생성 API (메모 포함)"""
+   try:
+       log_info(f"대시보드 생성 요청: {dashboard.model_dump()}")
+       
+       # user_id를 전달하여 메모 작성자 정보 기록
+       result = service.create_dashboard(
+           dashboard, 
+           current_user.department, 
+           user_id=current_user.user_id
+       )
+       
+       return DashboardDetailResponse(
+           success=True,
+           message="대시보드가 생성되었습니다",
+           data=result,
+       )
+   except HTTPException:
+       raise
+   except Exception as e:
+       log_error(e, "대시보드 생성 실패")
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail="대시보드 생성 중 오류가 발생했습니다",
+       )
 
 
 # 대시보드 상세 조회 API 수정
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 async def get_dashboard_detail(
-    dashboard_id: int,
-    client_version: Optional[int] = Query(None, description="클라이언트 버전"),
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+   dashboard_id: int,
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 상세 정보 조회 API"""
-    try:
-        log_info(f"대시보드 상세 정보 조회 요청: {dashboard_id}, 클라이언트 버전: {client_version}")
-        
-        # 버전 체크 기능 추가
-        result, is_latest = service.get_dashboard_with_version_check(dashboard_id, client_version)
-        
-        # 버전 정보 포함
-        version_info = {
-            "current_version": result.version
-        }
-        
-        return DashboardDetailResponse(
-            success=True,
-            message="상세 정보를 조회했습니다",
-            data=result,
-            version_info=version_info,
-            is_latest=is_latest
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_error(e, "대시보드 상세 정보 조회 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="상세 정보 조회 중 오류가 발생했습니다",
-        )
+   """대시보드 상세 정보 조회 API (락 상태 포함)"""
+   try:
+       log_info(f"대시보드 상세 정보 조회 요청: {dashboard_id}")
+       
+       # 락 정보 포함하여 상세 정보 조회
+       result = service.get_dashboard_with_status_check(dashboard_id)
+       
+       # 응답 구성
+       is_locked = getattr(result, 'is_locked', False)
+       lock_info = None
+       
+       if is_locked:
+           lock_info = {
+               "locked_by": getattr(result, 'locked_by', "Unknown"),
+               "lock_type": getattr(result, 'lock_type', "Unknown"),
+               "expires_at": getattr(result, 'lock_expires_at', None)
+           }
+       
+       return DashboardDetailResponse(
+           success=True,
+           message="상세 정보를 조회했습니다",
+           data=result,
+           lock_info=lock_info,
+           is_locked=is_locked
+       )
+   except HTTPException:
+       raise
+   except Exception as e:
+       log_error(e, "대시보드 상세 정보 조회 실패")
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail="상세 정보 조회 중 오류가 발생했습니다",
+       )
 
 
 # 필드 업데이트 API 수정
 @router.patch("/{dashboard_id}/fields", response_model=DashboardDetailResponse)
 async def update_fields(
-    dashboard_id: int,
-    fields_update: FieldsUpdate,
-    client_version: Optional[int] = Query(None, description="클라이언트 버전"),
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+   dashboard_id: int,
+   fields_update: FieldsUpdate,
+   client_version: Optional[int] = Query(None, description="클라이언트 버전 (호환성 유지용)"),
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(get_current_user),
 ):
-    """필드 업데이트 API (비관적 락 및 낙관적 락 적용)"""
-    try:
-        log_info(f"필드 업데이트 요청: {dashboard_id}, 클라이언트 버전: {client_version}")
-        result = service.update_dashboard_fields(
-            dashboard_id, 
-            fields_update, 
-            current_user.user_id,
-            client_version
-        )
-        
-        # 버전 정보 포함
-        version_info = {
-            "current_version": result.version
-        }
-        
-        return DashboardDetailResponse(
-            success=True,
-            message="필드가 업데이트되었습니다",
-            data=result,
-            version_info=version_info
-        )
-    except OptimisticLockException as e:
-        # 낙관적 락 충돌 처리 - 최신 데이터 자동 조회
-        try:
-            latest_data = service.get_dashboard_detail(dashboard_id)
-            
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=latest_data,  # 최신 데이터 포함
-                version_info={"current_version": e.current_version},
-                is_latest=False
-            )
-        except Exception as fetch_error:
-            # 최신 데이터 조회 실패 시
-            log_error(fetch_error, "최신 데이터 조회 실패")
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=None,
-                version_info={"current_version": e.current_version}
-            )
-    except HTTPException as e:
-        # 비관적 락 충돌 등 다른 HTTP 예외 처리
-        if e.status_code in [status.HTTP_423_LOCKED]:
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=None,
-            )
-        raise
-    except Exception as e:
-        log_error(e, "필드 업데이트 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="필드 업데이트 중 오류가 발생했습니다",
-        )
+   """필드 업데이트 API (비관적 락 적용)"""
+   try:
+       log_info(f"필드 업데이트 요청: {dashboard_id}")
+       result = service.update_dashboard_fields(
+           dashboard_id, 
+           fields_update, 
+           current_user.user_id,
+           client_version
+       )
+       
+       return DashboardDetailResponse(
+           success=True,
+           message="필드가 업데이트되었습니다",
+           data=result
+       )
+   except HTTPException as e:
+       # 비관적 락 충돌 등 HTTP 예외 처리
+       if e.status_code == status.HTTP_423_LOCKED:
+           return DashboardDetailResponse(
+               success=False,
+               message=str(e.detail),
+               data=None,
+           )
+       raise
+   except Exception as e:
+       log_error(e, "필드 업데이트 실패")
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail="필드 업데이트 중 오류가 발생했습니다",
+       )
 
 # 상태 업데이트 API도 유사하게 수정
 @router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
 async def update_status(
-    dashboard_id: int,
-    status_update: StatusUpdate,
-    client_version: Optional[int] = Query(None, description="클라이언트 버전"),
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+   dashboard_id: int,
+   status_update: StatusUpdate,
+   client_version: Optional[int] = Query(None, description="클라이언트 버전 (호환성 유지용)"),
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(get_current_user),
 ):
-    """상태 업데이트 API (비관적 락 및 낙관적 락 적용)"""
-    try:
-        log_info(
-            f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}, 클라이언트 버전: {client_version}"
-        )
-        result = service.update_status(
-            dashboard_id,
-            status_update.status,
-            current_user.user_id,
-            client_version,
-            is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
-        )
+   """상태 업데이트 API (비관적 락 적용)"""
+   try:
+       log_info(
+           f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}"
+       )
+       result = service.update_status(
+           dashboard_id,
+           status_update.status,
+           current_user.user_id,
+           client_version,
+           is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
+       )
 
-        # 버전 정보 포함
-        version_info = {
-            "current_version": result.version
-        }
-        
-        return DashboardDetailResponse(
-            success=True,
-            message=f"{status_update.status} 상태로 변경되었습니다",
-            data=result,
-            version_info=version_info
-        )
-    except OptimisticLockException as e:
-        # 낙관적 락 충돌 처리 - 최신 데이터 자동 조회
-        try:
-            latest_data = service.get_dashboard_detail(dashboard_id)
-            
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=latest_data,  # 최신 데이터 포함
-                version_info={"current_version": e.current_version},
-                is_latest=False
-            )
-        except Exception as fetch_error:
-            # 최신 데이터 조회 실패 시
-            log_error(fetch_error, "최신 데이터 조회 실패")
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=None,
-                version_info={"current_version": e.current_version}
-            )
-    except HTTPException as e:
-        # 락 충돌 (423 Locked) 또는 기타 HTTP 예외 처리
-        if e.status_code in [status.HTTP_423_LOCKED]:
-            return DashboardDetailResponse(
-                success=False,
-                message=str(e.detail),
-                data=None,
-            )
-        raise
-    except Exception as e:
-        log_error(e, "상태 업데이트 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="상태 업데이트 중 오류가 발생했습니다",
-        )
+       return DashboardDetailResponse(
+           success=True,
+           message=f"{status_update.status} 상태로 변경되었습니다",
+           data=result
+       )
+   except HTTPException as e:
+       # 락 충돌 (423 Locked) 또는 기타 HTTP 예외 처리
+       if e.status_code == status.HTTP_423_LOCKED:
+           return DashboardDetailResponse(
+               success=False,
+               message=str(e.detail),
+               data=None,
+           )
+       raise
+   except Exception as e:
+       log_error(e, "상태 업데이트 실패")
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail="상태 업데이트 중 오류가 발생했습니다",
+       )
 
 @router.post("/assign", response_model=BaseResponse)
 async def assign_driver(
-    assignment: DriverAssignment,
-    client_versions: Optional[Dict[int, int]] = Body(None, description="대시보드 별 클라이언트 버전"),
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+   assignment: DriverAssignment,
+   client_versions: Optional[Dict[int, int]] = Body(None, description="대시보드 별 클라이언트 버전 (호환성 유지용)"),
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(get_current_user),
 ):
-    """배차 처리 API (비관적 락 및 낙관적 락 적용)"""
-    try:
-        log_info(f"배차 처리 요청: {assignment.model_dump()}, 클라이언트 버전: {client_versions}")
-        result = service.assign_driver(
-            assignment, 
-            current_user.user_id,
-            client_versions  # 클라이언트 버전 전달
-        )
-        return BaseResponse(
-            success=True,
-            message="배차가 완료되었습니다",
-            data={"updated_dashboards": [item.model_dump() for item in result]},
-        )
-    except OptimisticLockException as e:
-        # 낙관적 락 충돌 처리
-        return BaseResponse(
-            success=False,
-            message=str(e.detail),
-            data=None,
-        )
-    except HTTPException as e:
-        # 비관적 락 충돌 처리
-        if e.status_code == status.HTTP_423_LOCKED:
-            return BaseResponse(
-                success=False,
-                message=str(e.detail),
-                data=None,
-            )
-        raise
-    except Exception as e:
-        log_error(e, "배차 처리 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="배차 처리 중 오류가 발생했습니다",
-        )
+   """배차 처리 API (비관적 락 적용)"""
+   try:
+       log_info(f"배차 처리 요청: {assignment.model_dump()}")
+       result = service.assign_driver(
+           assignment, 
+           current_user.user_id,
+           client_versions
+       )
+       return BaseResponse(
+           success=True,
+           message="배차가 완료되었습니다",
+           data={"updated_dashboards": [item.model_dump() for item in result]},
+       )
+   except HTTPException as e:
+       # 비관적 락 충돌 처리
+       if e.status_code == status.HTTP_423_LOCKED:
+           return BaseResponse(
+               success=False,
+               message=str(e.detail),
+               data=None,
+           )
+       raise
+   except Exception as e:
+       log_error(e, "배차 처리 실패")
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail="배차 처리 중 오류가 발생했습니다",
+       )
 
 @router.delete("", response_model=BaseResponse)
 async def delete_dashboards(
-    dashboard_ids: List[int],
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(check_admin_access),
+   dashboard_ids: List[int],
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(check_admin_access),
 ):
-    """대시보드 삭제 API - 관리자 전용"""
-    try:
-        log_info(f"대시보드 삭제 요청: {dashboard_ids}")
-        result = service.delete_dashboards(dashboard_ids)
-        return BaseResponse(
-            success=True,
-            message="선택한 항목이 삭제되었습니다",
-            data={"deleted_count": len(dashboard_ids)},
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_error(e, "대시보드 삭제 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="삭제 처리 중 오류가 발생했습니다",
-        )
+   """대시보드 삭제 API - 관리자 전용"""
+   try:
+       log_info(f"대시보드 삭제 요청: {dashboard_ids}")
+       deleted_count = service.delete_dashboards(dashboard_ids)
+       return BaseResponse(
+           success=True,
+           message="선택한 항목이 삭제되었습니다",
+           data={"deleted_count": deleted_count},
+       )
+   except HTTPException:
+       raise
+   except Exception as e:
+       log_error(e, "대시보드 삭제 실패")
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail="삭제 처리 중 오류가 발생했습니다",
+       )
 
 
 @router.get("/search", response_model=DashboardListResponse)
 async def search_dashboards_by_order_no(
-    order_no: str = Query(
-        ...,
-        description="검색할 주문번호",
-        min_length=1,  # 최소 한 글자 이상
-        regex=r"^[\d\-]+$",  # 숫자와 하이픈만 허용
-    ),
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
+   order_no: str = Query(
+       ...,
+       description="검색할 주문번호",
+       min_length=1,  # 최소 한 글자 이상
+       regex=r"^[\d\-]+$",  # 숫자와 하이픈만 허용
+   ),
+   service: DashboardService = Depends(get_dashboard_service),
+   current_user: TokenData = Depends(get_current_user),
 ):
-    """주문번호로 대시보드 검색 API"""
-    try:
-        log_info(f"주문번호 검색 요청: {order_no}")
+   """주문번호로 대시보드 검색 API"""
+   try:
+       log_info(f"주문번호 검색 요청: {order_no}")
 
-        # 주문번호로 대시보드 검색
-        items = service.search_dashboards_by_order_no(order_no)
+       # 주문번호로 대시보드 검색
+       items = service.search_dashboards_by_order_no(order_no)
 
-        # 날짜 범위 정보 조회 (조회 가능 기간 표시용)
-        oldest_date, latest_date = service.get_date_range()
+       # 날짜 범위 정보 조회 (조회 가능 기간 표시용)
+       oldest_date, latest_date = service.get_date_range()
 
-        # 응답 데이터 구성
-        message_text = (
-            "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
-        )
+       # 응답 데이터 구성
+       message_text = (
+           "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
+       )
 
-        # 사용자의 권한 정보 추가
-        is_admin = current_user.role == "ADMIN"
+       # 사용자의 권한 정보 추가
+       is_admin = current_user.role == "ADMIN"
 
-        return DashboardListResponse(
-            success=True,
-            message=message_text,
-            data={
-                "date_range": {
-                    "oldest_date": oldest_date.strftime("%Y-%m-%d"),
-                    "latest_date": latest_date.strftime("%Y-%m-%d"),
-                },
-                "items": items,
-                "user_role": current_user.role,
-                "is_admin": is_admin,
-            },
-        )
-    except Exception as e:
-        log_error(e, "주문번호 검색 실패")
-        return DashboardListResponse(
-            success=False,
-            message="주문번호 검색 중 오류가 발생했습니다",
-            data={
-                "date_range": {
-                    "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                    "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                },
-                "items": [],
-            },
-        )
+       return DashboardListResponse(
+           success=True,
+           message=message_text,
+           data={
+               "date_range": {
+                   "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+                   "latest_date": latest_date.strftime("%Y-%m-%d"),
+               },
+               "items": items,
+               "user_role": current_user.role,
+               "is_admin": is_admin,
+           },
+       )
+   except Exception as e:
+       log_error(e, "주문번호 검색 실패")
+       return DashboardListResponse(
+           success=False,
+           message="주문번호 검색 중 오류가 발생했습니다",
+           data={
+               "date_range": {
+                   "oldest_date": datetime.now().strftime("%Y-%m-%d"),
+                   "latest_date": datetime.now().strftime("%Y-%m-%d"),
+               },
+               "items": [],
+           },
+       )

@@ -1,4 +1,4 @@
-# 기존 dashboard_model.py 수정
+# app/models/dashboard_model.py
 from sqlalchemy import (
     Column,
     BigInteger,
@@ -49,9 +49,9 @@ class Dashboard(Base):
     contact = Column(String(20), nullable=True)
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    version = Column(Integer, nullable=False, default=1)  # 낙관적 락을 위한 버전 필드
+    # version 필드 제거함
 
-    # Relationships 수정
+    # Relationships
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)
 
     # 새로운 관계 추가

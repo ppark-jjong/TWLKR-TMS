@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (remark 필드 제거됨)
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (버전 필드 제거)
 CREATE TABLE IF NOT EXISTS dashboard (
   dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(15) NOT NULL,
@@ -76,26 +76,25 @@ CREATE TABLE IF NOT EXISTS dashboard (
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
-  version INT NOT NULL DEFAULT 1,
+  -- version 필드 제거
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_create_time (create_time), -- 최적화: 생성 시간 기준 조회 성능 향상
   INDEX idx_status (status),
   INDEX idx_department (department),
-  INDEX idx_version (version),
   INDEX idx_order_no (order_no) -- 최적화: 주문번호 기준 검색 성능 향상
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 7. 대시보드 메모 테이블 생성 (remark 기능 분리)
+-- 7. 대시보드 메모 테이블 생성 (버전 필드 제거)
 CREATE TABLE IF NOT EXISTS dashboard_remark (
   remark_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   dashboard_id INT NOT NULL,
   content TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by VARCHAR(50) NOT NULL,
-  version INT NOT NULL DEFAULT 1,
+  formatted_content TEXT NULL, -- 포맷팅된 메모 내용 저장 (user_id: content)
   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
   INDEX idx_dashboard_id (dashboard_id),
   INDEX idx_created_at (created_at)
@@ -103,13 +102,14 @@ CREATE TABLE IF NOT EXISTS dashboard_remark (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 8. 비관적 락을 관리하기 위한 테이블 생성
+-- 8. 비관적 락을 관리하기 위한 테이블 생성 (개선)
 CREATE TABLE IF NOT EXISTS dashboard_lock (
   dashboard_id INT NOT NULL PRIMARY KEY,
   locked_by VARCHAR(50) NOT NULL,
   locked_at DATETIME NOT NULL,
   lock_type ENUM('EDIT', 'STATUS', 'ASSIGN', 'REMARK') NOT NULL,
   expires_at DATETIME NOT NULL,
+  lock_timeout INT NOT NULL DEFAULT 300, -- 락 타임아웃(초), 기본값 5분
   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
   INDEX idx_expires_at (expires_at),
   INDEX idx_locked_by (locked_by) -- 최적화: 사용자별 락 조회
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS dashboard_lock (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 10. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정
+-- 9. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정
 DELIMITER //
 
 CREATE TRIGGER trg_dashboard_before_insert_postal
@@ -170,29 +170,28 @@ BEGIN
     SET NEW.duration_time = 0;
   END IF;
   
-  -- 초기 버전 설정
-  IF NEW.version IS NULL THEN
-    SET NEW.version = 1;
-  END IF;
+  -- 버전 필드 제거로 초기 버전 설정 로직 삭제
 END//
 
 DELIMITER ;
 
-
--- 12. 트리거 생성: dashboard_remark 테이블 INSERT 시 검증
+-- 10. 저장 프로시저: 만료된 락 자동 정리
 DELIMITER //
-CREATE TRIGGER trg_dashboard_remark_before_insert
-BEFORE INSERT ON dashboard_remark
-FOR EACH ROW
+CREATE PROCEDURE cleanup_expired_locks()
 BEGIN
-  -- 사용자 ID 존재 확인
-  IF NEW.created_by IS NULL OR TRIM(NEW.created_by) = '' THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '사용자 ID는 필수 항목입니다';
-  END IF;
+  DELETE FROM dashboard_lock
+  WHERE expires_at < NOW();
   
-  -- 초기 버전 설정
-  IF NEW.version IS NULL THEN
-    SET NEW.version = 1;
-  END IF;
-END//
+  SELECT ROW_COUNT() AS cleaned_locks;
+END //
+DELIMITER ;
+
+-- 11. 이벤트 스케줄러: 만료된 락 정기 정리 (10분마다)
+DELIMITER //
+CREATE EVENT IF NOT EXISTS evt_cleanup_locks
+ON SCHEDULE EVERY 10 MINUTE
+DO
+BEGIN
+  CALL cleanup_expired_locks();
+END //
 DELIMITER ;

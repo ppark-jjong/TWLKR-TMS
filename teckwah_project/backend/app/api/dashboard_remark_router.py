@@ -12,7 +12,7 @@ from app.config.database import get_db
 from app.api.deps import get_current_user
 from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import OptimisticLockException
+from app.utils.exceptions import PessimisticLockException
 
 router = APIRouter()
 
@@ -48,30 +48,25 @@ async def get_remarks(
 async def create_remark(
     dashboard_id: int,
     remark: RemarkCreate,
-    dashboard_version: Optional[int] = Query(None, description="대시보드 버전"),
+    dashboard_version: Optional[int] = Query(None, description="대시보드 버전 (호환성 유지용)"),
     service: DashboardRemarkService = Depends(get_remark_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """메모 생성 API (비관적 락 + 낙관적 락 적용)"""
+    """메모 생성 API (비관적 락 적용)"""
     try:
-        log_info(f"메모 생성 요청: 대시보드 ID {dashboard_id}, 클라이언트 버전: {dashboard_version}")
-        result = service.create_remark(dashboard_id, remark, current_user.user_id, dashboard_version)
+        log_info(f"메모 생성 요청: 대시보드 ID {dashboard_id}")
+        result = service.create_remark(dashboard_id, remark, current_user.user_id)
         return result
-    except OptimisticLockException as e:
-        # 낙관적 락 충돌 처리 - 최신 데이터 자동 조회
-        dashboard = service.dashboard_repository.get_dashboard_detail(dashboard_id)
-        remarks = service.get_remarks_by_dashboard_id(dashboard_id)
-        
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": str(e.detail),
-                "current_version": e.current_version,
-                "dashboard": dashboard.model_dump() if dashboard else None,
-                "remarks": [r.model_dump() for r in remarks]
-            }
-        )
-    except HTTPException:
+    except HTTPException as e:
+        # 락 충돌 시 예외 처리
+        if e.status_code == status.HTTP_423_LOCKED:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail={
+                    "message": str(e.detail),
+                    "locked_by": getattr(e, "locked_by", None)
+                }
+            )
         raise
     except Exception as e:
         log_error(e, "메모 생성 실패")
@@ -85,34 +80,65 @@ async def update_remark(
     dashboard_id: int,
     remark_id: int,
     remark_update: RemarkUpdate,
-    dashboard_version: Optional[int] = Query(None, description="대시보드 버전"),
+    dashboard_version: Optional[int] = Query(None, description="대시보드 버전 (호환성 유지용)"),
     service: DashboardRemarkService = Depends(get_remark_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """메모 업데이트 API (비관적 락 + 낙관적 락 적용)"""
+    """메모 업데이트 API (비관적 락 적용)"""
     try:
-        log_info(f"메모 업데이트 요청: 메모 ID {remark_id}, 클라이언트 버전: {dashboard_version}")
-        result = service.update_remark(remark_id, remark_update, current_user.user_id, dashboard_version)
+        log_info(f"메모 업데이트 요청: 메모 ID {remark_id}")
+        result = service.update_remark(remark_id, remark_update, current_user.user_id)
         return result
-    except OptimisticLockException as e:
-        # 낙관적 락 충돌 처리 - 최신 데이터 자동 조회
-        dashboard = service.dashboard_repository.get_dashboard_detail(dashboard_id)
-        remarks = service.get_remarks_by_dashboard_id(dashboard_id)
-        
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": str(e.detail),
-                "current_version": e.current_version,
-                "dashboard": dashboard.model_dump() if dashboard else None,
-                "remarks": [r.model_dump() for r in remarks]
-            }
-        )
-    except HTTPException:
+    except HTTPException as e:
+        # 락 충돌 시 예외 처리
+        if e.status_code == status.HTTP_423_LOCKED:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail={
+                    "message": str(e.detail),
+                    "locked_by": getattr(e, "locked_by", None)
+                }
+            )
         raise
     except Exception as e:
         log_error(e, "메모 업데이트 실패")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="메모 업데이트 중 오류가 발생했습니다",
+        )
+
+@router.delete("/{dashboard_id}/remarks/{remark_id}", response_model=dict)
+async def delete_remark(
+    dashboard_id: int,
+    remark_id: int,
+    service: DashboardRemarkService = Depends(get_remark_service),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """메모 삭제 API (비관적 락 적용)"""
+    try:
+        log_info(f"메모 삭제 요청: 메모 ID {remark_id}")
+        is_admin = current_user.role == "ADMIN"
+        result = service.delete_remark(remark_id, current_user.user_id, is_admin)
+        
+        if result:
+            return {"success": True, "message": "메모가 삭제되었습니다"}
+        else:
+            return {"success": False, "message": "메모 삭제에 실패했습니다"}
+            
+    except HTTPException as e:
+        # 락 충돌 시 예외 처리
+        if e.status_code == status.HTTP_423_LOCKED:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail={
+                    "message": str(e.detail),
+                    "locked_by": getattr(e, "locked_by", None)
+                }
+            )
+        raise
+    except Exception as e:
+        log_error(e, "메모 삭제 실패")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="메모 삭제 중 오류가 발생했습니다",
         )
