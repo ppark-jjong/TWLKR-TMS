@@ -1,4 +1,4 @@
-// src/controllers/VisualizationPageController.js
+// src/controllers/VisualizationController.js
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { MessageKeys } from '../utils/message';
 import VisualizationService from '../services/VisualizationService';

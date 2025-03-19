@@ -1,6 +1,7 @@
 // src/components/dashboard/AssignDriverModal.js
-import React from 'react';
-import { Form, Input, Typography, Space } from 'antd';
+import React, { useEffect } from 'react';
+import { Form, Input, Typography, Space, Alert } from 'antd';
+import { CarOutlined } from '@ant-design/icons';
 import { formatPhoneNumber } from '../../utils/Formatter';
 import { FONT_STYLES } from '../../utils/Constants';
 import DashboardService from '../../services/DashboardService';
@@ -8,33 +9,41 @@ import { validateAssignmentForm } from '../../utils/validator';
 import { MessageKeys } from '../../utils/message';
 import BaseModal from '../common/BaseModal';
 import useForm from '../../hooks/useForm';
+import { useLogger } from '../../utils/LogUtils';
 
 const { Text } = Typography;
 
 /**
- * 배차 처리 모달 컴포넌트
+ * 배차 처리 모달 컴포넌트 (개선된 버전)
  * 관리자/일반 사용자 모두 사용 가능
- * 권한별 제약은 상위 컴포넌트(DashboardPage)에서 처리
+ * 백엔드 API 명세에 맞게 최적화
  */
 const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
-  // 폼 관련 상태 및 함수
-  const { form, loading, submitForm } = useForm({
+  const logger = useLogger('AssignDriverModal');
+
+  // 폼 관련 상태 및 함수 - useForm 커스텀 훅 활용
+  const { form, loading, error, submitForm } = useForm({
     onSubmit: async (values) => {
       // 선택된 대시보드 ID 추출
       const dashboardIds = selectedRows.map((row) => row.dashboard_id);
 
-      console.log('배차 처리 요청:', {
+      logger.info('배차 처리 요청:', {
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
       });
 
-      // DashboardService의 배차 처리 API 호출
-      return await DashboardService.assignDriver({
+      // 백엔드 API 명세에 맞는 요청 데이터 구성
+      const requestData = {
         dashboard_ids: dashboardIds,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
-      });
+      };
+
+      // DashboardService의 배차 처리 API 호출
+      const result = await DashboardService.assignDriver(requestData);
+
+      return result;
     },
     validate: validateAssignmentForm,
     messageKey: MessageKeys.DASHBOARD.ASSIGN,
@@ -43,9 +52,18 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
     errorMessage: '배차 처리 중 오류가 발생했습니다',
     onSuccess: () => {
       form.resetFields();
-      onSuccess();
+      if (onSuccess) {
+        onSuccess();
+      }
     },
   });
+
+  // 모달이 열리면 폼 초기화
+  useEffect(() => {
+    if (visible) {
+      form.resetFields();
+    }
+  }, [visible, form]);
 
   // 연락처 포맷팅 처리
   const handlePhoneChange = (e) => {
@@ -64,6 +82,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
       maskClosable={false}
       width={600}
     >
+      {/* 선택된 주문 정보 표시 */}
       <div
         style={{
           marginBottom: 16,
@@ -93,6 +112,18 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
         </div>
       </div>
 
+      {/* 에러 메시지 표시 */}
+      {error && (
+        <Alert
+          message="입력 오류"
+          description={error}
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {/* 배차 정보 입력 폼 */}
       <Form form={form} layout="vertical">
         <Form.Item
           name="driver_name"
@@ -104,6 +135,7 @@ const AssignDriverModal = ({ visible, onCancel, onSuccess, selectedRows }) => {
           ]}
         >
           <Input
+            prefix={<CarOutlined style={{ color: '#1890ff' }} />}
             placeholder="배송 담당자 이름"
             maxLength={50}
             style={FONT_STYLES.BODY.MEDIUM}

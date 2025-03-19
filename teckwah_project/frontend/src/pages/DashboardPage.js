@@ -1,6 +1,5 @@
-// src/pages/DashboardPage.js
+// src/pages/DashboardPage.js - 리팩토링 버전
 import React, { useEffect, useCallback, Suspense, useMemo } from 'react';
-import { AdminComponents } from '../lazyComponents';
 import {
   Layout,
   DatePicker,
@@ -10,21 +9,19 @@ import {
   Popconfirm,
   Input,
 } from 'antd';
-// 개별 아이콘 임포트로 번들 크기 최적화
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
-import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
-import PlusOutlined from '@ant-design/icons/PlusOutlined';
-import CarOutlined from '@ant-design/icons/CarOutlined';
-import SearchOutlined from '@ant-design/icons/SearchOutlined';
-
+import {
+  ReloadOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
-import useDashboardPageController from '../controllers/DashboardPageController';
+import useDashboardController from '../controllers/DashboardController';
 import LoadingSpin from '../components/common/LoadingSpin';
 import DashboardList from '../components/dashboard/DashboardList';
 import { useDateRange } from '../utils/useDateRange';
 import { cancelAllPendingRequests } from '../utils/AxiosConfig';
 import { useLogger } from '../utils/LogUtils';
-// 지연 로딩으로 변경
 import {
   CreateDashboardModal,
   AssignDriverModal,
@@ -49,31 +46,23 @@ const ModalFallback = () => (
 );
 
 /**
- * 리팩토링된 대시보드 페이지 컴포넌트
- * 컨트롤러 패턴 적용으로 UI와 로직 분리
+ * 대시보드 페이지 컴포넌트 (개선 버전)
+ * - 컨트롤러 패턴 적용으로 UI와 로직 분리
+ * - 성능 최적화 및 불필요한 리렌더링 제거
+ * - 백엔드 API 연동 개선
  */
 const DashboardPage = () => {
   const logger = useLogger('DashboardPage');
 
-  // 성능 측정 - 컴포넌트 첫 렌더링
-  useEffect(() => {
-    logger.measure('DashboardPage 초기 렌더링', () => {
-      logger.info('대시보드 페이지 마운트됨');
-      return () => {
-        logger.info('대시보드 페이지 언마운트됨');
-      };
-    });
-  }, [logger]);
-
-  // 날짜 범위 커스텀 훅 사용
+  // 날짜 범위 커스텀 훅 사용 - 단순화
   const {
     dateRange,
     disabledDate,
     handleDateRangeChange,
     loading: dateRangeLoading,
-  } = useDateRange(30);
+  } = useDateRange(7); // 기본값 7일로 변경
 
-  // 대시보드 페이지 컨트롤러 훅 사용
+  // 대시보드 컨트롤러 훅 사용
   const {
     // 상태
     dashboards,
@@ -119,16 +108,14 @@ const DashboardPage = () => {
     resetFilters,
     handleApplyFilters,
     setCurrentPage,
-  } = useDashboardPageController();
-  // 초기화 및 정리
+  } = useDashboardController();
+
+  // 초기화 및 정리 - 단순화
   useEffect(() => {
-    // 성능 측정
-    logger.measure('데이터 초기 로드', () => {
-      // 데이터 로드
-      if (dateRange && dateRange[0] && dateRange[1] && !dateRangeLoading) {
-        loadDashboardData(dateRange[0], dateRange[1], false);
-      }
-    });
+    // 데이터 로드
+    if (dateRange && dateRange[0] && dateRange[1] && !dateRangeLoading) {
+      loadDashboardData(dateRange[0], dateRange[1], false);
+    }
 
     // 정리 작업
     return () => {
@@ -137,12 +124,10 @@ const DashboardPage = () => {
     };
   }, [dateRange, dateRangeLoading, loadDashboardData, logger]);
 
-  // 필터 버튼 클릭 시 데이터 로드
+  // 필터 버튼 클릭 시 데이터 로드 - 간소화
   useEffect(() => {
     if (filterButtonClicked && dateRange && dateRange[0] && dateRange[1]) {
-      logger.measure('필터 적용 후 데이터 로드', () => {
-        loadDashboardData(dateRange[0], dateRange[1], true);
-      });
+      loadDashboardData(dateRange[0], dateRange[1], true);
       setFilterButtonClicked(false);
     }
   }, [
@@ -150,10 +135,9 @@ const DashboardPage = () => {
     dateRange,
     loadDashboardData,
     setFilterButtonClicked,
-    logger,
   ]);
 
-  // 메모이제이션된 버튼 섹션 - 렌더링 최적화
+  // 액션 버튼 섹션 - 메모이제이션
   const renderActionButtons = useMemo(
     () => (
       <Space size="middle">
@@ -212,7 +196,7 @@ const DashboardPage = () => {
     ]
   );
 
-  // 메모이제이션된 검색 및 날짜 선택 섹션
+  // 검색 및 날짜 선택 섹션 - 메모이제이션
   const renderSearchControls = useMemo(
     () => (
       <Space>
@@ -253,51 +237,48 @@ const DashboardPage = () => {
     ]
   );
 
-  // 조건부 모달 렌더링 - 컴포넌트 분리로 렌더링 최적화
-  const renderModals = () => {
-    return (
-      <>
-        {showCreateModal && (
-          <Suspense fallback={<ModalFallback />}>
-            <CreateDashboardModal
-              visible={showCreateModal}
-              onCancel={() => setShowCreateModal(false)}
-              onSuccess={handleCreateSuccess}
-              userDepartment={user?.user_department}
-            />
-          </Suspense>
-        )}
+  // 모달 렌더링 함수 - 간소화
+  const renderModals = () => (
+    <>
+      {showCreateModal && (
+        <Suspense fallback={<ModalFallback />}>
+          <CreateDashboardModal
+            visible={showCreateModal}
+            onCancel={() => setShowCreateModal(false)}
+            onSuccess={handleCreateSuccess}
+            userDepartment={user?.user_department}
+          />
+        </Suspense>
+      )}
 
-        {showAssignModal && (
-          <Suspense fallback={<ModalFallback />}>
-            <AssignDriverModal
-              visible={showAssignModal}
-              onCancel={() => setShowAssignModal(false)}
-              onSuccess={handleAssignSuccess}
-              selectedRows={selectedRows}
-            />
-          </Suspense>
-        )}
+      {showAssignModal && (
+        <Suspense fallback={<ModalFallback />}>
+          <AssignDriverModal
+            visible={showAssignModal}
+            onCancel={() => setShowAssignModal(false)}
+            onSuccess={handleAssignSuccess}
+            selectedRows={selectedRows}
+          />
+        </Suspense>
+      )}
 
-        {showDetailModal && selectedDashboard && (
-          <Suspense fallback={<ModalFallback />}>
-            <DashboardDetailModal
-              visible={showDetailModal}
-              dashboard={selectedDashboard}
-              onCancel={() => {
-                setShowDetailModal(false);
-                setSelectedDashboard(null);
-              }}
-              onSuccess={handleDetailSuccess}
-              isAdmin={isAdmin}
-            />
-          </Suspense>
-        )}
-      </>
-    );
-  };
+      {showDetailModal && selectedDashboard && (
+        <Suspense fallback={<ModalFallback />}>
+          <DashboardDetailModal
+            visible={showDetailModal}
+            dashboard={selectedDashboard}
+            onCancel={() => {
+              setShowDetailModal(false);
+              setSelectedDashboard(null);
+            }}
+            onSuccess={handleDetailSuccess}
+            isAdmin={isAdmin}
+          />
+        </Suspense>
+      )}
+    </>
+  );
 
-  // 실제 렌더링 부분
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
       <div style={{ marginBottom: '16px' }}>

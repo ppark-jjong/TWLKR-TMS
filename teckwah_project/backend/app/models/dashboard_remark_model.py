@@ -14,7 +14,7 @@ class DashboardRemark(Base):
         nullable=False,
         index=True,
     )
-    content = Column(Text, nullable=False)
+    content = Column(Text, nullable=True)  
     created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
     created_by = Column(String(50), nullable=False)
     version = Column(Integer, nullable=False, default=1)

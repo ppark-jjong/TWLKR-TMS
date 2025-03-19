@@ -25,25 +25,6 @@ def get_remark_service(db: Session = Depends(get_db)) -> DashboardRemarkService:
     return DashboardRemarkService(remark_repository, lock_repository, dashboard_repository)
 
 
-@router.get("/{dashboard_id}/remarks", response_model=List[RemarkResponse])
-async def get_remarks(
-    dashboard_id: int,
-    service: DashboardRemarkService = Depends(get_remark_service),
-    current_user: TokenData = Depends(get_current_user),
-):
-    """대시보드 ID별 메모 목록 조회 API"""
-    try:
-        log_info(f"메모 목록 조회 요청: 대시보드 ID {dashboard_id}")
-        remarks = service.get_remarks_by_dashboard_id(dashboard_id)
-        return remarks
-    except Exception as e:
-            log_error(e, "메모 목록 조회 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="메모 목록 조회 중 오류가 발생했습니다",
-            )
-
-
 @router.post("/{dashboard_id}/remarks", response_model=RemarkResponse)
 async def create_remark(
     dashboard_id: int,

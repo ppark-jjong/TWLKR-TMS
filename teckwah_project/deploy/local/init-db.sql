@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS dashboard_remark (
   content TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by VARCHAR(50) NOT NULL,
-  formatted_content TEXT NULL, -- 포맷팅된 메모 내용 저장 (user_id: content)
+  formatted_content TEXT NULL, 
   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
   INDEX idx_dashboard_id (dashboard_id),
   INDEX idx_created_at (created_at)

@@ -86,8 +86,8 @@ class DashboardRemarkService:
             )
 
     def update_remark(
-        self, remark_id: int, remark_data: RemarkUpdate, user_id: str, dashboard_version: Optional[int] = None
-    ) -> RemarkResponse:
+    self, remark_id: int, remark_data: RemarkUpdate, user_id: str, dashboard_version: Optional[int] = None
+) -> RemarkResponse:
         """
         메모 업데이트 (비관적 락 전용)
         
@@ -120,7 +120,7 @@ class DashboardRemarkService:
                 )
 
             try:
-                # 3. 메모 업데이트 (기존 방식 유지 - 새 메모 생성으로 이력 관리)
+                # 3. 메모 업데이트 (단순 업데이트 방식)
                 updated_remark = self.remark_repository.update_remark(
                     remark_id, remark_data.content, user_id
                 )
@@ -144,8 +144,7 @@ class DashboardRemarkService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="메모 업데이트 중 오류가 발생했습니다",
             )
-            
-    def delete_remark(self, remark_id: int, user_id: str, is_admin: bool = False) -> bool:
+
         """메모 삭제 (비관적 락 전용)"""
         try:
             # 1. 메모 조회

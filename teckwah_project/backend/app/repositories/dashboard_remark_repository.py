@@ -39,13 +39,14 @@ class DashboardRemarkRepository:
         except SQLAlchemyError as e:
             log_error(e, "메모 조회 실패", {"remark_id": remark_id})
             raise
-    
-    def create_remark(
-        self, dashboard_id: int, content: str, user_id: str
-    ) -> Optional[DashboardRemark]:
+
+
+    def create_empty_remark(
+    self, dashboard_id: int, user_id: str
+) -> Optional[DashboardRemark]:
         """
-        새 메모 생성 (비관적 락 전용, 트랜잭션 내에서 호출 가정)
-        - 참고: dashboard_id 행에 대한 잠금은 상위 서비스 레이어에서 처리해야 함
+        빈 메모 생성 (대시보드 생성 시 자동 호출용)
+        - 내용이 null인 초기 메모 생성
         """
         try:
             # 1. 대시보드 존재 확인
@@ -54,16 +55,12 @@ class DashboardRemarkRepository:
                 log_error(None, "메모 생성 실패: 대시보드 없음", {"dashboard_id": dashboard_id})
                 return None
             
-            # 2. 메모 생성
-            formatted_content = content
-            if not content.startswith(f"{user_id}:"):
-                formatted_content = f"{user_id}: {content}"
-                
+            # 2. 빈 메모 생성
             remark = DashboardRemark(
                 dashboard_id=dashboard_id,
-                content=content,
+                content=None,  # 빈 내용 (NULL)
                 created_by=user_id,
-                formatted_content=formatted_content
+                formatted_content=None  # 빈 포맷 내용 (NULL)
             )
             
             self.db.add(remark)
@@ -71,19 +68,19 @@ class DashboardRemarkRepository:
             self.db.refresh(remark)
 
             log_info(
-                f"메모 생성 완료: ID={remark.remark_id}, 대시보드 ID={dashboard_id}"
+                f"빈 메모 생성 완료: ID={remark.remark_id}, 대시보드 ID={dashboard_id}"
             )
             return remark
 
         except SQLAlchemyError as e:
-            log_error(e, "메모 생성 실패", {"dashboard_id": dashboard_id})
+            log_error(e, "빈 메모 생성 실패", {"dashboard_id": dashboard_id})
             raise
 
     def update_remark(
         self, remark_id: int, content: str, user_id: str
     ) -> Optional[DashboardRemark]:
         """
-        메모 업데이트 (비관적 락 전용)
+        메모 업데이트 (단순 업데이트 방식)
         - 참고: dashboard_id 행에 대한 잠금은 상위 서비스 레이어에서 처리해야 함
         """
         try:
@@ -96,23 +93,18 @@ class DashboardRemarkRepository:
                 log_error(None, "메모 업데이트 실패: 메모 없음", {"remark_id": remark_id})
                 return None
 
-            # 2. 새 메모 생성 (기존 메모는 유지, 이력 관리)
-            new_remark = DashboardRemark(
-                dashboard_id=remark.dashboard_id,
-                content=content,
-                created_by=user_id,
-                formatted_content=content if content.startswith(f"{user_id}:") else f"{user_id}: {content}"
-            )
+            # 2. 메모 내용 및 포맷팅된 내용 업데이트
+            remark.content = content
+            remark.formatted_content = content if content.startswith(f"{user_id}:") else f"{user_id}: {content}"
             
-            self.db.add(new_remark)
+            # 3. 변경 사항 저장
             self.db.flush()
-            self.db.refresh(new_remark)
-
-            log_info(
-                f"메모 업데이트 완료: 새 ID={new_remark.remark_id}, 대시보드 ID={remark.dashboard_id}"
-            )
-            return new_remark
             
+            log_info(
+                f"메모 업데이트 완료: ID={remark.remark_id}, 대시보드 ID={remark.dashboard_id}"
+            )
+            return remark
+                
         except SQLAlchemyError as e:
             log_error(e, "메모 업데이트 실패", {"remark_id": remark_id})
             raise

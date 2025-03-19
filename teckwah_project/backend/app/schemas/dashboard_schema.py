@@ -90,9 +90,6 @@ class DashboardCreate(DashboardBase):
     contact: Optional[str] = Field(
         None, pattern=r"^\d{2,3}-\d{3,4}-\d{4}$", description="연락처(xxx-xxxx-xxxx)"
     )
-    remark: Optional[str] = Field(
-        None, max_length=2000, description="메모(2000자 이내)"
-    )
 
 
 # 기본 응답

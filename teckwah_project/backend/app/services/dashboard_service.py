@@ -110,9 +110,9 @@ class DashboardService:
             return now - timedelta(days=30), now
 
     def create_dashboard(
-        self, dashboard_data: DashboardCreate, department: str, user_id: Optional[str] = None
-    ) -> DashboardDetail:
-        """대시보드 생성 (메모 포함)"""
+    self, dashboard_data: DashboardCreate, department: str, user_id: Optional[str] = None
+) -> DashboardDetail:
+        """대시보드 생성 (빈 메모 자동 생성)"""
         try:
             # Pydantic 모델을 딕셔너리로 변환
             data_dict = dashboard_data.model_dump()
@@ -123,9 +123,10 @@ class DashboardService:
             data_dict["create_time"] = now
             data_dict["status"] = "WAITING"  # 초기 상태는 항상 대기
 
-            # 메모 내용 추출 후 제거 (별도 처리를 위해)
-            remark_content = data_dict.pop("remark", None)
-            
+            # remark 필드 제거 (더 이상 사용하지 않음)
+            if "remark" in data_dict:
+                data_dict.pop("remark")
+                
             # 대시보드 생성
             dashboard = self.repository.create_dashboard(data_dict)
             if not dashboard:
@@ -134,10 +135,10 @@ class DashboardService:
                     detail="대시보드 생성에 실패했습니다",
                 )
 
-            # 메모 내용이 있는 경우 메모 생성
-            if remark_content and self.remark_repository:
-                self.remark_repository.create_remark(
-                    dashboard.dashboard_id, remark_content, user_id or "시스템"
+            # 항상 빈 메모 생성 (내용은 null)
+            if self.remark_repository:
+                self.remark_repository.create_empty_remark(
+                    dashboard.dashboard_id, user_id or "시스템"
                 )
 
             # 생성된 대시보드 상세 정보 반환
@@ -151,7 +152,6 @@ class DashboardService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="대시보드 생성 중 오류가 발생했습니다",
             )
-
     def update_dashboard_fields(
         self, 
         dashboard_id: int, 
