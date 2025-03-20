@@ -1,6 +1,6 @@
 // src/components/dashboard/DashboardDetailModal.js
 
-import React, { Suspense } from 'react';
+import React, { Suspense } from "react";
 import {
   Modal,
   Typography,
@@ -11,24 +11,24 @@ import {
   Badge,
   Spin,
   Alert,
-} from 'antd';
-import { EditOutlined } from '@ant-design/icons';
-import { STATUS_TEXTS, STATUS_COLORS } from '../../utils/Constants';
-import DashboardInfoSection from './DashboardInfoSection';
-import DashboardStatusControl from './DashboardStatusControl';
-import useDashboardDetail from '../../hooks/useDashboardDetail';
+} from "antd";
+import { EditOutlined } from "@ant-design/icons";
+import { STATUS_TEXTS, STATUS_COLORS } from "../../utils/Constants";
+import DashboardInfoSection from "./DashboardInfoSection";
+import DashboardStatusControl from "./DashboardStatusControl";
+import useDashboardDetail from "../../hooks/useDashboardDetail";
 import {
   formatDateTime,
   formatDistance,
   formatDuration,
   formatPhoneNumber,
-} from '../../utils/Formatter';
+} from "../../utils/Formatter";
 
 const { Text } = Typography;
 
 // 지연 로딩 폴백 컴포넌트
 const DetailFallback = () => (
-  <div style={{ textAlign: 'center', padding: '20px' }}>
+  <div style={{ textAlign: "center", padding: "20px" }}>
     <Spin tip="상세 정보 로딩 중..." />
   </div>
 );
@@ -82,7 +82,7 @@ const DashboardDetailModal = ({
   const handleModalCancel = async () => {
     if (editMode.fields || editMode.remark) {
       const confirmed = window.confirm(
-        '저장되지 않은 변경 사항이 있습니다. 정말 닫으시겠습니까?'
+        "저장되지 않은 변경 사항이 있습니다. 정말 닫으시겠습니까?"
       );
       if (!confirmed) return;
 
@@ -100,7 +100,7 @@ const DashboardDetailModal = ({
 
     const lockTypeText = getLockTypeText(lockInfo.lock_type);
     const expiresAt = lockInfo.expires_at ? dayjs(lockInfo.expires_at) : null;
-    const timeRemaining = expiresAt ? expiresAt.diff(dayjs(), 'minute') : 0;
+    const timeRemaining = expiresAt ? expiresAt.diff(dayjs(), "minute") : 0;
 
     return (
       <Alert
@@ -110,13 +110,13 @@ const DashboardDetailModal = ({
         description={
           <>
             <Text>
-              현재 <Text strong>{lockInfo.locked_by}</Text>님이 {lockTypeText}{' '}
+              현재 <Text strong>{lockInfo.locked_by}</Text>님이 {lockTypeText}{" "}
               작업 중입니다.
             </Text>
             {expiresAt && (
               <div>
                 <Text>
-                  세션 만료: {expiresAt.format('HH:mm:ss')} (남은 시간: 약{' '}
+                  세션 만료: {expiresAt.format("HH:mm:ss")} (남은 시간: 약{" "}
                   {timeRemaining}분)
                 </Text>
               </div>
@@ -134,14 +134,14 @@ const DashboardDetailModal = ({
       return (
         <div style={{ marginTop: 24 }}>
           <SectionTitle>메모 편집</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <TextArea
               value={remarkContent}
               onChange={(e) => setRemarkContent(e.target.value)}
               rows={6}
               maxLength={2000}
               showCount
-              style={{ width: '100%', padding: 12, borderRadius: 6 }}
+              style={{ width: "100%", padding: 12, borderRadius: 6 }}
               placeholder="메모를 입력하세요"
               disabled={loading}
             />
@@ -167,9 +167,9 @@ const DashboardDetailModal = ({
       <div style={{ marginTop: 24 }}>
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             marginBottom: 16,
           }}
         >
@@ -186,21 +186,21 @@ const DashboardDetailModal = ({
         </div>
         <div
           style={{
-            backgroundColor: '#fafafa',
+            backgroundColor: "#fafafa",
             padding: 16,
             borderRadius: 6,
             minHeight: 120,
             maxHeight: 200,
-            overflowY: 'auto',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
+            overflowY: "auto",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
           }}
         >
           {currentDashboard?.remarks &&
           currentDashboard.remarks.length > 0 &&
           currentDashboard.remarks[0].content
             ? currentDashboard.remarks[0].content
-            : '메모 없음'}
+            : "메모 없음"}
         </div>
       </div>
     );
@@ -212,58 +212,58 @@ const DashboardDetailModal = ({
 
     return {
       basicInfoItems: [
-        { label: '부서', value: DEPARTMENT_TEXTS[currentDashboard.department] },
-        { label: '종류', value: TYPE_TEXTS[currentDashboard.type] },
+        { label: "부서", value: DEPARTMENT_TEXTS[currentDashboard.department] },
+        { label: "종류", value: TYPE_TEXTS[currentDashboard.type] },
         {
-          label: '출발 허브',
+          label: "출발 허브",
           value: WAREHOUSE_TEXTS[currentDashboard.warehouse],
         },
-        { label: 'SLA', value: currentDashboard.sla },
+        { label: "SLA", value: currentDashboard.sla },
       ],
       timeInfoItems: [
         {
-          label: '접수 시각',
+          label: "접수 시각",
           value: formatDateTime(currentDashboard.create_time),
         },
         {
-          label: '출발 시각',
+          label: "출발 시각",
           value: formatDateTime(currentDashboard.depart_time),
         },
         {
-          label: '완료 시각',
+          label: "완료 시각",
           value: formatDateTime(currentDashboard.complete_time),
         },
         {
-          label: 'ETA',
+          label: "ETA",
           value: formatDateTime(currentDashboard.eta),
           highlight: true,
         },
       ],
       driverInfoItems: [
         {
-          label: '담당 기사',
+          label: "담당 기사",
           value: currentDashboard.driver_name,
           highlight: true,
         },
         {
-          label: '기사 연락처',
+          label: "기사 연락처",
           value: formatPhoneNumber(currentDashboard.driver_contact),
         },
       ],
       deliveryInfoItems: [
-        { label: '주소', value: currentDashboard.address },
+        { label: "주소", value: currentDashboard.address },
         {
-          label: '예상 거리',
+          label: "예상 거리",
           value: formatDistance(currentDashboard.distance),
         },
         {
-          label: '예상 소요시간',
+          label: "예상 소요시간",
           value: formatDuration(currentDashboard.duration_time),
         },
       ],
       receiverInfoItems: [
-        { label: '수령인', value: currentDashboard.customer },
-        { label: '연락처', value: formatPhoneNumber(currentDashboard.contact) },
+        { label: "수령인", value: currentDashboard.customer },
+        { label: "연락처", value: formatPhoneNumber(currentDashboard.contact) },
       ],
     };
   };
@@ -273,22 +273,22 @@ const DashboardDetailModal = ({
       title={
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '8px 0',
-            marginRight: '48px',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "8px 0",
+            marginRight: "48px",
           }}
         >
           <div>
-            <Text style={{ marginRight: '12px' }}>
+            <Text style={{ marginRight: "12px" }}>
               주문번호: {currentDashboard?.order_no}
             </Text>
             <Badge
               count={STATUS_TEXTS[currentDashboard?.status]}
               style={{
                 backgroundColor:
-                  STATUS_COLORS[currentDashboard?.status] || '#d9d9d9',
+                  STATUS_COLORS[currentDashboard?.status] || "#d9d9d9",
               }}
             />
           </div>
@@ -306,9 +306,9 @@ const DashboardDetailModal = ({
       footer={null}
       width={1200}
       bodyStyle={{
-        maxHeight: 'calc(90vh - 150px)',
-        overflowY: 'auto',
-        padding: '24px',
+        maxHeight: "calc(90vh - 150px)",
+        overflowY: "auto",
+        padding: "24px",
       }}
       maskClosable={!editMode.fields && !editMode.remark}
       closable={!editMode.fields && !editMode.remark}
@@ -326,7 +326,7 @@ const DashboardDetailModal = ({
           description={error}
           type="error"
           showIcon
-          style={{ marginBottom: '16px' }}
+          style={{ marginBottom: "16px" }}
         />
       )}
 
@@ -341,12 +341,12 @@ const DashboardDetailModal = ({
               loading={loading}
             />
           ) : (
-            <div style={{ padding: '0' }}>
+            <div style={{ padding: "0" }}>
               <div
                 style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  marginBottom: '16px',
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginBottom: "16px",
                 }}
               >
                 <Button

@@ -1,9 +1,9 @@
 // src/utils/message.js
-import { message as antMessage } from 'antd';
-import { useLogger } from './LogUtils';
+import { message as antMessage } from "antd";
+import { useLogger } from "./LogUtils";
 
 // 로거 초기화
-const logger = useLogger('MessageService');
+const logger = useLogger("MessageService");
 
 /**
  * 메시지 키 상수
@@ -11,36 +11,36 @@ const logger = useLogger('MessageService');
  */
 export const MessageKeys = {
   AUTH: {
-    LOGIN: 'auth-login',
-    LOGOUT: 'auth-logout',
-    SESSION: 'auth-session',
-    PERMISSION: 'auth-permission',
+    LOGIN: "auth-login",
+    LOGOUT: "auth-logout",
+    SESSION: "auth-session",
+    PERMISSION: "auth-permission",
   },
   DASHBOARD: {
-    LOAD: 'dashboard-load',
-    CREATE: 'dashboard-create',
-    UPDATE: 'dashboard-update',
-    DELETE: 'dashboard-delete',
-    DETAIL: 'dashboard-detail',
-    STATUS: 'dashboard-status',
-    ASSIGN: 'dashboard-assign',
-    MEMO: 'dashboard-memo',
-    SEARCH: 'dashboard-search',
-    PESSIMISTIC_LOCK: 'dashboard-pessimistic-lock',
-    OPTIMISTIC_LOCK: 'dashboard-optimistic-lock',
-    LOCK_WARNING: 'dashboard-lock-warning',
-    LOCK_EXPIRED: 'dashboard-lock-expired',
+    LOAD: "dashboard-load",
+    CREATE: "dashboard-create",
+    UPDATE: "dashboard-update",
+    DELETE: "dashboard-delete",
+    DETAIL: "dashboard-detail",
+    STATUS: "dashboard-status",
+    ASSIGN: "dashboard-assign",
+    MEMO: "dashboard-memo",
+    SEARCH: "dashboard-search",
+    PESSIMISTIC_LOCK: "dashboard-pessimistic-lock",
+    OPTIMISTIC_LOCK: "dashboard-optimistic-lock",
+    LOCK_WARNING: "dashboard-lock-warning",
+    LOCK_EXPIRED: "dashboard-lock-expired",
   },
   VISUALIZATION: {
-    LOAD: 'visualization-load',
+    LOAD: "visualization-load",
   },
   ERROR: {
-    NETWORK: 'error-network',
-    SERVER: 'error-server',
-    UNKNOWN: 'error-unknown',
+    NETWORK: "error-network",
+    SERVER: "error-server",
+    UNKNOWN: "error-unknown",
   },
   VALIDATION: {
-    FIELD_ERROR: 'validation-field-error',
+    FIELD_ERROR: "validation-field-error",
   },
 };
 
@@ -50,27 +50,27 @@ export const MessageKeys = {
  */
 export const MessageTemplates = {
   DASHBOARD: {
-    CREATE_SUCCESS: '대시보드가 생성되었습니다',
+    CREATE_SUCCESS: "대시보드가 생성되었습니다",
     STATUS_SUCCESS: (status) => {
       const statusMap = {
-        WAITING: '대기',
-        IN_PROGRESS: '진행',
-        COMPLETE: '완료',
-        ISSUE: '이슈',
-        CANCEL: '취소',
+        WAITING: "대기",
+        IN_PROGRESS: "진행",
+        COMPLETE: "완료",
+        ISSUE: "이슈",
+        CANCEL: "취소",
       };
       return `${statusMap[status] || status} 상태로 변경되었습니다`;
     },
-    DELETE_SUCCESS: '선택한 항목이 삭제되었습니다',
-    ASSIGN_SUCCESS: '배차 처리가 완료되었습니다',
-    INVALID_POSTAL: '올바른 우편번호 형식이 아닙니다',
-    INVALID_PHONE: '올바른 연락처 형식이 아닙니다',
+    DELETE_SUCCESS: "선택한 항목이 삭제되었습니다",
+    ASSIGN_SUCCESS: "배차 처리가 완료되었습니다",
+    INVALID_POSTAL: "올바른 우편번호 형식이 아닙니다",
+    INVALID_PHONE: "올바른 연락처 형식이 아닙니다",
     INVALID_WAITING: (orderNos) =>
       `대기 상태가 아닌 주문이 포함되어 있습니다: ${orderNos}`,
   },
   AUTH: {
-    LOGIN_FAILED: '아이디 또는 비밀번호가 잘못되었습니다',
-    SESSION_EXPIRED: '세션이 만료되었습니다. 다시 로그인해주세요',
+    LOGIN_FAILED: "아이디 또는 비밀번호가 잘못되었습니다",
+    SESSION_EXPIRED: "세션이 만료되었습니다. 다시 로그인해주세요",
   },
 };
 
@@ -103,7 +103,7 @@ const messageService = {
       },
     });
 
-    if (key) activeMessages.set(key, 'success');
+    if (key) activeMessages.set(key, "success");
   },
 
   /**
@@ -127,7 +127,7 @@ const messageService = {
       },
     });
 
-    if (key) activeMessages.set(key, 'error');
+    if (key) activeMessages.set(key, "error");
   },
 
   /**
@@ -151,7 +151,7 @@ const messageService = {
       },
     });
 
-    if (key) activeMessages.set(key, 'info');
+    if (key) activeMessages.set(key, "info");
   },
 
   /**
@@ -175,7 +175,7 @@ const messageService = {
       },
     });
 
-    if (key) activeMessages.set(key, 'warning');
+    if (key) activeMessages.set(key, "warning");
   },
 
   /**
@@ -198,8 +198,7 @@ const messageService = {
         if (key) activeMessages.delete(key);
       },
     });
-
-    if (key) activeMessages.set(key, 'loading');
+    if (key) activeMessages.set(key, "loading");
   },
 
   /**

@@ -1,10 +1,10 @@
 // src/hooks/useDashboardDetail.js
-import { useState, useCallback, useEffect, useRef } from 'react';
-import DashboardService from '../services/DashboardService';
-import LockService from '../services/LockService';
-import message from '../utils/message';
-import { MessageKeys } from '../utils/message';
-import { useLogger } from '../utils/LogUtils';
+import { useState, useCallback, useEffect, useRef } from "react";
+import DashboardService from "../services/DashboardService";
+import LockService from "../services/LockService";
+import message from "../utils/message";
+import { MessageKeys } from "../utils/message";
+import { useLogger } from "../utils/LogUtils";
 
 /**
  * 대시보드 상세 정보 및 편집 모드를 관리하는 커스텀 훅
@@ -15,7 +15,7 @@ import { useLogger } from '../utils/LogUtils';
  */
 const useDashboardDetail = (options = {}) => {
   const { dashboardId, onSuccess, onError } = options;
-  const logger = useLogger('useDashboardDetail');
+  const logger = useLogger("useDashboardDetail");
 
   // 상태 관리
   const [dashboard, setDashboard] = useState(null);
@@ -23,7 +23,7 @@ const useDashboardDetail = (options = {}) => {
   const [error, setError] = useState(null);
   const [lockLoading, setLockLoading] = useState(false);
   const [lockInfo, setLockInfo] = useState(null);
-  const [remarkContent, setRemarkContent] = useState('');
+  const [remarkContent, setRemarkContent] = useState("");
   const [editMode, setEditMode] = useState({
     fields: false,
     remark: false,
@@ -37,7 +37,7 @@ const useDashboardDetail = (options = {}) => {
   // 락 만료 경고 표시 함수
   const showLockExpiryWarning = useCallback(() => {
     message.warning(
-      '편집 세션이 곧 만료됩니다. 작업을 완료하거나 저장하세요.',
+      "편집 세션이 곧 만료됩니다. 작업을 완료하거나 저장하세요.",
       MessageKeys.DASHBOARD.LOCK_WARNING
     );
   }, []);
@@ -47,7 +47,7 @@ const useDashboardDetail = (options = {}) => {
     setEditMode({ fields: false, remark: false });
     setLockInfo(null);
     message.error(
-      '편집 세션이 만료되었습니다. 편집 모드를 다시 활성화해야 합니다.',
+      "편집 세션이 만료되었습니다. 편집 모드를 다시 활성화해야 합니다.",
       MessageKeys.DASHBOARD.LOCK_EXPIRED
     );
   }, []);
@@ -98,16 +98,16 @@ const useDashboardDetail = (options = {}) => {
         setDashboard(data);
         // 메모 내용 설정 (첫 번째 메모만 사용)
         if (data.remarks && data.remarks.length > 0) {
-          setRemarkContent(data.remarks[0].content || '');
+          setRemarkContent(data.remarks[0].content || "");
         } else {
-          setRemarkContent('');
+          setRemarkContent("");
         }
       }
 
       return data;
     } catch (err) {
-      logger.error('대시보드 상세 정보 조회 실패:', err);
-      setError('상세 정보를 조회하는 중 오류가 발생했습니다');
+      logger.error("대시보드 상세 정보 조회 실패:", err);
+      setError("상세 정보를 조회하는 중 오류가 발생했습니다");
       if (onError) onError(err);
       return null;
     } finally {
@@ -134,7 +134,7 @@ const useDashboardDetail = (options = {}) => {
         return null;
       }
     } catch (err) {
-      logger.error('락 상태 확인 실패:', err);
+      logger.error("락 상태 확인 실패:", err);
       return null;
     } finally {
       setLockLoading(false);
@@ -150,18 +150,18 @@ const useDashboardDetail = (options = {}) => {
       setError(null);
 
       // 락 획득 요청
-      const lock = await LockService.acquireLock(dashboardId, 'EDIT');
+      const lock = await LockService.acquireLock(dashboardId, "EDIT");
 
       if (lock) {
         setLockInfo(lock);
         setEditMode({ ...editMode, fields: true });
         // 락 타이머 설정
         setupLockTimer(lock);
-        message.success('편집 모드가 활성화되었습니다');
+        message.success("편집 모드가 활성화되었습니다");
       }
     } catch (err) {
-      logger.error('필드 편집 시작 실패:', err);
-      setError('편집 모드를 활성화하는 중 오류가 발생했습니다');
+      logger.error("필드 편집 시작 실패:", err);
+      setError("편집 모드를 활성화하는 중 오류가 발생했습니다");
     } finally {
       setLockLoading(false);
     }
@@ -176,18 +176,18 @@ const useDashboardDetail = (options = {}) => {
       setError(null);
 
       // 락 획득 요청
-      const lock = await LockService.acquireLock(dashboardId, 'REMARK');
+      const lock = await LockService.acquireLock(dashboardId, "REMARK");
 
       if (lock) {
         setLockInfo(lock);
         setEditMode({ ...editMode, remark: true });
         // 락 타이머 설정
         setupLockTimer(lock);
-        message.success('메모 편집 모드가 활성화되었습니다');
+        message.success("메모 편집 모드가 활성화되었습니다");
       }
     } catch (err) {
-      logger.error('메모 편집 시작 실패:', err);
-      setError('메모 편집 모드를 활성화하는 중 오류가 발생했습니다');
+      logger.error("메모 편집 시작 실패:", err);
+      setError("메모 편집 모드를 활성화하는 중 오류가 발생했습니다");
     } finally {
       setLockLoading(false);
     }
@@ -213,14 +213,14 @@ const useDashboardDetail = (options = {}) => {
           setEditMode({ ...editMode, fields: false });
           // 락 해제
           await releaseLock();
-          message.success('정보가 업데이트되었습니다');
+          message.success("정보가 업데이트되었습니다");
           if (onSuccess) onSuccess(updatedDashboard);
         }
 
         return updatedDashboard;
       } catch (err) {
-        logger.error('필드 업데이트 실패:', err);
-        setError('정보 업데이트 중 오류가 발생했습니다');
+        logger.error("필드 업데이트 실패:", err);
+        setError("정보 업데이트 중 오류가 발생했습니다");
         if (onError) onError(err);
         return null;
       } finally {
@@ -260,14 +260,14 @@ const useDashboardDetail = (options = {}) => {
         setEditMode({ ...editMode, remark: false });
         // 락 해제
         await releaseLock();
-        message.success('메모가 업데이트되었습니다');
+        message.success("메모가 업데이트되었습니다");
         if (onSuccess) onSuccess(updatedDashboard);
       }
 
       return updatedDashboard;
     } catch (err) {
-      logger.error('메모 업데이트 실패:', err);
-      setError('메모 업데이트 중 오류가 발생했습니다');
+      logger.error("메모 업데이트 실패:", err);
+      setError("메모 업데이트 중 오류가 발생했습니다");
       if (onError) onError(err);
       return null;
     } finally {
@@ -296,9 +296,9 @@ const useDashboardDetail = (options = {}) => {
       // 락 해제 요청
       await LockService.releaseLock(dashboardId);
       setLockInfo(null);
-      logger.info('락 해제 성공');
+      logger.info("락 해제 성공");
     } catch (err) {
-      logger.error('락 해제 실패:', err);
+      logger.error("락 해제 실패:", err);
     }
   }, [dashboardId, editMode, logger]);
 
@@ -310,7 +310,7 @@ const useDashboardDetail = (options = {}) => {
     await releaseLock();
     // 원래 데이터로 복원
     if (dashboard && dashboard.remarks && dashboard.remarks.length > 0) {
-      setRemarkContent(dashboard.remarks[0].content || '');
+      setRemarkContent(dashboard.remarks[0].content || "");
     }
   }, [dashboard, releaseLock]);
 
@@ -337,8 +337,8 @@ const useDashboardDetail = (options = {}) => {
 
         return updatedDashboard;
       } catch (err) {
-        logger.error('상태 업데이트 실패:', err);
-        setError('상태 변경 중 오류가 발생했습니다');
+        logger.error("상태 업데이트 실패:", err);
+        setError("상태 변경 중 오류가 발생했습니다");
         if (onError) onError(err);
         return null;
       } finally {
@@ -351,16 +351,16 @@ const useDashboardDetail = (options = {}) => {
   // 락 타입에 따른 텍스트 반환
   const getLockTypeText = useCallback((lockType) => {
     switch (lockType) {
-      case 'EDIT':
-        return '편집';
-      case 'STATUS':
-        return '상태 변경';
-      case 'ASSIGN':
-        return '배차';
-      case 'REMARK':
-        return '메모 작성';
+      case "EDIT":
+        return "편집";
+      case "STATUS":
+        return "상태 변경";
+      case "ASSIGN":
+        return "배차";
+      case "REMARK":
+        return "메모 작성";
       default:
-        return '수정';
+        return "수정";
     }
   }, []);
 

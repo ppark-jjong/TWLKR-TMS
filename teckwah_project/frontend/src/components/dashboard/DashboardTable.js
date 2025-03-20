@@ -5,15 +5,15 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { Table, Tag, Tooltip, Input, Select, Space, Button, Badge } from 'antd';
+} from "react";
+import { Table, Tag, Tooltip, Input, Select, Space, Button, Badge } from "antd";
 // 개별 아이콘 임포트로 번들 크기 최적화
-import SearchOutlined from '@ant-design/icons/SearchOutlined';
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
-import FilterOutlined from '@ant-design/icons/FilterOutlined';
-import ClearOutlined from '@ant-design/icons/ClearOutlined';
-import InfoCircleOutlined from '@ant-design/icons/InfoCircleOutlined';
-import CarOutlined from '@ant-design/icons/CarOutlined';
+import SearchOutlined from "@ant-design/icons/SearchOutlined";
+import ReloadOutlined from "@ant-design/icons/ReloadOutlined";
+import FilterOutlined from "@ant-design/icons/FilterOutlined";
+import ClearOutlined from "@ant-design/icons/ClearOutlined";
+import InfoCircleOutlined from "@ant-design/icons/InfoCircleOutlined";
+import CarOutlined from "@ant-design/icons/CarOutlined";
 import {
   STATUS_TYPES,
   STATUS_TEXTS,
@@ -26,21 +26,19 @@ import {
   DEPARTMENT_TEXTS,
   DEPARTMENT_TYPES,
   FONT_STYLES,
-  STATUS_BG_COLORS,
-} from '../../utils/Constants';
-import { formatDateTime, formatPhoneNumber } from '../../utils/Formatter';
-import { useLogger } from '../../utils/LogUtils';
-import { useAuth } from '../../contexts/AuthContext';
-import './DashboardTable.css';
+} from "../../utils/Constants";
+import { formatDateTime, formatPhoneNumber } from "../../utils/Formatter";
+import { useLogger } from "../../utils/LogUtils";
+import { useAuth } from "../../contexts/AuthContext";
+import "./DashboardTable.css";
 
 const { Option } = Select;
 
 /**
  * 대시보드 테이블 컴포넌트 (최적화 버전)
- * - 백엔드 API 명세와 일치하는 데이터 구조 처리
- * - 불필요한 리렌더링 제거 및 메모이제이션 적용
- * - 비관적/낙관적 락 지원
- * - 필터링 및 정렬 최적화
+ * - 백엔드 API와의 연동 최적화
+ * - 불필요한 리렌더링 제거
+ * - 성능 최적화
  *
  * @param {Object} props - 컴포넌트 속성
  */
@@ -68,17 +66,17 @@ const DashboardTable = ({
   onResetFilters = () => {}, // 필터 초기화 콜백
   onApplyFilters = () => {}, // 필터 적용 콜백
 }) => {
-  const logger = useLogger('DashboardTable');
+  const logger = useLogger("DashboardTable");
   const { isAdmin } = useAuth();
 
-  // 로컬 필터링 상태 - 동기화
+  // 로컬 필터링 상태
   const [localTypeFilter, setLocalTypeFilter] = useState(typeFilter);
   const [localDepartmentFilter, setLocalDepartmentFilter] =
     useState(departmentFilter);
   const [localWarehouseFilter, setLocalWarehouseFilter] =
     useState(warehouseFilter);
   const [localOrderNoSearch, setLocalOrderNoSearch] = useState(orderNoSearch);
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState("");
   const [showVersionColumn, setShowVersionColumn] = useState(isAdmin);
   const [sortedInfo, setSortedInfo] = useState({});
 
@@ -97,7 +95,7 @@ const DashboardTable = ({
   }, [typeFilter, departmentFilter, warehouseFilter, orderNoSearch]);
 
   /**
-   * 필터링된 데이터 계산 - 백엔드 API 구조 기반
+   * 필터링된 데이터 계산
    */
   useEffect(() => {
     // 데이터가 비어있거나 이미 필터링 중인 경우 스킵
@@ -115,7 +113,7 @@ const DashboardTable = ({
     try {
       // 성능 측정 시작
       const startTime = performance.now();
-      logger.debug('테이블 데이터 필터링 시작:', {
+      logger.debug("테이블 데이터 필터링 시작:", {
         총건수: dataSource.length,
         종류필터: localTypeFilter,
         부서필터: localDepartmentFilter,
@@ -126,7 +124,7 @@ const DashboardTable = ({
       // 원본 데이터 복사
       let result = [...dataSource];
 
-      // 필터 적용 - 간소화된 로직
+      // 필터 적용
       if (localTypeFilter) {
         result = result.filter((item) => item.type === localTypeFilter);
       }
@@ -175,10 +173,7 @@ const DashboardTable = ({
   ]);
 
   /**
-   * 데이터 정렬 함수 - 메모이제이션 적용
-   * @param {Array} data - 정렬할 데이터 배열
-   * @param {Object} sorterInfo - 정렬 정보
-   * @returns {Array} 정렬된 데이터 배열
+   * 데이터 정렬 함수
    */
   const applySorting = useCallback((data, sorterInfo = {}) => {
     if (!Array.isArray(data)) return [];
@@ -189,10 +184,10 @@ const DashboardTable = ({
     if (!columnKey || !order) {
       return data.sort((a, b) => {
         // 상태 그룹화 (대기, 진행 vs 완료, 이슈, 취소)
-        const aGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(a.status)
+        const aGroup = ["COMPLETE", "ISSUE", "CANCEL"].includes(a.status)
           ? 1
           : 0;
-        const bGroup = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(b.status)
+        const bGroup = ["COMPLETE", "ISSUE", "CANCEL"].includes(b.status)
           ? 1
           : 0;
 
@@ -214,7 +209,7 @@ const DashboardTable = ({
 
       // 컬럼별 정렬 로직
       switch (columnKey) {
-        case 'order_no':
+        case "order_no":
           // 숫자형 주문번호 정렬
           result = String(a.order_no).localeCompare(
             String(b.order_no),
@@ -225,14 +220,14 @@ const DashboardTable = ({
           );
           break;
 
-        case 'eta':
+        case "eta":
           // 날짜 정렬
           const etaA = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
           const etaB = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
           result = etaA - etaB;
           break;
 
-        case 'create_time':
+        case "create_time":
           // 생성 시간 정렬
           const createTimeA = a.create_time
             ? new Date(a.create_time)
@@ -243,7 +238,7 @@ const DashboardTable = ({
           result = createTimeA - createTimeB;
           break;
 
-        case 'status':
+        case "status":
           // 상태 정렬 (WAITING, IN_PROGRESS, COMPLETE, ISSUE, CANCEL 순)
           const statusOrder = {
             WAITING: 1,
@@ -256,22 +251,22 @@ const DashboardTable = ({
             (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
           break;
 
-        case 'type':
+        case "type":
           // 종류 정렬
-          result = (a.type || '').localeCompare(b.type || '');
+          result = (a.type || "").localeCompare(b.type || "");
           break;
 
-        case 'department':
+        case "department":
           // 부서 정렬
-          result = (a.department || '').localeCompare(b.department || '');
+          result = (a.department || "").localeCompare(b.department || "");
           break;
 
-        case 'warehouse':
+        case "warehouse":
           // 출발허브 정렬
-          result = (a.warehouse || '').localeCompare(b.warehouse || '');
+          result = (a.warehouse || "").localeCompare(b.warehouse || "");
           break;
 
-        case 'version':
+        case "version":
           // 버전 정렬 (숫자)
           result = (a.version || 0) - (b.version || 0);
           break;
@@ -284,7 +279,7 @@ const DashboardTable = ({
       }
 
       // 정렬 방향 적용
-      return order === 'descend' ? -result : result;
+      return order === "descend" ? -result : result;
     });
   }, []);
 
@@ -293,20 +288,19 @@ const DashboardTable = ({
    */
   const handleTableChange = useCallback(
     (pagination, filters, sorter) => {
-      logger.debug('테이블 정렬 변경:', sorter);
+      logger.debug("테이블 정렬 변경:", sorter);
       setSortedInfo(sorter);
     },
     [logger]
   );
 
   /**
-   * 행 선택 핸들러 - 메모이제이션 적용
+   * 행 선택 핸들러
    */
   const rowSelection = useMemo(() => {
     return {
       selectedRowKeys: selectedRows.map((row) => row.dashboard_id),
       onChange: (selectedRowKeys, selectedTableRows) => {
-        // 선택된 행의 모든 데이터 (객체) 전달
         onSelectRows(selectedTableRows);
       },
       getCheckboxProps: (record) => ({
@@ -316,7 +310,7 @@ const DashboardTable = ({
   }, [selectedRows, onSelectRows]);
 
   /**
-   * 로컬 필터 변경 핸들러 - 메모이제이션 적용
+   * 로컬 필터 변경 핸들러
    */
   const handleLocalTypeFilterChange = useCallback(
     (value) => {
@@ -358,13 +352,13 @@ const DashboardTable = ({
     setLocalTypeFilter(null);
     setLocalDepartmentFilter(null);
     setLocalWarehouseFilter(null);
-    setSearchInput('');
-    setLocalOrderNoSearch('');
+    setSearchInput("");
+    setLocalOrderNoSearch("");
     onResetFilters();
   }, [onResetFilters]);
 
   /**
-   * 행 클릭 핸들러 - 메모이제이션 적용
+   * 행 클릭 핸들러
    */
   const onRowHandler = useCallback(
     (record) => {
@@ -379,12 +373,12 @@ const DashboardTable = ({
   );
 
   /**
-   * 필터 영역 렌더링 - 메모이제이션 적용
+   * 필터 영역 렌더링
    */
   const renderFilterArea = useMemo(() => {
     return (
       <div className="dashboard-filters">
-        <Space size="middle" style={{ width: '100%', flexWrap: 'wrap' }}>
+        <Space size="middle" style={{ width: "100%", flexWrap: "wrap" }}>
           {/* 종류 필터 */}
           <Select
             placeholder="종류"
@@ -475,105 +469,105 @@ const DashboardTable = ({
   ]);
 
   /**
-   * 테이블 컬럼 정의 - 메모이제이션 적용
+   * 테이블 컬럼 정의
    */
   const columns = useMemo(() => {
     // 기본 컬럼 정의
     const baseColumns = [
       {
-        title: '종류',
-        dataIndex: 'type',
-        key: 'type',
+        title: "종류",
+        dataIndex: "type",
+        key: "type",
         width: 70,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'type' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "type" && sortedInfo.order,
         render: (type) => (
           <span className={`type-column-${type?.toLowerCase()}`}>
-            {TYPE_TEXTS[type] || type || '-'}
+            {TYPE_TEXTS[type] || type || "-"}
           </span>
         ),
       },
       {
-        title: '주문번호',
-        dataIndex: 'order_no',
-        key: 'order_no',
+        title: "주문번호",
+        dataIndex: "order_no",
+        key: "order_no",
         width: 120,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'order_no' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "order_no" && sortedInfo.order,
       },
       {
-        title: '부서',
-        dataIndex: 'department',
-        key: 'department',
+        title: "부서",
+        dataIndex: "department",
+        key: "department",
         width: 100,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'department' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "department" && sortedInfo.order,
         render: (department) =>
-          DEPARTMENT_TEXTS[department] || department || '-',
+          DEPARTMENT_TEXTS[department] || department || "-",
       },
       {
-        title: '출발허브',
-        dataIndex: 'warehouse',
-        key: 'warehouse',
+        title: "출발허브",
+        dataIndex: "warehouse",
+        key: "warehouse",
         width: 100,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'warehouse' && sortedInfo.order,
-        render: (warehouse) => WAREHOUSE_TEXTS[warehouse] || warehouse || '-',
+        sortOrder: sortedInfo.columnKey === "warehouse" && sortedInfo.order,
+        render: (warehouse) => WAREHOUSE_TEXTS[warehouse] || warehouse || "-",
       },
       {
-        title: '상태',
-        dataIndex: 'status',
-        key: 'status',
+        title: "상태",
+        dataIndex: "status",
+        key: "status",
         width: 80,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'status' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "status" && sortedInfo.order,
         render: (status) => (
           <Tag color={STATUS_COLORS[status]} className="status-tag">
-            {STATUS_TEXTS[status] || status || '-'}
+            {STATUS_TEXTS[status] || status || "-"}
           </Tag>
         ),
       },
       {
-        title: 'ETA',
-        dataIndex: 'eta',
-        key: 'eta',
+        title: "ETA",
+        dataIndex: "eta",
+        key: "eta",
         width: 150,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'eta' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "eta" && sortedInfo.order,
         render: (eta) => formatDateTime(eta),
       },
       {
-        title: '접수시각',
-        dataIndex: 'create_time',
-        key: 'create_time',
+        title: "접수시각",
+        dataIndex: "create_time",
+        key: "create_time",
         width: 150,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'create_time' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "create_time" && sortedInfo.order,
         render: (create_time) => formatDateTime(create_time),
       },
       {
-        title: 'SLA',
-        dataIndex: 'sla',
-        key: 'sla',
+        title: "SLA",
+        dataIndex: "sla",
+        key: "sla",
         width: 80,
       },
       {
-        title: '수령인',
-        dataIndex: 'customer',
-        key: 'customer',
+        title: "수령인",
+        dataIndex: "customer",
+        key: "customer",
         width: 120,
       },
       {
-        title: '연락처',
-        dataIndex: 'contact',
-        key: 'contact',
+        title: "연락처",
+        dataIndex: "contact",
+        key: "contact",
         width: 130,
-        render: (contact) => formatPhoneNumber(contact) || '-',
+        render: (contact) => formatPhoneNumber(contact) || "-",
       },
       {
-        title: '배송담당',
-        dataIndex: 'driver_name',
-        key: 'driver_name',
+        title: "배송담당",
+        dataIndex: "driver_name",
+        key: "driver_name",
         width: 100,
         render: (driver_name) =>
           driver_name ? (
@@ -582,15 +576,15 @@ const DashboardTable = ({
               {driver_name}
             </span>
           ) : (
-            <span style={{ color: '#d9d9d9' }}>미배차</span>
+            <span style={{ color: "#d9d9d9" }}>미배차</span>
           ),
       },
       {
-        title: '배송연락처',
-        dataIndex: 'driver_contact',
-        key: 'driver_contact',
+        title: "배송연락처",
+        dataIndex: "driver_contact",
+        key: "driver_contact",
         width: 130,
-        render: (driver_contact) => formatPhoneNumber(driver_contact) || '-',
+        render: (driver_contact) => formatPhoneNumber(driver_contact) || "-",
       },
     ];
 
@@ -604,11 +598,11 @@ const DashboardTable = ({
             </span>
           </Tooltip>
         ),
-        dataIndex: 'version',
-        key: 'version',
+        dataIndex: "version",
+        key: "version",
         width: 70,
         sorter: true,
-        sortOrder: sortedInfo.columnKey === 'version' && sortedInfo.order,
+        sortOrder: sortedInfo.columnKey === "version" && sortedInfo.order,
       });
     }
 
@@ -618,8 +612,6 @@ const DashboardTable = ({
   /**
    * 행 클래스 이름 생성 함수
    * 상태별 배경색 적용을 위해 사용
-   * @param {Object} record - 행 데이터
-   * @returns {string} 클래스 이름
    */
   const getRowClassName = useCallback((record) => {
     return `ant-table-row-${record.status?.toLowerCase()}`;
@@ -628,7 +620,7 @@ const DashboardTable = ({
   return (
     <div
       className={`dashboard-table-container ${
-        isAdminPage ? 'admin-table' : ''
+        isAdminPage ? "admin-table" : ""
       }`}
     >
       {/* 필터 영역 */}
@@ -653,7 +645,7 @@ const DashboardTable = ({
           showTotal: (total) => `총 ${total}건`,
         }}
         size="middle"
-        scroll={{ x: 'max-content' }}
+        scroll={{ x: "max-content" }}
       />
     </div>
   );
