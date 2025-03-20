@@ -1,15 +1,12 @@
-// src/services/VisualizationService.js - 리팩토링 버전
+// src/services/VisualizationService.js
 import axios from 'axios';
 import message from '../utils/message';
 import { MessageKeys } from '../utils/message';
 import { useLogger } from '../utils/LogUtils';
 
 /**
- * 시각화 서비스 클래스 (백엔드 API 명세 기반 리팩토링)
- * - 백엔드 API 엔드포인트 정확히 매핑
- * - 응답 데이터 구조 그대로 활용하여 불필요한 변환 제거
- * - 에러 처리 및 메시지 표시 개선
- * - 기본 데이터 구조 강화
+ * 시각화 데이터 관리 서비스 클래스
+ * 백엔드 API 응답 구조와 일치하는 데이터 처리 로직 제공
  */
 class VisualizationService {
   constructor() {
@@ -19,6 +16,7 @@ class VisualizationService {
   /**
    * 배송 현황 데이터 조회 (create_time 기준)
    * GET /visualization/delivery_status
+   *
    * @param {string} startDate - 시작 날짜 (YYYY-MM-DD)
    * @param {string} endDate - 종료 날짜 (YYYY-MM-DD)
    * @returns {Promise<Object>} - 배송 현황 데이터
@@ -61,6 +59,8 @@ class VisualizationService {
         // 데이터가 비어있는지 확인
         if (!responseData.data.total_count) {
           message.info('조회된 데이터가 없습니다', key);
+        } else {
+          message.success('데이터를 조회했습니다', key);
         }
 
         return responseData;
@@ -84,6 +84,11 @@ class VisualizationService {
         this.logger.error('API 에러 응답:', error.response.data);
       }
 
+      message.error(
+        '데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        key
+      );
+
       return {
         success: false,
         message: '데이터 조회 중 오류가 발생했습니다',
@@ -96,6 +101,7 @@ class VisualizationService {
   /**
    * 시간대별 접수량 데이터 조회 (create_time 기준)
    * GET /visualization/hourly_orders
+   *
    * @param {string} startDate - 시작 날짜 (YYYY-MM-DD)
    * @param {string} endDate - 종료 날짜 (YYYY-MM-DD)
    * @returns {Promise<Object>} - 시간대별 접수량 데이터
@@ -159,6 +165,8 @@ class VisualizationService {
         // 데이터가 비어있는지 확인
         if (!data.total_count) {
           message.info('조회된 데이터가 없습니다', key);
+        } else {
+          message.success('데이터를 조회했습니다', key);
         }
 
         return responseData;
@@ -182,6 +190,11 @@ class VisualizationService {
         this.logger.error('API 에러 응답:', error.response.data);
       }
 
+      message.error(
+        '데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        key
+      );
+
       return {
         success: false,
         message: '데이터 조회 중 오류가 발생했습니다',
@@ -194,6 +207,7 @@ class VisualizationService {
   /**
    * 조회 가능한 날짜 범위 조회 API
    * GET /visualization/date_range
+   *
    * @returns {Promise<Object>} - 날짜 범위 정보
    */
   async getDateRange() {
@@ -235,6 +249,7 @@ class VisualizationService {
   /**
    * 빈 배송 현황 데이터 생성 (오류 발생 시 제공)
    * 백엔드 API 응답 구조에 맞게 구성
+   *
    * @returns {Object} - 빈 배송 현황 데이터
    * @private
    */
@@ -262,6 +277,7 @@ class VisualizationService {
   /**
    * 빈 시간대별 접수량 데이터 생성 (오류 발생 시 제공)
    * 백엔드 API 응답 구조에 맞게 구성
+   *
    * @returns {Object} - 빈 시간대별 접수량 데이터
    * @private
    */
@@ -290,6 +306,7 @@ class VisualizationService {
 
   /**
    * 기본 시간대 슬롯 생성 (백엔드 API 응답 처리 실패 시 사용)
+   *
    * @returns {Array} 기본 시간대 슬롯 배열
    * @private
    */
@@ -319,6 +336,7 @@ class VisualizationService {
 
   /**
    * 기본 날짜 범위 생성
+   *
    * @returns {Object} 기본 날짜 범위
    * @private
    */

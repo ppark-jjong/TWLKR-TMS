@@ -1,11 +1,12 @@
-// src/services/LockService.js - 개선된 버전
+// src/services/LockService.js
 import axios from 'axios';
 import message from '../utils/message';
+import { MessageKeys } from '../utils/message';
 import { useLogger } from '../utils/LogUtils';
 
 /**
- * 락(Lock) 관리 서비스
- * 편집, 상태 변경 등의 작업 시 락 획득/해제를 관리
+ * 비관적 락(Pessimistic Lock) 관리 서비스
+ * 백엔드 API와의 일치성 확보 및 중앙 집중형 락 관리 로직 제공
  */
 class LockService {
   constructor() {
@@ -22,13 +23,13 @@ class LockService {
     try {
       this.logger.info(`락 획득 요청: id=${dashboardId}, type=${lockType}`);
 
+      // 백엔드 API 명세에 맞는 엔드포인트 호출
       const response = await axios.post(`/dashboard/${dashboardId}/lock`, {
         lock_type: lockType,
       });
 
       if (response.data && response.data.success) {
         this.logger.info('락 획득 성공:', response.data.data);
-        message.success('편집 모드가 활성화되었습니다');
         return response.data.data;
       } else {
         throw new Error(response.data?.message || '락 획득에 실패했습니다');
@@ -38,17 +39,22 @@ class LockService {
 
       // 이미 락이 걸려있는 경우 (423 Locked)
       if (error.response?.status === 423) {
-        const detail = error.response.data?.error?.detail || {};
+        const errorData = error.response.data;
+        const detail = errorData?.error?.detail || errorData?.detail || {};
         const lockedBy = detail.locked_by || '다른 사용자';
         const lockType = detail.lock_type || '';
 
         message.error(
           `현재 ${lockedBy}님이 이 데이터를 ${this._getLockTypeText(
             lockType
-          )} 중입니다. 잠시 후 다시 시도해주세요.`
+          )} 중입니다. 잠시 후 다시 시도해주세요.`,
+          MessageKeys.DASHBOARD.LOCK_ACQUIRE
         );
       } else {
-        message.error('편집 모드 활성화에 실패했습니다');
+        message.error(
+          '락 획득에 실패했습니다',
+          MessageKeys.DASHBOARD.LOCK_ACQUIRE
+        );
       }
 
       throw error;
@@ -99,6 +105,45 @@ class LockService {
     } catch (error) {
       this.logger.error('락 상태 확인 실패:', error);
       return { is_locked: false };
+    }
+  }
+
+  /**
+   * 락 갱신 요청 (만료 시간 연장)
+   * 백엔드 API가 지원하는 경우 사용 가능
+   * @param {number} dashboardId - 대시보드 ID
+   * @returns {Promise<Object>} - 갱신된 락 정보
+   */
+  async renewLock(dashboardId) {
+    try {
+      this.logger.info(`락 갱신 요청: id=${dashboardId}`);
+
+      // 갱신 API가 없는 경우 대체 로직 (락 해제 후 재획득)
+      // 실제 구현시 백엔드 API 명세에 맞게 수정 필요
+      const currentLock = await this.checkLockStatus(dashboardId);
+
+      if (!currentLock || !currentLock.is_locked) {
+        this.logger.warn('갱신할 락이 없습니다');
+        return null;
+      }
+
+      // 갱신 엔드포인트가 있다면 아래와 같이 구현
+      // const response = await axios.put(`/dashboard/${dashboardId}/lock`, {
+      //   lock_type: currentLock.lock_type
+      // });
+
+      // 대체 구현: 락 해제 후 재획득
+      await this.releaseLock(dashboardId);
+      const renewedLock = await this.acquireLock(
+        dashboardId,
+        currentLock.lock_type
+      );
+
+      this.logger.info('락 갱신 성공');
+      return renewedLock;
+    } catch (error) {
+      this.logger.error('락 갱신 실패:', error);
+      throw error;
     }
   }
 

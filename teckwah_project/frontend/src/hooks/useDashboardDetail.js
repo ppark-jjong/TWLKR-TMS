@@ -43,6 +43,7 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
   // 요청 상태 추적
   const requestInProgress = useRef(false);
   const lockCheckIntervalRef = useRef(null);
+  const lockRenewIntervalRef = useRef(null);
 
   /**
    * 대시보드 상세 정보 조회
@@ -122,6 +123,34 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
   }, [dashboardId, logger]);
 
   /**
+   * 락 갱신 설정
+   * 락 만료를 방지하기 위한 주기적 갱신 처리
+   */
+  const setupLockRenewInterval = useCallback(() => {
+    // 기존 인터벌이 있으면 제거
+    if (lockRenewIntervalRef.current) {
+      clearInterval(lockRenewIntervalRef.current);
+    }
+
+    // 2분마다 락 갱신
+    lockRenewIntervalRef.current = setInterval(async () => {
+      try {
+        if (dashboardId && (editMode.fields || editMode.remark)) {
+          logger.debug('락 갱신 시도');
+          await LockService.renewLock(dashboardId);
+          logger.debug('락 갱신 성공');
+        }
+      } catch (err) {
+        logger.error('락 갱신 실패:', err);
+        // 갱신 실패 시 알림
+        message.warning(
+          '편집 세션 갱신에 실패했습니다. 변경 사항을 저장하거나 편집을 취소하세요.'
+        );
+      }
+    }, 2 * 60 * 1000); // 2분 간격
+  }, [dashboardId, editMode, logger]);
+
+  /**
    * 필드 편집 모드 시작
    * @returns {Promise<boolean>} - 락 획득 성공 여부
    */
@@ -152,9 +181,10 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
 
       // 다른 사용자가 락을 소유한 경우 (423 Locked)
       if (err.response?.status === 423) {
-        const lockedBy =
-          err.response.data?.error?.detail?.locked_by || '다른 사용자';
-        const lockType = err.response.data?.error?.detail?.lock_type || '';
+        const errorData = err.response.data;
+        const detail = errorData?.error?.detail || errorData?.detail || {};
+        const lockedBy = detail.locked_by || '다른 사용자';
+        const lockType = detail.lock_type || '';
 
         message.error(
           `현재 ${lockedBy}님이 이 데이터를 ${getLockTypeText(
@@ -169,7 +199,7 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
     } finally {
       setLockLoading(false);
     }
-  }, [dashboardId, editMode, logger]);
+  }, [dashboardId, editMode, logger, setupLockRenewInterval]);
 
   /**
    * 메모 편집 모드 시작
@@ -202,9 +232,10 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
 
       // 다른 사용자가 락을 소유한 경우 (423 Locked)
       if (err.response?.status === 423) {
-        const lockedBy =
-          err.response.data?.error?.detail?.locked_by || '다른 사용자';
-        const lockType = err.response.data?.error?.detail?.lock_type || '';
+        const errorData = err.response.data;
+        const detail = errorData?.error?.detail || errorData?.detail || {};
+        const lockedBy = detail.locked_by || '다른 사용자';
+        const lockType = detail.lock_type || '';
 
         message.error(
           `현재 ${lockedBy}님이 이 데이터를 ${getLockTypeText(
@@ -219,7 +250,7 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
     } finally {
       setLockLoading(false);
     }
-  }, [dashboardId, editMode, logger]);
+  }, [dashboardId, editMode, logger, setupLockRenewInterval]);
 
   /**
    * 필드 업데이트
@@ -281,7 +312,7 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
         setLoading(false);
       }
     },
-    [dashboardId, editMode.fields, logger, onSuccess, onError]
+    [dashboardId, editMode.fields, logger, onSuccess, onError, releaseLock]
   );
 
   /**
@@ -354,6 +385,7 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
     logger,
     onSuccess,
     onError,
+    releaseLock,
   ]);
 
   /**
@@ -371,9 +403,9 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
       setLockInfo(null);
 
       // 락 갱신 인터벌 정리
-      if (lockCheckIntervalRef.current) {
-        clearInterval(lockCheckIntervalRef.current);
-        lockCheckIntervalRef.current = null;
+      if (lockRenewIntervalRef.current) {
+        clearInterval(lockRenewIntervalRef.current);
+        lockRenewIntervalRef.current = null;
       }
 
       return result;
@@ -450,33 +482,6 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
   );
 
   /**
-   * 락 갱신 인터벌 설정
-   */
-  const setupLockRenewInterval = useCallback(() => {
-    // 기존 인터벌 정리
-    if (lockCheckIntervalRef.current) {
-      clearInterval(lockCheckIntervalRef.current);
-    }
-
-    // 2분마다 락 갱신
-    lockCheckIntervalRef.current = setInterval(async () => {
-      if (dashboardId && (editMode.fields || editMode.remark)) {
-        try {
-          await LockService.renewLock(dashboardId);
-          logger.debug('락 갱신 성공');
-        } catch (err) {
-          logger.error('락 갱신 실패:', err);
-
-          // 갱신 실패 시 알림
-          message.warning(
-            '편집 세션 갱신에 실패했습니다. 변경 사항을 저장하거나 편집을 취소하세요.'
-          );
-        }
-      }
-    }, 2 * 60 * 1000); // 2분 간격
-  }, [dashboardId, editMode, logger]);
-
-  /**
    * 락 타입에 따른 표시 텍스트 반환
    */
   const getLockTypeText = useCallback((lockType) => {
@@ -518,6 +523,10 @@ const useDashboardDetail = ({ dashboardId, onSuccess, onError }) => {
       // 인터벌 정리
       if (lockCheckIntervalRef.current) {
         clearInterval(lockCheckIntervalRef.current);
+      }
+
+      if (lockRenewIntervalRef.current) {
+        clearInterval(lockRenewIntervalRef.current);
       }
     };
   }, [dashboardId, editMode, releaseLock, logger]);

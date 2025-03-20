@@ -3,6 +3,7 @@ import re
 import time
 import pytz
 from datetime import datetime, timezone, timedelta
+
 from typing import List, Tuple, Optional, Dict, Any
 from fastapi import HTTPException, status
 from app.repositories.dashboard_repository import DashboardRepository
@@ -16,6 +17,7 @@ from app.schemas.dashboard_schema import (
     FieldsUpdate,
 )
 from app.utils.datetime_helper import KST, get_date_range_from_datetime
+from app.utils.transaction import transaction, transactional
 from app.utils.constants import (
     MESSAGES,
     STATUS_TEXT_MAP,
@@ -108,10 +110,11 @@ class DashboardService:
             log_error(e, "날짜 범위 조회 실패")
             now = datetime.now(self.kr_timezone)
             return now - timedelta(days=30), now
-
+  
+    @transactional
     def create_dashboard(
-    self, dashboard_data: DashboardCreate, department: str, user_id: Optional[str] = None
-) -> DashboardDetail:
+        self, dashboard_data: DashboardCreate, department: str, user_id: Optional[str] = None
+    ) -> DashboardDetail:
         """대시보드 생성 (빈 메모 자동 생성)"""
         try:
             # Pydantic 모델을 딕셔너리로 변환
@@ -152,6 +155,7 @@ class DashboardService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="대시보드 생성 중 오류가 발생했습니다",
             )
+  
     def update_dashboard_fields(
         self, 
         dashboard_id: int, 
@@ -244,13 +248,13 @@ class DashboardService:
             )
 
     def update_status(
-        self,
-        dashboard_id: int,
-        status: str,
-        user_id: str,
-        client_version: Optional[int] = None,  # 클라이언트 버전 파라미터는 호환성을 위해 유지
-        is_admin: bool = False,
-    ) -> DashboardDetail:
+    self, 
+    dashboard_id: int, 
+    status: str, 
+    user_id: str,
+    client_version: Optional[int] = None,
+    is_admin: bool = False,
+) -> DashboardDetail:
         """상태 업데이트 (비관적 락 적용)"""
         try:
             # 상태 유효성 검증
@@ -267,10 +271,7 @@ class DashboardService:
             try:
                 lock = self.lock_repository.acquire_lock(dashboard_id, user_id, "STATUS")
                 if not lock:
-                    raise HTTPException(
-                        status_code=status.HTTP_423_LOCKED,
-                        detail="현재 다른 사용자가 상태 변경 중입니다",
-                    )
+                    raise PessimisticLockException("다른 사용자가 수정 중입니다")
             except PessimisticLockException as e:
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
@@ -278,91 +279,95 @@ class DashboardService:
                 )
 
             try:
-                # FOR UPDATE 락 획득 (데이터베이스 레벨 잠금)
-                dashboard = self.repository.acquire_lock_for_update(dashboard_id)
-                if not dashboard:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="대시보드를 찾을 수 없습니다",
-                    )
-                
-                # 관리자가 아닐 경우, 상태 변경 규칙 검증
-                if not is_admin:
-                    # 배차 정보 확인
-                    if not dashboard.driver_name or not dashboard.driver_contact:
+                # 컨텍스트 매니저를 사용한 트랜잭션 관리
+                with transaction(self.repository.db) as session:
+                    # FOR UPDATE 락 획득 (데이터베이스 레벨 잠금)
+                    dashboard = self.repository.acquire_lock_for_update(dashboard_id)
+                    if not dashboard:
                         raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="배차 담당자가 할당되지 않아 상태를 변경할 수 없습니다",
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="대시보드를 찾을 수 없습니다",
                         )
                     
-                    # 상태 변경 규칙 검증
-                    allowed_transitions = {
-                        "WAITING": ["IN_PROGRESS", "CANCEL"],
-                        "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
-                        "COMPLETE": [],
-                        "ISSUE": [],
-                        "CANCEL": [],
-                    }
-                    
-                    if status not in allowed_transitions.get(dashboard.status, []):
-                        status_text_map = {
-                            "WAITING": "대기",
-                            "IN_PROGRESS": "진행",
-                            "COMPLETE": "완료",
-                            "ISSUE": "이슈",
-                            "CANCEL": "취소",
+                    # 관리자가 아닐 경우, 상태 변경 규칙 검증
+                    if not is_admin:
+                        # 배차 정보 확인
+                        if not dashboard.driver_name or not dashboard.driver_contact:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="배차 담당자가 할당되지 않아 상태를 변경할 수 없습니다",
+                            )
+                        
+                        # 상태 변경 규칙 검증
+                        allowed_transitions = {
+                            "WAITING": ["IN_PROGRESS", "CANCEL"],
+                            "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
+                            "COMPLETE": [],
+                            "ISSUE": [],
+                            "CANCEL": [],
                         }
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"{status_text_map[dashboard.status]} 상태에서는 "
-                            f"{status_text_map[status]}(으)로 변경할 수 없습니다",
-                        )
-                
-                # 상태 업데이트
-                updated_dashboard = self.repository.update_dashboard_status(
-                    dashboard_id, status, current_time
-                )
-                if not updated_dashboard:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="대시보드를 찾을 수 없습니다",
+                        
+                        if status not in allowed_transitions.get(dashboard.status, []):
+                            status_text_map = {
+                                "WAITING": "대기",
+                                "IN_PROGRESS": "진행",
+                                "COMPLETE": "완료",
+                                "ISSUE": "이슈",
+                                "CANCEL": "취소",
+                            }
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"{status_text_map[dashboard.status]} 상태에서는 "
+                                f"{status_text_map[status]}(으)로 변경할 수 없습니다",
+                            )
+                    
+                    # 상태 업데이트
+                    updated_dashboard = self.repository.update_dashboard_status(
+                        dashboard_id, status, current_time
                     )
-                
-                # 변경 사항 커밋
-                self.repository.db.commit()
-                
-                # 상세 정보 반환
-                return self.get_dashboard_detail(dashboard_id)
-                
+                    if not updated_dashboard:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="대시보드를 찾을 수 없습니다",
+                        )
+                    
+                    # 상세 정보 반환을 위한 객체 조회
+                    result = self.get_dashboard_detail(dashboard_id)
+                    return result
+                    
             except Exception as e:
-                # 오류 발생 시 롤백
-                self.repository.db.rollback()
+                log_error(e, "상태 업데이트 실패", 
+                        {"dashboard_id": dashboard_id, "status": status, "user_id": user_id},
+                        {"is_admin": is_admin})
                 raise
             finally:
-                # 락 해제 (예외 발생 여부와 무관하게 실행)
+                    # 락 해제 (예외 발생 여부와 무관하게 실행)
                 try:
                     self.lock_repository.release_lock(dashboard_id, user_id)
                 except Exception as e:
-                    log_error(e, "락 해제 실패", {"id": dashboard_id})
+                    log_error(e, "락 해제 실패", {"id": dashboard_id, "user_id": user_id})
 
         except HTTPException:
-            raise
+                raise
         except Exception as e:
-            log_error(e, "상태 업데이트 실패")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="상태 업데이트 중 오류가 발생했습니다",
-            )
+                log_error(e, "상태 업데이트 실패", 
+                        {"dashboard_id": dashboard_id, "status": status},
+                        {"exception_class": e.__class__.__name__})
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="상태 업데이트 중 오류가 발생했습니다",
+                )
+        
 
     def assign_driver(
-        self, 
-        assignment: DriverAssignment, 
-        user_id: str,
-        client_versions: Optional[Dict[int, int]] = None  # 클라이언트 버전 딕셔너리는 호환성을 위해 유지
-    ) -> List[DashboardResponse]:
+    self, 
+    assignment: DriverAssignment, 
+    user_id: str,
+    client_versions: Optional[Dict[int, int]] = None
+) -> List[DashboardResponse]:
         """배차 처리 (비관적 락 적용)"""
         try:
-            log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids})
+            log_info("배차 처리 시작", {"dashboard_ids": assignment.dashboard_ids, "user_id": user_id})
 
             # 연락처 형식 검증
             if not bool(
@@ -388,30 +393,28 @@ class DashboardService:
                         detail=f"일부 대시보드({missing_ids})에 대한 락 획득에 실패했습니다. 다른 사용자가 수정 중입니다.",
                     )
                 
-                # 2. 데이터베이스 레벨 락 획득
-                locked_dashboards = self.repository.acquire_locks_for_update(assignment.dashboard_ids)
-                
-                # 3. 배차 정보 업데이트
-                updated_dashboards = self.repository.assign_driver(
-                    assignment.dashboard_ids,
-                    assignment.driver_name,
-                    assignment.driver_contact
-                )
-                
-                if len(updated_dashboards) != len(assignment.dashboard_ids):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="일부 대시보드를 찾을 수 없습니다",
+                # 컨텍스트 매니저를 사용한 트랜잭션 관리
+                with transaction(self.repository.db) as session:
+                    # 2. 데이터베이스 레벨 락 획득
+                    locked_dashboards = self.repository.acquire_locks_for_update(assignment.dashboard_ids)
+                    
+                    # 3. 배차 정보 업데이트
+                    updated_dashboards = self.repository.assign_driver(
+                        assignment.dashboard_ids,
+                        assignment.driver_name,
+                        assignment.driver_contact
                     )
-                
-                # 4. 변경 사항 커밋
-                self.repository.db.commit()
-                
-                return [DashboardResponse.model_validate(d) for d in updated_dashboards]
-                
+                    
+                    if len(updated_dashboards) != len(assignment.dashboard_ids):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="일부 대시보드를 찾을 수 없습니다",
+                        )
+                    
+                    return [DashboardResponse.model_validate(d) for d in updated_dashboards]
+                    
             except Exception as e:
-                # 오류 발생 시 롤백
-                self.repository.db.rollback()
+                log_error(e, "배차 처리 실패", {"dashboard_ids": assignment.dashboard_ids})
                 raise
             finally:
                 # 모든 락 해제 
@@ -419,16 +422,17 @@ class DashboardService:
                     try:
                         self.lock_repository.release_lock(dashboard_id, user_id)
                     except Exception as e:
-                        log_error(e, "락 해제 실패", {"id": dashboard_id})
+                        log_error(e, "락 해제 실패", {"id": dashboard_id, "user_id": user_id})
 
         except HTTPException:
             raise
         except Exception as e:
-            log_error(e, "배차 처리 실패")
+            log_error(e, "배차 처리 실패", {"assignment": assignment.model_dump()})
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=MESSAGES["DASHBOARD"]["ASSIGN_ERROR"],
+                detail="배차 처리 중 오류가 발생했습니다",
             )
+
 
     def delete_dashboards(self, dashboard_ids: List[int]) -> int:
         """대시보드 삭제 (관리자 전용)"""

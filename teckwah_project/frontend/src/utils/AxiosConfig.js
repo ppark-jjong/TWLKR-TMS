@@ -1,8 +1,9 @@
-// frontend/src/utils/AxiosConfig.js
-
+// src/utils/AxiosConfig.js
 import axios from 'axios';
 import AuthService from '../services/AuthService';
-import message from '../utils/message';
+import message from './message';
+import { MessageKeys } from './message';
+import TokenManager from './TokenManager';
 import { useLogger } from './LogUtils';
 
 // 로거 초기화
@@ -14,7 +15,7 @@ let isRefreshing = false;
 // 토큰 갱신 대기 중인 요청 큐
 let refreshQueue = [];
 
-// 진행 중인 요청을 저장할 Map
+// 진행 중인 요청을 저장할 Map (중복 요청 방지)
 const pendingRequests = new Map();
 
 // 요청 식별자 생성 함수
@@ -28,13 +29,18 @@ axios.defaults.baseURL = ''; // 동일 도메인 사용
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 axios.defaults.timeout = 30000; // 30초 타임아웃
 
-// 요청 인터셉터
+/**
+ * 요청 인터셉터 설정
+ * - JWT 토큰 자동 포함
+ * - 중복 요청 방지
+ * - 요청 로깅
+ */
 axios.interceptors.request.use(
   (config) => {
     logger.debug(`API 요청: ${config.method?.toUpperCase()} ${config.url}`);
 
     // JWT 토큰 설정
-    const token = localStorage.getItem('access_token');
+    const token = TokenManager.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -64,7 +70,13 @@ axios.interceptors.request.use(
   }
 );
 
-// 응답 인터셉터
+/**
+ * 응답 인터셉터 설정
+ * - 성공 응답 구조 표준화
+ * - 토큰 만료 처리 및 자동 갱신
+ * - 오류 처리 패턴 표준화
+ * - 락(Lock) 충돌 처리
+ */
 axios.interceptors.response.use(
   (response) => {
     logger.debug(`API 응답: ${response.config.url} - 상태: ${response.status}`);
@@ -77,10 +89,27 @@ axios.interceptors.response.use(
       const requestKey = getRequestKey(response.config);
       pendingRequests.delete(requestKey);
     }
+
+    // 백엔드 API 응답 구조 검증 및 표준화 ({success, message, data})
+    if (response.data && typeof response.data === 'object') {
+      // 이미 표준 구조인 경우 그대로 반환
+      if ('success' in response.data) {
+        return response;
+      }
+
+      // 표준 구조가 아닌 경우 변환 (레거시 API 호환)
+      logger.warn('비표준 API 응답 구조:', response.config.url);
+      response.data = {
+        success: true,
+        message: '데이터를 조회했습니다',
+        data: response.data,
+      };
+    }
+
     return response;
   },
   async (error) => {
-    // 요청 취소 에러 처리
+    // 요청 취소 에러 처리 (중복 요청 등)
     if (axios.isCancel(error)) {
       logger.info('요청이 취소되었습니다:', error.message);
       return Promise.reject(error);
@@ -96,93 +125,297 @@ axios.interceptors.response.use(
       pendingRequests.delete(requestKey);
     }
 
-    // 토큰 만료 오류 (401) 처리
-    if (error.response && error.response.status === 401) {
-      const originalRequest = error.config;
-      const refreshToken = localStorage.getItem('refresh_token');
+    // 응답이 없는 경우 (네트워크 오류)
+    if (!error.response) {
+      logger.error('네트워크 오류 발생:', error.message);
+      message.error(
+        '서버와 통신할 수 없습니다. 네트워크 연결을 확인해주세요.',
+        MessageKeys.ERROR.NETWORK
+      );
+      return Promise.reject(error);
+    }
 
-      // 리프레시 토큰이 없는 경우
-      if (!refreshToken) {
-        logger.warn('리프레시 토큰 없음: 로그인 페이지로 이동');
-        AuthService.clearAuthData();
-        message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
+    // HTTP 상태 코드별 처리
+    const status = error.response.status;
+    const errorData = error.response.data;
+    const originalRequest = error.config;
 
-      // 이미 토큰 갱신 중인 경우 갱신 완료 후 원래 요청 재시도
-      if (isRefreshing) {
-        try {
-          logger.debug('이미 토큰 갱신 중: 갱신 완료 대기');
-          // 갱신 완료를 기다리는 새 프로미스 생성
-          return new Promise((resolve) => {
-            refreshQueue.push((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              resolve(axios(originalRequest));
+    logger.debug(`오류 응답: ${status} - ${originalRequest.url}`, errorData);
+
+    switch (status) {
+      // 401 Unauthorized: 인증 오류, 토큰 만료
+      case 401: {
+        // 로그인 요청 자체가 실패한 경우는 별도 처리
+        if (originalRequest.url.includes('/auth/login')) {
+          return Promise.reject(error);
+        }
+
+        // 리프레시 토큰 시도 자체가 실패한 경우 로그인 페이지로 이동
+        if (originalRequest.url.includes('/auth/refresh')) {
+          logger.warn('토큰 갱신 실패 - 로그인 필요');
+          AuthService.clearAuthData();
+          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+
+        const refreshToken = TokenManager.getRefreshToken();
+
+        // 리프레시 토큰이 없는 경우
+        if (!refreshToken) {
+          logger.warn('리프레시 토큰 없음: 로그인 페이지로 이동');
+          AuthService.clearAuthData();
+          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+
+        // 이미 토큰 갱신 중인 경우 갱신 완료 후 원래 요청 재시도
+        if (isRefreshing) {
+          try {
+            logger.debug('이미 토큰 갱신 중: 갱신 완료 대기');
+            // 갱신 완료를 기다리는 새 프로미스 생성
+            return new Promise((resolve) => {
+              refreshQueue.push((token) => {
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+                resolve(axios(originalRequest));
+              });
             });
-          });
-        } catch (e) {
-          logger.error('토큰 갱신 대기 중 오류:', e);
+          } catch (e) {
+            logger.error('토큰 갱신 대기 중 오류:', e);
+            return Promise.reject(error);
+          }
+        }
+
+        // 토큰 갱신 중이 아닌 경우에만 갱신 요청
+        isRefreshing = true;
+        logger.debug('토큰 갱신 시작');
+
+        try {
+          // 토큰 갱신 요청
+          const response = await AuthService.refreshToken(refreshToken);
+
+          // 갱신 성공
+          if (response && response.token) {
+            logger.debug('토큰 갱신 성공');
+            const { access_token, refresh_token } = response.token;
+
+            // 토큰 저장
+            TokenManager.setAccessToken(access_token);
+            if (refresh_token) {
+              TokenManager.setRefreshToken(refresh_token);
+            }
+
+            // 원래 요청 다시 시도
+            originalRequest.headers.Authorization = `Bearer ${access_token}`;
+
+            // 대기 중인 요청 모두 재시도
+            refreshQueue.forEach((cb) => cb(access_token));
+            refreshQueue = [];
+
+            isRefreshing = false;
+            return axios(originalRequest);
+          } else {
+            logger.error('토큰 갱신 응답 형식 오류');
+            throw new Error('토큰 갱신 실패: 응답 형식 오류');
+          }
+        } catch (refreshError) {
+          // 갱신 실패
+          logger.error('토큰 갱신 실패:', refreshError);
+          isRefreshing = false;
+          AuthService.clearAuthData();
+          message.error('인증 세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
           return Promise.reject(error);
         }
       }
 
-      // 토큰 갱신 중이 아닌 경우에만 갱신 요청
-      isRefreshing = true;
-      logger.debug('토큰 갱신 시작');
+      // 403 Forbidden: 권한 없음
+      case 403: {
+        const errorMsg =
+          errorData?.message || '이 작업을 수행할 권한이 없습니다.';
+        message.error(errorMsg, MessageKeys.AUTH.PERMISSION);
+        return Promise.reject(error);
+      }
 
-      try {
-        // 토큰 갱신 요청
-        const response = await AuthService.refreshToken(refreshToken);
+      // 404 Not Found: 리소스 없음
+      case 404: {
+        const errorMsg =
+          errorData?.message || '요청한 리소스를 찾을 수 없습니다.';
+        message.error(errorMsg, MessageKeys.ERROR.NOT_FOUND);
+        return Promise.reject(error);
+      }
 
-        // 갱신 성공
-        if (response && response.token) {
-          logger.debug('토큰 갱신 성공');
-          const { access_token, refresh_token } = response.token;
-          localStorage.setItem('access_token', access_token);
-          localStorage.setItem('refresh_token', refresh_token);
+      // 409 Conflict: 낙관적 락 충돌
+      case 409: {
+        logger.warn('낙관적 락 충돌 발생', errorData);
 
-          // 원래 요청 다시 시도
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        // 충돌 관련 세부 정보 추출
+        const versionInfo = errorData?.version_info;
+        const currentVersion = versionInfo?.current_version;
+        const conflictDetail = errorData?.error?.detail || {};
+        const conflictedOrders = conflictDetail.conflicted_orders || [];
 
-          // 대기 중인 요청 모두 재시도
-          refreshQueue.forEach((cb) => cb(access_token));
-          refreshQueue = [];
+        let errorMsg = '다른 사용자가 이미 이 데이터를 수정했습니다.';
 
-          isRefreshing = false;
-          return axios(originalRequest);
-        } else {
-          logger.error('토큰 갱신 응답 형식 오류');
-          throw new Error('토큰 갱신 실패: 응답 형식 오류');
+        // 충돌한 주문 목록이 있는 경우
+        if (conflictedOrders.length > 0) {
+          errorMsg = `다음 주문(${conflictedOrders.join(
+            ', '
+          )})이 이미 다른 사용자에 의해 수정되었습니다.`;
         }
-      } catch (refreshError) {
-        // 갱신 실패
-        logger.error('토큰 갱신 실패:', refreshError);
-        isRefreshing = false;
-        AuthService.clearAuthData();
-        message.error('인증 세션이 만료되었습니다. 다시 로그인해주세요.');
-        window.location.href = '/login';
+
+        // 최신 버전 정보가 있는 경우
+        if (currentVersion) {
+          logger.debug(`현재 서버 버전: ${currentVersion}`);
+          // 에러 객체에 버전 정보와 충돌 정보 추가 (컴포넌트에서 활용)
+          error.versionInfo = { currentVersion };
+          error.conflictedOrders = conflictedOrders;
+        }
+
+        message.error(errorMsg, MessageKeys.DASHBOARD.OPTIMISTIC_LOCK);
+        return Promise.reject(error);
+      }
+
+      // 423 Locked: 비관적 락 충돌
+      case 423: {
+        logger.warn('비관적 락 충돌 발생', errorData);
+
+        // 락 정보 추출
+        const detail = errorData?.error?.detail || errorData?.detail || {};
+        const lockedBy = detail.locked_by || '다른 사용자';
+        const lockType = detail.lock_type || '';
+
+        let lockTypeText = '편집';
+        switch (lockType) {
+          case 'EDIT':
+            lockTypeText = '편집';
+            break;
+          case 'STATUS':
+            lockTypeText = '상태 변경';
+            break;
+          case 'ASSIGN':
+            lockTypeText = '배차';
+            break;
+          case 'REMARK':
+            lockTypeText = '메모 작성';
+            break;
+        }
+
+        const errorMsg = `현재 ${lockedBy}님이 이 데이터를 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`;
+
+        // 에러 객체에 락 정보 추가 (컴포넌트에서 활용)
+        error.lockInfo = {
+          lockedBy,
+          lockType,
+          lockTypeText,
+        };
+
+        message.error(errorMsg, MessageKeys.DASHBOARD.PESSIMISTIC_LOCK);
+        return Promise.reject(error);
+      }
+
+      // 400 Bad Request: 잘못된 요청
+      case 400: {
+        // 필드별 유효성 검증 오류 처리
+        const fields = errorData?.error?.fields || {};
+        const hasFieldErrors = Object.keys(fields).length > 0;
+
+        if (hasFieldErrors) {
+          // 필드 오류 정보를 에러 객체에 추가 (폼 컴포넌트에서 활용)
+          error.fieldErrors = fields;
+
+          // 첫 번째 필드 오류 메시지를 표시
+          const firstField = Object.keys(fields)[0];
+          const firstError = fields[firstField];
+          const errorMsg = Array.isArray(firstError)
+            ? firstError[0]
+            : firstError;
+
+          message.error(errorMsg, MessageKeys.VALIDATION.FIELD_ERROR);
+        } else {
+          // 일반 오류 메시지 처리
+          const errorMsg =
+            errorData?.message ||
+            errorData?.error?.detail ||
+            '요청 데이터가 올바르지 않습니다.';
+          message.error(errorMsg, MessageKeys.ERROR.BAD_REQUEST);
+        }
+
+        return Promise.reject(error);
+      }
+
+      // 500 Internal Server Error: 서버 오류
+      case 500: {
+        const errorMsg =
+          errorData?.message ||
+          '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+        message.error(errorMsg, MessageKeys.ERROR.SERVER);
+        return Promise.reject(error);
+      }
+
+      // 기타 오류
+      default: {
+        const errorMsg =
+          errorData?.message ||
+          errorData?.error?.detail ||
+          `요청 처리 중 오류가 발생했습니다 (${status}).`;
+
+        message.error(errorMsg, MessageKeys.ERROR.UNKNOWN);
         return Promise.reject(error);
       }
     }
-
-    // 다른 오류 처리
-    logger.error(
-      `API 오류: ${error.config?.url || '알 수 없음'} - ${error.message}`,
-      error.response?.data
-    );
-
-    return Promise.reject(error);
   }
 );
 
-// 모든 진행 중인 요청 취소 함수
+/**
+ * 모든 진행 중인 요청 취소 함수
+ * 페이지 이동 등의 상황에서 불필요한 요청 정리
+ */
 export const cancelAllPendingRequests = () => {
   logger.info(`진행 중인 ${pendingRequests.size}개 요청 모두 취소`);
-  pendingRequests.forEach((source) => {
+  pendingRequests.forEach((source, key) => {
     source.cancel('사용자 페이지 이탈로 인한 요청 취소');
+    logger.debug(`요청 취소: ${key}`);
   });
   pendingRequests.clear();
+};
+
+/**
+ * API 요청 재시도 유틸리티
+ * 네트워크 불안정 등으로 실패한 요청을 자동 재시도
+ *
+ * @param {Function} apiCall - API 호출 함수
+ * @param {number} maxRetries - 최대 재시도 횟수
+ * @param {number} retryDelay - 재시도 간격 (ms)
+ * @returns {Promise} - API 호출 결과
+ */
+export const withRetry = async (apiCall, maxRetries = 3, retryDelay = 1000) => {
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await apiCall();
+    } catch (error) {
+      lastError = error;
+
+      // 특정 오류는 재시도하지 않음
+      if (
+        error.response &&
+        [400, 401, 403, 404, 409, 423].includes(error.response.status)
+      ) {
+        throw error;
+      }
+
+      // 마지막 시도가 아니면 재시도
+      if (attempt < maxRetries - 1) {
+        logger.info(`API 호출 재시도 (${attempt + 1}/${maxRetries})...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      }
+    }
+  }
+
+  throw lastError;
 };
 
 export default axios;

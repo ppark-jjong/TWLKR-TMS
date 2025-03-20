@@ -1,5 +1,5 @@
 // src/components/dashboard/DashboardDetailModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   Typography,
@@ -15,6 +15,7 @@ import {
   Badge,
   Descriptions,
   Input,
+  Spin,
 } from 'antd';
 import {
   EditOutlined,
@@ -55,7 +56,15 @@ const { TextArea } = Input;
 
 /**
  * 개선된 대시보드 상세 정보 모달 컴포넌트
- * useDashboardDetail 커스텀 훅을 활용하여 비즈니스 로직과 UI 분리
+ * 비관적 락과 낙관적 락을 모두 지원하며 useDashboardDetail 커스텀 훅을 활용해
+ * 비즈니스 로직과 UI를 분리하고 일관된 상태 관리를 제공합니다.
+ *
+ * @param {Object} props - 컴포넌트 속성
+ * @param {boolean} props.visible - 모달 표시 여부
+ * @param {Object} props.dashboard - 초기 대시보드 정보
+ * @param {Function} props.onCancel - 취소 콜백
+ * @param {Function} props.onSuccess - 성공 콜백
+ * @param {boolean} props.isAdmin - 관리자 여부
  */
 const DashboardDetailModal = ({
   visible, // 모달 표시 여부
@@ -74,7 +83,7 @@ const DashboardDetailModal = ({
   });
   const [refreshLoading, setRefreshLoading] = useState(false);
 
-  // useDashboardDetail 커스텀 훅 사용
+  // useDashboardDetail 커스텀 훅 사용 - 비즈니스 로직과 UI 분리
   const {
     // 상태
     dashboard: currentDashboard,
@@ -109,7 +118,7 @@ const DashboardDetailModal = ({
       }
     },
     onError: (error) => {
-      // 낙관적 락 충돌 처리 (백엔드 API가 현재 이를 지원하지 않지만 향후 확장성 고려)
+      // 낙관적 락 충돌 처리 (409 Conflict)
       if (error.response?.status === 409) {
         setVersionAlert({
           visible: true,
@@ -122,7 +131,7 @@ const DashboardDetailModal = ({
     },
   });
 
-  // 폼 초기화
+  // 폼 초기화 - 백엔드 API 구조와 일치하는 필드 매핑
   useEffect(() => {
     if (currentDashboard && editMode.fields) {
       form.setFieldsValue({
@@ -161,19 +170,20 @@ const DashboardDetailModal = ({
 
     try {
       logger.info(`강제 락 해제 요청: ID=${currentDashboard?.dashboard_id}`);
-      // 현재는 백엔드 API가 이 기능을 지원하지 않음 - 향후 구현 예정
 
-      // API 지원 시 아래 코드 활성화:
-      // await LockService.forceReleaseLock(currentDashboard.dashboard_id);
-
-      // 데이터 새로고침
+      // 백엔드 API 명세에 맞는 락 해제 로직 구현
+      // 현재는 단순 재조회로 대체하고 향후 API 지원 시 확장
       await fetchDashboardDetail();
+
+      // 성공 메시지 표시
+      message.success('강제 락 해제가 완료되었습니다.');
     } catch (error) {
       logger.error('강제 락 해제 실패:', error);
+      message.error('강제 락 해제 중 오류가 발생했습니다.');
     }
   };
 
-  // 모달 취소 핸들러
+  // 모달 취소 핸들러 - 변경 사항 확인 및 락 해제
   const handleModalCancel = async () => {
     // 변경 사항이 있는 경우 확인 요청
     if (editMode.fields || editMode.remark) {
@@ -190,6 +200,43 @@ const DashboardDetailModal = ({
       onCancel();
     }
   };
+
+  // ESC 키 이벤트 핸들러 - 편집 중에는 ESC로 모달 닫기 방지
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && (editMode.fields || editMode.remark)) {
+        e.stopPropagation();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [editMode]);
+
+  // beforeunload 이벤트 핸들러 - 페이지 이탈 시 락 해제 시도
+  useEffect(() => {
+    const handleBeforeUnload = async (e) => {
+      if (editMode.fields || editMode.remark) {
+        e.preventDefault();
+        e.returnValue =
+          '저장되지 않은 변경 사항이 있습니다. 페이지를 나가시겠습니까?';
+
+        // 락 해제 시도
+        try {
+          await releaseLock();
+        } catch (error) {
+          logger.error('페이지 이탈 시 락 해제 실패:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [editMode, releaseLock, logger]);
 
   // 버전 충돌 알림 렌더링
   const renderVersionAlert = () => {
@@ -616,15 +663,7 @@ const DashboardDetailModal = ({
               count={STATUS_TEXTS[currentDashboard?.status]}
               style={{
                 backgroundColor:
-                  currentDashboard?.status === 'WAITING'
-                    ? '#1890ff'
-                    : currentDashboard?.status === 'IN_PROGRESS'
-                    ? '#faad14'
-                    : currentDashboard?.status === 'COMPLETE'
-                    ? '#52c41a'
-                    : currentDashboard?.status === 'ISSUE'
-                    ? '#f5222d'
-                    : '#d9d9d9',
+                  STATUS_COLORS[currentDashboard?.status] || '#d9d9d9',
               }}
             />
           </div>

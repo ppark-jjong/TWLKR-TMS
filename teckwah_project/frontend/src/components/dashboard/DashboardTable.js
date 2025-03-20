@@ -1,10 +1,10 @@
 // src/components/dashboard/DashboardTable.js
 import React, {
-  useState,
-  useEffect,
   useCallback,
-  useRef,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
 import { Table, Tag, Tooltip, Input, Select, Space, Button, Badge } from 'antd';
 // 개별 아이콘 임포트로 번들 크기 최적화
@@ -37,53 +37,58 @@ const { Option } = Select;
 
 /**
  * 대시보드 테이블 컴포넌트 (최적화 버전)
- * - 불필요한 메모이제이션 제거
- * - 필터링 로직 단순화
- * - 과도한 렌더링 최적화
- * - 백엔드 API 명세 준수
+ * - 백엔드 API 명세와 일치하는 데이터 구조 처리
+ * - 불필요한 리렌더링 제거 및 메모이제이션 적용
+ * - 비관적/낙관적 락 지원
+ * - 필터링 및 정렬 최적화
+ *
+ * @param {Object} props - 컴포넌트 속성
  */
 const DashboardTable = ({
-  dataSource = [],
-  loading = false,
-  selectedRows = [],
-  onSelectRows = () => {},
-  onRowClick = () => {},
-  onRefresh = () => {},
-  currentPage = 1,
-  pageSize = 50,
-  onPageChange = () => {},
-  isAdminPage = false,
-  // 외부 필터링 props
-  typeFilter,
-  departmentFilter,
-  warehouseFilter,
-  orderNoSearch,
-  onTypeFilterChange = () => {},
-  onDepartmentFilterChange = () => {},
-  onWarehouseFilterChange = () => {},
-  onOrderNoSearchChange = () => {},
-  onResetFilters = () => {},
-  onApplyFilters = () => {},
+  dataSource = [], // 표시할 대시보드 데이터 배열
+  loading = false, // 로딩 상태
+  selectedRows = [], // 선택된 행 배열
+  onSelectRows = () => {}, // 행 선택 콜백
+  onRowClick = () => {}, // 행 클릭 콜백
+  onRefresh = () => {}, // 새로고침 콜백
+  currentPage = 1, // 현재 페이지
+  pageSize = 50, // 페이지 크기
+  onPageChange = () => {}, // 페이지 변경 콜백
+  isAdminPage = false, // 관리자 페이지 여부
+
+  // 필터링 관련 props
+  typeFilter, // 종류 필터
+  departmentFilter, // 부서 필터
+  warehouseFilter, // 출발 허브 필터
+  orderNoSearch, // 주문번호 검색어
+  onTypeFilterChange = () => {}, // 종류 필터 변경 콜백
+  onDepartmentFilterChange = () => {}, // 부서 필터 변경 콜백
+  onWarehouseFilterChange = () => {}, // 출발 허브 필터 변경 콜백
+  onOrderNoSearchChange = () => {}, // 주문번호 검색어 변경 콜백
+  onResetFilters = () => {}, // 필터 초기화 콜백
+  onApplyFilters = () => {}, // 필터 적용 콜백
 }) => {
   const logger = useLogger('DashboardTable');
   const { isAdmin } = useAuth();
 
-  // 로컬 필터링 상태 관리 - 단순화
+  // 로컬 필터링 상태 - 동기화
   const [localTypeFilter, setLocalTypeFilter] = useState(typeFilter);
   const [localDepartmentFilter, setLocalDepartmentFilter] =
     useState(departmentFilter);
   const [localWarehouseFilter, setLocalWarehouseFilter] =
     useState(warehouseFilter);
   const [localOrderNoSearch, setLocalOrderNoSearch] = useState(orderNoSearch);
-  const [filteredData, setFilteredData] = useState([]);
   const [searchInput, setSearchInput] = useState('');
   const [showVersionColumn, setShowVersionColumn] = useState(isAdmin);
   const [sortedInfo, setSortedInfo] = useState({});
 
+  // 필터링된 데이터 상태
+  const [filteredData, setFilteredData] = useState([]);
+
   // 필터링 실행 플래그
   const isFilteringRef = useRef(false);
 
-  // 외부 props가 변경되면 로컬 상태 업데이트 - 효율화
+  // 외부 props가 변경되면 로컬 상태 업데이트
   useEffect(() => {
     setLocalTypeFilter(typeFilter);
     setLocalDepartmentFilter(departmentFilter);
@@ -91,7 +96,9 @@ const DashboardTable = ({
     setLocalOrderNoSearch(orderNoSearch);
   }, [typeFilter, departmentFilter, warehouseFilter, orderNoSearch]);
 
-  // 필터링된 데이터 계산 - 단순화
+  /**
+   * 필터링된 데이터 계산 - 백엔드 API 구조 기반
+   */
   useEffect(() => {
     // 데이터가 비어있거나 이미 필터링 중인 경우 스킵
     if (
@@ -106,10 +113,20 @@ const DashboardTable = ({
     isFilteringRef.current = true;
 
     try {
+      // 성능 측정 시작
+      const startTime = performance.now();
+      logger.debug('테이블 데이터 필터링 시작:', {
+        총건수: dataSource.length,
+        종류필터: localTypeFilter,
+        부서필터: localDepartmentFilter,
+        허브필터: localWarehouseFilter,
+        주문번호검색: localOrderNoSearch,
+      });
+
       // 원본 데이터 복사
       let result = [...dataSource];
 
-      // 필터 적용 - 단순화된 로직
+      // 필터 적용 - 간소화된 로직
       if (localTypeFilter) {
         result = result.filter((item) => item.type === localTypeFilter);
       }
@@ -135,6 +152,14 @@ const DashboardTable = ({
       // 정렬 적용
       result = applySorting(result, sortedInfo);
 
+      // 성능 측정 완료
+      const endTime = performance.now();
+      logger.debug(
+        `테이블 데이터 필터링 완료: ${result.length}건, ${Math.round(
+          endTime - startTime
+        )}ms`
+      );
+
       setFilteredData(result);
     } finally {
       isFilteringRef.current = false;
@@ -146,10 +171,14 @@ const DashboardTable = ({
     localWarehouseFilter,
     localOrderNoSearch,
     sortedInfo,
+    logger,
   ]);
 
   /**
-   * 데이터 정렬 함수 - 최적화
+   * 데이터 정렬 함수 - 메모이제이션 적용
+   * @param {Array} data - 정렬할 데이터 배열
+   * @param {Object} sorterInfo - 정렬 정보
+   * @returns {Array} 정렬된 데이터 배열
    */
   const applySorting = useCallback((data, sorterInfo = {}) => {
     if (!Array.isArray(data)) return [];
@@ -167,541 +196,483 @@ const DashboardTable = ({
           ? 1
           : 0;
 
+        // 그룹이 다르면 그룹으로 정렬
         if (aGroup !== bGroup) {
           return aGroup - bGroup;
         }
 
-        // 같은 그룹 내에서는 ETA 기준 정렬
-        const aEta = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
-        const bEta = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
-        return aEta - bEta;
+        // 같은 그룹 내에서는 ETA로 정렬
+        const etaA = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
+        const etaB = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
+        return etaA - etaB;
       });
     }
 
-    // 지정된 컬럼으로 정렬
+    // 특정 컬럼 정렬이 요청된 경우
     return [...data].sort((a, b) => {
-      let aValue = a[columnKey];
-      let bValue = b[columnKey];
+      let result = 0;
 
-      // 날짜 필드 처리
-      if (
-        ['eta', 'create_time', 'depart_time', 'complete_time'].includes(
-          columnKey
-        )
-      ) {
-        aValue = aValue ? new Date(aValue) : null;
-        bValue = bValue ? new Date(bValue) : null;
+      // 컬럼별 정렬 로직
+      switch (columnKey) {
+        case 'order_no':
+          // 숫자형 주문번호 정렬
+          result = String(a.order_no).localeCompare(
+            String(b.order_no),
+            undefined,
+            {
+              numeric: true,
+            }
+          );
+          break;
 
-        if (!aValue && !bValue) return 0;
-        if (!aValue) return order === 'descend' ? -1 : 1;
-        if (!bValue) return order === 'descend' ? 1 : -1;
+        case 'eta':
+          // 날짜 정렬
+          const etaA = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
+          const etaB = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
+          result = etaA - etaB;
+          break;
 
-        return order === 'ascend' ? aValue - bValue : bValue - aValue;
+        case 'create_time':
+          // 생성 시간 정렬
+          const createTimeA = a.create_time
+            ? new Date(a.create_time)
+            : new Date(0);
+          const createTimeB = b.create_time
+            ? new Date(b.create_time)
+            : new Date(0);
+          result = createTimeA - createTimeB;
+          break;
+
+        case 'status':
+          // 상태 정렬 (WAITING, IN_PROGRESS, COMPLETE, ISSUE, CANCEL 순)
+          const statusOrder = {
+            WAITING: 1,
+            IN_PROGRESS: 2,
+            COMPLETE: 3,
+            ISSUE: 4,
+            CANCEL: 5,
+          };
+          result =
+            (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+          break;
+
+        case 'type':
+          // 종류 정렬
+          result = (a.type || '').localeCompare(b.type || '');
+          break;
+
+        case 'department':
+          // 부서 정렬
+          result = (a.department || '').localeCompare(b.department || '');
+          break;
+
+        case 'warehouse':
+          // 출발허브 정렬
+          result = (a.warehouse || '').localeCompare(b.warehouse || '');
+          break;
+
+        case 'version':
+          // 버전 정렬 (숫자)
+          result = (a.version || 0) - (b.version || 0);
+          break;
+
+        default:
+          // 기본은 ETA 정렬
+          const defaultEtaA = a.eta ? new Date(a.eta) : new Date(9999, 11, 31);
+          const defaultEtaB = b.eta ? new Date(b.eta) : new Date(9999, 11, 31);
+          result = defaultEtaA - defaultEtaB;
       }
 
-      // 문자열 필드 처리
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return order === 'ascend'
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      }
-
-      // 기본 정렬 (숫자 등)
-      if (aValue === undefined || aValue === null) aValue = 0;
-      if (bValue === undefined || bValue === null) bValue = 0;
-
-      return order === 'ascend' ? aValue - bValue : bValue - aValue;
+      // 정렬 방향 적용
+      return order === 'descend' ? -result : result;
     });
   }, []);
 
-  // 테이블 정렬 변경 핸들러 - 단순화
-  const handleTableChange = useCallback((pagination, filters, sorter) => {
-    setSortedInfo(sorter);
+  /**
+   * 테이블 정렬 변경 핸들러
+   */
+  const handleTableChange = useCallback(
+    (pagination, filters, sorter) => {
+      logger.debug('테이블 정렬 변경:', sorter);
+      setSortedInfo(sorter);
+    },
+    [logger]
+  );
+
+  /**
+   * 행 선택 핸들러 - 메모이제이션 적용
+   */
+  const rowSelection = useMemo(() => {
+    return {
+      selectedRowKeys: selectedRows.map((row) => row.dashboard_id),
+      onChange: (selectedRowKeys, selectedTableRows) => {
+        // 선택된 행의 모든 데이터 (객체) 전달
+        onSelectRows(selectedTableRows);
+      },
+      getCheckboxProps: (record) => ({
+        disabled: false, // 선택 비활성화 조건
+      }),
+    };
+  }, [selectedRows, onSelectRows]);
+
+  /**
+   * 로컬 필터 변경 핸들러 - 메모이제이션 적용
+   */
+  const handleLocalTypeFilterChange = useCallback(
+    (value) => {
+      setLocalTypeFilter(value);
+      onTypeFilterChange(value);
+    },
+    [onTypeFilterChange]
+  );
+
+  const handleLocalDepartmentFilterChange = useCallback(
+    (value) => {
+      setLocalDepartmentFilter(value);
+      onDepartmentFilterChange(value);
+    },
+    [onDepartmentFilterChange]
+  );
+
+  const handleLocalWarehouseFilterChange = useCallback(
+    (value) => {
+      setLocalWarehouseFilter(value);
+      onWarehouseFilterChange(value);
+    },
+    [onWarehouseFilterChange]
+  );
+
+  const handleLocalOrderNoSearchChange = useCallback((e) => {
+    setSearchInput(e.target.value);
   }, []);
 
-  // 필터 변경 핸들러 - 단순화
-  const handleTypeFilterChange = useCallback((value) => {
-    setLocalTypeFilter(value);
-  }, []);
+  const handleSearchSubmit = useCallback(() => {
+    setLocalOrderNoSearch(searchInput);
+    onOrderNoSearchChange(searchInput);
+  }, [searchInput, onOrderNoSearchChange]);
 
-  const handleDepartmentFilterChange = useCallback((value) => {
-    setLocalDepartmentFilter(value);
-  }, []);
+  /**
+   * 필터 초기화 핸들러
+   */
+  const handleResetFilters = useCallback(() => {
+    setLocalTypeFilter(null);
+    setLocalDepartmentFilter(null);
+    setLocalWarehouseFilter(null);
+    setSearchInput('');
+    setLocalOrderNoSearch('');
+    onResetFilters();
+  }, [onResetFilters]);
 
-  const handleWarehouseFilterChange = useCallback((value) => {
-    setLocalWarehouseFilter(value);
-  }, []);
+  /**
+   * 행 클릭 핸들러 - 메모이제이션 적용
+   */
+  const onRowHandler = useCallback(
+    (record) => {
+      return {
+        onClick: () => {
+          onRowClick(record);
+        },
+        className: `ant-table-row-${record.status?.toLowerCase()}`,
+      };
+    },
+    [onRowClick]
+  );
 
-  // 필터 적용 함수 - 단순화
-  const handleApplyFilters = useCallback(() => {
-    onTypeFilterChange(localTypeFilter);
-    onDepartmentFilterChange(localDepartmentFilter);
-    onWarehouseFilterChange(localWarehouseFilter);
-    onOrderNoSearchChange(localOrderNoSearch || searchInput);
-    onApplyFilters();
+  /**
+   * 필터 영역 렌더링 - 메모이제이션 적용
+   */
+  const renderFilterArea = useMemo(() => {
+    return (
+      <div className="dashboard-filters">
+        <Space size="middle" style={{ width: '100%', flexWrap: 'wrap' }}>
+          {/* 종류 필터 */}
+          <Select
+            placeholder="종류"
+            style={{ width: 120 }}
+            value={localTypeFilter}
+            onChange={handleLocalTypeFilterChange}
+            allowClear
+          >
+            {Object.entries(TYPE_TYPES).map(([key, value]) => (
+              <Option key={key} value={value}>
+                {TYPE_TEXTS[key]}
+              </Option>
+            ))}
+          </Select>
+
+          {/* 부서 필터 */}
+          <Select
+            placeholder="부서"
+            style={{ width: 120 }}
+            value={localDepartmentFilter}
+            onChange={handleLocalDepartmentFilterChange}
+            allowClear
+          >
+            {Object.entries(DEPARTMENT_TYPES).map(([key, value]) => (
+              <Option key={key} value={value}>
+                {DEPARTMENT_TEXTS[key]}
+              </Option>
+            ))}
+          </Select>
+
+          {/* 출발 허브 필터 */}
+          <Select
+            placeholder="출발 허브"
+            style={{ width: 120 }}
+            value={localWarehouseFilter}
+            onChange={handleLocalWarehouseFilterChange}
+            allowClear
+          >
+            {Object.entries(WAREHOUSE_TYPES).map(([key, value]) => (
+              <Option key={key} value={value}>
+                {WAREHOUSE_TEXTS[key]}
+              </Option>
+            ))}
+          </Select>
+
+          {/* 주문번호 검색 */}
+          <Input.Search
+            placeholder="주문번호 검색"
+            value={searchInput}
+            onChange={handleLocalOrderNoSearchChange}
+            onSearch={handleSearchSubmit}
+            style={{ width: 200 }}
+            allowClear
+          />
+
+          {/* 필터 버튼 */}
+          <Space>
+            <Button
+              type="primary"
+              icon={<FilterOutlined />}
+              onClick={onApplyFilters}
+            >
+              필터 적용
+            </Button>
+            <Button icon={<ClearOutlined />} onClick={handleResetFilters}>
+              필터 초기화
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={onRefresh}>
+              새로고침
+            </Button>
+          </Space>
+        </Space>
+      </div>
+    );
   }, [
     localTypeFilter,
     localDepartmentFilter,
     localWarehouseFilter,
-    localOrderNoSearch,
     searchInput,
-    onTypeFilterChange,
-    onDepartmentFilterChange,
-    onWarehouseFilterChange,
-    onOrderNoSearchChange,
+    handleLocalTypeFilterChange,
+    handleLocalDepartmentFilterChange,
+    handleLocalWarehouseFilterChange,
+    handleLocalOrderNoSearchChange,
+    handleSearchSubmit,
+    handleResetFilters,
     onApplyFilters,
+    onRefresh,
   ]);
 
-  // 필터 초기화 함수 - 단순화
-  const resetFilters = useCallback(() => {
-    setLocalTypeFilter(null);
-    setLocalDepartmentFilter(null);
-    setLocalWarehouseFilter(null);
-    setLocalOrderNoSearch('');
-    setSearchInput('');
-    onResetFilters();
-  }, [onResetFilters]);
-
-  // 검색 입력 핸들러
-  const handleSearchInputChange = useCallback((e) => {
-    setSearchInput(e.target.value);
-  }, []);
-
-  // 검색 실행 핸들러
-  const handleSearch = useCallback(() => {
-    setLocalOrderNoSearch(searchInput);
-  }, [searchInput]);
-
-  // 엔터키 핸들러
-  const handleKeyPress = useCallback(
-    (e) => {
-      if (e.key === 'Enter' && searchInput.trim()) {
-        handleSearch();
-      }
-    },
-    [searchInput, handleSearch]
-  );
-
-  // 행 스타일 생성 함수 - 단순화
-  const getRowClassName = useCallback((record) => {
-    const status = record.status || 'WAITING';
-    return `ant-table-row-${status.toLowerCase()}`;
-  }, []);
-
   /**
-   * 행 스타일 생성 함수 - 상태별 배경색 적용
-   * 요구사항: 각 상태별 색상대로 각 행 전체에 색이 반영되어야 함
+   * 테이블 컬럼 정의 - 메모이제이션 적용
    */
-  const getRowStyle = useCallback((record) => {
-    // 기본 상태 검증
-    const status = record.status || 'WAITING';
-
-    // 상태별 배경색 및 스타일 적용
-    const style = {
-      backgroundColor: STATUS_BG_COLORS[status]?.normal || '#ffffff',
-      cursor: 'pointer',
-      transition: 'background-color 0.3s ease',
-    };
-
-    // 완료, 취소, 이슈 상태는 더 어둡게 표시
-    if (['COMPLETE', 'CANCEL', 'ISSUE'].includes(status)) {
-      style.color = '#888888'; // 텍스트 색상 어둡게
-    }
-
-    return style;
-  }, []);
-
-  /**
-   * 행 Hover 이벤트 처리 - 동적 상태별 시각적 피드백
-   */
-  const onRowOver = useCallback((record) => {
-    const status = record.status || 'WAITING';
-
-    return {
-      onMouseEnter: (e) => {
-        e.currentTarget.style.backgroundColor =
-          STATUS_BG_COLORS[status]?.hover || '#f5f5f5';
-      },
-      onMouseLeave: (e) => {
-        e.currentTarget.style.backgroundColor =
-          STATUS_BG_COLORS[status]?.normal || '#ffffff';
-      },
-    };
-  }, []);
-
-  // 버전 컬럼 토글
-  const toggleVersionColumn = useCallback(() => {
-    setShowVersionColumn((prev) => !prev);
-  }, []);
-
-  // 컬럼 정의 - 필수 필드만 유지
   const columns = useMemo(() => {
-    // 기본 컬럼
+    // 기본 컬럼 정의
     const baseColumns = [
       {
         title: '종류',
         dataIndex: 'type',
-        align: 'center',
-        width: 80,
-        render: (text) => {
-          const validType = text && TYPE_TEXTS[text] ? text : 'DELIVERY';
-          return (
-            <span
-              className={`type-column-${validType.toLowerCase()}`}
-              style={{
-                color: TYPE_COLORS[validType] || '#666',
-                fontWeight: 700,
-                fontSize: '14px',
-                ...FONT_STYLES.BODY.MEDIUM,
-              }}
-            >
-              {TYPE_TEXTS[validType] || validType}
-            </span>
-          );
-        },
+        key: 'type',
+        width: 70,
         sorter: true,
+        sortOrder: sortedInfo.columnKey === 'type' && sortedInfo.order,
+        render: (type) => (
+          <span className={`type-column-${type?.toLowerCase()}`}>
+            {TYPE_TEXTS[type] || type || '-'}
+          </span>
+        ),
+      },
+      {
+        title: '주문번호',
+        dataIndex: 'order_no',
+        key: 'order_no',
+        width: 120,
+        sorter: true,
+        sortOrder: sortedInfo.columnKey === 'order_no' && sortedInfo.order,
       },
       {
         title: '부서',
         dataIndex: 'department',
-        align: 'center',
-        width: 80,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>
-            {DEPARTMENT_TEXTS[text] || text}
-          </span>
-        ),
+        key: 'department',
+        width: 100,
         sorter: true,
+        sortOrder: sortedInfo.columnKey === 'department' && sortedInfo.order,
+        render: (department) =>
+          DEPARTMENT_TEXTS[department] || department || '-',
       },
       {
-        title: '출발 허브',
+        title: '출발허브',
         dataIndex: 'warehouse',
-        align: 'center',
+        key: 'warehouse',
         width: 100,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>
-            {WAREHOUSE_TEXTS[text] || text}
-          </span>
-        ),
         sorter: true,
+        sortOrder: sortedInfo.columnKey === 'warehouse' && sortedInfo.order,
+        render: (warehouse) => WAREHOUSE_TEXTS[warehouse] || warehouse || '-',
       },
       {
-        title: 'order#',
-        dataIndex: 'order_no',
-        align: 'center',
-        width: 130,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
-        ),
+        title: '상태',
+        dataIndex: 'status',
+        key: 'status',
+        width: 80,
         sorter: true,
-      },
-      {
-        title: 'SLA',
-        dataIndex: 'sla',
-        align: 'center',
-        width: 100,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>{text || '표준'}</span>
+        sortOrder: sortedInfo.columnKey === 'status' && sortedInfo.order,
+        render: (status) => (
+          <Tag color={STATUS_COLORS[status]} className="status-tag">
+            {STATUS_TEXTS[status] || status || '-'}
+          </Tag>
         ),
       },
       {
         title: 'ETA',
         dataIndex: 'eta',
-        align: 'center',
+        key: 'eta',
         width: 150,
-        render: (text, record) => (
-          <span
-            style={{
-              ...FONT_STYLES.BODY.MEDIUM,
-              fontWeight: ['WAITING', 'IN_PROGRESS'].includes(record.status)
-                ? 600
-                : 400,
-            }}
-          >
-            {formatDateTime(text) || '-'}
-          </span>
-        ),
         sorter: true,
-        defaultSortOrder: 'ascend',
+        sortOrder: sortedInfo.columnKey === 'eta' && sortedInfo.order,
+        render: (eta) => formatDateTime(eta),
       },
       {
-        title: '출발 시각',
-        dataIndex: 'depart_time',
-        align: 'center',
+        title: '접수시각',
+        dataIndex: 'create_time',
+        key: 'create_time',
         width: 150,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>
-            {formatDateTime(text) || '-'}
-          </span>
-        ),
         sorter: true,
+        sortOrder: sortedInfo.columnKey === 'create_time' && sortedInfo.order,
+        render: (create_time) => formatDateTime(create_time),
       },
       {
-        title: '도착 지역',
-        dataIndex: 'region',
-        align: 'center',
-        width: 150,
-        ellipsis: true,
-        render: (text) => (
-          <Tooltip title={text}>
-            <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
-          </Tooltip>
-        ),
-      },
-      {
-        title: '배송 담당',
-        dataIndex: 'driver_name',
-        align: 'center',
-        width: 100,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
-        ),
+        title: 'SLA',
+        dataIndex: 'sla',
+        key: 'sla',
+        width: 80,
       },
       {
         title: '수령인',
         dataIndex: 'customer',
-        align: 'center',
-        width: 100,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>{text || '-'}</span>
-        ),
+        key: 'customer',
+        width: 120,
       },
       {
         title: '연락처',
         dataIndex: 'contact',
-        align: 'center',
+        key: 'contact',
         width: 130,
-        render: (text) => (
-          <span style={FONT_STYLES.BODY.MEDIUM}>
-            {formatPhoneNumber(text) || '-'}
-          </span>
-        ),
+        render: (contact) => formatPhoneNumber(contact) || '-',
       },
       {
-        title: '상태',
-        dataIndex: 'status',
-        align: 'center',
+        title: '배송담당',
+        dataIndex: 'driver_name',
+        key: 'driver_name',
         width: 100,
-        render: (status) => {
-          const validStatus =
-            status && STATUS_TEXTS[status] ? status : 'WAITING';
-          return (
-            <Tag
-              color={STATUS_COLORS[validStatus] || 'default'}
-              style={{
-                minWidth: '60px',
-                textAlign: 'center',
-                fontWeight: 600,
-                ...FONT_STYLES.BODY.MEDIUM,
-              }}
-              className="status-tag"
-            >
-              {STATUS_TEXTS[validStatus] || validStatus}
-            </Tag>
-          );
-        },
-        sorter: true,
+        render: (driver_name) =>
+          driver_name ? (
+            <span>
+              <CarOutlined style={{ marginRight: 4 }} />
+              {driver_name}
+            </span>
+          ) : (
+            <span style={{ color: '#d9d9d9' }}>미배차</span>
+          ),
+      },
+      {
+        title: '배송연락처',
+        dataIndex: 'driver_contact',
+        key: 'driver_contact',
+        width: 130,
+        render: (driver_contact) => formatPhoneNumber(driver_contact) || '-',
       },
     ];
 
-    // 관리자 전용 버전 컬럼 (선택적)
-    if (isAdmin && showVersionColumn) {
+    // 관리자 or 개발 모드일 때만 버전 컬럼 표시
+    if (showVersionColumn) {
       baseColumns.push({
         title: (
-          <Tooltip title="버전 정보 (관리자용)">
-            <Space>
-              <span>버전</span>
-              <InfoCircleOutlined />
-            </Space>
+          <Tooltip title="데이터 버전 (낙관적 락)">
+            <span>
+              버전 <InfoCircleOutlined />
+            </span>
           </Tooltip>
         ),
         dataIndex: 'version',
-        align: 'center',
+        key: 'version',
         width: 70,
-        render: (version) => (
-          <Badge
-            count={version || 1}
-            style={{
-              backgroundColor: '#1890ff',
-              fontSize: '10px',
-            }}
-          />
-        ),
+        sorter: true,
+        sortOrder: sortedInfo.columnKey === 'version' && sortedInfo.order,
       });
     }
 
     return baseColumns;
-  }, [isAdmin, showVersionColumn]);
+  }, [sortedInfo, showVersionColumn]);
 
-  // 필터링 컴포넌트 - 렌더링 최적화
-  const renderFilters = useMemo(
-    () => (
-      <div className="dashboard-filters">
-        <Space size="middle" wrap>
-          <div>
-            <span style={{ marginRight: 8 }}>타입:</span>
-            <Select
-              allowClear
-              style={{ width: 120 }}
-              placeholder="타입 선택"
-              value={localTypeFilter}
-              onChange={handleTypeFilterChange}
-            >
-              {Object.entries(TYPE_TYPES).map(([key, value]) => (
-                <Option key={key} value={value}>
-                  {TYPE_TEXTS[key]}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div>
-            <span style={{ marginRight: 8 }}>부서:</span>
-            <Select
-              allowClear
-              style={{ width: 120 }}
-              placeholder="부서 선택"
-              value={localDepartmentFilter}
-              onChange={handleDepartmentFilterChange}
-            >
-              {Object.entries(DEPARTMENT_TYPES).map(([key, value]) => (
-                <Option key={key} value={value}>
-                  {DEPARTMENT_TEXTS[key]}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div>
-            <span style={{ marginRight: 8 }}>출발 허브:</span>
-            <Select
-              allowClear
-              style={{ width: 120 }}
-              placeholder="허브 선택"
-              value={localWarehouseFilter}
-              onChange={handleWarehouseFilterChange}
-            >
-              {Object.entries(WAREHOUSE_TYPES).map(([key, value]) => (
-                <Option key={key} value={value}>
-                  {WAREHOUSE_TEXTS[key]}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div>
-            <span style={{ marginRight: 8 }}>주문번호:</span>
-            <Input.Search
-              placeholder="주문번호 입력"
-              value={searchInput}
-              onChange={handleSearchInputChange}
-              onSearch={handleSearch}
-              onPressEnter={handleKeyPress}
-              style={{ width: 150 }}
-              allowClear
-            />
-          </div>
-
-          <Button
-            type="primary"
-            icon={<FilterOutlined />}
-            onClick={handleApplyFilters}
-          >
-            필터 적용
-          </Button>
-
-          <Button
-            type="default"
-            icon={<ClearOutlined />}
-            onClick={resetFilters}
-            disabled={
-              !localTypeFilter &&
-              !localDepartmentFilter &&
-              !localWarehouseFilter &&
-              !searchInput &&
-              !localOrderNoSearch
-            }
-          >
-            필터 초기화
-          </Button>
-
-          {isAdmin && (
-            <Button
-              type="link"
-              icon={<InfoCircleOutlined />}
-              onClick={toggleVersionColumn}
-            >
-              {showVersionColumn ? '버전 숨기기' : '버전 표시'}
-            </Button>
-          )}
-        </Space>
-      </div>
-    ),
-    [
-      localTypeFilter,
-      localDepartmentFilter,
-      localWarehouseFilter,
-      searchInput,
-      localOrderNoSearch,
-      handleTypeFilterChange,
-      handleDepartmentFilterChange,
-      handleWarehouseFilterChange,
-      handleSearchInputChange,
-      handleSearch,
-      handleKeyPress,
-      handleApplyFilters,
-      resetFilters,
-      showVersionColumn,
-      isAdmin,
-      toggleVersionColumn,
-    ]
-  );
+  /**
+   * 행 클래스 이름 생성 함수
+   * 상태별 배경색 적용을 위해 사용
+   * @param {Object} record - 행 데이터
+   * @returns {string} 클래스 이름
+   */
+  const getRowClassName = useCallback((record) => {
+    return `ant-table-row-${record.status?.toLowerCase()}`;
+  }, []);
 
   return (
-    <div className="dashboard-table-container">
-      {/* 필터 컴포넌트 */}
-      {renderFilters}
+    <div
+      className={`dashboard-table-container ${
+        isAdminPage ? 'admin-table' : ''
+      }`}
+    >
+      {/* 필터 영역 */}
+      {renderFilterArea}
 
-      {/* 테이블 컴포넌트 - 성능 최적화 */}
+      {/* 테이블 */}
       <Table
-        className={`dashboard-table${isAdminPage ? ' admin-table' : ''}`}
-        columns={columns}
-        dataSource={filteredData}
+        className="dashboard-table"
         rowKey="dashboard_id"
+        dataSource={filteredData.length > 0 ? filteredData : dataSource}
+        columns={columns}
         loading={loading}
-        size="middle"
-        scroll={{ x: 1200, y: 'calc(100vh - 340px)' }}
+        rowSelection={rowSelection}
         onChange={handleTableChange}
+        onRow={onRowHandler}
+        rowClassName={getRowClassName}
         pagination={{
           current: currentPage,
           pageSize: pageSize,
-          total: filteredData?.length || 0,
           onChange: onPageChange,
           showSizeChanger: false,
           showTotal: (total) => `총 ${total}건`,
         }}
-        rowSelection={{
-          type: 'checkbox',
-          selectedRowKeys: selectedRows.map((row) => row.dashboard_id),
-          onChange: (_, rows) => onSelectRows(rows),
-          getCheckboxProps: (record) => ({
-            disabled: isAdminPage ? false : record.status !== 'WAITING',
-            name: record.order_no,
-          }),
-        }}
-        onRow={(record) => ({
-          onClick: () => onRowClick(record),
-          className: getRowClassName(record),
-          style: getRowStyle(record),
-          ...onRowOver(record),
-        })}
-        locale={{
-          emptyText: '조회된 데이터가 없습니다',
-        }}
+        size="middle"
+        scroll={{ x: 'max-content' }}
       />
     </div>
   );
 };
 
-// 최적화된 memo 적용 - props 비교 함수 제거하여 단순화
-export default React.memo(DashboardTable);
+// 불필요한 리렌더링 방지를 위한 메모이제이션
+export default React.memo(DashboardTable, (prevProps, nextProps) => {
+  // 데이터 변경 시 항상 리렌더링
+  if (prevProps.dataSource !== nextProps.dataSource) return false;
+  if (prevProps.loading !== nextProps.loading) return false;
+  if (prevProps.selectedRows !== nextProps.selectedRows) return false;
+  if (prevProps.currentPage !== nextProps.currentPage) return false;
+
+  // 필터 상태 변경 시 리렌더링
+  if (prevProps.typeFilter !== nextProps.typeFilter) return false;
+  if (prevProps.departmentFilter !== nextProps.departmentFilter) return false;
+  if (prevProps.warehouseFilter !== nextProps.warehouseFilter) return false;
+  if (prevProps.orderNoSearch !== nextProps.orderNoSearch) return false;
+
+  // 그 외의 경우 리렌더링 하지 않음
+  return true;
+});

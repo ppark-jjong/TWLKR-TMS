@@ -1,22 +1,36 @@
-// frontend/src/utils/ErrorHandler.js
+// src/utils/ErrorHandler.js
 import { MessageKeys, MessageTemplates } from './message';
 import messageService from './message';
+import { useLogger } from './LogUtils';
 
 /**
  * 애플리케이션 전반의 에러 처리를 담당하는 유틸리티 클래스
+ * 백엔드 API 응답 구조와 일치하는 에러 처리 로직 제공
  */
 class ErrorHandler {
-  static errorCodeMap = {
-    VALIDATION_ERROR: 'VALIDATION_ERROR', // 유효성 검증 실패
-    AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR', // 인증 실패
-    PERMISSION_ERROR: 'PERMISSION_ERROR', // 권한 부족
-    NETWORK_ERROR: 'NETWORK_ERROR', // 네트워크 연결 문제
-    SERVER_ERROR: 'SERVER_ERROR', // 서버 내부 오류
-    NOT_FOUND_ERROR: 'NOT_FOUND_ERROR', // 리소스 없음
-    BUSINESS_ERROR: 'BUSINESS_ERROR', // 비즈니스 로직 오류
-    OPTIMISTIC_LOCK_ERROR: 'OPTIMISTIC_LOCK_ERROR', // 낙관적 락 충돌
-    PESSIMISTIC_LOCK_ERROR: 'PESSIMISTIC_LOCK_ERROR', // 비관적 락 충돌
-  };
+  constructor() {
+    this.logger = useLogger('ErrorHandler');
+    this.initErrorCodes();
+  }
+
+  /**
+   * 에러 코드 맵 초기화
+   * @private
+   */
+  initErrorCodes() {
+    this.errorCodeMap = {
+      VALIDATION_ERROR: 'VALIDATION_ERROR', // 유효성 검증 실패
+      AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR', // 인증 실패
+      PERMISSION_ERROR: 'PERMISSION_ERROR', // 권한 부족
+      NETWORK_ERROR: 'NETWORK_ERROR', // 네트워크 연결 문제
+      SERVER_ERROR: 'SERVER_ERROR', // 서버 내부 오류
+      NOT_FOUND_ERROR: 'NOT_FOUND_ERROR', // 리소스 없음
+      BUSINESS_ERROR: 'BUSINESS_ERROR', // 비즈니스 로직 오류
+      OPTIMISTIC_LOCK_ERROR: 'OPTIMISTIC_LOCK_ERROR', // 낙관적 락 충돌
+      PESSIMISTIC_LOCK_ERROR: 'PESSIMISTIC_LOCK_ERROR', // 비관적 락 충돌
+      RESOURCE_CONFLICT: 'RESOURCE_CONFLICT', // 리소스 충돌
+    };
+  }
 
   /**
    * 에러 코드와 메시지 세부 정보 추출
@@ -24,7 +38,7 @@ class ErrorHandler {
    * @param {string} context - 에러 발생 컨텍스트 정보
    * @returns {Object} - 에러 세부 정보 객체
    */
-  static getErrorDetails(error, context = '') {
+  getErrorDetails(error, context = '') {
     let statusCode = 0;
     let errorCode = this.errorCodeMap.BUSINESS_ERROR;
     let errorData = null;
@@ -36,131 +50,74 @@ class ErrorHandler {
       statusCode = error.response.status;
       errorData = error.response.data;
 
-      // API 응답 구조 분석
+      // API 응답 구조 분석 - 백엔드 명세 기반
       const errorDetail = errorData?.error?.detail || errorData?.detail || '';
       const errorFields = errorData?.error?.fields || {};
 
+      this.logger.debug('에러 응답 데이터:', errorData);
+
       // HTTP 상태 코드별 처리
       switch (statusCode) {
-        case 400: // Bad Request
-          if (errorDetail?.includes('우편번호')) {
-            errorMessage = MessageTemplates.DASHBOARD.INVALID_POSTAL;
-            messageKey = 'postal-code-error';
-          } else if (errorDetail?.includes('연락처')) {
-            errorMessage = MessageTemplates.DASHBOARD.INVALID_PHONE;
-            messageKey = 'phone-format-error';
-          } else {
-            errorMessage = errorDetail || '입력값이 올바르지 않습니다';
-          }
+        case 400: // Bad Request - 유효성 검증 실패
           errorCode = this.errorCodeMap.VALIDATION_ERROR;
-          break;
-
-        case 401: // Unauthorized
-          if (errorDetail?.includes('아이디 또는 비밀번호')) {
-            errorMessage = MessageTemplates.AUTH.LOGIN_FAILED;
-            messageKey = MessageKeys.AUTH.LOGIN;
-          } else if (errorDetail?.includes('만료')) {
-            errorMessage = MessageTemplates.AUTH.SESSION_EXPIRED;
-            messageKey = MessageKeys.AUTH.SESSION_EXPIRED;
-          } else {
-            errorMessage = '인증이 필요합니다. 다시 로그인해주세요';
-          }
-          errorCode = this.errorCodeMap.AUTHENTICATION_ERROR;
-          break;
-
-        case 403: // Forbidden
-          errorMessage = '접근 권한이 없습니다';
-          messageKey = 'permission-error';
-          errorCode = this.errorCodeMap.PERMISSION_ERROR;
-          break;
-
-        case 404: // Not Found
-          if (context === 'dashboard') {
-            errorMessage =
-              '대시보드를 찾을 수 없습니다. 이미 삭제되었거나 존재하지 않는 항목입니다.';
-            messageKey = MessageKeys.DASHBOARD.LOAD;
-          } else {
-            errorMessage = '요청한 자원을 찾을 수 없습니다';
-          }
-          errorCode = this.errorCodeMap.NOT_FOUND_ERROR;
-          break;
-
-        case 409: // Conflict (낙관적 락 충돌)
-          // 서버 응답에서 버전 정보 추출
-          const currentVersion =
-            errorData?.version_info?.current_version ||
-            errorData?.error?.detail?.current_version ||
-            errorData?.detail?.current_version;
-
-          const conflictedOrders =
-            errorData?.error?.detail?.conflicted_orders ||
-            errorData?.detail?.conflicted_orders ||
-            [];
-
-          // 충돌한 주문번호가 있는 경우 표시
-          if (conflictedOrders && conflictedOrders.length > 0) {
-            errorMessage = `다음 주문(${conflictedOrders.join(
-              ', '
-            )})이 이미 다른 사용자에 의해 수정되었습니다.`;
-          } else if (currentVersion) {
-            errorMessage =
-              '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.';
-          } else {
-            errorMessage = errorDetail || '데이터 충돌이 발생했습니다';
-          }
-
-          messageKey = 'optimistic-lock-error';
-          errorCode = this.errorCodeMap.OPTIMISTIC_LOCK_ERROR;
-          break;
-
-        case 423: // Locked (비관적 락 충돌)
-          const lockedBy =
-            errorData?.error?.detail?.locked_by ||
-            errorData?.detail?.locked_by ||
-            '다른 사용자';
-
-          const lockType =
-            errorData?.error?.detail?.lock_type ||
-            errorData?.detail?.lock_type ||
-            '';
-
-          // 락 타입에 따른 메시지 차별화
-          let lockTypeText = this._getLockTypeText(lockType);
-
-          errorMessage = `현재 ${lockedBy}님이 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`;
-          messageKey = 'pessimistic-lock-error';
-          errorCode = this.errorCodeMap.PESSIMISTIC_LOCK_ERROR;
-          break;
-
-        case 422: // Validation Error
-          let validationMessage = '';
-
-          // fields 객체 형태로 오는 경우
-          if (errorFields && Object.keys(errorFields).length > 0) {
-            validationMessage = Object.entries(errorFields)
-              .map(([field, msg]) => `${field}: ${msg}`)
-              .join('\n');
-          }
-          // 배열 형태로 오는 경우
-          else if (Array.isArray(errorDetail)) {
-            validationMessage = errorDetail
-              .map((err) => err.msg || err.message)
-              .join('\n');
-          }
-          // 문자열로 오는 경우
-          else {
-            validationMessage = errorDetail || '입력값 검증에 실패했습니다';
-          }
-
-          errorMessage = validationMessage;
-          errorCode = this.errorCodeMap.VALIDATION_ERROR;
+          errorMessage = this._extractValidationErrorMessage(
+            errorData,
+            errorDetail,
+            context
+          );
           messageKey = 'validation-error';
           break;
 
-        case 500: // Internal Server Error
+        case 401: // Unauthorized - 인증 실패
+          errorCode = this.errorCodeMap.AUTHENTICATION_ERROR;
+          errorMessage = this._extractAuthErrorMessage(errorData, errorDetail);
+          messageKey = MessageKeys.AUTH.SESSION;
+          break;
+
+        case 403: // Forbidden - 권한 없음
+          errorCode = this.errorCodeMap.PERMISSION_ERROR;
+          errorMessage = '접근 권한이 없습니다';
+          messageKey = 'permission-error';
+          break;
+
+        case 404: // Not Found - 리소스 없음
+          errorCode = this.errorCodeMap.NOT_FOUND_ERROR;
+          errorMessage = this._extractNotFoundErrorMessage(
+            context,
+            errorDetail
+          );
+          messageKey =
+            context === 'dashboard'
+              ? MessageKeys.DASHBOARD.LOAD
+              : 'not-found-error';
+          break;
+
+        case 409: // Conflict - 낙관적 락 충돌
+          errorCode = this.errorCodeMap.OPTIMISTIC_LOCK_ERROR;
+          errorMessage = this._extractOptimisticLockErrorMessage(errorData);
+          messageKey = 'optimistic-lock-error';
+          break;
+
+        case 423: // Locked - 비관적 락 충돌
+          errorCode = this.errorCodeMap.PESSIMISTIC_LOCK_ERROR;
+          errorMessage = this._extractPessimisticLockErrorMessage(errorData);
+          messageKey = 'pessimistic-lock-error';
+          break;
+
+        case 422: // Validation Error - 세부 유효성 검증 실패
+          errorCode = this.errorCodeMap.VALIDATION_ERROR;
+          errorMessage = this._extractValidationDetailsMessage(
+            errorData,
+            errorDetail,
+            errorFields
+          );
+          messageKey = 'validation-error';
+          break;
+
+        case 500: // Internal Server Error - 서버 오류
+          errorCode = this.errorCodeMap.SERVER_ERROR;
           errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요';
           messageKey = 'server-error';
-          errorCode = this.errorCodeMap.SERVER_ERROR;
           break;
 
         default:
@@ -180,10 +137,7 @@ class ErrorHandler {
     }
 
     // 특수 에러 메시지 처리 (백엔드 응답에서 추가 정보 추출)
-    if (errorData?.detail?.includes('대기 상태가 아니')) {
-      const orderNos = errorData.detail.split(':')[1]?.trim() || '';
-      errorMessage = MessageTemplates.DASHBOARD.INVALID_WAITING(orderNos);
-    }
+    errorMessage = this._extractSpecialErrorMessage(errorData, errorMessage);
 
     return {
       statusCode,
@@ -196,12 +150,176 @@ class ErrorHandler {
   }
 
   /**
+   * 유효성 검증 에러 메시지 추출
+   * @private
+   */
+  _extractValidationErrorMessage(errorData, errorDetail, context) {
+    // 특정 컨텍스트별 커스텀 메시지
+    if (context === 'dashboard') {
+      if (errorDetail?.includes('우편번호')) {
+        return MessageTemplates.DASHBOARD.INVALID_POSTAL;
+      } else if (errorDetail?.includes('연락처')) {
+        return MessageTemplates.DASHBOARD.INVALID_PHONE;
+      }
+    }
+
+    return errorDetail || '입력값이 올바르지 않습니다';
+  }
+
+  /**
+   * 인증 에러 메시지 추출
+   * @private
+   */
+  _extractAuthErrorMessage(errorData, errorDetail) {
+    if (errorDetail?.includes('아이디 또는 비밀번호')) {
+      return MessageTemplates.AUTH.LOGIN_FAILED;
+    } else if (errorDetail?.includes('만료')) {
+      return MessageTemplates.AUTH.SESSION_EXPIRED;
+    } else {
+      return '인증이 필요합니다. 다시 로그인해주세요';
+    }
+  }
+
+  /**
+   * 리소스 없음 에러 메시지 추출
+   * @private
+   */
+  _extractNotFoundErrorMessage(context, errorDetail) {
+    if (context === 'dashboard') {
+      return '대시보드를 찾을 수 없습니다. 이미 삭제되었거나 존재하지 않는 항목입니다.';
+    }
+    return errorDetail || '요청한 자원을 찾을 수 없습니다';
+  }
+
+  /**
+   * 낙관적 락 에러 메시지 추출
+   * @private
+   */
+  _extractOptimisticLockErrorMessage(errorData) {
+    // 서버 응답에서 버전 정보 추출
+    const currentVersion = this._extractVersionInfo(errorData);
+    const conflictedOrders = this._extractConflictedOrders(errorData);
+
+    // 충돌한 주문번호가 있는 경우 표시
+    if (conflictedOrders && conflictedOrders.length > 0) {
+      return `다음 주문(${conflictedOrders.join(
+        ', '
+      )})이 이미 다른 사용자에 의해 수정되었습니다.`;
+    } else if (currentVersion) {
+      return '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 확인 후 다시 시도해주세요.';
+    } else {
+      return (
+        errorData?.error?.detail ||
+        errorData?.detail ||
+        '데이터 충돌이 발생했습니다'
+      );
+    }
+  }
+
+  /**
+   * 비관적 락 에러 메시지 추출
+   * @private
+   */
+  _extractPessimisticLockErrorMessage(errorData) {
+    const detail = errorData?.error?.detail || errorData?.detail || {};
+    const lockedBy = detail.locked_by || '다른 사용자';
+    const lockType = detail.lock_type || '';
+
+    // 락 타입에 따른 메시지 차별화
+    return `현재 ${lockedBy}님이 이 데이터를 ${this._getLockTypeText(
+      lockType
+    )} 중입니다. 잠시 후 다시 시도해주세요.`;
+  }
+
+  /**
+   * 세부 유효성 검증 에러 메시지 추출
+   * @private
+   */
+  _extractValidationDetailsMessage(errorData, errorDetail, errorFields) {
+    let validationMessage = '';
+
+    // fields 객체 형태로 오는 경우
+    if (errorFields && Object.keys(errorFields).length > 0) {
+      validationMessage = Object.entries(errorFields)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join('\n');
+    }
+    // 배열 형태로 오는 경우
+    else if (Array.isArray(errorDetail)) {
+      validationMessage = errorDetail
+        .map((err) => err.msg || err.message)
+        .join('\n');
+    }
+    // 문자열로 오는 경우
+    else {
+      validationMessage = errorDetail || '입력값 검증에 실패했습니다';
+    }
+
+    return validationMessage;
+  }
+
+  /**
+   * 특수 에러 메시지 처리
+   * @private
+   */
+  _extractSpecialErrorMessage(errorData, defaultMessage) {
+    if (errorData?.detail?.includes('대기 상태가 아니')) {
+      const orderNos = errorData.detail.split(':')[1]?.trim() || '';
+      return MessageTemplates.DASHBOARD.INVALID_WAITING(orderNos);
+    }
+    return defaultMessage;
+  }
+
+  /**
+   * 버전 정보 추출
+   * @private
+   */
+  _extractVersionInfo(errorData) {
+    return (
+      errorData?.version_info?.current_version ||
+      errorData?.error?.detail?.current_version ||
+      errorData?.detail?.current_version
+    );
+  }
+
+  /**
+   * 충돌 주문 목록 추출
+   * @private
+   */
+  _extractConflictedOrders(errorData) {
+    return (
+      errorData?.error?.detail?.conflicted_orders ||
+      errorData?.detail?.conflicted_orders ||
+      []
+    );
+  }
+
+  /**
+   * 락 타입에 따른 표시 텍스트 반환
+   * @private
+   */
+  _getLockTypeText(lockType) {
+    switch (lockType) {
+      case 'EDIT':
+        return '편집';
+      case 'STATUS':
+        return '상태 변경';
+      case 'ASSIGN':
+        return '배차';
+      case 'REMARK':
+        return '메모 작성';
+      default:
+        return '수정';
+    }
+  }
+
+  /**
    * 에러 처리 메인 메서드
    * @param {Error} error - 처리할 에러 객체
    * @param {string} context - 에러 발생 컨텍스트 정보
    * @returns {Error} - 처리 후 에러 객체
    */
-  static handle(error, context = '') {
+  handle(error, context = '') {
     // 이미 처리된 에러는 다시 처리하지 않음
     if (error.handled) return error;
 
@@ -235,7 +353,7 @@ class ErrorHandler {
    * @param {Array|Object} errors - 유효성 검증 에러 배열 또는 객체
    * @returns {Object} - 필드별 포맷팅된 에러 메시지
    */
-  static handleValidationErrors(errors) {
+  handleValidationErrors(errors) {
     const formattedErrors = {};
 
     // 배열 형태로 온 경우 (일반적인 폼 에러)
@@ -265,169 +383,92 @@ class ErrorHandler {
   }
 
   /**
-   * 낙관적 락 에러 사용자 친화적 처리
-   * @param {Error} error - 에러 객체
-   * @param {Function} refreshCallback - 데이터 새로고침 콜백 함수
-   * @returns {boolean} - 낙관적 락 에러 여부
+   * 폼 에러 설정
+   * @param {Object} form - Ant Design 폼 인스턴스
+   * @param {Object} errors - 필드별 에러 메시지
    */
-  static handleOptimisticLockError(error, refreshCallback) {
-    if (error.response?.status === 409) {
-      // 다양한 응답 구조 처리
-      const errorData = error.response?.data;
-      const versionInfo = errorData?.version_info;
-      const errorDetail = errorData?.error?.detail || errorData?.detail || {};
-
-      // 현재 버전 정보 추출
-      const currentVersion =
-        versionInfo?.current_version || errorDetail.current_version || null;
-
-      // 충돌한 주문번호 추출
-      const conflictedOrders = errorDetail.conflicted_orders || [];
-
-      // 충돌 메시지 생성
-      let errorMessage =
-        '다른 사용자가 이미 데이터를 수정했습니다. 최신 정보를 불러옵니다.';
-
-      // 충돌한 주문번호가 있는 경우 표시
-      if (conflictedOrders.length > 0) {
-        errorMessage = `다음 주문(${conflictedOrders.join(
-          ', '
-        )})이 이미 다른 사용자에 의해 수정되었습니다.`;
-      }
-
-      messageService.error(errorMessage, 'optimistic-lock-error');
-
-      // 최신 데이터 정보 추출
-      const latestData = errorData?.data || null;
-
-      // 데이터 새로고침 콜백 호출
-      if (typeof refreshCallback === 'function') {
-        refreshCallback(currentVersion, latestData);
-      }
-
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * 비관적 락 에러 사용자 친화적 처리
-   * @param {Error} error - 에러 객체
-   * @returns {boolean} - 비관적 락 에러 여부
-   */
-  static handlePessimisticLockError(error) {
-    if (error.response?.status === 423) {
-      const errorData = error.response?.data;
-      const errorDetail = errorData?.error?.detail || errorData?.detail || {};
-
-      const lockedBy = errorDetail.locked_by || '다른 사용자';
-      const lockType = errorDetail.lock_type || '';
-      let lockTypeText = this._getLockTypeText(lockType);
-
-      const message = `현재 ${lockedBy}님이 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`;
-      messageService.error(message, 'pessimistic-lock-error');
-
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * 락 타입에 따른 표시 텍스트 반환
-   * @param {string} lockType - 락 타입
-   * @returns {string} - 표시 텍스트
-   * @private
-   */
-  static _getLockTypeText(lockType) {
-    switch (lockType) {
-      case 'EDIT':
-        return '편집';
-      case 'STATUS':
-        return '상태 변경';
-      case 'ASSIGN':
-        return '배차';
-      case 'REMARK':
-        return '메모 작성';
-      default:
-        return '수정';
-    }
-  }
-
-  /**
-   * 에러 유형 확인 헬퍼 함수들
-   */
-  static isValidationError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.VALIDATION_ERROR ||
-      error.response?.status === 400 ||
-      error.response?.status === 422
-    );
-  }
-
-  static isAuthenticationError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.AUTHENTICATION_ERROR ||
-      error.response?.status === 401
-    );
-  }
-
-  static isPermissionError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.PERMISSION_ERROR ||
-      error.response?.status === 403
-    );
-  }
-
-  static isNetworkError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.NETWORK_ERROR ||
-      (!error.response && error.request)
-    );
-  }
-
-  static isServerError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.SERVER_ERROR ||
-      (error.response?.status && error.response.status >= 500)
-    );
-  }
-
-  static isOptimisticLockError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.OPTIMISTIC_LOCK_ERROR ||
-      error.response?.status === 409
-    );
-  }
-
-  static isPessimisticLockError(error) {
-    return (
-      error.errorCode === this.errorCodeMap.PESSIMISTIC_LOCK_ERROR ||
-      error.response?.status === 423
-    );
-  }
-
-  /**
-   * 폼 에러 자동 설정 헬퍼
-   * Ant Design Form에 에러 상태 자동 설정
-   * @param {Object} form - Ant Design Form 인스턴스
-   * @param {Array|Object} errors - 에러 정보
-   */
-  static setFormErrors(form, errors) {
+  setFormErrors(form, errors) {
     if (!form || !errors) return;
 
-    const formattedErrors = this.handleValidationErrors(errors);
+    const fieldsWithErrors = {};
 
-    const formErrors = Object.entries(formattedErrors).map(
-      ([name, errors]) => ({
+    // errors 객체 처리
+    Object.entries(errors).forEach(([field, messages]) => {
+      // 메시지 배열 또는 단일 문자열 처리
+      const errorMessages = Array.isArray(messages) ? messages : [messages];
+      fieldsWithErrors[field] = { errors: errorMessages };
+    });
+
+    // 폼에 에러 설정
+    form.setFields(
+      Object.entries(fieldsWithErrors).map(([name, value]) => ({
         name,
-        errors: Array.isArray(errors) ? errors : [errors],
-      })
+        errors: value.errors,
+      }))
     );
+  }
 
-    form.setFields(formErrors);
+  /**
+   * 에러 유형 확인 유틸리티 함수들
+   */
+  isAuthenticationError(error) {
+    return (
+      error?.response?.status === 401 ||
+      error?.errorCode === this.errorCodeMap.AUTHENTICATION_ERROR
+    );
+  }
+
+  isPermissionError(error) {
+    return (
+      error?.response?.status === 403 ||
+      error?.errorCode === this.errorCodeMap.PERMISSION_ERROR
+    );
+  }
+
+  isValidationError(error) {
+    return (
+      error?.response?.status === 400 ||
+      error?.response?.status === 422 ||
+      error?.errorCode === this.errorCodeMap.VALIDATION_ERROR
+    );
+  }
+
+  isNotFoundError(error) {
+    return (
+      error?.response?.status === 404 ||
+      error?.errorCode === this.errorCodeMap.NOT_FOUND_ERROR
+    );
+  }
+
+  isOptimisticLockError(error) {
+    return (
+      error?.response?.status === 409 ||
+      error?.errorCode === this.errorCodeMap.OPTIMISTIC_LOCK_ERROR
+    );
+  }
+
+  isPessimisticLockError(error) {
+    return (
+      error?.response?.status === 423 ||
+      error?.errorCode === this.errorCodeMap.PESSIMISTIC_LOCK_ERROR
+    );
+  }
+
+  isServerError(error) {
+    return (
+      (error?.response?.status >= 500 && error?.response?.status < 600) ||
+      error?.errorCode === this.errorCodeMap.SERVER_ERROR
+    );
+  }
+
+  isNetworkError(error) {
+    return (
+      (error.request && !error.response) ||
+      error?.errorCode === this.errorCodeMap.NETWORK_ERROR
+    );
   }
 }
 
-export default ErrorHandler;
+// 단일 인스턴스 생성 및 내보내기
+const errorHandler = new ErrorHandler();
+export default errorHandler;

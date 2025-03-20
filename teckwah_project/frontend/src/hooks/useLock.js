@@ -7,7 +7,7 @@ import { useLogger } from '../utils/LogUtils';
 
 /**
  * 비관적 락 관리를 위한 커스텀 훅
- * 락 획득, 해제, 갱신, 상태 확인 등 비관적 락 관련 기능 제공
+ * 백엔드 API의 비관적 락 메커니즘을 React 훅으로 래핑
  *
  * @param {Object} options - 옵션 객체
  * @param {string|number} options.dashboardId - 대시보드 ID
@@ -33,7 +33,7 @@ const useLock = (options = {}) => {
     retryDelay = 2000, // 재시도 간격 (ms)
   } = options;
 
-  // 훅 내부 상태 관리
+  // 상태 관리
   const [hasLock, setHasLock] = useState(false);
   const [lockInfo, setLockInfo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -45,22 +45,13 @@ const useLock = (options = {}) => {
   // 락 타임아웃 추적을 위한 ref
   const lockTimeoutRef = useRef(null);
   const renewIntervalRef = useRef(null);
-
-  // 재시도 카운터
   const retryCountRef = useRef(0);
-
-  // 사용자 액션 타임스탬프 추적 (자동 갱신용)
   const lastActionTimeRef = useRef(Date.now());
-
-  // 컴포넌트 마운트 상태 추적
   const isMountedRef = useRef(true);
-
-  // 만료 경고 메시지 표시 여부
   const warningShownRef = useRef(false);
 
   /**
    * 락 획득 함수
-   *
    * @param {number} retryCount - 현재 재시도 횟수
    * @returns {Promise<boolean>} - 락 획득 성공 여부
    */
@@ -81,6 +72,7 @@ const useLock = (options = {}) => {
             retryCount + 1
           }/${maxRetries}`
         );
+
         const lockResult = await LockService.acquireLock(dashboardId, lockType);
 
         if (!isMountedRef.current) return false;
@@ -93,8 +85,7 @@ const useLock = (options = {}) => {
         warningShownRef.current = false; // 경고 플래그 초기화
 
         // 만료 시간 계산 (기본 5분)
-        const expiresInMs =
-          lockResult.expires_in_seconds * 1000 || 5 * 60 * 1000;
+        const expiresInMs = (lockResult.expires_in_seconds || 300) * 1000;
         const expiryTime = Date.now() + expiresInMs;
 
         // 만료 1분 전 경고 타이머 설정
@@ -136,12 +127,11 @@ const useLock = (options = {}) => {
 
         // 이미 락이 걸려있는 경우 (423 Locked)
         if (error.response?.status === 423) {
-          const lockedBy =
-            error.response.data?.detail?.locked_by ||
-            error.response.data?.error?.detail?.locked_by ||
-            '다른 사용자';
+          const errorData = error.response.data;
+          const detail = errorData?.error?.detail || errorData?.detail || {};
+          const lockedBy = detail.locked_by || '다른 사용자';
+          const lockType = detail.lock_type || '';
 
-          // 락 타입에 따른 표시 메시지 생성
           const lockTypeText = getLockTypeText(lockType);
           const errorMessage = `현재 ${lockedBy}님이 이 데이터를 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`;
 
@@ -232,7 +222,6 @@ const useLock = (options = {}) => {
 
   /**
    * 락 해제 함수
-   *
    * @returns {Promise<boolean>} - 락 해제 성공 여부
    */
   const releaseLock = useCallback(async () => {
@@ -278,7 +267,6 @@ const useLock = (options = {}) => {
 
   /**
    * 락 갱신 함수
-   *
    * @returns {Promise<boolean>} - 락 갱신 성공 여부
    */
   const renewLock = useCallback(async () => {
@@ -300,8 +288,7 @@ const useLock = (options = {}) => {
         clearTimeout(lockTimeoutRef.current);
       }
 
-      const expiresInMs =
-        refreshedLock.expires_in_seconds * 1000 || 5 * 60 * 1000;
+      const expiresInMs = (refreshedLock.expires_in_seconds || 300) * 1000;
       const expiryTime = Date.now() + expiresInMs;
 
       lockTimeoutRef.current = setTimeout(() => {
@@ -338,7 +325,6 @@ const useLock = (options = {}) => {
 
   /**
    * 락 상태 확인 함수
-   *
    * @returns {Promise<Object|null>} - 락 상태 정보 또는 null
    */
   const checkLockStatus = useCallback(async () => {
@@ -406,7 +392,6 @@ const useLock = (options = {}) => {
 
   /**
    * 강제 락 연장 함수 (수동 갱신)
-   *
    * @returns {Promise<boolean>} - 갱신 성공 여부
    */
   const extendLock = useCallback(async () => {
@@ -444,7 +429,6 @@ const useLock = (options = {}) => {
 
   /**
    * 락 타입에 따른 표시 텍스트 반환
-   *
    * @param {string} type - 락 타입
    * @returns {string} - 표시 텍스트
    */
