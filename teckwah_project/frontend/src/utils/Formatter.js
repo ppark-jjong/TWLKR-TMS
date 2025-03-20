@@ -1,4 +1,4 @@
-// frontend/src/utils/Formatter.js
+// src/utils/Formatter.js
 import dayjs from 'dayjs';
 
 /**
@@ -24,7 +24,10 @@ export const formatPhoneNumber = (phone) => {
   if (cleaned.length < 7) {
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
   }
-  return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 11)}`;
+  return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(
+    7,
+    11
+  )}`;
 };
 
 /**
@@ -56,7 +59,15 @@ export const formatDuration = (duration) => {
   if (!duration) return '-';
   const hours = Math.floor(duration / 60);
   const minutes = duration % 60;
-  
+
   if (hours === 0) return `${minutes}분`;
   return `${hours}시간 ${minutes}분`;
+};
+
+export default {
+  formatDateTime,
+  formatPhoneNumber,
+  formatNumber,
+  formatDistance,
+  formatDuration,
 };

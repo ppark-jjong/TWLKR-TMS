@@ -33,8 +33,6 @@ class ErrorBoundary extends React.Component {
 
     // 에러 로깅
     console.error('ErrorBoundary에서 오류 발생:', error, errorInfo);
-
-    // 필요 시 외부 에러 로깅 서비스에 보고할 수 있음
   }
 
   // 복구 시도
@@ -57,6 +55,18 @@ class ErrorBoundary extends React.Component {
   };
 
   render() {
+    // 폴백 UI가 제공된 경우 사용
+    if (this.state.hasError && this.props.fallback) {
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback({
+          error: this.state.error,
+          errorInfo: this.state.errorInfo,
+          resetError: this.handleRetry,
+        });
+      }
+      return this.props.fallback;
+    }
+
     if (this.state.hasError) {
       // 복구 불가능한 심각한 오류 (여러 번 시도해도 실패)
       if (this.state.errorCount >= 3) {

@@ -48,15 +48,32 @@ class DashboardService {
       // 백엔드 API 응답 구조에 맞게 데이터 반환
       // 성공 응답 형식: { success: true, message: "메시지", data: { ... } }
       if (response.data && response.data.success) {
-        return response.data.data || { items: [] };
+        return (
+          response.data.data || {
+            date_range: null,
+            items: [],
+            user_role: '',
+            is_admin: false,
+          }
+        );
       } else {
         this.logger.warn('API 응답 형식이 예상과 다름:', response.data);
-        return { items: [] };
+        return {
+          date_range: null,
+          items: [],
+          user_role: '',
+          is_admin: false,
+        };
       }
     } catch (error) {
       this.logger.error('대시보드 목록 조회 실패:', error);
       ErrorHandler.handle(error, 'dashboard-list');
-      return { items: [] };
+      return {
+        date_range: null,
+        items: [],
+        user_role: '',
+        is_admin: false,
+      };
     }
   }
 
@@ -73,7 +90,12 @@ class DashboardService {
 
       // 검색어가 없는 경우 빈 배열 반환
       if (!orderNo || !orderNo.trim()) {
-        return { items: [] };
+        return {
+          date_range: null,
+          items: [],
+          user_role: '',
+          is_admin: false,
+        };
       }
 
       // API 호출 실행
@@ -85,14 +107,31 @@ class DashboardService {
 
       // 백엔드 API 응답 구조에 맞게 데이터 반환
       if (response.data && response.data.success) {
-        return response.data.data || { items: [] };
+        return (
+          response.data.data || {
+            date_range: null,
+            items: [],
+            user_role: '',
+            is_admin: false,
+          }
+        );
       } else {
-        return { items: [] };
+        return {
+          date_range: null,
+          items: [],
+          user_role: '',
+          is_admin: false,
+        };
       }
     } catch (error) {
       this.logger.error('주문번호 검색 실패:', error);
       ErrorHandler.handle(error, 'dashboard-search');
-      return { items: [] };
+      return {
+        date_range: null,
+        items: [],
+        user_role: '',
+        is_admin: false,
+      };
     }
   }
 
@@ -300,6 +339,74 @@ class DashboardService {
     } catch (error) {
       this.logger.error('메모 업데이트 실패:', error);
       ErrorHandler.handle(error, 'remark-update');
+      throw error;
+    }
+  }
+
+  /**
+   * 메모 생성
+   * POST /dashboard/{dashboard_id}/remarks
+   *
+   * @param {number} dashboardId - 대시보드 ID
+   * @param {string} content - 메모 내용
+   * @returns {Promise<Object>} - 생성된 메모 정보
+   */
+  async createRemark(dashboardId, content) {
+    try {
+      this.logger.info(`메모 생성 요청: id=${dashboardId}`);
+
+      // API 요청 실행 - 비관적 락 메커니즘 적용됨
+      const response = await axios.post(`/dashboard/${dashboardId}/remarks`, {
+        content,
+      });
+
+      this.logger.debug('메모 생성 응답:', response.data);
+
+      // 백엔드 API 응답 구조에 맞게 데이터 반환
+      if (response.data && response.data.success) {
+        message.success('메모가 생성되었습니다');
+        return response.data.data;
+      } else {
+        throw new Error(response.data?.message || '메모 생성에 실패했습니다');
+      }
+    } catch (error) {
+      this.logger.error('메모 생성 실패:', error);
+      ErrorHandler.handle(error, 'remark-create');
+      throw error;
+    }
+  }
+
+  /**
+   * 메모 삭제
+   * DELETE /dashboard/{dashboard_id}/remarks/{remark_id}
+   *
+   * @param {number} dashboardId - 대시보드 ID
+   * @param {number} remarkId - 메모 ID
+   * @returns {Promise<boolean>} - 삭제 성공 여부
+   */
+  async deleteRemark(dashboardId, remarkId) {
+    try {
+      this.logger.info(
+        `메모 삭제 요청: id=${dashboardId}, remarkId=${remarkId}`
+      );
+
+      // API 요청 실행 - 비관적 락 메커니즘 적용됨
+      const response = await axios.delete(
+        `/dashboard/${dashboardId}/remarks/${remarkId}`
+      );
+
+      this.logger.debug('메모 삭제 응답:', response.data);
+
+      // 백엔드 API 응답 구조에 맞게 데이터 반환
+      if (response.data && response.data.success) {
+        message.success('메모가 삭제되었습니다');
+        return true;
+      } else {
+        throw new Error(response.data?.message || '메모 삭제에 실패했습니다');
+      }
+    } catch (error) {
+      this.logger.error('메모 삭제 실패:', error);
+      ErrorHandler.handle(error, 'remark-delete');
       throw error;
     }
   }

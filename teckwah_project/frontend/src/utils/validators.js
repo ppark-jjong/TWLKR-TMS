@@ -1,6 +1,17 @@
-// frontend/src/utils/validator.js
+// src/utils/validators.js - 모든 유효성 검증 함수 통합
 import dayjs from 'dayjs';
-import { MessageTemplates } from './message';
+
+// 메시지 템플릿은 통합된 messages.js에서 가져오지만,
+// 순환 의존성 방지를 위해 여기서는 임시로 정의
+const MessageTemplates = {
+  VALIDATION: {
+    CONTACT_FORMAT: '올바른 연락처 형식이 아닙니다',
+    POSTAL_FORMAT: '올바른 우편번호 형식이 아닙니다',
+    FUTURE_DATE: '미래 날짜는 선택할 수 없습니다',
+    REQUIRED_FIELD: (field) => `${field}을(를) 입력해주세요`,
+    NUMERIC_ONLY: '숫자만 입력 가능합니다',
+  },
+};
 
 /**
  * 연락처 형식 검증

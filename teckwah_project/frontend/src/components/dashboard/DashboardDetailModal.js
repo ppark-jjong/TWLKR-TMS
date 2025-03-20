@@ -1,89 +1,50 @@
 // src/components/dashboard/DashboardDetailModal.js
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { Suspense } from 'react';
 import {
   Modal,
   Typography,
   Divider,
-  Form,
   Row,
   Col,
   Button,
-  Card,
-  Space,
-  Alert,
-  Tooltip,
   Badge,
-  Descriptions,
-  Input,
   Spin,
+  Alert,
 } from 'antd';
-import {
-  EditOutlined,
-  CloseOutlined,
-  SaveOutlined,
-  SyncOutlined,
-  WarningOutlined,
-  LockOutlined,
-  UnlockOutlined,
-  InfoCircleOutlined,
-} from '@ant-design/icons';
-import dayjs from 'dayjs';
-import {
-  DEPARTMENT_TEXTS,
-  TYPE_TEXTS,
-  STATUS_TEXTS,
-  STATUS_COLORS,
-  WAREHOUSE_TEXTS,
-  FONT_STYLES,
-} from '../../utils/Constants';
+import { EditOutlined } from '@ant-design/icons';
+import { STATUS_TEXTS, STATUS_COLORS } from '../../utils/Constants';
+import DashboardInfoSection from './DashboardInfoSection';
+import DashboardStatusControl from './DashboardStatusControl';
+import useDashboardDetail from '../../hooks/useDashboardDetail';
 import {
   formatDateTime,
   formatDistance,
   formatDuration,
   formatPhoneNumber,
 } from '../../utils/Formatter';
-import DashboardInfoSection, {
-  SectionTitle,
-  InfoItem,
-} from './DashboardInfoSection';
-import DashboardStatusControl from './DashboardStatusControl';
-import useDashboardDetail from '../../hooks/useDashboardDetail';
-import { useAuth } from '../../contexts/AuthContext';
-import { useLogger } from '../../utils/LogUtils';
 
-const { Title, Text, Paragraph } = Typography;
-const { TextArea } = Input;
+const { Text } = Typography;
+
+// 지연 로딩 폴백 컴포넌트
+const DetailFallback = () => (
+  <div style={{ textAlign: 'center', padding: '20px' }}>
+    <Spin tip="상세 정보 로딩 중..." />
+  </div>
+);
 
 /**
  * 개선된 대시보드 상세 정보 모달 컴포넌트
- * 비관적 락과 낙관적 락을 모두 지원하며 useDashboardDetail 커스텀 훅을 활용해
- * 비즈니스 로직과 UI를 분리하고 일관된 상태 관리를 제공합니다.
- *
- * @param {Object} props - 컴포넌트 속성
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Object} props.dashboard - 초기 대시보드 정보
- * @param {Function} props.onCancel - 취소 콜백
- * @param {Function} props.onSuccess - 성공 콜백
- * @param {boolean} props.isAdmin - 관리자 여부
+ * 커스텀 훅을 사용하여 로직 분리
  */
 const DashboardDetailModal = ({
-  visible, // 모달 표시 여부
-  dashboard, // 초기 대시보드 정보
-  onCancel, // 취소 콜백
-  onSuccess, // 성공 콜백
-  isAdmin = false, // 관리자 여부
+  visible,
+  dashboard,
+  onCancel,
+  onSuccess,
+  isAdmin = false,
 }) => {
-  const logger = useLogger('DashboardDetailModal');
-  const { user } = useAuth();
-  const [form] = Form.useForm();
-  const [versionAlert, setVersionAlert] = useState({
-    visible: false,
-    message: '',
-    latestVersion: null,
-  });
-  const [refreshLoading, setRefreshLoading] = useState(false);
-
-  // useDashboardDetail 커스텀 훅 사용 - 비즈니스 로직과 UI 분리
+  // useDashboardDetail 커스텀 훅 사용
   const {
     // 상태
     dashboard: currentDashboard,
@@ -99,12 +60,10 @@ const DashboardDetailModal = ({
 
     // 액션 함수
     fetchDashboardDetail,
-    checkLockStatus,
     startFieldsEdit,
     startRemarkEdit,
     updateFields,
     updateRemark,
-    releaseLock,
     cancelEdit,
     updateStatus,
 
@@ -117,164 +76,22 @@ const DashboardDetailModal = ({
         onSuccess(updatedDashboard);
       }
     },
-    onError: (error) => {
-      // 낙관적 락 충돌 처리 (409 Conflict)
-      if (error.response?.status === 409) {
-        setVersionAlert({
-          visible: true,
-          message:
-            '다른 사용자가 이미 이 정보를 수정했습니다. 최신 데이터로 갱신되었습니다.',
-          latestVersion:
-            error.response.data?.version_info?.current_version || null,
-        });
-      }
-    },
   });
 
-  // 폼 초기화 - 백엔드 API 구조와 일치하는 필드 매핑
-  useEffect(() => {
-    if (currentDashboard && editMode.fields) {
-      form.setFieldsValue({
-        eta: currentDashboard.eta ? dayjs(currentDashboard.eta) : null,
-        customer: currentDashboard.customer || '',
-        contact: currentDashboard.contact || '',
-        address: currentDashboard.address || '',
-        postal_code: currentDashboard.postal_code || '',
-      });
-    }
-  }, [currentDashboard, editMode.fields, form]);
-
-  // 최신 데이터 새로고침
-  const handleRefreshData = async () => {
-    try {
-      setRefreshLoading(true);
-      await fetchDashboardDetail();
-    } finally {
-      setRefreshLoading(false);
-    }
-  };
-
-  // 필드 저장 핸들러
-  const handleSaveFields = async () => {
-    try {
-      const values = await form.validateFields();
-      await updateFields(values);
-    } catch (error) {
-      logger.error('필드 저장 실패:', error);
-    }
-  };
-
-  // 관리자 전용: 강제 락 해제
-  const handleForceUnlock = async () => {
-    if (!isAdmin) return;
-
-    try {
-      logger.info(`강제 락 해제 요청: ID=${currentDashboard?.dashboard_id}`);
-
-      // 백엔드 API 명세에 맞는 락 해제 로직 구현
-      // 현재는 단순 재조회로 대체하고 향후 API 지원 시 확장
-      await fetchDashboardDetail();
-
-      // 성공 메시지 표시
-      message.success('강제 락 해제가 완료되었습니다.');
-    } catch (error) {
-      logger.error('강제 락 해제 실패:', error);
-      message.error('강제 락 해제 중 오류가 발생했습니다.');
-    }
-  };
-
-  // 모달 취소 핸들러 - 변경 사항 확인 및 락 해제
+  // 모달 취소 핸들러
   const handleModalCancel = async () => {
-    // 변경 사항이 있는 경우 확인 요청
     if (editMode.fields || editMode.remark) {
       const confirmed = window.confirm(
         '저장되지 않은 변경 사항이 있습니다. 정말 닫으시겠습니까?'
       );
       if (!confirmed) return;
 
-      // 편집 취소 및 락 해제
       await cancelEdit();
     }
 
     if (onCancel) {
       onCancel();
     }
-  };
-
-  // ESC 키 이벤트 핸들러 - 편집 중에는 ESC로 모달 닫기 방지
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && (editMode.fields || editMode.remark)) {
-        e.stopPropagation();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [editMode]);
-
-  // beforeunload 이벤트 핸들러 - 페이지 이탈 시 락 해제 시도
-  useEffect(() => {
-    const handleBeforeUnload = async (e) => {
-      if (editMode.fields || editMode.remark) {
-        e.preventDefault();
-        e.returnValue =
-          '저장되지 않은 변경 사항이 있습니다. 페이지를 나가시겠습니까?';
-
-        // 락 해제 시도
-        try {
-          await releaseLock();
-        } catch (error) {
-          logger.error('페이지 이탈 시 락 해제 실패:', error);
-        }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [editMode, releaseLock, logger]);
-
-  // 버전 충돌 알림 렌더링
-  const renderVersionAlert = () => {
-    if (!versionAlert.visible) return null;
-
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        icon={<WarningOutlined />}
-        message="데이터 버전 충돌"
-        description={
-          <>
-            <Paragraph>{versionAlert.message}</Paragraph>
-            {versionAlert.latestVersion && (
-              <Paragraph>
-                <Text strong>현재 버전: {versionAlert.latestVersion}</Text>
-              </Paragraph>
-            )}
-          </>
-        }
-        action={
-          <Button
-            size="small"
-            onClick={() =>
-              setVersionAlert({
-                visible: false,
-                message: '',
-                latestVersion: null,
-              })
-            }
-          >
-            확인
-          </Button>
-        }
-        style={{ marginBottom: 16 }}
-      />
-    );
   };
 
   // 락 정보 알림 렌더링
@@ -289,95 +106,25 @@ const DashboardDetailModal = ({
       <Alert
         type="info"
         showIcon
-        icon={<LockOutlined />}
         message="편집 세션 정보"
         description={
           <>
-            <Paragraph>
-              <Text>
-                현재 <Text strong>{lockInfo.locked_by}</Text>님이 {lockTypeText}{' '}
-                작업 중입니다.
-              </Text>
-            </Paragraph>
+            <Text>
+              현재 <Text strong>{lockInfo.locked_by}</Text>님이 {lockTypeText}{' '}
+              작업 중입니다.
+            </Text>
             {expiresAt && (
-              <Paragraph>
+              <div>
                 <Text>
                   세션 만료: {expiresAt.format('HH:mm:ss')} (남은 시간: 약{' '}
                   {timeRemaining}분)
                 </Text>
-              </Paragraph>
+              </div>
             )}
           </>
         }
         style={{ marginBottom: 16 }}
       />
-    );
-  };
-
-  // 관리자 제어판 렌더링
-  const renderAdminControls = () => {
-    if (!isAdmin) return null;
-
-    return (
-      <Card
-        size="small"
-        title={<Text strong>관리자 제어판</Text>}
-        extra={
-          <Text type="secondary">버전: {currentDashboard?.version || 1}</Text>
-        }
-        style={{ marginTop: 16, backgroundColor: '#fffbe6', marginBottom: 16 }}
-      >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Space wrap>
-            <Tooltip title="모든 편집 락 강제 해제">
-              <Button
-                icon={<UnlockOutlined />}
-                onClick={handleForceUnlock}
-                danger
-              >
-                강제 락 해제
-              </Button>
-            </Tooltip>
-
-            <Tooltip title="최신 데이터로 새로고침">
-              <Button
-                icon={<SyncOutlined spin={refreshLoading} />}
-                onClick={handleRefreshData}
-                loading={refreshLoading}
-              >
-                데이터 새로고침
-              </Button>
-            </Tooltip>
-
-            <Tooltip title="마지막 업데이트: ">
-              <Text type="secondary">
-                마지막 갱신: {dayjs().format('HH:mm:ss')}
-              </Text>
-            </Tooltip>
-          </Space>
-
-          {lockInfo && (
-            <Descriptions
-              size="small"
-              bordered
-              column={1}
-              style={{ marginTop: 8 }}
-            >
-              <Descriptions.Item label="락 소유자">
-                {lockInfo.locked_by}
-              </Descriptions.Item>
-              <Descriptions.Item label="락 타입">
-                {getLockTypeText(lockInfo.lock_type)}
-              </Descriptions.Item>
-              <Descriptions.Item label="만료 시간">
-                {lockInfo.expires_at
-                  ? dayjs(lockInfo.expires_at).format('HH:mm:ss')
-                  : '-'}
-              </Descriptions.Item>
-            </Descriptions>
-          )}
-        </Space>
-      </Card>
     );
   };
 
@@ -401,19 +148,13 @@ const DashboardDetailModal = ({
             <Space>
               <Button
                 type="primary"
-                icon={<SaveOutlined />}
                 onClick={updateRemark}
                 loading={loading}
                 size="large"
               >
                 저장
               </Button>
-              <Button
-                icon={<CloseOutlined />}
-                onClick={cancelEdit}
-                size="large"
-                disabled={loading}
-              >
+              <Button onClick={cancelEdit} size="large" disabled={loading}>
                 취소
               </Button>
             </Space>
@@ -462,121 +203,6 @@ const DashboardDetailModal = ({
             : '메모 없음'}
         </div>
       </div>
-    );
-  };
-
-  // 편집 폼 렌더링
-  const renderEditForm = () => {
-    return (
-      <Form form={form} layout="vertical">
-        <Row gutter={32}>
-          <Col span={12}>
-            <Form.Item
-              name="eta"
-              label="ETA"
-              rules={[
-                { required: true, message: 'ETA를 선택해주세요' },
-                {
-                  validator: (_, value) => {
-                    if (value && value.isBefore(dayjs())) {
-                      return Promise.reject(
-                        '현재 시간 이후로 ETA를 설정해주세요'
-                      );
-                    }
-                    return Promise.resolve();
-                  },
-                },
-              ]}
-            >
-              <DatePicker
-                showTime
-                format="YYYY-MM-DD HH:mm"
-                style={{ width: '100%' }}
-                placeholder="도착 예정 시간 선택"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="postal_code"
-              label="우편번호"
-              rules={[
-                { required: true, message: '우편번호를 입력해주세요' },
-                {
-                  pattern: /^\d{5}$/,
-                  message: '5자리 숫자로 입력해주세요',
-                },
-              ]}
-            >
-              <Input maxLength={5} placeholder="12345" />
-            </Form.Item>
-
-            <Form.Item
-              name="address"
-              label="주소"
-              rules={[{ required: true, message: '주소를 입력해주세요' }]}
-            >
-              <TextArea
-                rows={3}
-                placeholder="상세 주소를 입력하세요"
-                maxLength={200}
-                showCount
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={12}>
-            <Form.Item
-              name="customer"
-              label="수령인"
-              rules={[
-                { required: true, message: '수령인을 입력해주세요' },
-                {
-                  whitespace: true,
-                  message: '공백만으로는 입력할 수 없습니다',
-                },
-                { max: 50, message: '50자를 초과할 수 없습니다' },
-              ]}
-            >
-              <Input placeholder="수령인 이름" maxLength={50} />
-            </Form.Item>
-
-            <Form.Item
-              name="contact"
-              label="연락처"
-              rules={[
-                { required: true, message: '연락처를 입력해주세요' },
-                {
-                  pattern: /^\d{2,3}-\d{3,4}-\d{4}$/,
-                  message:
-                    '올바른 연락처 형식으로 입력해주세요 (예: 010-1234-5678)',
-                },
-              ]}
-            >
-              <Input placeholder="010-1234-5678" />
-            </Form.Item>
-
-            <div style={{ marginTop: '20px', color: '#666', fontSize: '13px' }}>
-              * 메모는 별도의 '메모 편집' 버튼을 통해서만 수정할 수 있습니다.
-            </div>
-          </Col>
-        </Row>
-
-        <div style={{ textAlign: 'right', marginTop: '16px' }}>
-          <Space>
-            <Button onClick={cancelEdit} icon={<CloseOutlined />}>
-              취소
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleSaveFields}
-              loading={loading}
-              icon={<SaveOutlined />}
-            >
-              저장
-            </Button>
-          </Space>
-        </div>
-      </Form>
     );
   };
 
@@ -642,7 +268,6 @@ const DashboardDetailModal = ({
     };
   };
 
-  // 메인 렌더링
   return (
     <Modal
       title={
@@ -656,7 +281,7 @@ const DashboardDetailModal = ({
           }}
         >
           <div>
-            <Text style={{ ...FONT_STYLES.TITLE.MEDIUM, marginRight: '12px' }}>
+            <Text style={{ marginRight: '12px' }}>
               주문번호: {currentDashboard?.order_no}
             </Text>
             <Badge
@@ -689,21 +314,11 @@ const DashboardDetailModal = ({
       closable={!editMode.fields && !editMode.remark}
       destroyOnClose={true}
     >
-      {/* 버전 충돌 알림 */}
-      {renderVersionAlert()}
-
       {/* 락 정보 알림 */}
       {lockInfo && renderLockInfo()}
 
-      {/* 관리자 제어판 */}
-      {isAdmin && renderAdminControls()}
-
       {/* 로딩/에러 상태 표시 */}
-      {loading && !currentDashboard && (
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <Spin tip="데이터를 불러오는 중..." />
-        </div>
-      )}
+      {loading && !currentDashboard && <DetailFallback />}
 
       {error && (
         <Alert
@@ -716,9 +331,16 @@ const DashboardDetailModal = ({
       )}
 
       {/* 편집 모드 */}
-      {currentDashboard && editMode.fields
-        ? renderEditForm()
-        : currentDashboard && (
+      {currentDashboard && (
+        <Suspense fallback={<DetailFallback />}>
+          {editMode.fields ? (
+            <DashboardEditForm
+              dashboard={currentDashboard}
+              onSave={updateFields}
+              onCancel={cancelEdit}
+              loading={loading}
+            />
+          ) : (
             <div style={{ padding: '0' }}>
               <div
                 style={{
@@ -772,6 +394,8 @@ const DashboardDetailModal = ({
               {renderRemarkSection()}
             </div>
           )}
+        </Suspense>
+      )}
     </Modal>
   );
 };

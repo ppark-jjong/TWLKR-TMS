@@ -1,42 +1,41 @@
 // frontend/src/utils/useDateRange.js
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import dayjs from 'dayjs';
-import DashboardService from '../services/DashboardService';
+import VisualizationService from '../services/VisualizationService';
+import { useLogger } from './LogUtils';
 
 /**
  * 날짜 범위 선택 및 관리를 위한 커스텀 훅
- * 대시보드, 시각화 등 날짜 범위 선택이 필요한 컴포넌트에서 재사용
  * @param {number} defaultDays - 기본 표시할 날짜 범위 (오늘 기준 이전 일수)
  * @returns {Object} - 날짜 범위 관련 상태 및 핸들러
  */
 export const useDateRange = (defaultDays = 7) => {
+  const logger = useLogger('useDateRange');
   const [dateRange, setDateRange] = useState(null);
   const [availableDateRange, setAvailableDateRange] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // 중복 요청 방지를 위한 플래그
-  const isLoadingDateRangeRef = useRef(false);
+  const isLoadingRef = useRef(false);
 
-  // 초기화 함수 - 날짜 범위 정보 조회
+  // 날짜 범위 정보 조회
   const fetchDateRange = useCallback(async () => {
     // 이미 로딩 중이면 중복 요청 방지
-    if (isLoadingDateRangeRef.current) {
-      console.log('날짜 범위 정보를 이미 로딩 중입니다.');
+    if (isLoadingRef.current) {
+      logger.info('날짜 범위 정보를 이미 로딩 중입니다.');
       return;
     }
 
     try {
-      // 로딩 플래그 설정
-      isLoadingDateRangeRef.current = true;
+      isLoadingRef.current = true;
       setLoading(true);
 
-      console.log('날짜 범위 정보 조회 시작');
-      const dateRangeInfo = await DashboardService.getDateRange();
+      logger.info('날짜 범위 정보 조회 시작');
+      const response = await VisualizationService.getDateRange();
 
-      if (dateRangeInfo) {
-        setAvailableDateRange(dateRangeInfo);
-        console.log('날짜 범위 정보 조회 성공:', dateRangeInfo);
+      if (response && response.success) {
+        setAvailableDateRange(response.date_range);
+        logger.debug('날짜 범위 정보 조회 성공:', response.date_range);
 
         // 기본 날짜 범위 설정 (오늘부터 지정된 일수만큼 이전)
         const today = dayjs();
@@ -45,7 +44,7 @@ export const useDateRange = (defaultDays = 7) => {
         setDateRange([startDate, today]);
       }
     } catch (error) {
-      console.error('날짜 범위 정보 조회 실패:', error);
+      logger.error('날짜 범위 정보 조회 실패:', error);
 
       // 에러 발생 시 기본 날짜 범위 설정
       const today = dayjs();
@@ -53,13 +52,12 @@ export const useDateRange = (defaultDays = 7) => {
 
       setDateRange([startDate, today]);
     } finally {
-      // 로딩 플래그 해제
       setLoading(false);
-      isLoadingDateRangeRef.current = false;
+      isLoadingRef.current = false;
     }
-  }, [defaultDays]);
+  }, [defaultDays, logger]);
 
-  // 컴포넌트 마운트 시 날짜 범위 정보 로드 (최초 1회만)
+  // 컴포넌트 마운트 시 날짜 범위 정보 로드
   useEffect(() => {
     fetchDateRange();
   }, [fetchDateRange]);

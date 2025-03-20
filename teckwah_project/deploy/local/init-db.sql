@@ -76,7 +76,6 @@ CREATE TABLE IF NOT EXISTS dashboard (
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
-  -- version 필드 제거
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_create_time (create_time), -- 최적화: 생성 시간 기준 조회 성능 향상

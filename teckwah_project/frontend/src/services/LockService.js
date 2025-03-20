@@ -11,6 +11,7 @@ import { useLogger } from '../utils/LogUtils';
 class LockService {
   constructor() {
     this.logger = useLogger('LockService');
+    this.lockTimeouts = new Map(); // 락 자동 해제 타이머 관리
   }
 
   /**
@@ -30,6 +31,12 @@ class LockService {
 
       if (response.data && response.data.success) {
         this.logger.info('락 획득 성공:', response.data.data);
+
+        // 자동 해제 타이머 설정 (만료 10초 전에 알림)
+        if (response.data.data.expires_at) {
+          this._setupLockExpiryTimer(dashboardId, response.data.data);
+        }
+
         return response.data.data;
       } else {
         throw new Error(response.data?.message || '락 획득에 실패했습니다');
@@ -48,7 +55,8 @@ class LockService {
           `현재 ${lockedBy}님이 이 데이터를 ${this._getLockTypeText(
             lockType
           )} 중입니다. 잠시 후 다시 시도해주세요.`,
-          MessageKeys.DASHBOARD.LOCK_ACQUIRE
+          MessageKeys.DASHBOARD.LOCK_ACQUIRE,
+          5
         );
       } else {
         message.error(
@@ -69,6 +77,9 @@ class LockService {
   async releaseLock(dashboardId) {
     try {
       this.logger.info(`락 해제 요청: id=${dashboardId}`);
+
+      // 자동 해제 타이머 제거
+      this._clearLockExpiryTimer(dashboardId);
 
       const response = await axios.delete(`/dashboard/${dashboardId}/lock`);
 
@@ -98,6 +109,12 @@ class LockService {
 
       if (response.data && response.data.success) {
         this.logger.debug('락 상태 확인 결과:', response.data.data);
+
+        // 락이 있는 경우 자동 해제 타이머 설정
+        if (response.data.data.is_locked && response.data.data.expires_at) {
+          this._setupLockExpiryTimer(dashboardId, response.data.data);
+        }
+
         return response.data.data;
       } else {
         return { is_locked: false };
@@ -109,7 +126,7 @@ class LockService {
   }
 
   /**
-   * 락 갱신 요청 (만료 시간 연장)
+   * 락 갱신 요청
    * 백엔드 API가 지원하는 경우 사용 가능
    * @param {number} dashboardId - 대시보드 ID
    * @returns {Promise<Object>} - 갱신된 락 정보
@@ -118,8 +135,7 @@ class LockService {
     try {
       this.logger.info(`락 갱신 요청: id=${dashboardId}`);
 
-      // 갱신 API가 없는 경우 대체 로직 (락 해제 후 재획득)
-      // 실제 구현시 백엔드 API 명세에 맞게 수정 필요
+      // 현재 락 상태 확인
       const currentLock = await this.checkLockStatus(dashboardId);
 
       if (!currentLock || !currentLock.is_locked) {
@@ -127,7 +143,7 @@ class LockService {
         return null;
       }
 
-      // 갱신 엔드포인트가 있다면 아래와 같이 구현
+      // 갱신 엔드포인트가 있는 경우 (현재 백엔드 API에 없음)
       // const response = await axios.put(`/dashboard/${dashboardId}/lock`, {
       //   lock_type: currentLock.lock_type
       // });
@@ -144,6 +160,78 @@ class LockService {
     } catch (error) {
       this.logger.error('락 갱신 실패:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 락 만료 타이머 설정
+   * @param {number} dashboardId - 대시보드 ID
+   * @param {Object} lockInfo - 락 정보
+   * @private
+   */
+  _setupLockExpiryTimer(dashboardId, lockInfo) {
+    // 기존 타이머 제거
+    this._clearLockExpiryTimer(dashboardId);
+
+    if (!lockInfo.expires_at) return;
+
+    // 만료 시간 계산
+    const expiryTime = new Date(lockInfo.expires_at).getTime();
+    const now = Date.now();
+    let timeRemaining = expiryTime - now;
+
+    if (timeRemaining <= 0) return;
+
+    // 만료 1분 전 알림
+    const warningTime = Math.max(0, timeRemaining - 60000);
+
+    if (warningTime > 0) {
+      const warningTimer = setTimeout(() => {
+        message.warning(
+          '편집 세션이 1분 후 만료됩니다. 작업을 완료하거나 저장하세요.',
+          `lock-expiry-warning-${dashboardId}`
+        );
+      }, warningTime);
+
+      this.lockTimeouts.set(`${dashboardId}-warning`, warningTimer);
+    }
+
+    // 실제 만료 알림
+    const expiryTimer = setTimeout(() => {
+      message.error(
+        '편집 세션이 만료되었습니다. 편집 모드를 다시 활성화해야 합니다.',
+        `lock-expiry-${dashboardId}`
+      );
+
+      // 발행-구독 패턴으로 컴포넌트에 만료 알림
+      window.dispatchEvent(
+        new CustomEvent('lock-expired', {
+          detail: { dashboardId, lockType: lockInfo.lock_type },
+        })
+      );
+    }, timeRemaining);
+
+    this.lockTimeouts.set(`${dashboardId}-expiry`, expiryTimer);
+  }
+
+  /**
+   * 락 만료 타이머 제거
+   * @param {number} dashboardId - 대시보드 ID
+   * @private
+   */
+  _clearLockExpiryTimer(dashboardId) {
+    // 경고 타이머 제거
+    const warningTimer = this.lockTimeouts.get(`${dashboardId}-warning`);
+    if (warningTimer) {
+      clearTimeout(warningTimer);
+      this.lockTimeouts.delete(`${dashboardId}-warning`);
+    }
+
+    // 만료 타이머 제거
+    const expiryTimer = this.lockTimeouts.get(`${dashboardId}-expiry`);
+    if (expiryTimer) {
+      clearTimeout(expiryTimer);
+      this.lockTimeouts.delete(`${dashboardId}-expiry`);
     }
   }
 
