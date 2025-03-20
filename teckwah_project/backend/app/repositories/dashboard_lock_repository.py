@@ -9,12 +9,16 @@ from app.models.dashboard_lock_model import DashboardLock
 from app.models.dashboard_model import Dashboard
 from app.utils.logger import log_info, log_error
 from app.utils.exceptions import PessimisticLockException
+from app.config.settings import get_settings
+
+settings = get_settings()
 
 
 class DashboardLockRepository:
     def __init__(self, db: Session):
         self.db = db
-        self.default_lock_timeout = 300  # 기본 락 타임아웃 5분
+        # 환경 변수에서 락 타임아웃 설정 가져오기
+        self.default_lock_timeout = settings.LOCK_TIMEOUT_SECONDS
 
     def acquire_lock(
         self, dashboard_id: int, user_id: str, lock_type: str, timeout_seconds: int = None

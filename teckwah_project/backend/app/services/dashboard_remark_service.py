@@ -86,8 +86,8 @@ class DashboardRemarkService:
             )
 
     def update_remark(
-    self, remark_id: int, remark_data: RemarkUpdate, user_id: str, dashboard_version: Optional[int] = None
-) -> RemarkResponse:
+        self, remark_id: int, remark_data: RemarkUpdate, user_id: str, dashboard_version: Optional[int] = None
+    ) -> RemarkResponse:
         """
         메모 업데이트 (비관적 락 전용)
         
@@ -145,6 +145,9 @@ class DashboardRemarkService:
                 detail="메모 업데이트 중 오류가 발생했습니다",
             )
 
+    def delete_remark(
+        self, remark_id: int, user_id: str, is_admin: bool = False
+    ) -> bool:
         """메모 삭제 (비관적 락 전용)"""
         try:
             # 1. 메모 조회

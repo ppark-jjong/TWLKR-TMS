@@ -271,101 +271,101 @@ class DashboardRepository:
             log_error(e, "주문번호 검색 실패", {"order_no": order_no})
             raise
             
-def get_date_range(self) -> Tuple[datetime, datetime]:
-    """
-    조회 가능한 날짜 범위 조회 (ETA 기준)
-    """
-    try:
-        result = self.db.query(
-            func.min(Dashboard.eta).label("oldest_date"),
-            func.max(Dashboard.eta).label("latest_date"),
-        ).first()
+    def get_date_range(self) -> Tuple[datetime, datetime]:
+        """
+        조회 가능한 날짜 범위 조회 (ETA 기준)
+        """
+        try:
+            result = self.db.query(
+                func.min(Dashboard.eta).label("oldest_date"),
+                func.max(Dashboard.eta).label("latest_date"),
+            ).first()
 
-        oldest_date = result.oldest_date if result.oldest_date else datetime.now(self.kr_timezone)
-        latest_date = result.latest_date if result.latest_date else datetime.now(self.kr_timezone)
+            oldest_date = result.oldest_date if result.oldest_date else datetime.now(self.kr_timezone)
+            latest_date = result.latest_date if result.latest_date else datetime.now(self.kr_timezone)
 
-        log_info(f"조회 가능 날짜 범위: {oldest_date} ~ {latest_date}")
-        return oldest_date, latest_date
-    except SQLAlchemyError as e:
-        log_error(e, "날짜 범위 조회 실패")
-        # 기본값 반환 (현재일 기준 30일)
-        now = datetime.now(self.kr_timezone)
-        return now - timedelta(days=30), now
+            log_info(f"조회 가능 날짜 범위: {oldest_date} ~ {latest_date}")
+            return oldest_date, latest_date
+        except SQLAlchemyError as e:
+            log_error(e, "날짜 범위 조회 실패")
+            # 기본값 반환 (현재일 기준 30일)
+            now = datetime.now(self.kr_timezone)
+            return now - timedelta(days=30), now
 
-def acquire_lock_for_update(self, dashboard_id: int) -> Optional[Dashboard]:
-    """
-    FOR UPDATE NOWAIT를 사용한 비관적 락 획득
-    
-    Args:
-        dashboard_id: 대시보드 ID
+    def acquire_lock_for_update(self, dashboard_id: int) -> Optional[Dashboard]:
+        """
+        FOR UPDATE NOWAIT를 사용한 비관적 락 획득
         
-    Returns:
-        획득한 대시보드 객체 또는 None
-        
-    Raises:
-        PessimisticLockException: 락 획득 실패 시
-    """
-    try:
-        # Row-level lock 획득 시도 (NOWAIT 옵션으로 즉시 실패)
-        stmt = select(Dashboard).where(Dashboard.dashboard_id == dashboard_id).with_for_update(nowait=True)
-        dashboard = self.db.execute(stmt).scalar_one_or_none()
-        
-        if not dashboard:
-            log_error(None, f"대시보드를 찾을 수 없음: ID {dashboard_id}")
-            return None
+        Args:
+            dashboard_id: 대시보드 ID
             
-        return dashboard
-        
-    except OperationalError:
-        # 다른 트랜잭션이 이미 해당 행을 잠금 - NOWAIT 옵션 때문에 즉시 실패
-        log_error(None, f"대시보드 {dashboard_id}에 대한 DB 락 획득 실패")
-        raise PessimisticLockException(
-            "다른 사용자가 이미 이 항목을 수정 중입니다", locked_by="Unknown"
-        )
-
-def acquire_locks_for_update(self, dashboard_ids: List[int]) -> List[Dashboard]:
-    """
-    여러 대시보드에 대한 FOR UPDATE NOWAIT를 사용한 비관적 락 획득
-    
-    Args:
-        dashboard_ids: 대시보드 ID 목록
-        
-    Returns:
-        획득한 대시보드 객체 목록
-        
-    Raises:
-        PessimisticLockException: 락 획득 실패 시
-    """
-    try:
-        if not dashboard_ids:
-            return []
+        Returns:
+            획득한 대시보드 객체 또는 None
             
-        # Row-level locks 획득 시도 (NOWAIT 옵션으로 즉시 실패)
-        dashboard_ids_str = ','.join(str(id) for id in dashboard_ids)
-        stmt = text(f"SELECT dashboard_id FROM dashboard WHERE dashboard_id IN ({dashboard_ids_str}) FOR UPDATE NOWAIT")
-        result = self.db.execute(stmt)
-        locked_ids = [row[0] for row in result]
-        
-        # 모든 대시보드가 잠금되었는지 확인
-        if len(locked_ids) != len(dashboard_ids):
-            missing_ids = set(dashboard_ids) - set(locked_ids)
-            log_error(None, f"일부 대시보드 잠금 실패: {missing_ids}")
+        Raises:
+            PessimisticLockException: 락 획득 실패 시
+        """
+        try:
+            # Row-level lock 획득 시도 (NOWAIT 옵션으로 즉시 실패)
+            stmt = select(Dashboard).where(Dashboard.dashboard_id == dashboard_id).with_for_update(nowait=True)
+            dashboard = self.db.execute(stmt).scalar_one_or_none()
+            
+            if not dashboard:
+                log_error(None, f"대시보드를 찾을 수 없음: ID {dashboard_id}")
+                return None
+                
+            return dashboard
+            
+        except OperationalError:
+            # 다른 트랜잭션이 이미 해당 행을 잠금 - NOWAIT 옵션 때문에 즉시 실패
+            log_error(None, f"대시보드 {dashboard_id}에 대한 DB 락 획득 실패")
             raise PessimisticLockException(
-                "일부 대시보드를 잠글 수 없습니다. 다른 사용자가 수정 중입니다."
+                "다른 사용자가 이미 이 항목을 수정 중입니다", locked_by="Unknown"
+            )
+
+    def acquire_locks_for_update(self, dashboard_ids: List[int]) -> List[Dashboard]:
+        """
+        여러 대시보드에 대한 FOR UPDATE NOWAIT를 사용한 비관적 락 획득
+        
+        Args:
+            dashboard_ids: 대시보드 ID 목록
+            
+        Returns:
+            획득한 대시보드 객체 목록
+            
+        Raises:
+            PessimisticLockException: 락 획득 실패 시
+        """
+        try:
+            if not dashboard_ids:
+                return []
+                
+            # Row-level locks 획득 시도 (NOWAIT 옵션으로 즉시 실패)
+            dashboard_ids_str = ','.join(str(id) for id in dashboard_ids)
+            stmt = text(f"SELECT dashboard_id FROM dashboard WHERE dashboard_id IN ({dashboard_ids_str}) FOR UPDATE NOWAIT")
+            result = self.db.execute(stmt)
+            locked_ids = [row[0] for row in result]
+            
+            # 모든 대시보드가 잠금되었는지 확인
+            if len(locked_ids) != len(dashboard_ids):
+                missing_ids = set(dashboard_ids) - set(locked_ids)
+                log_error(None, f"일부 대시보드 잠금 실패: {missing_ids}")
+                raise PessimisticLockException(
+                    "일부 대시보드를 잠글 수 없습니다. 다른 사용자가 수정 중입니다."
+                )
+                
+            # 잠금된 대시보드 정보 조회
+            dashboards = (
+                self.db.query(Dashboard)
+                .filter(Dashboard.dashboard_id.in_(locked_ids))
+                .all()
             )
             
-        # 잠금된 대시보드 정보 조회
-        dashboards = (
-            self.db.query(Dashboard)
-            .filter(Dashboard.dashboard_id.in_(locked_ids))
-            .all()
-        )
-        
-        return dashboards
-        
-    except OperationalError:
-        # 다른 트랜잭션이 이미 해당 행들 중 하나를 잠금
-        log_error(None, f"다중 대시보드 락 획득 실패: {dashboard_ids}")
-        raise PessimisticLockException(
-            "다른 사용자가 이미 이 항목들 중 하나를 수정 중입니다"
-        )
+            return dashboards
+            
+        except OperationalError:
+            # 다른 트랜잭션이 이미 해당 행들 중 하나를 잠금
+            log_error(None, f"다중 대시보드 락 획득 실패: {dashboard_ids}")
+            raise PessimisticLockException(
+                "다른 사용자가 이미 이 항목들 중 하나를 수정 중입니다"
+            )

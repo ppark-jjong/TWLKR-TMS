@@ -15,7 +15,6 @@
 
 3. **특징**  
    - 상세한 설명 및 주석 제공 (모두 한국어).
-   - **낙관적 락**을 통한 버전 관리(버전 필드를 이용해 수정 충돌 시 409 Conflict 발생).
    - DB 모델은 임의로 수정 불가(변경 시 사전 허락 필요).
    - 무료 라이브러리만 사용 가능(유료 라이선스 라이브러리 제외).
 
@@ -126,53 +125,6 @@
 - **권한 관리**: 일반 사용자/관리자 접근 제어
 - **에러 처리**: API 에러 인터셉터 및 메시지 표시
 - **페이지 라우팅**: 인증 여부에 따라 접근 제어
-
-### 3.5. 주요 API 엔드포인트
-
-- **인증 API (/auth)**
-  - `POST /auth/login`: 로그인 및 토큰 발급
-  - `GET /auth/check-session`: 세션(토큰) 유효성 검증
-  - `POST /auth/refresh`: 토큰 갱신
-  - `POST /auth/logout`: 로그아웃 처리
-
-- **대시보드 API (/dashboard)**
-  - `GET /dashboard/list`: ETA 기준 주문 데이터 조회
-  - `POST /dashboard`: 신규 주문 생성
-  - `GET /dashboard/{dashboard_id}`: 개별 주문 상세
-  - `PATCH /dashboard/{dashboard_id}/status`: 주문 상태 변경
-  - `PATCH /dashboard/{dashboard_id}/fields`: 주문 필드 수정
-  - `POST /dashboard/assign`: 배차 처리
-  - `DELETE /dashboard`: 주문 삭제(관리자 전용)
-
-- **시각화 API (/visualization)**
-  - `GET /visualization/delivery_status`: 상태별 배송 현황 통계
-  - `GET /visualization/hourly_orders`: 시간대별 주문 접수 통계
-  - `GET /visualization/date_range`: 조회 가능 날짜 범위
-
----
-
-## 4. 낙관적 락(Optimistic Lock) 및 동시성 제어
-
-1. **구현 방식**
-   - `version` 필드를 각 레코드에 두고, 수정 시마다 값이 증가.
-   - 클라이언트가 요청 시 version 값을 함께 전송 → 서버 DB의 version과 비교.
-   - 일치하지 않으면 409 Conflict 발생, 최신 버전 반환.
-
-2. **흐름**
-   - 클라이언트가 최초 조회 시 `version` 값 포함 수신.
-   - 수정 요청 시 해당 `version` 값 포함.
-   - 서버에서 비교 → 일치하면 정상 업데이트, 불일치면 충돌(409).
-   - 충돌 발생 시 클라이언트는 최신 데이터 재조회 후 재시도.
-
-3. **충돌 발생 시 처리 시나리오**
-   - 클라이언트가 version 1로 업데이트 요청
-   - 이미 다른 클라이언트가 수정하여 DB version이 2로 변경됨
-   - 서버는 version 불일치 감지하여 409 응답
-   - 응답에 현재 version 포함: {"success": false, "message": "낙관적 락 충돌", "data": {"current_version": 2}}
-   - 클라이언트는 최신 데이터 재조회 후 사용자에게 알림 제공
-   - 새 버전(version=2)으로 재요청 가능
-
----
 
 ## 5. 프로젝트 폴더 구조
 

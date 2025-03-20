@@ -1,7 +1,16 @@
-// frontend/src/components/visualization/StatusPieChart.js
+// src/components/visualization/StatusPieChart.js - 리팩토링 버전
 
 import React, { useEffect, useState } from 'react';
-import { Col, Row, Typography, Empty, Card, Statistic } from 'antd';
+import {
+  Row,
+  Col,
+  Card,
+  Statistic,
+  Typography,
+  Empty,
+  Spin,
+  Alert,
+} from 'antd';
 import { Pie } from '@ant-design/plots';
 import {
   CheckCircleOutlined,
@@ -16,71 +25,80 @@ import {
   VISUALIZATION_COLORS,
 } from '../../utils/Constants';
 import { formatNumber } from '../../utils/Formatter';
+import { useLogger } from '../../utils/LogUtils';
 
 const { Title, Text } = Typography;
 
-// 상태별 아이콘 매핑
-const STATUS_ICONS = {
-  WAITING: <ClockCircleOutlined style={{ color: '#1890FF' }} />,
-  IN_PROGRESS: <SyncOutlined spin style={{ color: '#40A9FF' }} />,
-  COMPLETE: <CheckCircleOutlined style={{ color: '#52C41A' }} />,
-  ISSUE: <WarningOutlined style={{ color: '#F5222D' }} />,
-  CANCEL: <StopOutlined style={{ color: '#D9D9D9' }} />,
-};
+/**
+ * 배송 현황 파이 차트 컴포넌트 (백엔드 API 연동 최적화 버전)
+ * - 백엔드 API 응답 구조에 맞게 데이터 처리 로직 개선
+ * - 불필요한 데이터 변환 및 중첩 계산 제거
+ * - 에러 처리 및 빈 데이터 상태 대응 강화
+ * - 차트 렌더링 성능 최적화
+ */
+const StatusPieChart = ({ data, dateRange }) => {
+  const logger = useLogger('StatusPieChart');
 
-// 부서 표시 텍스트
-const DEPARTMENT_TEXTS = {
-  CS: 'CS 부서',
-  HES: 'HES 부서',
-  LENOVO: 'LENOVO 부서',
-};
-
-const StatusPieCharts = ({ data, dateRange }) => {
-  const [processedData, setProcessedData] = useState({
+  // 상태 관리
+  const [chartData, setChartData] = useState({
     departmentBreakdown: {},
-    total: 0,
     statusTotals: {},
+    total: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // 상태별 아이콘 매핑
+  const STATUS_ICONS = {
+    WAITING: <ClockCircleOutlined style={{ color: '#1890FF' }} />,
+    IN_PROGRESS: <SyncOutlined spin style={{ color: '#FAAD14' }} />,
+    COMPLETE: <CheckCircleOutlined style={{ color: '#52C41A' }} />,
+    ISSUE: <WarningOutlined style={{ color: '#F5222D' }} />,
+    CANCEL: <StopOutlined style={{ color: '#D9D9D9' }} />,
+  };
+
+  // 백엔드 API 데이터 처리 (department_breakdown 구조 기반)
   useEffect(() => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-
       // 데이터 검증
-      if (
-        !data ||
-        !data.department_breakdown ||
-        typeof data.department_breakdown !== 'object'
-      ) {
-        console.warn('부서별 배송 현황 데이터 오류:', data);
-        setError('데이터 형식이 올바르지 않습니다');
+      if (!data) {
+        logger.warn('StatusPieChart: 데이터가 없음');
         setLoading(false);
-
-        // 기본 빈 데이터 구조 반환
-        setProcessedData({
-          departmentBreakdown: {},
-          total: 0,
-          statusTotals: {
-            WAITING: 0,
-            IN_PROGRESS: 0,
-            COMPLETE: 0,
-            ISSUE: 0,
-            CANCEL: 0,
-          },
-        });
         return;
       }
 
-      console.log('원본 데이터:', {
+      // 타입 검증
+      if (data.type !== 'delivery_status') {
+        logger.warn('잘못된 차트 데이터 타입:', data.type);
+        setError('잘못된 데이터 타입입니다');
+        setLoading(false);
+        return;
+      }
+
+      // department_breakdown 검증
+      if (
+        !data.department_breakdown ||
+        typeof data.department_breakdown !== 'object'
+      ) {
+        logger.warn('부서별 데이터 형식 오류:', data);
+        setError('부서별 데이터 형식이 올바르지 않습니다');
+        setLoading(false);
+        return;
+      }
+
+      logger.debug('차트 데이터 처리 시작:', {
         type: data.type,
         total: data.total_count,
         departments: Object.keys(data.department_breakdown),
       });
 
-      // 전체 상태별 건수 초기화
+      // 백엔드 API 응답에서 직접 전체 건수 추출
+      const totalCount = data.total_count || 0;
+
+      // 상태별 전체 건수 초기화
       const statusTotals = {
         WAITING: 0,
         IN_PROGRESS: 0,
@@ -89,15 +107,13 @@ const StatusPieCharts = ({ data, dateRange }) => {
         CANCEL: 0,
       };
 
-      // 부서별 데이터 가공
+      // 부서별 데이터 변환 - 백엔드 API status_breakdown 구조 유지
       const departmentBreakdown = {};
-      let totalSum = 0;
 
       Object.entries(data.department_breakdown).forEach(([dept, deptData]) => {
-        // 부서 데이터가 없거나 형식이 올바르지 않은 경우 건너뛰기
+        // 부서 데이터 검증
         if (!deptData || !deptData.status_breakdown) {
-          console.warn(`${dept} 부서 데이터 형식 오류:`, deptData);
-          // 기본 구조 생성
+          logger.warn(`${dept} 부서 데이터 형식 오류:`, deptData);
           departmentBreakdown[dept] = {
             total: 0,
             status_breakdown: [],
@@ -105,115 +121,53 @@ const StatusPieCharts = ({ data, dateRange }) => {
           return;
         }
 
-        // 부서별 총건수
+        // 백엔드 API에서 제공하는 status_breakdown 구조 그대로 사용
         const deptTotal = deptData.total || 0;
-        totalSum += deptTotal;
 
-        // status_breakdown이 배열인지 확인
-        if (!Array.isArray(deptData.status_breakdown)) {
-          console.warn(
-            `${dept} 부서의 status_breakdown이 배열이 아닙니다:`,
-            deptData.status_breakdown
-          );
-          deptData.status_breakdown = [];
+        // 상태별 전체 합계 누적
+        if (Array.isArray(deptData.status_breakdown)) {
+          deptData.status_breakdown.forEach((item) => {
+            if (item && item.status && item.count) {
+              statusTotals[item.status] =
+                (statusTotals[item.status] || 0) + item.count;
+            }
+          });
         }
 
-        // 상태별 데이터 가공
-        const statusBreakdown = deptData.status_breakdown.map((item) => {
-          // 항목이 객체인지 확인
-          if (typeof item !== 'object' || item === null) {
-            console.warn(
-              `${dept} 부서의 status_breakdown 항목이 객체가 아닙니다:`,
-              item
-            );
-            return {
-              status: 'WAITING',
-              count: 0,
-              percentage: 0,
-            };
-          }
-
-          const status = item.status || 'WAITING';
-          const count = item.count || 0;
-          const percentage = item.percentage || 0;
-
-          // 전체 상태별 통계 누적
-          statusTotals[status] = (statusTotals[status] || 0) + count;
-
-          return {
-            status,
-            count,
-            percentage,
-          };
-        });
-
-        // 부서별 데이터 저장
+        // 부서별 데이터 저장 - 백엔드 API 구조 유지
         departmentBreakdown[dept] = {
           total: deptTotal,
-          status_breakdown: statusBreakdown,
+          status_breakdown: Array.isArray(deptData.status_breakdown)
+            ? deptData.status_breakdown
+            : [],
         };
       });
 
-      // 결과 저장
-      setProcessedData({
+      // 처리된 데이터 저장
+      setChartData({
         departmentBreakdown,
-        total: totalSum,
         statusTotals,
+        total: totalCount,
       });
 
-      console.log('가공된 데이터:', {
-        total: totalSum,
+      logger.debug('차트 데이터 처리 완료', {
         departments: Object.keys(departmentBreakdown),
-        statusTotals,
+        total: totalCount,
       });
-
-      setLoading(false);
     } catch (err) {
-      console.error('배송 현황 데이터 처리 오류:', err);
+      logger.error('차트 데이터 처리 오류:', err);
       setError('데이터 처리 중 오류가 발생했습니다');
+    } finally {
       setLoading(false);
-
-      // 에러 시 기본 빈 데이터 구조 제공
-      setProcessedData({
-        departmentBreakdown: {},
-        total: 0,
-        statusTotals: {
-          WAITING: 0,
-          IN_PROGRESS: 0,
-          COMPLETE: 0,
-          ISSUE: 0,
-          CANCEL: 0,
-        },
-      });
     }
-  }, [data]);
+  }, [data, logger]);
 
-  if (error) {
-    return (
-      <Empty
-        description={<span style={FONT_STYLES.BODY.MEDIUM}>{error}</span>}
-      />
-    );
-  }
-
-  if (loading || processedData.total === 0) {
-    return (
-      <Empty
-        description={
-          <span style={FONT_STYLES.BODY.MEDIUM}>
-            {loading ? '데이터 로딩 중...' : '데이터가 없습니다'}
-          </span>
-        }
-      />
-    );
-  }
-
-  // 파이 차트 설정 함수
+  // 파이 차트 설정 함수 - 백엔드 API의 status_breakdown 구조 활용
   const getPieConfig = (department, departmentData) => {
     try {
       // 데이터 검증
       if (!departmentData || !departmentData.status_breakdown) {
-        console.warn(
+        logger.warn(
           `${department} 부서의 데이터가 올바르지 않습니다:`,
           departmentData
         );
@@ -222,7 +176,7 @@ const StatusPieCharts = ({ data, dateRange }) => {
 
       // 유효한 status_breakdown 필드 확인
       if (!Array.isArray(departmentData.status_breakdown)) {
-        console.warn(
+        logger.warn(
           `${department} 부서의 status_breakdown이 배열이 아닙니다:`,
           departmentData.status_breakdown
         );
@@ -267,7 +221,7 @@ const StatusPieCharts = ({ data, dateRange }) => {
                 VISUALIZATION_COLORS.DEPARTMENT.CS
               ).primary,
             },
-            customHtml: () => DEPARTMENT_TEXTS[department] || department,
+            customHtml: () => department || '',
           },
           content: {
             style: {
@@ -300,20 +254,50 @@ const StatusPieCharts = ({ data, dateRange }) => {
         },
       };
     } catch (err) {
-      console.error(`${department} 부서 차트 설정 중 오류:`, err);
+      logger.error(`${department} 부서 차트 설정 중 오류:`, err);
       return null;
     }
   };
 
+  // 로딩 상태 표시
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" tip="데이터 로딩 중..." />
+      </div>
+    );
+  }
+
+  // 에러 상태 표시
+  if (error) {
+    return (
+      <Alert
+        message="차트 데이터 오류"
+        description={error}
+        type="error"
+        showIcon
+      />
+    );
+  }
+
+  // 데이터 없음 상태 표시
+  if (chartData.total === 0) {
+    return (
+      <Empty
+        description={
+          <span style={FONT_STYLES.BODY.MEDIUM}>데이터가 없습니다</span>
+        }
+      />
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 타이틀 영역 */}
       <div style={{ textAlign: 'center' }}>
         <Title
           level={4}
-          style={{
-            ...FONT_STYLES.TITLE.MEDIUM,
-            margin: '0 0 8px',
-          }}
+          style={{ ...FONT_STYLES.TITLE.MEDIUM, margin: '0 0 8px' }}
         >
           부서별 배송 현황
         </Title>
@@ -325,13 +309,13 @@ const StatusPieCharts = ({ data, dateRange }) => {
         )}
       </div>
 
-      {/* 상태별 카드 - 한 줄로 배치하고 크기 조정 */}
+      {/* 상태별 카드 영역 */}
       <Row gutter={[8, 8]} justify="center">
         {Object.entries(STATUS_TEXTS).map(([status, text]) => {
-          const count = processedData.statusTotals[status] || 0;
+          const count = chartData.statusTotals[status] || 0;
           const percentage =
-            processedData.total > 0
-              ? ((count / processedData.total) * 100).toFixed(1)
+            chartData.total > 0
+              ? ((count / chartData.total) * 100).toFixed(1)
               : 0;
 
           return (
@@ -366,9 +350,9 @@ const StatusPieCharts = ({ data, dateRange }) => {
         })}
       </Row>
 
-      {/* 파이 차트 영역 - 높이 조정 */}
+      {/* 부서별 파이 차트 영역 */}
       <Row justify="space-around" gutter={[16, 16]}>
-        {Object.entries(processedData.departmentBreakdown).map(
+        {Object.entries(chartData.departmentBreakdown).map(
           ([dept, deptData]) => (
             <Col span={8} key={dept}>
               <Card
@@ -377,7 +361,7 @@ const StatusPieCharts = ({ data, dateRange }) => {
                   borderRadius: '12px',
                   background: '#fff',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  height: '320px', // 높이 고정
+                  height: '320px',
                 }}
               >
                 {deptData.total > 0 && getPieConfig(dept, deptData) ? (
@@ -395,6 +379,7 @@ const StatusPieCharts = ({ data, dateRange }) => {
                   </div>
                 )}
 
+                {/* 상태별 건수 요약 표시 */}
                 {deptData.total > 0 && (
                   <div
                     style={{
@@ -408,7 +393,7 @@ const StatusPieCharts = ({ data, dateRange }) => {
                     {Array.isArray(deptData.status_breakdown) &&
                       deptData.status_breakdown
                         .filter((item) => item && item.count > 0)
-                        .map(({ status, count, percentage }) => {
+                        .map(({ status, count }) => {
                           if (!status) return null;
                           return (
                             <div
@@ -441,4 +426,4 @@ const StatusPieCharts = ({ data, dateRange }) => {
   );
 };
 
-export default StatusPieCharts;
+export default StatusPieChart;
