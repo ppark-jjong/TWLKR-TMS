@@ -1,5 +1,5 @@
 // src/AppRoutes.js
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, lazy } from 'react';
 import {
   Routes,
   Route,
@@ -7,30 +7,35 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
-import MainLayout from './components/common/MainLayout';
 import { useAuth } from './contexts/AuthContext';
-import message from './utils/message';
-import { MessageKeys } from './utils/message';
-import LoadingSpin from './components/common/LoadingSpin';
 import ErrorBoundaryWithFallback from './utils/ErrorBoundaryWithFallback';
+import LoadingSpin from './components/common/LoadingSpin';
+import MainLayout from './components/common/MainLayout';
+import MessageUtil from './utils/MessageUtil';
+import { MessageKeys } from './utils/Constants';
 import TokenManager from './utils/TokenManager';
-import { useLogger } from './utils/LogUtils';
-import {
-  DashboardPage,
-  VisualizationPage,
-  LoginPage,
-  AdminComponents,
-} from './lazyComponents';
+import Logger from './utils/Logger';
+
+// 코드 분할 최적화를 위한 지연 로딩
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+
+// 인증이 필요한 페이지들 (사용자 권한)
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const VisualizationPage = lazy(() => import('./pages/VisualizationPage'));
+
+// 관리자 전용 페이지
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+
+const logger = Logger.getLogger('AppRoutes');
 
 /**
  * 애플리케이션 라우팅 컴포넌트
- * 권한 기반 접근 제어 및 라우팅 로직 구현
+ * 권한 기반 접근 제어 및 최적화된 코드 분할 라우팅 구현
  */
 const AppRoutes = () => {
   const { user, authChecking, isAuthenticated, isAdmin, retryAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const logger = useLogger('AppRoutes');
 
   // 인증 상태 변경 감지 및 처리
   useEffect(() => {
@@ -51,7 +56,10 @@ const AppRoutes = () => {
             // 원래 가려던 경로 저장
             TokenManager.setReturnUrl(currentPath);
 
-            message.warning('로그인이 필요합니다', MessageKeys.AUTH.SESSION);
+            MessageUtil.warning(
+              '로그인이 필요합니다',
+              MessageKeys.AUTH.SESSION
+            );
             navigate('/login', { replace: true });
           }
         });
@@ -59,7 +67,10 @@ const AppRoutes = () => {
       // 관리자 경로에 일반 사용자 접근 시
       else if (adminPaths.includes(currentPath) && !isAdmin) {
         logger.warn('일반 사용자의 관리자 경로 접근:', currentPath);
-        message.error('관리자 권한이 필요합니다', MessageKeys.AUTH.PERMISSION);
+        MessageUtil.error(
+          '관리자 권한이 필요합니다',
+          MessageKeys.AUTH.PERMISSION
+        );
         navigate('/dashboard', { replace: true });
       }
     }
@@ -69,7 +80,6 @@ const AppRoutes = () => {
     isAdmin,
     authChecking,
     navigate,
-    logger,
     retryAuth,
   ]);
 
@@ -105,7 +115,10 @@ const AppRoutes = () => {
     // 관리자 권한이 필요한 라우트에 대한 추가 검증
     if (requireAdmin && !isAdmin) {
       logger.warn('관리자 권한 필요: 대시보드로 리디렉션');
-      message.error('관리자 권한이 필요합니다', MessageKeys.AUTH.PERMISSION);
+      MessageUtil.error(
+        '관리자 권한이 필요합니다',
+        MessageKeys.AUTH.PERMISSION
+      );
       return <Navigate to="/dashboard" replace />;
     }
 
@@ -173,7 +186,7 @@ const AppRoutes = () => {
               <MainLayout>
                 <Suspense fallback={SuspenseFallback}>
                   <ErrorBoundaryWithFallback name="관리자 페이지">
-                    <AdminComponents />
+                    <AdminPage />
                   </ErrorBoundaryWithFallback>
                 </Suspense>
               </MainLayout>

@@ -1,6 +1,6 @@
-// src/utils/TokenManager.js
+// src/utils/TokenManager.js (수정)
 /**
- * 토큰 관리 유틸리티
+ * 간소화된 토큰 관리 유틸리티
  * 액세스 토큰 및 리프레시 토큰의 저장, 접근, 삭제 기능 제공
  */
 class TokenManager {
@@ -41,11 +41,7 @@ class TokenManager {
    * @param {Object} user - 사용자 정보 객체
    */
   static setUser(user) {
-    try {
-      localStorage.setItem('user', JSON.stringify(user));
-    } catch (error) {
-      console.error('사용자 정보 저장 실패:', error);
-    }
+    localStorage.setItem('user', JSON.stringify(user));
   }
 
   /**
@@ -53,13 +49,8 @@ class TokenManager {
    * @returns {Object|null} - 저장된 사용자 정보 또는 null
    */
   static getUser() {
-    try {
-      const userStr = localStorage.getItem('user');
-      return userStr ? JSON.parse(userStr) : null;
-    } catch (error) {
-      console.error('사용자 정보 파싱 오류:', error);
-      return null;
-    }
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
   }
 
   /**
@@ -69,34 +60,6 @@ class TokenManager {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
-  }
-
-  /**
-   * 액세스 토큰의 만료 여부 확인
-   *
-   * 주의: 이 메서드는 클라이언트 측에서만 사용 가능한 간단한 체크로,
-   * 토큰 유효성에 대한 최종 확인은 서버에서 수행해야 합니다.
-   *
-   * @returns {boolean} - 토큰 만료 여부 (true: 만료됨)
-   */
-  static isAccessTokenExpired() {
-    const token = this.getAccessToken();
-    if (!token) return true;
-
-    try {
-      // JWT의 페이로드 부분 디코딩
-      const payload = JSON.parse(atob(token.split('.')[1]));
-
-      // exp 클레임 확인 (토큰 만료 시간, UNIX 타임스탬프)
-      if (!payload.exp) return true;
-
-      // 현재 시간과 비교 (10초 여유 추가)
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp < currentTime + 10;
-    } catch (error) {
-      console.error('토큰 만료 여부 확인 실패:', error);
-      return true; // 안전을 위해 만료된 것으로 처리
-    }
   }
 
   /**

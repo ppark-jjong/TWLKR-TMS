@@ -1,4 +1,4 @@
-/* frontend/src/components/dashboard/DashboardTable.css */
+/* src/components/css/DashboardTable.css */
 
 /* 대시보드 테이블 기본 컨테이너 */
 .dashboard-table-container {
@@ -28,10 +28,10 @@
   background-color: #bdd7ff !important;
 }
 
-.dashboard-table .ant-table-row-in-progress {
+.dashboard-table .ant-table-row-in_progress {
   background-color: #fff4de !important;
 }
-.dashboard-table .ant-table-row-in-progress:hover {
+.dashboard-table .ant-table-row-in_progress:hover {
   background-color: #ffe2b5 !important;
 }
 

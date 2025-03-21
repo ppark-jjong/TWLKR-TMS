@@ -1,10 +1,11 @@
 // src/utils/AxiosConfig.js
 import axios from 'axios';
 import AuthService from '../services/AuthService';
-import message from './message';
-import { MessageKeys } from './message';
+import message from './MessageService';
+import { MessageKeys } from './Constants';
 import TokenManager from './TokenManager';
 import { useLogger } from './LogUtils';
+import LRUCache from '../utils/LRUCache'; // 새로 추가한 캐싱 유틸리티
 
 // 로거 초기화
 const logger = useLogger('AxiosConfig');
@@ -15,6 +16,9 @@ let isRefreshing = false;
 // 토큰 갱신 대기 중인 요청 큐
 let refreshQueue = [];
 
+// 요청 캐싱을 위한 LRU 캐시 설정 (최대 100개 캐시, 5분 TTL)
+const requestCache = new LRUCache(100, 5 * 60 * 1000);
+
 // 진행 중인 요청을 저장할 Map (중복 요청 방지)
 const pendingRequests = new Map();
 
@@ -22,6 +26,30 @@ const pendingRequests = new Map();
 const getRequestKey = (config) => {
   const { method, url, params, data } = config;
   return `${method}:${url}:${JSON.stringify(params)}:${JSON.stringify(data)}`;
+};
+
+// 캐시 키 생성 함수
+const getCacheKey = (config) => {
+  // GET 요청만 캐싱
+  if (config.method.toLowerCase() !== 'get') return null;
+
+  const { url, params } = config;
+  return `GET:${url}:${JSON.stringify(params || {})}`;
+};
+
+// 캐시 사용 여부 결정 함수
+const shouldUseCache = (config) => {
+  // 캐시 비활성화 설정 확인
+  if (config.useCache === false) return false;
+
+  // GET 요청만 캐싱
+  if (config.method.toLowerCase() !== 'get') return false;
+
+  // 특정 API 제외 (예: 실시간 데이터)
+  const nonCachableUrls = ['/dashboard/status', '/auth/check-session'];
+  if (nonCachableUrls.some((path) => config.url.includes(path))) return false;
+
+  return true;
 };
 
 // Axios 기본 설정
@@ -33,6 +61,7 @@ axios.defaults.timeout = 30000; // 30초 타임아웃
  * 요청 인터셉터 설정
  * - JWT 토큰 자동 포함
  * - 중복 요청 방지
+ * - 캐싱 메커니즘 추가
  * - 요청 로깅
  */
 axios.interceptors.request.use(
@@ -45,8 +74,24 @@ axios.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // 캐시 처리 (GET 요청에만 적용)
+    if (shouldUseCache(config)) {
+      const cacheKey = getCacheKey(config);
+      const cachedResponse = requestCache.get(cacheKey);
+
+      if (cachedResponse) {
+        logger.debug(`캐시에서 응답 사용: ${config.url}`);
+        // 캐시된 응답 사용을 위한 어댑터 설정
+        const originalAdapter = config.adapter;
+        config.adapter = () => Promise.resolve(cachedResponse);
+        // 캐시 적중 플래그 설정
+        config._fromCache = true;
+        return config;
+      }
+    }
+
     // 중복 요청 방지 로직 (GET 요청만 적용)
-    if (config.method && config.method.toLowerCase() === 'get') {
+    if (config.method?.toLowerCase() === 'get') {
       const requestKey = getRequestKey(config);
 
       // 동일한 요청이 진행 중인 경우 취소
@@ -73,6 +118,7 @@ axios.interceptors.request.use(
 /**
  * 응답 인터셉터 설정
  * - 성공 응답 구조 표준화
+ * - 캐시 저장 메커니즘
  * - 토큰 만료 처리 및 자동 갱신
  * - 오류 처리 패턴 표준화
  * - 락(Lock) 충돌 처리
@@ -82,12 +128,18 @@ axios.interceptors.response.use(
     logger.debug(`API 응답: ${response.config.url} - 상태: ${response.status}`);
 
     // 요청 완료 후 Map에서 제거
-    if (
-      response.config.method &&
-      response.config.method.toLowerCase() === 'get'
-    ) {
+    if (response.config.method?.toLowerCase() === 'get') {
       const requestKey = getRequestKey(response.config);
       pendingRequests.delete(requestKey);
+    }
+
+    // 캐시에서 가져온 응답이 아닌 경우에만 캐시 저장
+    if (!response.config._fromCache && shouldUseCache(response.config)) {
+      const cacheKey = getCacheKey(response.config);
+      if (cacheKey) {
+        logger.debug(`응답 캐시 저장: ${response.config.url}`);
+        requestCache.set(cacheKey, response);
+      }
     }
 
     // 백엔드 API 응답 구조 검증 및 표준화 ({success, message, data})
@@ -116,11 +168,7 @@ axios.interceptors.response.use(
     }
 
     // 에러 발생 시에도 진행 중인 요청 Map에서 제거
-    if (
-      error.config &&
-      error.config.method &&
-      error.config.method.toLowerCase() === 'get'
-    ) {
+    if (error.config?.method?.toLowerCase() === 'get') {
       const requestKey = getRequestKey(error.config);
       pendingRequests.delete(requestKey);
     }
@@ -178,6 +226,8 @@ axios.interceptors.response.use(
             return new Promise((resolve) => {
               refreshQueue.push((token) => {
                 originalRequest.headers.Authorization = `Bearer ${token}`;
+                // 캐시 사용하지 않도록 설정 (토큰 갱신 후 최신 데이터 가져오기)
+                originalRequest.useCache = false;
                 resolve(axios(originalRequest));
               });
             });
@@ -208,6 +258,8 @@ axios.interceptors.response.use(
 
             // 원래 요청 다시 시도
             originalRequest.headers.Authorization = `Bearer ${access_token}`;
+            // 캐시 사용하지 않도록 설정 (토큰 갱신 후 최신 데이터 가져오기)
+            originalRequest.useCache = false;
 
             // 대기 중인 요청 모두 재시도
             refreshQueue.forEach((cb) => cb(access_token));
@@ -274,6 +326,16 @@ axios.interceptors.response.use(
         }
 
         message.error(errorMsg, MessageKeys.DASHBOARD.OPTIMISTIC_LOCK);
+
+        // 캐시 무효화 - 충돌 발생 시 해당 리소스 관련 캐시 제거
+        if (originalRequest.url) {
+          const urlPattern = originalRequest.url
+            .split('/')
+            .slice(0, -1)
+            .join('/');
+          requestCache.invalidatePattern(urlPattern);
+        }
+
         return Promise.reject(error);
       }
 
@@ -285,6 +347,7 @@ axios.interceptors.response.use(
         const detail = errorData?.error?.detail || errorData?.detail || {};
         const lockedBy = detail.locked_by || '다른 사용자';
         const lockType = detail.lock_type || '';
+        const expiresAt = detail.expires_at;
 
         let lockTypeText = '편집';
         switch (lockType) {
@@ -302,13 +365,18 @@ axios.interceptors.response.use(
             break;
         }
 
-        const errorMsg = `현재 ${lockedBy}님이 이 데이터를 ${lockTypeText} 중입니다. 잠시 후 다시 시도해주세요.`;
+        // 락 만료 시간 포맷팅
+        const expiryInfo = expiresAt
+          ? ` (만료: ${new Date(expiresAt).toLocaleTimeString()})`
+          : '';
+        const errorMsg = `현재 ${lockedBy}님이 이 데이터를 ${lockTypeText} 중입니다${expiryInfo}. 잠시 후 다시 시도해주세요.`;
 
         // 에러 객체에 락 정보 추가 (컴포넌트에서 활용)
         error.lockInfo = {
           lockedBy,
           lockType,
           lockTypeText,
+          expiresAt,
         };
 
         message.error(errorMsg, MessageKeys.DASHBOARD.PESSIMISTIC_LOCK);
@@ -360,7 +428,6 @@ axios.interceptors.response.use(
           errorData?.message ||
           errorData?.error?.detail ||
           `요청 처리 중 오류가 발생했습니다 (${status}).`;
-
         message.error(errorMsg, MessageKeys.ERROR.UNKNOWN);
         return Promise.reject(error);
       }
@@ -382,13 +449,22 @@ export const cancelAllPendingRequests = () => {
 };
 
 /**
+ * 캐시 무효화 함수 (특정 패턴의 URL에 대한 캐시 제거)
+ */
+export const invalidateCache = (urlPattern) => {
+  requestCache.invalidatePattern(urlPattern);
+};
+
+/**
+ * 전체 캐시 초기화 함수
+ */
+export const clearCache = () => {
+  requestCache.clear();
+};
+
+/**
  * API 요청 재시도 유틸리티
  * 네트워크 불안정 등으로 실패한 요청을 자동 재시도
- *
- * @param {Function} apiCall - API 호출 함수
- * @param {number} maxRetries - 최대 재시도 횟수
- * @param {number} retryDelay - 재시도 간격 (ms)
- * @returns {Promise} - API 호출 결과
  */
 export const withRetry = async (apiCall, maxRetries = 3, retryDelay = 1000) => {
   let lastError;
