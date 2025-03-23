@@ -1,17 +1,18 @@
 // src/contexts/DashboardContext.js (수정)
-import React, { useState, useContext, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import dayjs from 'dayjs';
-import { useAuth } from './AuthContext';
-import DashboardService from '../services/DashboardService';
-import MessageService from '../utils/MessageService';
-import { MessageKeys } from '../utils/Constants';
+import React, { useState, useContext, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import dayjs from "dayjs";
+import { useAuth } from "./AuthContext";
+import DashboardService from "../services/DashboardService";
+import MessageService from "../utils/MessageService";
+import { MessageKeys } from "../utils/Constants";
 
 // Context 생성
 const DashboardContext = createContext(null);
 
 /**
  * 간소화된 대시보드 컨텍스트 프로바이더
+ * 낙관적 락 관련 코드 제거
  */
 export const DashboardProvider = ({ children }) => {
   const navigate = useNavigate();
@@ -40,10 +41,10 @@ export const DashboardProvider = ({ children }) => {
           };
         }
 
-        const formattedStartDate = startDate.format('YYYY-MM-DD');
-        const formattedEndDate = endDate.format('YYYY-MM-DD');
+        const formattedStartDate = startDate.format("YYYY-MM-DD");
+        const formattedEndDate = endDate.format("YYYY-MM-DD");
 
-        MessageService.loading('데이터 조회 중...', MessageKeys.DASHBOARD.LOAD);
+        MessageService.loading("데이터 조회 중...", MessageKeys.DASHBOARD.LOAD);
 
         // 백엔드 API 호출
         const response = await DashboardService.getDashboardList(
@@ -67,18 +68,18 @@ export const DashboardProvider = ({ children }) => {
           );
         } else {
           MessageService.info(
-            '조회된 데이터가 없습니다',
+            "조회된 데이터가 없습니다",
             MessageKeys.DASHBOARD.LOAD
           );
         }
 
         return response;
       } catch (error) {
-        console.error('대시보드 데이터 조회 실패:', error);
-        setError('데이터 조회 중 오류가 발생했습니다');
+        console.error("대시보드 데이터 조회 실패:", error);
+        setError("데이터 조회 중 오류가 발생했습니다");
 
         MessageService.error(
-          '데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          "데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
           MessageKeys.DASHBOARD.LOAD
         );
 
@@ -109,14 +110,12 @@ export const DashboardProvider = ({ children }) => {
         setError(null);
 
         MessageService.loading(
-          '주문번호 검색 중...',
+          "주문번호 검색 중...",
           MessageKeys.DASHBOARD.SEARCH
         );
 
         // 검색 API 호출
-        const searchResults = await DashboardService.searchDashboardsByOrderNo(
-          orderNo
-        );
+        const searchResults = await DashboardService.searchByOrderNo(orderNo);
 
         // 검색 결과 설정
         const searchItems = searchResults.items || [];
@@ -137,11 +136,11 @@ export const DashboardProvider = ({ children }) => {
 
         return { items: searchItems };
       } catch (error) {
-        console.error('주문번호 검색 실패:', error);
-        setError('검색 중 오류가 발생했습니다');
+        console.error("주문번호 검색 실패:", error);
+        setError("검색 중 오류가 발생했습니다");
 
         MessageService.error(
-          '주문번호 검색 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          "주문번호 검색 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
           MessageKeys.DASHBOARD.SEARCH
         );
 
@@ -171,12 +170,12 @@ export const DashboardProvider = ({ children }) => {
   const removeDashboards = useCallback(
     async (dashboardIds) => {
       if (!isAdmin) {
-        MessageService.error('관리자 권한이 필요합니다');
+        MessageService.error("관리자 권한이 필요합니다");
         return false;
       }
 
       try {
-        MessageService.loading('삭제 처리 중...', MessageKeys.DASHBOARD.DELETE);
+        MessageService.loading("삭제 처리 중...", MessageKeys.DASHBOARD.DELETE);
 
         // API 호출
         const success = await DashboardService.deleteDashboards(dashboardIds);
@@ -188,7 +187,7 @@ export const DashboardProvider = ({ children }) => {
           );
 
           MessageService.success(
-            '선택한 항목이 삭제되었습니다',
+            "선택한 항목이 삭제되었습니다",
             MessageKeys.DASHBOARD.DELETE
           );
           return true;
@@ -196,9 +195,9 @@ export const DashboardProvider = ({ children }) => {
 
         return false;
       } catch (error) {
-        console.error('대시보드 삭제 실패:', error);
+        console.error("대시보드 삭제 실패:", error);
         MessageService.error(
-          '삭제 중 오류가 발생했습니다',
+          "삭제 중 오류가 발생했습니다",
           MessageKeys.DASHBOARD.DELETE
         );
         return false;
@@ -212,7 +211,7 @@ export const DashboardProvider = ({ children }) => {
    */
   const setDefaultDateRange = useCallback((days = 7) => {
     const endDate = dayjs();
-    const startDate = endDate.subtract(days, 'day');
+    const startDate = endDate.subtract(days, "day");
     setDateRange([startDate, endDate]);
   }, []);
 
@@ -266,7 +265,7 @@ export const DashboardProvider = ({ children }) => {
 export const useDashboard = () => {
   const context = useContext(DashboardContext);
   if (!context) {
-    throw new Error('useDashboard must be used within a DashboardProvider');
+    throw new Error("useDashboard must be used within a DashboardProvider");
   }
   return context;
 };

@@ -1,150 +1,112 @@
 # backend/app/repositories/visualization_repository.py
-
-from datetime import datetime
-from typing import List, Tuple, Dict, Any, Union
-from sqlalchemy import func, and_, extract
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func, desc, and_, or_, text
+from datetime import datetime, timedelta
+from typing import List, Tuple, Optional
+
 from app.models.dashboard_model import Dashboard
-from app.utils.logger import log_error, log_info
+from app.utils.logger import log_info, log_error
+from app.interfaces.repository_interfaces import VisualizationRepositoryInterface
 
 
-class VisualizationRepository:
+class VisualizationRepository(VisualizationRepositoryInterface):
+    """시각화 저장소 구현"""
+
     def __init__(self, db: Session):
         self.db = db
 
     def get_raw_delivery_data(
-        self, start_date: datetime, end_time: datetime
+        self, start_time: datetime, end_time: datetime
     ) -> List[Tuple]:
-        """배송 현황 raw 데이터 조회 - create_time 기준"""
+        """배송 현황 데이터 조회 (create_time 기준)"""
         try:
-            log_info(f"배송 현황 데이터 조회: {start_date} ~ {end_time}")
+            log_info(f"배송 현황 데이터 조회: {start_time} ~ {end_time}")
 
-            result = (
+            # 부서별, 상태별 데이터 조회
+            query = (
                 self.db.query(
                     Dashboard.department, Dashboard.status, Dashboard.create_time
                 )
-                .filter(
-                    and_(
-                        Dashboard.create_time >= start_date,
-                        Dashboard.create_time <= end_time,
-                    )
-                )
-                .all()
+                .filter(Dashboard.create_time.between(start_time, end_time))
+                .order_by(Dashboard.create_time)
             )
 
+            result = query.all()
             log_info(f"배송 현황 데이터 조회 결과: {len(result)}건")
-
-            # 데이터 검증 로깅
-            if result:
-                sample = result[0]
-                log_info(
-                    f"배송 현황 데이터 샘플: 부서={sample[0]}, 상태={sample[1]}, 시간={sample[2]}"
-                )
-
-                # 유효하지 않은 데이터 검사
-                invalid_data = [
-                    (i, row)
-                    for i, row in enumerate(result)
-                    if row[0] is None or row[1] is None or row[2] is None
-                ]
-                if invalid_data:
-                    log_error(
-                        None,
-                        f"누락된 필드가 있는 데이터: {len(invalid_data)}건",
-                        invalid_data[:5] if len(invalid_data) > 5 else invalid_data,
-                    )
-
             return result
-        except SQLAlchemyError as e:
+        except Exception as e:
             log_error(e, "배송 현황 데이터 조회 실패")
-            raise
+            return []
 
     def get_raw_hourly_data(
-        self, start_date: datetime, end_date: datetime
+        self, start_time: datetime, end_time: datetime
     ) -> List[Tuple]:
-        """시간대별 접수량 raw 데이터 조회 - create_time 기준"""
+        """시간대별 접수량 데이터 조회 (create_time 기준)"""
         try:
-            log_info(f"시간대별 접수량 데이터 조회: {start_date} ~ {end_date}")
+            log_info(f"시간대별 접수량 데이터 조회: {start_time} ~ {end_time}")
 
-            result = (
+            # 부서별, 생성 시간 데이터 조회
+            query = (
                 self.db.query(Dashboard.department, Dashboard.create_time)
-                .filter(
-                    and_(
-                        Dashboard.create_time >= start_date,
-                        Dashboard.create_time <= end_date,
-                    )
-                )
-                .all()
+                .filter(Dashboard.create_time.between(start_time, end_time))
+                .order_by(Dashboard.create_time)
             )
 
+            result = query.all()
             log_info(f"시간대별 접수량 데이터 조회 결과: {len(result)}건")
-
-            # 데이터 검증 로깅
-            if result:
-                sample = result[0]
-                log_info(
-                    f"시간대별 접수량 데이터 샘플: 부서={sample[0]}, 시간={sample[1]}"
-                )
-
-                # 유효하지 않은 데이터 검사
-                invalid_data = [
-                    (i, row)
-                    for i, row in enumerate(result)
-                    if row[0] is None or row[1] is None
-                ]
-                if invalid_data:
-                    log_error(
-                        None,
-                        f"누락된 필드가 있는 데이터: {len(invalid_data)}건",
-                        invalid_data[:5] if len(invalid_data) > 5 else invalid_data,
-                    )
-
             return result
-        except SQLAlchemyError as e:
+        except Exception as e:
             log_error(e, "시간대별 접수량 데이터 조회 실패")
-            raise
+            return []
 
     def get_date_range(self) -> Tuple[datetime, datetime]:
-        """조회 가능한 날짜 범위 조회 - create_time 기준"""
+        """조회 가능한 날짜 범위 조회 (create_time 기준)"""
         try:
-            log_info("조회 가능 날짜 범위 조회")
+            log_info("시각화 날짜 범위 조회")
 
+            # 가장 오래된 데이터와 최신 데이터의 날짜 조회
             result = self.db.query(
                 func.min(Dashboard.create_time).label("oldest_date"),
                 func.max(Dashboard.create_time).label("latest_date"),
             ).first()
 
-            oldest_date = result.oldest_date if result.oldest_date else datetime.now()
-            latest_date = result.latest_date if result.latest_date else datetime.now()
+            # 결과 검증 및 기본값 설정
+            now = datetime.utcnow()
+            oldest_date = (
+                result.oldest_date
+                if result and result.oldest_date
+                else now - timedelta(days=30)
+            )
+            latest_date = result.latest_date if result and result.latest_date else now
 
-            log_info(f"조회 가능 날짜 범위: {oldest_date} ~ {latest_date}")
+            log_info(f"시각화 날짜 범위 조회 결과: {oldest_date} ~ {latest_date}")
             return oldest_date, latest_date
+        except Exception as e:
+            log_error(e, "시각화 날짜 범위 조회 실패")
+            # 기본값 반환
+            now = datetime.utcnow()
+            return now - timedelta(days=30), now
 
-        except SQLAlchemyError as e:
-            log_error(e, "날짜 범위 조회 실패")
-            raise
-
-    def has_data_in_date_range(self, start_date: datetime, end_date: datetime) -> bool:
-        """특정 날짜 범위에 데이터가 있는지 확인"""
+    def get_department_summary(self) -> List[Tuple]:
+        """부서별 요약 데이터 조회"""
         try:
-            log_info(f"데이터 존재 여부 확인: {start_date} ~ {end_date}")
+            log_info("부서별 요약 데이터 조회")
 
-            count = (
-                self.db.query(func.count(Dashboard.dashboard_id))
-                .filter(
-                    and_(
-                        Dashboard.create_time >= start_date,
-                        Dashboard.create_time <= end_date,
-                    )
+            # 부서별 건수 및 상태 분포 조회
+            query = (
+                self.db.query(
+                    Dashboard.department,
+                    func.count(Dashboard.dashboard_id).label("count"),
+                    Dashboard.status,
+                    func.count(Dashboard.status).label("status_count"),
                 )
-                .scalar()
+                .group_by(Dashboard.department, Dashboard.status)
+                .order_by(Dashboard.department, Dashboard.status)
             )
 
-            has_data = count > 0
-            log_info(f"데이터 존재 여부: {has_data} (건수: {count})")
-            return has_data
-
-        except SQLAlchemyError as e:
-            log_error(e, "데이터 존재 여부 확인 실패")
-            return False
+            result = query.all()
+            log_info(f"부서별 요약 데이터 조회 결과: {len(result)}건")
+            return result
+        except Exception as e:
+            log_error(e, "부서별 요약 데이터 조회 실패")
+            return []

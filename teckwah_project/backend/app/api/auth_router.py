@@ -13,57 +13,35 @@ from app.config.database import get_db
 from app.config.settings import get_settings
 from app.utils.logger import log_info, log_error
 from app.utils.auth import create_token
+from app.utils.api_decorators import error_handler
 
 router = APIRouter()
 settings = get_settings()
 
 
+def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+    """AuthService 의존성 주입"""
+    repository = AuthRepository(db)
+    return AuthService(repository)
+
+
 @router.post("/login", response_model=LoginResponse)
-async def login(login_data: UserLogin, db: Session = Depends(get_db)):
+@error_handler("로그인")
+async def login(
+    login_data: UserLogin, auth_service: AuthService = Depends(get_auth_service)
+):
     """로그인 API
     - 인증 성공 시 액세스 토큰(60분)과 리프레시 토큰(7일) 발급
     - 리프레시 토큰은 DB에 저장
     """
-    try:
-        # 요청 데이터 로깅
-        log_info(f"로그인 요청 데이터: {login_data.dict()}")
-
-        repository = AuthRepository(db)
-        service = AuthService(repository)
-
-        # verify AttributeError
-        if not hasattr(service, "authenticate_user"):
-            log_error(
-                None,
-                f"AuthService에 authenticate_user 메서드가 없습니다. 가용 메서드: {dir(service)}",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="인증 서비스 구성 오류",
-            )
-
-        login_response = service.authenticate_user(login_data)
-
-        # 응답 로깅
-        log_info(f"로그인 성공 응답: user_id={login_data.user_id}")
-
-        return login_response
-
-    except HTTPException as e:
-        # 기존 HTTP 예외 전파
-        log_error(
-            e, f"로그인 실패: HTTP 예외", {"status": e.status_code, "detail": e.detail}
-        )
-        raise
-    except Exception as e:
-        log_error(e, "로그인 실패")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="로그인에 실패했습니다. 사용자 ID 또는 비밀번호를 확인하세요.",
-        )
+    log_info(f"로그인 요청 데이터: {login_data.dict()}")
+    login_response = auth_service.authenticate_user(login_data)
+    log_info(f"로그인 성공 응답: user_id={login_data.user_id}")
+    return login_response
 
 
 @router.get("/check-session")
+@error_handler("세션 유효성 검증")
 async def check_session(authorization: str = Header(None)):
     """세션 유효성 검증 API"""
     if not authorization or not authorization.startswith("Bearer "):
@@ -74,42 +52,30 @@ async def check_session(authorization: str = Header(None)):
 
     token = authorization.split(" ")[1]
 
-    try:
-        # 토큰 검증 로직
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
+    # 토큰 검증 로직
+    payload = jwt.decode(
+        token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+    )
 
-        # 유효성 검사
-        if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp", 0)):
-            raise HTTPException(status_code=401, detail="토큰이 만료되었습니다")
+    # 유효성 검사
+    if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp", 0)):
+        raise HTTPException(status_code=401, detail="토큰이 만료되었습니다")
 
-        return {
-            "success": True,
-            "user": {
-                "user_id": payload.get("sub"),
-                "user_department": payload.get("department"),
-                "user_role": payload.get("role"),
-            },
-        }
-
-    except JWTError as e:
-        log_error(e, "토큰 검증 실패")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="세션이 만료되었습니다. 다시 로그인해주세요.",
-        )
-    except Exception as e:
-        log_error(e, "세션 체크 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="세션 확인 중 오류가 발생했습니다.",
-        )
+    return {
+        "success": True,
+        "user": {
+            "user_id": payload.get("sub"),
+            "user_department": payload.get("department"),
+            "user_role": payload.get("role"),
+        },
+    }
 
 
 @router.post("/refresh")
+@error_handler("토큰 갱신")
 async def refresh_token(
-    refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)
+    refresh_data: RefreshTokenRequest,
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     """토큰 갱신 API"""
     if not refresh_data.refresh_token:
@@ -118,38 +84,24 @@ async def refresh_token(
             detail="리프레시 토큰이 필요합니다.",
         )
 
-    try:
-        repository = AuthRepository(db)
-        service = AuthService(repository)
-        token_data = service.refresh_token(refresh_data.refresh_token)
+    token_data = auth_service.refresh_token(refresh_data.refresh_token)
 
-        # 토큰을 응답 바디에 포함
-        return {
-            "success": True,
-            "message": "토큰이 갱신되었습니다",
-            "token": token_data,
-        }
-    except Exception as e:
-        log_error(e, "토큰 갱신 실패")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="토큰 갱신에 실패했습니다. 다시 로그인해주세요.",
-        )
+    # 토큰을 응답 바디에 포함
+    return {
+        "success": True,
+        "message": "토큰이 갱신되었습니다",
+        "token": token_data,
+    }
 
 
 @router.post("/logout")
-async def logout(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):
+@error_handler("로그아웃")
+async def logout(
+    refresh_data: RefreshTokenRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
     """로그아웃 API"""
-    try:
-        if refresh_data.refresh_token:
-            repository = AuthRepository(db)
-            service = AuthService(repository)
-            service.logout(refresh_data.refresh_token)
+    if refresh_data.refresh_token:
+        auth_service.logout(refresh_data.refresh_token)
 
-        return {"success": True, "message": "로그아웃이 완료되었습니다"}
-    except Exception as e:
-        log_error(e, "로그아웃 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="로그아웃 처리 중 오류가 발생했습니다",
-        )
+    return {"success": True, "message": "로그아웃이 완료되었습니다"}

@@ -11,12 +11,13 @@ from app.config.database import get_db
 from app.api.deps import get_current_user
 from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
-from app.utils.datetime_helper import get_date_range
+from app.utils.datetime_helper import get_date_range, get_kst_now
 from app.schemas.visualization_schema import (
     DeliveryStatusResponse,
     HourlyOrdersResponse,
     VisualizationDateRangeResponse,
 )
+from app.utils.api_decorators import error_handler
 
 router = APIRouter()
 
@@ -28,6 +29,7 @@ def get_visualization_service(db: Session = Depends(get_db)) -> VisualizationSer
 
 
 @router.get("/delivery_status", response_model=DeliveryStatusResponse)
+@error_handler("배송 현황 데이터 조회")
 async def get_delivery_status(
     start_date: str,
     end_date: str,
@@ -35,52 +37,39 @@ async def get_delivery_status(
     current_user: TokenData = Depends(get_current_user),
 ):
     """배송 현황 데이터 조회 API - create_time 기준으로 변경"""
+    log_info(f"배송 현황 데이터 조회 요청: {start_date} ~ {end_date}")
+
     try:
-        log_info(f"배송 현황 데이터 조회 요청: {start_date} ~ {end_date}")
-        log_info(f"요청 받은 날짜: start_date={start_date}, end_date={end_date}")
+        # 날짜 문자열을 datetime 객체로 변환 (KST 기준)
+        start_dt, _ = get_date_range(start_date)
+        _, end_dt = get_date_range(end_date)
+    except ValueError as e:
+        log_error(e, f"날짜 형식 오류: {start_date}, {end_date}")
+        raise ValueError(f"날짜 형식이 올바르지 않습니다: {str(e)}")
 
-        try:
-            # 수정: datetime_helper의 get_date_range 함수 사용(코루틴 아님)
-            from app.utils.datetime_helper import get_date_range as parse_date_range
+    # create_time 기준으로 데이터 조회 변경
+    data = service.get_delivery_status(start_dt, end_dt)
+    oldest_date, latest_date = service.get_date_range()
 
-            start_dt, _ = parse_date_range(start_date)
-            _, end_dt = parse_date_range(end_date)
-        except ValueError:
-            log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
-            return DeliveryStatusResponse(
-                success=False,
-                message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                data=None,
-            )
+    message_text = (
+        "조회된 데이터가 없습니다"
+        if data["total_count"] == 0
+        else "데이터를 조회했습니다"
+    )
 
-        # create_time 기준으로 데이터 조회 변경
-        data = service.get_delivery_status(start_dt, end_dt)
-        oldest_date, latest_date = service.get_date_range()
-
-        message_text = (
-            "조회된 데이터가 없습니다"
-            if data["total_count"] == 0
-            else "데이터를 조회했습니다"
-        )
-
-        return DeliveryStatusResponse(
-            success=True,
-            message=message_text,
-            data=data,
-            date_range={
-                "oldest_date": oldest_date.strftime("%Y-%m-%d"),
-                "latest_date": latest_date.strftime("%Y-%m-%d"),
-            },
-        )
-
-    except Exception as e:
-        log_error(e, "배송 현황 데이터 조회 실패")
-        return DeliveryStatusResponse(
-            success=False, message="데이터 조회 중 오류가 발생했습니다", data=None
-        )
+    return DeliveryStatusResponse(
+        success=True,
+        message=message_text,
+        data=data,
+        date_range={
+            "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+            "latest_date": latest_date.strftime("%Y-%m-%d"),
+        },
+    )
 
 
 @router.get("/hourly_orders", response_model=HourlyOrdersResponse)
+@error_handler("시간대별 접수량 데이터 조회")
 async def get_hourly_orders(
     start_date: str,
     end_date: str,
@@ -88,66 +77,44 @@ async def get_hourly_orders(
     current_user: TokenData = Depends(get_current_user),
 ):
     """시간대별 접수량 데이터 조회 API - create_time 기준"""
+    log_info(f"시간대별 접수량 데이터 조회 요청: {start_date} ~ {end_date}")
+
     try:
-        log_info(f"시간대별 접수량 데이터 조회 요청: {start_date} ~ {end_date}")
+        # 날짜 문자열을 datetime 객체로 변환 (KST 기준)
+        start_dt, _ = get_date_range(start_date)
+        _, end_dt = get_date_range(end_date)
+    except ValueError as e:
+        log_error(e, f"날짜 형식 오류: {start_date}, {end_date}")
+        raise ValueError(f"날짜 형식이 올바르지 않습니다: {str(e)}")
 
-        try:
-            # datetime_helper의 get_date_range 함수 사용
-            from app.utils.datetime_helper import get_date_range as parse_date_range
+    # create_time 기준으로 데이터 조회
+    data = service.get_hourly_orders(start_dt, end_dt)
+    oldest_date, latest_date = service.get_date_range()
 
-            start_dt, _ = parse_date_range(start_date)
-            _, end_dt = parse_date_range(end_date)
-        except ValueError:
-            log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
-            return HourlyOrdersResponse(
-                success=False,
-                message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                data=None,
-            )
+    # 디버깅용 로그 추가
+    log_info(f"시간대별 접수량 데이터 구조: {data.keys()}")
 
-        # create_time 기준으로 데이터 조회
-        data = service.get_hourly_orders(start_dt, end_dt)
-        oldest_date, latest_date = service.get_date_range()
+    message_text = (
+        "조회된 데이터가 없습니다"
+        if data["total_count"] == 0
+        else "데이터를 조회했습니다"
+    )
 
-        # 디버깅용 로그 추가
-        log_info(f"시간대별 접수량 데이터 구조: {data.keys()}")
-        if "time_slots" in data:
-            log_info(
-                f"time_slots 타입: {type(data['time_slots'])}, 첫 항목 타입: {type(data['time_slots'][0]) if data['time_slots'] else 'empty'}"
-            )
-
-        message_text = (
-            "조회된 데이터가 없습니다"
-            if data["total_count"] == 0
-            else "데이터를 조회했습니다"
-        )
-
-        # 명시적으로 HourlyOrdersResponse 생성 시 필요한 필드 확인
-        return HourlyOrdersResponse(
-            success=True,
-            message=message_text,
-            data=data,
-            date_range={
-                "oldest_date": oldest_date.strftime("%Y-%m-%d"),
-                "latest_date": latest_date.strftime("%Y-%m-%d"),
-            },
-        )
-
-    except ValidationError as e:
-        # Pydantic 검증 오류 자세히 로깅
-        log_error(e, "시간대별 접수량 데이터 검증 실패", str(e))
-        return HourlyOrdersResponse(
-            success=False, message="데이터 형식 검증 중 오류가 발생했습니다", data=None
-        )
-    except Exception as e:
-        log_error(e, "시간대별 접수량 데이터 조회 실패")
-        return HourlyOrdersResponse(
-            success=False, message="데이터 조회 중 오류가 발생했습니다", data=None
-        )
+    # 명시적으로 HourlyOrdersResponse 생성 시 필요한 필드 확인
+    return HourlyOrdersResponse(
+        success=True,
+        message=message_text,
+        data=data,
+        date_range={
+            "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+            "latest_date": latest_date.strftime("%Y-%m-%d"),
+        },
+    )
 
 
 @router.get("/date_range", response_model=VisualizationDateRangeResponse)
-async def get_date_range(
+@error_handler("조회 가능 날짜 범위 조회")
+async def get_date_range_api(
     service: VisualizationService = Depends(get_visualization_service),
     current_user: TokenData = Depends(get_current_user),
 ):
@@ -155,23 +122,15 @@ async def get_date_range(
     조회 가능한 날짜 범위 조회 API
     - create_time 컬럼의 최소/최대 값을 기준으로 조회 가능 기간 제공
     """
-    try:
-        log_info("조회 가능 날짜 범위 조회 요청")
+    log_info("조회 가능 날짜 범위 조회 요청")
 
-        oldest_date, latest_date = service.get_date_range()
+    oldest_date, latest_date = service.get_date_range()
 
-        return VisualizationDateRangeResponse(
-            success=True,
-            message="조회 가능 날짜 범위를 조회했습니다",
-            date_range={
-                "oldest_date": oldest_date.strftime("%Y-%m-%d"),
-                "latest_date": latest_date.strftime("%Y-%m-%d"),
-            },
-        )
-    except Exception as e:
-        log_error(e, "날짜 범위 조회 실패")
-        return VisualizationDateRangeResponse(
-            success=False,
-            message="날짜 범위 조회 중 오류가 발생했습니다",
-            date_range=None,
-        )
+    return VisualizationDateRangeResponse(
+        success=True,
+        message="조회 가능 날짜 범위를 조회했습니다",
+        date_range={
+            "oldest_date": oldest_date.strftime("%Y-%m-%d"),
+            "latest_date": latest_date.strftime("%Y-%m-%d"),
+        },
+    )

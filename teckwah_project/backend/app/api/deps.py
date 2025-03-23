@@ -16,30 +16,32 @@ from app.repositories.dashboard_lock_repository import DashboardLockRepository
 from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.utils.lock_manager import LockManager
 
-
 settings = get_settings()
+
 
 def get_repositories(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """모든 저장소 인스턴스 반환"""
     return {
-        'dashboard': DashboardRepository(db),
-        'remark': DashboardRemarkRepository(db),
-        'lock': DashboardLockRepository(db)
+        "dashboard": DashboardRepository(db),
+        "remark": DashboardRemarkRepository(db),
+        "lock": DashboardLockRepository(db),
     }
+
 
 def get_lock_manager(repos: Dict[str, Any] = Depends(get_repositories)) -> LockManager:
     """LockManager 의존성 주입"""
-    return LockManager(repos['lock'])
+    return LockManager(repos["lock"])
+
 
 async def get_current_user(
-   authorization: str = Header(None, alias="Authorization"),
-   request: Request = None,
+    authorization: str = Header(None, alias="Authorization"),
+    request: Request = None,
 ) -> TokenData:
     """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환"""
     # 요청별 고유 ID 설정
     if request:
         set_request_id()
-    
+
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

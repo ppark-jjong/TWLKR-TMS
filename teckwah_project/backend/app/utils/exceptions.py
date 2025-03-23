@@ -1,48 +1,108 @@
-# backend/app/utils/exceptions.py
-
-from fastapi import HTTPException, status
+# app/utils/exceptions.py
 from datetime import datetime
+from typing import Optional, Any, Dict
 
-class PessimisticLockException(HTTPException):
-    """비관적 락 충돌 시 발생하는 예외"""
+
+class BaseApiException(Exception):
+    """API 예외의 기본 클래스"""
 
     def __init__(
-        self, 
-        detail: str, 
-        locked_by: str = None, 
-        lock_type: str = None,
-        dashboard_id: int = None,
-        expires_at: datetime = None
+        self,
+        detail: str,
+        status_code: int = 400,
+        error_code: str = "BAD_REQUEST",
+        error_fields: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(status_code=status.HTTP_423_LOCKED, detail=detail)
+        self.detail = detail
+        self.status_code = status_code
+        self.error_code = error_code
+        self.error_fields = error_fields
+        super().__init__(self.detail)
+
+
+class PessimisticLockException(BaseApiException):
+    """비관적 락 충돌 예외"""
+
+    def __init__(
+        self,
+        detail: str,
+        locked_by: str,
+        lock_type: str,
+        dashboard_id: int,
+        expires_at: Optional[datetime] = None,
+    ):
+        super().__init__(
+            detail=detail,
+            status_code=423,  # Locked
+            error_code="RESOURCE_LOCKED",
+            error_fields={
+                "locked_by": locked_by,
+                "lock_type": lock_type,
+                "dashboard_id": dashboard_id,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+            },
+        )
         self.locked_by = locked_by
         self.lock_type = lock_type
         self.dashboard_id = dashboard_id
         self.expires_at = expires_at
-        
-    def to_dict(self):
-        """예외 정보를 딕셔너리로 변환"""
-        result = {"message": self.detail}
-        if self.locked_by:
-            result["locked_by"] = self.locked_by
-        if self.lock_type:
-            result["lock_type"] = self.lock_type
-        if self.dashboard_id:
-            result["dashboard_id"] = self.dashboard_id
-        if self.expires_at:
-            result["expires_at"] = self.expires_at.isoformat()
-        return result
 
 
-class DatabaseLockTimeoutException(PessimisticLockException):
-    """데이터베이스 락 타임아웃 시 발생하는 예외"""
-    
-    def __init__(self, detail: str = "데이터베이스 락 획득 시간 초과"):
-        super().__init__(detail=detail)
+class UnauthorizedException(BaseApiException):
+    """인증 실패 예외"""
+
+    def __init__(self, detail: str = "인증에 실패했습니다"):
+        super().__init__(
+            detail=detail,
+            status_code=401,  # Unauthorized
+            error_code="UNAUTHORIZED",
+        )
 
 
-class ConcurrentModificationException(PessimisticLockException):
-    """동시 수정 충돌 시 발생하는 예외"""
-    
-    def __init__(self, detail: str = "다른 사용자가 이미 데이터를 수정했습니다"):
-        super().__init__(detail=detail)
+class ForbiddenException(BaseApiException):
+    """권한 부족 예외"""
+
+    def __init__(self, detail: str = "권한이 없습니다"):
+        super().__init__(
+            detail=detail,
+            status_code=403,  # Forbidden
+            error_code="FORBIDDEN",
+        )
+
+
+class NotFoundException(BaseApiException):
+    """리소스 없음 예외"""
+
+    def __init__(self, detail: str = "요청한 리소스를 찾을 수 없습니다"):
+        super().__init__(
+            detail=detail,
+            status_code=404,  # Not Found
+            error_code="NOT_FOUND",
+        )
+
+
+class ValidationException(BaseApiException):
+    """데이터 유효성 검증 실패 예외"""
+
+    def __init__(
+        self,
+        detail: str = "데이터 유효성 검증에 실패했습니다",
+        error_fields: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            detail=detail,
+            status_code=422,  # Unprocessable Entity
+            error_code="VALIDATION_ERROR",
+            error_fields=error_fields,
+        )
+
+
+class ServerException(BaseApiException):
+    """서버 내부 오류 예외"""
+
+    def __init__(self, detail: str = "서버 내부 오류가 발생했습니다"):
+        super().__init__(
+            detail=detail,
+            status_code=500,  # Internal Server Error
+            error_code="SERVER_ERROR",
+        )

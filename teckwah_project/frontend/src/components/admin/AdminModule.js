@@ -1,79 +1,71 @@
-// src/components/admin/AdminModule.js
-import React, { useEffect } from 'react';
-import { Layout, Tabs, Typography, Button, message } from 'antd';
-import {
-  UserOutlined,
-  SettingOutlined,
-  DatabaseOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
-import { FONT_STYLES } from '../../utils/Constants';
-import { useAuth } from '../../contexts/AuthContext';
-import { useLogger } from '../../utils/LogUtils';
-import UserManagementTab from './UserManagementTab';
-import SystemSettingsTab from './SystemSettingsTab';
-import DataManagementTab from './DataManagementTab';
-import useAdminData from '../../hooks/useAdminData';
+// src/components/admin/AdminModule.js (수정)
+import React, { useEffect } from "react";
+import { Layout, Typography, Button, message } from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
+import { FONT_STYLES } from "../../utils/Constants";
+import { useAuth } from "../../contexts/AuthContext";
+import { useLogger } from "../../utils/LogUtils";
+import DashboardTable from "../dashboard/DashboardTable";
+import { useDashboard } from "../../contexts/DashboardContext";
 
 const { Title } = Typography;
-const { TabPane } = Tabs;
 
 /**
- * 관리자 대시보드 모듈 컴포넌트
- * 사용자 관리, 시스템 설정, 데이터 관리 기능 제공
+ * 간소화된 관리자 대시보드 모듈 컴포넌트
+ * 대시보드와 유사하지만 모든 상태 변경 및 삭제 기능이 활성화됨
  */
 const AdminModule = () => {
-  const logger = useLogger('AdminModule');
+  const logger = useLogger("AdminModule");
   const { user } = useAuth();
-
-  // useAdminData 커스텀 훅 활용
   const {
-    activeTab,
-    userList,
-    systemSettings,
-    dataStats,
+    dashboards,
     loading,
-    dataRange,
-    showUserModal,
-    editingUser,
-    handleTabChange,
-    handleRefresh,
-    loadData,
-    setShowUserModal,
-    handleUserSave,
-    handleUserDelete,
-    handleSettingsSave,
-    handleDataExport,
-    handleDataCleanup,
-    handleDateRangeChange,
-    userForm,
-  } = useAdminData();
+    fetchDashboards,
+    dateRange,
+    setDefaultDateRange,
+  } = useDashboard();
 
   // 초기 데이터 로드
   useEffect(() => {
     // 관리자 권한 검증
-    if (!user || user.user_role !== 'ADMIN') {
-      logger.warn('관리자 권한이 없는 사용자 접근:', user?.user_id);
-      message.error('관리자 권한이 필요합니다');
+    if (!user || user.user_role !== "ADMIN") {
+      logger.warn("관리자 권한이 없는 사용자 접근:", user?.user_id);
+      message.error("관리자 권한이 필요합니다");
       return;
     }
 
-    logger.info('관리자 컴포넌트 초기화:', user?.user_id);
-    loadData();
+    logger.info("관리자 컴포넌트 초기화:", user?.user_id);
+
+    // 날짜 범위가 없으면 기본값 설정 (최근 7일)
+    if (!dateRange || !dateRange.length) {
+      setDefaultDateRange(7);
+    } else {
+      // 날짜 범위가 있으면 데이터 로드
+      fetchDashboards(dateRange[0], dateRange[1], true);
+    }
 
     // 컴포넌트 언마운트 시 정리
     return () => {
-      logger.info('관리자 컴포넌트 언마운트');
+      logger.info("관리자 컴포넌트 언마운트");
     };
-  }, [user, loadData, logger]);
+  }, [user, dateRange, fetchDashboards, setDefaultDateRange, logger]);
+
+  // 새로고침 핸들러
+  const handleRefresh = () => {
+    if (dateRange && dateRange.length === 2) {
+      fetchDashboards(dateRange[0], dateRange[1], true);
+    } else {
+      setDefaultDateRange(7);
+    }
+  };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: "24px" }}>
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '24px',
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "24px",
         }}
       >
         <Title level={4} style={FONT_STYLES.TITLE.MEDIUM}>
@@ -84,63 +76,13 @@ const AdminModule = () => {
         </Button>
       </div>
 
-      <Tabs activeKey={activeTab} onChange={handleTabChange} type="card">
-        <TabPane
-          tab={
-            <span>
-              <UserOutlined />
-              사용자 관리
-            </span>
-          }
-          key="users"
-        >
-          <UserManagementTab
-            userList={userList}
-            loading={loading}
-            onUserSave={handleUserSave}
-            onUserDelete={handleUserDelete}
-            showUserModal={showUserModal}
-            setShowUserModal={setShowUserModal}
-            editingUser={editingUser}
-            userForm={userForm}
-          />
-        </TabPane>
-
-        <TabPane
-          tab={
-            <span>
-              <SettingOutlined />
-              시스템 설정
-            </span>
-          }
-          key="settings"
-        >
-          <SystemSettingsTab
-            systemSettings={systemSettings}
-            loading={loading}
-            onSettingsSave={handleSettingsSave}
-          />
-        </TabPane>
-
-        <TabPane
-          tab={
-            <span>
-              <DatabaseOutlined />
-              데이터 관리
-            </span>
-          }
-          key="data"
-        >
-          <DataManagementTab
-            dataStats={dataStats}
-            loading={loading}
-            dataRange={dataRange}
-            onDateRangeChange={handleDateRangeChange}
-            onDataExport={handleDataExport}
-            onDataCleanup={handleDataCleanup}
-          />
-        </TabPane>
-      </Tabs>
+      {/* 대시보드 테이블 - 관리자 권한으로 표시 */}
+      <DashboardTable
+        dataSource={dashboards}
+        loading={loading}
+        isAdminPage={true}
+        onRefresh={handleRefresh}
+      />
     </div>
   );
 };

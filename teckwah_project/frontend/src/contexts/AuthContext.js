@@ -5,12 +5,12 @@ import React, {
   useContext,
   useEffect,
   useCallback,
-} from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import AuthService from '../services/AuthService';
-import TokenManager from '../utils/TokenManager';
-import MessageService from '../utils/MessageService';
-import { MessageKeys } from '../utils/Constants';
+} from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import AuthService from "../services/AuthService";
+import TokenManager from "../utils/TokenManager";
+import MessageService from "../utils/MessageService";
+import { MessageKeys } from "../utils/Constants";
 
 /**
  * 간소화된 인증 컨텍스트
@@ -52,11 +52,11 @@ export const AuthProvider = ({ children }) => {
           setUser(null);
 
           // 로그인 페이지로 리디렉션 (로그인 페이지가 아닌 경우)
-          if (location.pathname !== '/login') {
+          if (location.pathname !== "/login") {
             // 돌아올 URL 저장
             TokenManager.setReturnUrl(location.pathname);
 
-            navigate('/login', { replace: true });
+            navigate("/login", { replace: true });
           }
         }
       } else {
@@ -64,19 +64,19 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
 
         // 보호된 경로 접근 시 리디렉션
-        const publicPaths = ['/login'];
+        const publicPaths = ["/login"];
         if (!publicPaths.includes(location.pathname)) {
           TokenManager.setReturnUrl(location.pathname);
-          navigate('/login', { replace: true });
+          navigate("/login", { replace: true });
         }
       }
     } catch (error) {
-      console.error('인증 초기화 오류:', error);
+      console.error("인증 초기화 오류:", error);
       setUser(null);
 
       // 인증 오류 시 로그인 페이지로 리디렉션
-      if (location.pathname !== '/login') {
-        navigate('/login', { replace: true });
+      if (location.pathname !== "/login") {
+        navigate("/login", { replace: true });
       }
     } finally {
       setAuthChecking(false);
@@ -96,7 +96,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      MessageService.loading('로그인 중...', MessageKeys.AUTH.LOGIN);
+      MessageService.loading("로그인 중...", MessageKeys.AUTH.LOGIN);
 
       const response = await AuthService.login(userId, password);
 
@@ -109,18 +109,18 @@ export const AuthProvider = ({ children }) => {
       const returnUrl = AuthService.getReturnUrl();
       navigate(
         returnUrl ||
-          (response.user.user_role === 'ADMIN' ? '/admin' : '/dashboard')
+          (response.user.user_role === "ADMIN" ? "/admin" : "/dashboard")
       );
       AuthService.clearReturnUrl();
 
-      MessageService.success('로그인되었습니다', MessageKeys.AUTH.LOGIN);
+      MessageService.success("로그인되었습니다", MessageKeys.AUTH.LOGIN);
       return response;
     } catch (error) {
-      console.error('로그인 실패:', error);
+      console.error("로그인 실패:", error);
 
       // 에러 메시지 표시
       MessageService.error(
-        error.message || '로그인에 실패했습니다',
+        error.message || "로그인에 실패했습니다",
         MessageKeys.AUTH.LOGIN
       );
 
@@ -136,7 +136,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setLoading(true);
-      MessageService.loading('로그아웃 중...', MessageKeys.AUTH.LOGOUT);
+      MessageService.loading("로그아웃 중...", MessageKeys.AUTH.LOGOUT);
 
       // 서버 로그아웃 요청
       await AuthService.logout();
@@ -145,20 +145,20 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
 
       // 메시지 표시
-      MessageService.success('로그아웃되었습니다', MessageKeys.AUTH.LOGOUT);
+      MessageService.success("로그아웃되었습니다", MessageKeys.AUTH.LOGOUT);
 
       // 로그인 페이지로 이동
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
 
       return true;
     } catch (error) {
-      console.error('로그아웃 실패:', error);
+      console.error("로그아웃 실패:", error);
 
       // 로그아웃 실패 시에도 클라이언트 상태는 초기화
       setUser(null);
 
       // 로그인 페이지로 이동
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
 
       return false;
     } finally {
@@ -194,7 +194,7 @@ export const AuthProvider = ({ children }) => {
 
       return false;
     } catch (error) {
-      console.error('인증 복구 실패:', error);
+      console.error("인증 복구 실패:", error);
       return false;
     } finally {
       setAuthChecking(false);
@@ -207,7 +207,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.user_role === 'ADMIN',
+    isAdmin: user?.user_role === "ADMIN",
     authChecking,
     loading,
     retryAuth,
@@ -222,7 +222,7 @@ export const AuthProvider = ({ children }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
