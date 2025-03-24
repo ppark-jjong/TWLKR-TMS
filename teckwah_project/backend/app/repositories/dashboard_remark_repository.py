@@ -1,5 +1,5 @@
 # app/repositories/dashboard_remark_repository.py
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -70,7 +70,7 @@ class DashboardRemarkRepository:
                 content=None,  # 빈 내용 (NULL)
                 created_at=now,
                 created_by=user_id,
-                formatted_content=None,  # 빈 포맷 내용 (NULL)
+                formatted_content=f"{user_id}: ",  # 기본 포맷 제공
             )
 
             self.db.add(remark)
@@ -169,6 +169,9 @@ class DashboardRemarkRepository:
                 if content.startswith(f"{user_id}:")
                 else f"{user_id}: {content}"
             )
+            
+            # 버전 증가
+            remark.version += 1
 
             # 3. 변경 사항 저장
             self.db.flush()
@@ -183,27 +186,10 @@ class DashboardRemarkRepository:
             self.db.rollback()
             raise
 
+    # 메모 삭제 기능은 비활성화 (필요 없음)
     def delete_remark(self, remark_id: int) -> bool:
         """
-        메모 삭제
+        메모 삭제 (비활성화됨)
         """
-        try:
-            # 1. 메모 조회
-            remark = self.get_remark_by_id(remark_id)
-            if not remark:
-                log_error(None, "메모 삭제 실패: 메모 없음", {"remark_id": remark_id})
-                return False
-
-            # 2. 메모 삭제
-            self.db.delete(remark)
-            self.db.flush()
-
-            log_info(
-                f"메모 삭제 완료: ID={remark_id}, 대시보드 ID={remark.dashboard_id}"
-            )
-            return True
-
-        except SQLAlchemyError as e:
-            log_error(e, "메모 삭제 실패", {"remark_id": remark_id})
-            self.db.rollback()
-            raise
+        log_error(None, "메모 삭제 기능이 비활성화되었습니다", {"remark_id": remark_id})
+        return False

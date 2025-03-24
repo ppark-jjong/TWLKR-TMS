@@ -14,7 +14,7 @@ settings = get_settings()
 
 
 class DashboardLockRepository(DashboardLockRepositoryInterface):
-    """대시보드 락 저장소 구현"""
+    """대시보드 락 저장소 구현 - 자동 만료 및 해제 기능 강화"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -27,7 +27,7 @@ class DashboardLockRepository(DashboardLockRepositoryInterface):
         - 이미 락이 있으면 충돌 확인
         - 같은 사용자는 락 갱신
         - 다른 사용자는 예외 발생
-        - 만료된 락은 새로 획득
+        - 만료된 락은 자동으로 새로 획득
         """
         try:
             # 기존 락 정보 조회
@@ -186,6 +186,13 @@ class DashboardLockRepository(DashboardLockRepositoryInterface):
                 .filter(DashboardLock.dashboard_id == dashboard_id)
                 .first()
             )
+
+            # 만료된 락인 경우 즉시 삭제하고 None 반환 (자동 해제 기능 추가)
+            if lock and lock.is_expired:
+                self.db.delete(lock)
+                self.db.flush()
+                log_info(f"만료된 락 자동 해제 (조회 시): dashboard_id={dashboard_id}")
+                return None
 
             return lock
         except Exception as e:

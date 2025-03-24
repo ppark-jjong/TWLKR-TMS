@@ -1,4 +1,4 @@
-// src/pages/DashboardPage.js - 리팩토링 버전
+// src/pages/DashboardPage.js - 관리자 기능 통합
 import React, { useEffect, useCallback, Suspense, useMemo } from 'react';
 import {
   Layout,
@@ -8,6 +8,7 @@ import {
   Tooltip,
   Popconfirm,
   Input,
+  Typography,
 } from 'antd';
 import {
   ReloadOutlined,
@@ -22,6 +23,8 @@ import DashboardList from '../components/dashboard/DashboardList';
 import { useDateRange } from '../utils/useDateRange';
 import { cancelAllPendingRequests } from '../utils/AxiosConfig';
 import { useLogger } from '../utils/LogUtils';
+import { useAuth } from '../contexts/AuthContext';
+import { FONT_STYLES } from '../utils/Constants';
 import {
   CreateDashboardModal,
   AssignDriverModal,
@@ -30,6 +33,7 @@ import {
 
 const { RangePicker } = DatePicker;
 const { Search } = Input;
+const { Title } = Typography;
 
 // 지연 로딩용 폴백 컴포넌트
 const ModalFallback = () => (
@@ -46,15 +50,14 @@ const ModalFallback = () => (
 );
 
 /**
- * 대시보드 페이지 컴포넌트 (개선 버전)
- * - 컨트롤러 패턴 적용으로 UI와 로직 분리
- * - 성능 최적화 및 불필요한 리렌더링 제거
- * - 백엔드 API 연동 개선
+ * 대시보드 페이지 컴포넌트 (관리자 기능 통합)
+ * 관리자 여부에 따라 삭제 버튼 표시 및 상태 변경 권한 부여
  */
 const DashboardPage = () => {
   const logger = useLogger('DashboardPage');
+  const { isAdmin } = useAuth(); // 관리자 여부 확인
 
-  // 날짜 범위 커스텀 훅 사용 - 단순화
+  // 날짜 범위 커스텀 훅 사용
   const {
     dateRange,
     disabledDate,
@@ -81,7 +84,6 @@ const DashboardPage = () => {
     warehouseFilter,
     orderNoSearch,
     filterButtonClicked,
-    isAdmin,
 
     // 상태 설정 함수
     setSelectedRows,
@@ -110,7 +112,7 @@ const DashboardPage = () => {
     setCurrentPage,
   } = useDashboardController();
 
-  // 초기화 및 정리 - 단순화
+  // 초기화 및 정리
   useEffect(() => {
     // 데이터 로드
     if (dateRange && dateRange[0] && dateRange[1] && !dateRangeLoading) {
@@ -124,7 +126,7 @@ const DashboardPage = () => {
     };
   }, [dateRange, dateRangeLoading, loadDashboardData, logger]);
 
-  // 필터 버튼 클릭 시 데이터 로드 - 간소화
+  // 필터 버튼 클릭 시 데이터 로드
   useEffect(() => {
     if (filterButtonClicked && dateRange && dateRange[0] && dateRange[1]) {
       loadDashboardData(dateRange[0], dateRange[1], true);
@@ -136,6 +138,19 @@ const DashboardPage = () => {
     loadDashboardData,
     setFilterButtonClicked,
   ]);
+
+  // 페이지 타이틀 렌더링
+  const renderPageTitle = useMemo(
+    () => (
+      <Title
+        level={4}
+        style={{ ...FONT_STYLES.TITLE.MEDIUM, margin: '0 0 16px 0' }}
+      >
+        배송 관리 대시보드
+      </Title>
+    ),
+    []
+  );
 
   // 액션 버튼 섹션 - 메모이제이션
   const renderActionButtons = useMemo(
@@ -237,7 +252,7 @@ const DashboardPage = () => {
     ]
   );
 
-  // 모달 렌더링 함수 - 간소화
+  // 모달 렌더링 함수
   const renderModals = () => (
     <>
       {showCreateModal && (
@@ -272,7 +287,7 @@ const DashboardPage = () => {
               setSelectedDashboard(null);
             }}
             onSuccess={handleDetailSuccess}
-            isAdmin={isAdmin}
+            isAdmin={isAdmin} // 관리자 권한 전달 - 상태 변경 권한 부여
           />
         </Suspense>
       )}
@@ -281,6 +296,8 @@ const DashboardPage = () => {
 
   return (
     <Layout.Content style={{ padding: '12px', backgroundColor: 'white' }}>
+      {renderPageTitle}
+
       <div style={{ marginBottom: '16px' }}>
         <Space
           size="large"
@@ -313,7 +330,7 @@ const DashboardPage = () => {
         onApplyFilters={handleApplyFilters}
         onPageChange={setCurrentPage}
         currentPage={currentPage}
-        isAdmin={isAdmin}
+        isAdmin={isAdmin} // 관리자 권한 전달
         resetSearchMode={() => handleOrderNoSearch('')}
       />
 

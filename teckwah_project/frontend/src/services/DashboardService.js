@@ -1,14 +1,14 @@
-// src/services/DashboardService.js (수정)
-import ApiService from "./ApiService";
-import Logger from "../utils/Logger";
-import { STATUS_TYPES } from "../utils/Constants";
+// src/services/DashboardService.js (비관적 락 처리 적용)
+import ApiService from './ApiService';
+import Logger from '../utils/Logger';
+import { STATUS_TYPES } from '../utils/Constants';
 
-const logger = Logger.getLogger("DashboardService");
+const logger = Logger.getLogger('DashboardService');
 
 /**
  * 대시보드 비즈니스 로직 서비스
  * 대시보드 데이터 관련 작업을 처리하는 핵심 서비스
- * 낙관적 락 관련 코드 제거
+ * 낙관적 락 관련 코드 제거 및 비관적 락 처리 강화
  */
 class DashboardService {
   /**
@@ -19,7 +19,7 @@ class DashboardService {
       const response = await ApiService.getDashboardList(startDate, endDate);
       return response || { items: [], date_range: null };
     } catch (error) {
-      logger.error("대시보드 목록 조회 실패:", error);
+      logger.error('대시보드 목록 조회 실패:', error);
       return { items: [], date_range: null };
     }
   }
@@ -32,7 +32,7 @@ class DashboardService {
       const response = await ApiService.searchDashboardsByOrderNo(orderNo);
       return response || { items: [] };
     } catch (error) {
-      logger.error("주문번호 검색 실패:", error);
+      logger.error('주문번호 검색 실패:', error);
       return { items: [] };
     }
   }
@@ -55,13 +55,15 @@ class DashboardService {
    * 대시보드 필드 업데이트 (낙관적 락 관련 client_version 파라미터 제거)
    */
   async updateFields(dashboardId, fields) {
+    // 낙관적 락 관련 코드 제거
     return await ApiService.updateDashboardFields(dashboardId, fields);
   }
 
   /**
-   * 대시보드 상태 업데이트
+   * 대시보드 상태 업데이트 (관리자 권한 포함 처리)
    */
   async updateStatus(dashboardId, status, isAdmin = false) {
+    // 낙관적 락 관련 코드 제거
     return await ApiService.updateStatus(dashboardId, status, isAdmin);
   }
 

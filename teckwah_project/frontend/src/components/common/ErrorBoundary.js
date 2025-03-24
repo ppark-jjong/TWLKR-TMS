@@ -1,12 +1,13 @@
-// frontend/src/components/common/ErrorBoundary.js
+// src/components/common/error/ErrorBoundary.js
 import React from 'react';
-import { Result, Button, Typography, Space, Alert } from 'antd';
-
-const { Text, Paragraph } = Typography;
 
 /**
- * 에러 경계 컴포넌트
- * React 컴포넌트 트리의 하위에서 발생하는 JavaScript 에러를 감지하고 처리
+ * 기본 에러 경계 컴포넌트
+ * React 컴포넌트 트리에서 발생하는 JavaScript 에러를 포착하고 처리
+ *
+ * @props {React.ReactNode} children - 자식 컴포넌트
+ * @props {React.ReactNode|Function} fallback - 에러 발생 시 표시할 UI 또는 렌더 함수
+ * @props {Function} onError - 에러 발생 시 호출할 콜백 함수
  */
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -32,7 +33,19 @@ class ErrorBoundary extends React.Component {
     });
 
     // 에러 로깅
-    console.error('ErrorBoundary에서 오류 발생:', error, errorInfo);
+    console.error(`ErrorBoundary: 오류 발생:`, error, errorInfo);
+
+    // 외부 에러 핸들러 호출 (제공된 경우)
+    if (typeof this.props.onError === 'function') {
+      try {
+        this.props.onError(error, errorInfo, this.state.errorCount);
+      } catch (handlerError) {
+        console.error(
+          `ErrorBoundary: 에러 핸들러 실행 중 오류 발생`,
+          handlerError
+        );
+      }
+    }
   }
 
   // 복구 시도
@@ -55,88 +68,72 @@ class ErrorBoundary extends React.Component {
   };
 
   render() {
+    const { hasError, error, errorInfo, errorCount } = this.state;
+    const { children, fallback } = this.props;
+
+    // 에러가 없으면 자식 렌더링
+    if (!hasError) {
+      return children;
+    }
+
     // 폴백 UI가 제공된 경우 사용
-    if (this.state.hasError && this.props.fallback) {
-      if (typeof this.props.fallback === 'function') {
-        return this.props.fallback({
-          error: this.state.error,
-          errorInfo: this.state.errorInfo,
+    if (fallback) {
+      if (typeof fallback === 'function') {
+        return fallback({
+          error,
+          errorInfo,
           resetError: this.handleRetry,
+          retry: this.handleRetry,
+          reload: this.handleReload,
+          goHome: this.handleGoHome,
+          errorCount,
         });
       }
-      return this.props.fallback;
+      return fallback;
     }
 
-    if (this.state.hasError) {
-      // 복구 불가능한 심각한 오류 (여러 번 시도해도 실패)
-      if (this.state.errorCount >= 3) {
-        return (
-          <Result
-            status="500"
-            title="애플리케이션 오류"
-            subTitle="심각한 오류가 발생했습니다. 페이지를 새로고침하거나 홈으로 이동해 주세요."
-            extra={[
-              <Button type="primary" key="reload" onClick={this.handleReload}>
-                페이지 새로고침
-              </Button>,
-              <Button key="home" onClick={this.handleGoHome}>
-                홈으로 이동
-              </Button>,
-            ]}
-          >
-            <div style={{ marginTop: '20px', textAlign: 'left' }}>
-              <Alert
-                message="기술적 오류 정보"
-                description={
-                  <Paragraph>
-                    <Text code>
-                      {this.state.error && this.state.error.toString()}
-                    </Text>
-                  </Paragraph>
-                }
-                type="error"
-              />
-            </div>
-          </Result>
-        );
-      }
-
-      // 복구 가능한 일반 오류
-      return (
-        <Result
-          status="warning"
-          title="렌더링 오류"
-          subTitle="컴포넌트 렌더링 중 문제가 발생했습니다. 다시 시도해주세요."
-          extra={[
-            <Button type="primary" key="retry" onClick={this.handleRetry}>
-              다시 시도
-            </Button>,
-            <Button key="reload" onClick={this.handleReload}>
-              페이지 새로고침
-            </Button>,
-          ]}
+    // 기본 에러 메시지 (폴백이 제공되지 않은 경우)
+    return (
+      <div
+        style={{
+          padding: '20px',
+          margin: '10px',
+          border: '1px solid #f5222d',
+          borderRadius: '4px',
+          backgroundColor: '#fff1f0',
+        }}
+      >
+        <h2 style={{ color: '#f5222d' }}>오류가 발생했습니다</h2>
+        <p>컴포넌트 렌더링 중 문제가 발생했습니다.</p>
+        <button
+          onClick={this.handleRetry}
+          style={{
+            padding: '4px 8px',
+            background: '#1890ff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            marginRight: '8px',
+            cursor: 'pointer',
+          }}
         >
-          <div
-            style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}
-          >
-            <Alert
-              message="문제가 지속되면 다음 조치를 취해보세요:"
-              description={
-                <Space direction="vertical">
-                  <Text>1. 브라우저 캐시 삭제 후 새로고침</Text>
-                  <Text>2. 다른 브라우저로 접속 시도</Text>
-                  <Text>3. 관리자에게 문의 (오류 발생 시간과 상황 공유)</Text>
-                </Space>
-              }
-              type="info"
-              showIcon
-            />
-          </div>
-        </Result>
-      );
-    }
-
-    return this.props.children;
+          다시 시도
+        </button>
+        <button
+          onClick={this.handleReload}
+          style={{
+            padding: '4px 8px',
+            background: '#ffffff',
+            color: '#000000',
+            border: '1px solid #d9d9d9',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          페이지 새로고침
+        </button>
+      </div>
+    );
   }
 }
 

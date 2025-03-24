@@ -1,13 +1,14 @@
 # app/utils/lock_manager.py
 from contextlib import contextmanager
 from typing import Optional
+from datetime import datetime, timedelta
 
 from app.utils.logger import log_info, log_error
 from app.utils.exceptions import PessimisticLockException
 
 
 class LockManager:
-    """락 관리자: 비관적 락(Pessimistic Lock) 획득 및 해제 관리"""
+    """락 관리자: 비관적 락(Pessimistic Lock) 획득 및 해제를 자동으로 관리"""
 
     def __init__(self, lock_repository):
         self.lock_repository = lock_repository
@@ -15,7 +16,7 @@ class LockManager:
     @contextmanager
     def acquire_lock(self, dashboard_id: int, user_id: str, lock_type: str):
         """컨텍스트 매니저: 락 획득 후 컨텍스트 종료 시 락 자동 해제
-
+        
         사용 예:
         ```
         with lock_manager.acquire_lock(dashboard_id, user_id, "EDIT"):
@@ -65,3 +66,16 @@ class LockManager:
                         {"error": str(e)},
                     )
                     # 락 해제 실패는 critical 이슈가 아니므로 예외를 발생시키지 않음
+    
+    def auto_release_expired_locks(self):
+        """만료된 락을 자동으로 해제하는 메서드
+        주기적으로 호출하여 시스템 안정성 확보
+        """
+        try:
+            count = self.lock_repository.cleanup_expired_locks()
+            if count > 0:
+                log_info(f"만료된 락 자동 해제: {count}건")
+            return count
+        except Exception as e:
+            log_error(e, "만료된 락 자동 해제 실패")
+            return 0

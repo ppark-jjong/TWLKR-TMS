@@ -1,4 +1,4 @@
-# backend/main.py
+# backend/main.py 수정 - 다운로드 라우터 등록 부분
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -14,6 +14,7 @@ from app.api import (
     visualization_router,
     dashboard_remark_router,
     dashboard_lock_router,
+    download_router,  # 다운로드 라우터 추가
 )
 from app.config.settings import get_settings
 from app.utils.logger import log_info, log_error
@@ -110,6 +111,8 @@ app.include_router(
 )
 app.include_router(dashboard_remark_router.router, prefix="/dashboard", tags=["메모"])
 app.include_router(dashboard_lock_router.router, prefix="/dashboard", tags=["락 관리"])
+# 다운로드 라우터 등록 (추가)
+app.include_router(download_router.router, prefix="/download", tags=["다운로드"])
 
 
 @app.on_event("startup")

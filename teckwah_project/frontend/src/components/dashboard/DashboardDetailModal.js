@@ -1,5 +1,11 @@
-// src/components/dashboard/DashboardDetailModal.js
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+// src/components/dashboard/DashboardDetailModal.js (비관적 락 처리 통합)
+import React, {
+  Suspense,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from 'react';
 import {
   Modal,
   Typography,
@@ -10,31 +16,47 @@ import {
   Badge,
   Spin,
   Alert,
-} from "antd";
-import { EditOutlined } from "@ant-design/icons";
-import { STATUS_TEXTS, STATUS_COLORS } from "../../utils/Constants";
-import useDashboardDetail from "../../hooks/useDashboardDetail";
-import { useLogger } from "../../utils/LogUtils";
+} from 'antd';
+import { EditOutlined } from '@ant-design/icons';
+import {
+  STATUS_TEXTS,
+  STATUS_COLORS,
+  FONT_STYLES,
+} from '../../utils/Constants';
+import useDashboardDetail from '../../hooks/useDashboardDetail';
+import { useLogger } from '../../utils/LogUtils';
+import {
+  formatDateTime,
+  formatPhoneNumber,
+  formatDistance,
+  formatDuration,
+} from '../../utils/Formatter';
+import {
+  DEPARTMENT_TEXTS,
+  TYPE_TEXTS,
+  WAREHOUSE_TEXTS,
+} from '../../utils/Constants';
 
 // 모듈화를 위한 컴포넌트 분리 - 상세 정보 섹션별 컴포넌트 임포트
-import { DashboardInfoSection } from "./detail/InfoSections";
-import { LockInfoDisplay } from "./detail/LockInfoDisplay";
-import { RemarkSection } from "./detail/RemarkSection";
-import { DashboardStatusControl } from "./detail/StatusControl";
-import { DashboardEditForm } from "./detail/DashboardEditForm";
+import { DashboardInfoSection } from './detail/InfoSections';
+import { LockInfoDisplay } from './detail/LockInfoDisplay';
+import { RemarkSection } from './detail/RemarkSection';
+import { DashboardStatusControl } from './detail/StatusControl';
+import { DashboardEditForm } from './detail/DashboardEditForm';
 
 const { Text } = Typography;
 
 // 지연 로딩 폴백 컴포넌트
 const DetailFallback = () => (
-  <div style={{ textAlign: "center", padding: "20px" }}>
+  <div style={{ textAlign: 'center', padding: '20px' }}>
     <Spin tip="상세 정보 로딩 중..." />
   </div>
 );
 
 /**
- * 개선된 대시보드 상세 정보 모달 컴포넌트
- * 컴포넌트 책임 분리 및 성능 최적화
+ * 대시보드 상세 정보 모달 컴포넌트
+ * 비관적 락을 활용한 상태 변경 및 편집 기능 통합
+ * 낙관적 락 관련 코드 제거
  */
 const DashboardDetailModal = ({
   visible,
@@ -43,7 +65,7 @@ const DashboardDetailModal = ({
   onSuccess,
   isAdmin = false,
 }) => {
-  const logger = useLogger("DashboardDetailModal");
+  const logger = useLogger('DashboardDetailModal');
 
   // useDashboardDetail 커스텀 훅 사용으로 비즈니스 로직 분리
   const {
@@ -81,9 +103,9 @@ const DashboardDetailModal = ({
 
   // 모달 취소 핸들러 - 메모이제이션 적용
   const handleModalCancel = useCallback(async () => {
-    if (editMode.fields || editMode.remark) {
+    if (editMode.fields || editMode.remark || editMode.status) {
       const confirmed = window.confirm(
-        "저장되지 않은 변경 사항이 있습니다. 정말 닫으시겠습니까?"
+        '저장되지 않은 변경 사항이 있습니다. 정말 닫으시겠습니까?'
       );
       if (!confirmed) return;
 
@@ -93,7 +115,7 @@ const DashboardDetailModal = ({
     if (onCancel) {
       onCancel();
     }
-  }, [editMode.fields, editMode.remark, cancelEdit, onCancel]);
+  }, [editMode.fields, editMode.remark, editMode.status, cancelEdit, onCancel]);
 
   // 초기 데이터 로드 및 정리
   useEffect(() => {
@@ -112,61 +134,73 @@ const DashboardDetailModal = ({
 
     return {
       basicInfoItems: [
-        { label: "부서", value: DEPARTMENT_TEXTS[currentDashboard.department] },
-        { label: "종류", value: TYPE_TEXTS[currentDashboard.type] },
+        { label: '부서', value: DEPARTMENT_TEXTS[currentDashboard.department] },
+        { label: '종류', value: TYPE_TEXTS[currentDashboard.type] },
         {
-          label: "출발 허브",
+          label: '출발 허브',
           value: WAREHOUSE_TEXTS[currentDashboard.warehouse],
         },
-        { label: "SLA", value: currentDashboard.sla },
+        { label: 'SLA', value: currentDashboard.sla },
       ],
       timeInfoItems: [
         {
-          label: "접수 시각",
+          label: '접수 시각',
           value: formatDateTime(currentDashboard.create_time),
         },
         {
-          label: "출발 시각",
+          label: '출발 시각',
           value: formatDateTime(currentDashboard.depart_time),
         },
         {
-          label: "완료 시각",
+          label: '완료 시각',
           value: formatDateTime(currentDashboard.complete_time),
         },
         {
-          label: "ETA",
+          label: 'ETA',
           value: formatDateTime(currentDashboard.eta),
           highlight: true,
         },
       ],
       driverInfoItems: [
         {
-          label: "담당 기사",
+          label: '담당 기사',
           value: currentDashboard.driver_name,
           highlight: true,
         },
         {
-          label: "기사 연락처",
+          label: '기사 연락처',
           value: formatPhoneNumber(currentDashboard.driver_contact),
         },
       ],
       deliveryInfoItems: [
-        { label: "주소", value: currentDashboard.address },
+        { label: '주소', value: currentDashboard.address },
         {
-          label: "예상 거리",
+          label: '예상 거리',
           value: formatDistance(currentDashboard.distance),
         },
         {
-          label: "예상 소요시간",
+          label: '예상 소요시간',
           value: formatDuration(currentDashboard.duration_time),
         },
       ],
       receiverInfoItems: [
-        { label: "수령인", value: currentDashboard.customer },
-        { label: "연락처", value: formatPhoneNumber(currentDashboard.contact) },
+        { label: '수령인', value: currentDashboard.customer },
+        { label: '연락처', value: formatPhoneNumber(currentDashboard.contact) },
       ],
     };
   }, [currentDashboard]);
+
+  // 상태 변경 핸들러 - 비관적 락 처리 적용
+  const handleStatusChange = useCallback(
+    async (status) => {
+      try {
+        await updateStatus(status);
+      } catch (err) {
+        logger.error('상태 변경 실패:', err);
+      }
+    },
+    [updateStatus, logger]
+  );
 
   // 메인 콘텐츠 렌더링 - 조건부 렌더링 최적화
   const renderContent = () => {
@@ -183,7 +217,7 @@ const DashboardDetailModal = ({
           description={error}
           type="error"
           showIcon
-          style={{ marginBottom: "16px" }}
+          style={{ marginBottom: '16px' }}
         />
       );
     }
@@ -209,12 +243,12 @@ const DashboardDetailModal = ({
 
     // 조회 모드
     return (
-      <div style={{ padding: "0" }}>
+      <div style={{ padding: '0' }}>
         <div
           style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            marginBottom: "16px",
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginBottom: '16px',
           }}
         >
           <Button
@@ -222,7 +256,7 @@ const DashboardDetailModal = ({
             icon={<EditOutlined />}
             onClick={startFieldsEdit}
             loading={lockLoading}
-            disabled={editMode.remark}
+            disabled={editMode.remark || editMode.status}
           >
             정보 수정
           </Button>
@@ -279,30 +313,32 @@ const DashboardDetailModal = ({
       title={
         <div
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "8px 0",
-            marginRight: "48px",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '8px 0',
+            marginRight: '48px',
           }}
         >
           <div>
-            <Text style={{ marginRight: "12px" }}>
+            <Text style={{ marginRight: '12px' }}>
               주문번호: {currentDashboard?.order_no}
             </Text>
             <Badge
               count={STATUS_TEXTS[currentDashboard?.status]}
               style={{
                 backgroundColor:
-                  STATUS_COLORS[currentDashboard?.status] || "#d9d9d9",
+                  STATUS_COLORS[currentDashboard?.status] || '#d9d9d9',
               }}
             />
           </div>
+          {/* 상태 변경 컨트롤 - 비관적 락 처리 적용 */}
           {!editMode.fields && currentDashboard && (
             <DashboardStatusControl
               dashboard={currentDashboard}
-              onStatusChange={updateStatus}
+              onStatusChange={handleStatusChange}
               isAdmin={isAdmin}
+              lockLoading={lockLoading}
             />
           )}
         </div>
@@ -312,12 +348,12 @@ const DashboardDetailModal = ({
       footer={null}
       width={1200}
       bodyStyle={{
-        maxHeight: "calc(90vh - 150px)",
-        overflowY: "auto",
-        padding: "24px",
+        maxHeight: 'calc(90vh - 150px)',
+        overflowY: 'auto',
+        padding: '24px',
       }}
-      maskClosable={!editMode.fields && !editMode.remark}
-      closable={!editMode.fields && !editMode.remark}
+      maskClosable={!editMode.fields && !editMode.remark && !editMode.status}
+      closable={!editMode.fields && !editMode.remark && !editMode.status}
       destroyOnClose={true}
     >
       {/* 락 정보 알림 */}
