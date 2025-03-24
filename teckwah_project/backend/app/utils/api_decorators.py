@@ -13,7 +13,9 @@ from app.utils.exceptions import (
     NotFoundException,
     ValidationException,
     ServerException,
+    ConflictException,
 )
+
 
 
 def error_handler(operation_name: str):
@@ -49,20 +51,40 @@ def error_handler(operation_name: str):
                         "lock_type": e.lock_type,
                     },
                 )
-            except ValidationError as e:
-                # Pydantic 유효성 검증 실패 (422 Unprocessable Entity)
-                log_error(e, f"{operation_name} - 데이터 유효성 검증 실패")
-                error_fields = {}
-                for error in e.errors():
-                    field = ".".join(str(loc) for loc in error["loc"])
-                    error_fields[field] = error["msg"]
-
+            except UnauthorizedException as e:
+                # 인증 예외 (401 Unauthorized)
+                log_error(e, f"{operation_name} - 인증 오류")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"message": str(e.detail)},
+                )
+            except ForbiddenException as e:
+                # 권한 예외 (403 Forbidden)
+                log_error(e, f"{operation_name} - 권한 오류")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"message": str(e.detail)},
+                )
+            except NotFoundException as e:
+                # 리소스 없음 예외 (404 Not Found)
+                log_error(e, f"{operation_name} - 리소스 없음")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"message": str(e.detail)},
+                )
+            except ValidationException as e:
+                # 유효성 검증 예외 (422 Unprocessable Entity)
+                log_error(e, f"{operation_name} - 데이터 유효성 오류")
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail={
-                        "message": "입력 데이터가 유효하지 않습니다",
-                        "errors": error_fields,
-                    },
+                    detail={"message": str(e.detail), "fields": e.error_fields},
+                )
+            except ConflictException as e:
+                # 충돌 예외 (409 Conflict)
+                log_error(e, f"{operation_name} - 데이터 충돌")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"message": str(e.detail)},
                 )
             except ValueError as e:
                 # 값 오류 (400 Bad Request)

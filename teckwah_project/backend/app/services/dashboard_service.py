@@ -3,11 +3,12 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
 from app.models.dashboard_model import Dashboard
+from app.models.postal_code_model import PostalCode, PostalCodeDetail
 from app.schemas.dashboard_schema import StatusUpdate, FieldsUpdate, DriverAssignment
 from app.utils.datetime_helper import get_kst_now, localize_to_kst
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
-
+from app.utils.exceptions import PessimisticLockException, ValidationException, NotFoundException
+from app.utils.transaction import transactional
 
 class DashboardService:
     """대시보드 서비스"""
@@ -18,11 +19,15 @@ class DashboardService:
         remark_repository,
         lock_repository,
         lock_manager,
+        db=None,  
+
     ):
         self.dashboard_repository = dashboard_repository
         self.remark_repository = remark_repository
         self.lock_repository = lock_repository
         self.lock_manager = lock_manager
+        self.db = getattr(dashboard_repository, 'db', None)  
+
 
     def get_dashboard_list_by_date(
         self, start_date: datetime, end_date: datetime
@@ -103,113 +108,6 @@ class DashboardService:
             log_error(e, "대시보드 생성 실패")
             raise
 
-    def update_dashboard_fields(
-        self, dashboard_id: int, fields_update: FieldsUpdate, user_id: str
-    ) -> Dict[str, Any]:
-        """대시보드 필드 업데이트 (비관적 락 사용)"""
-        # 1. 락 획득
-        with self.lock_manager.acquire_lock(dashboard_id, user_id, "EDIT"):
-            # 2. 필드 업데이트 데이터 준비
-            update_data = fields_update.model_dump(exclude_unset=True)
-            if not update_data:
-                raise ValueError("업데이트할 필드가 없습니다")
-
-            # 3. 필드 업데이트
-            dashboard = self.dashboard_repository.update_dashboard_fields(
-                dashboard_id, update_data
-            )
-            if not dashboard:
-                raise ValueError(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
-
-            # 4. 상세 정보 반환 (메모 포함)
-            remarks = self.remark_repository.get_remarks_by_dashboard_id(dashboard_id)
-            return self._prepare_dashboard_detail(dashboard, remarks)
-
-    def update_status(
-        self,
-        dashboard_id: int,
-        new_status: str,
-        user_id: str,
-        is_admin: bool = False,
-    ) -> Dict[str, Any]:
-        """상태 업데이트 (비관적 락 사용)"""
-        # 1. 락 획득
-        with self.lock_manager.acquire_lock(dashboard_id, user_id, "STATUS"):
-            # 2. 대시보드 조회
-            dashboard = self.dashboard_repository.get_dashboard_detail(dashboard_id)
-            if not dashboard:
-                raise ValueError(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
-
-            # 3. 상태 변경 검증 (관리자는 제한 없음)
-            if not is_admin:
-                # 상태 전이 규칙 검증 로직 (필요시 추가)
-                pass
-
-            # 4. 상태별 자동 시간 업데이트
-            update_data = {"status": new_status}
-            now = get_kst_now()
-
-            # 출발 시간 (IN_PROGRESS로 변경 시)
-            if new_status == "IN_PROGRESS" and not dashboard.depart_time:
-                update_data["depart_time"] = now
-
-            # 완료 시간 (COMPLETE로 변경 시)
-            if new_status == "COMPLETE" and not dashboard.complete_time:
-                update_data["complete_time"] = now
-
-            # 5. 상태 업데이트
-            dashboard = self.dashboard_repository.update_dashboard_fields(
-                dashboard_id, update_data
-            )
-
-            # 6. 상세 정보 반환
-            remarks = self.remark_repository.get_remarks_by_dashboard_id(dashboard_id)
-            return self._prepare_dashboard_detail(dashboard, remarks)
-
-    def assign_driver(
-        self, assignment: DriverAssignment, user_id: str
-    ) -> List[Dict[str, Any]]:
-        """배차 처리 (비관적 락 사용)"""
-        dashboard_ids = assignment.dashboard_ids
-        if not dashboard_ids:
-            raise ValueError("배차할 대시보드 ID가 없습니다")
-
-        driver_name = assignment.driver_name
-        driver_contact = assignment.driver_contact
-
-        # 1. 여러 대시보드에 대한 락 획득 (ALL or NOTHING)
-        acquired_ids = self.lock_repository.acquire_locks_for_multiple_dashboards(
-            dashboard_ids, user_id, "ASSIGN"
-        )
-
-        if not acquired_ids or len(acquired_ids) != len(dashboard_ids):
-            # 락 획득 실패 (일부만 성공해도 실패로 간주)
-            for id in acquired_ids:
-                self.lock_repository.release_lock(id, user_id)
-            raise PessimisticLockException(
-                detail="일부 대시보드에 대한 락 획득에 실패했습니다",
-                locked_by="Unknown",
-                lock_type="ASSIGN",
-                dashboard_id=-1,
-            )
-
-        try:
-            # 2. 배차 정보 업데이트
-            updated_dashboards = self.dashboard_repository.assign_driver(
-                dashboard_ids, driver_name, driver_contact
-            )
-
-            # 3. 결과 변환 및 반환
-            result = [
-                self._convert_to_dict(dashboard) for dashboard in updated_dashboards
-            ]
-
-            return result
-        finally:
-            # 4. 락 해제 (성공/실패와 관계없이)
-            for id in acquired_ids:
-                self.lock_repository.release_lock(id, user_id)
-
     def delete_dashboards(self, dashboard_ids: List[int]) -> int:
         """대시보드 삭제 (관리자 전용)"""
         if not dashboard_ids:
@@ -255,3 +153,145 @@ class DashboardService:
         else:
             # 기타 객체는 dict로 변환 시도
             return dict(obj)
+
+ # 비즈니스 로직이 추가된 메서드
+    @transactional
+    def update_dashboard_fields(
+        self, dashboard_id: int, fields_update: FieldsUpdate, user_id: str
+    ) -> Dict[str, Any]:
+        """대시보드 필드 업데이트 (비관적 락 사용)"""
+        # 1. 락 획득
+        with self.lock_manager.acquire_lock(dashboard_id, user_id, "EDIT"):
+            # 2. 필드 업데이트 데이터 준비
+            update_data = fields_update.model_dump(exclude_unset=True)
+            if not update_data:
+                raise ValidationException("업데이트할 필드가 없습니다")
+
+            # 3. 우편번호 변경 시 관련 정보도 함께 업데이트 (비즈니스 로직)
+            if "postal_code" in update_data:
+                postal_code = update_data["postal_code"]
+                postal_info = (
+                    self.db.query(PostalCode)
+                    .filter(PostalCode.postal_code == postal_code)
+                    .first()
+                )
+
+                if postal_info:
+                    update_data["city"] = postal_info.city
+                    update_data["county"] = postal_info.county
+                    update_data["district"] = postal_info.district
+
+                    # 창고 정보가 있으면 거리, 소요시간 정보도 업데이트
+                    dashboard = self.dashboard_repository.get_dashboard_detail(dashboard_id)
+                    if dashboard and ("warehouse" in update_data or dashboard.warehouse):
+                        warehouse = update_data.get("warehouse") or dashboard.warehouse
+                        detail_info = (
+                            self.db.query(PostalCodeDetail)
+                            .filter(
+                                PostalCodeDetail.postal_code == postal_code,
+                                PostalCodeDetail.warehouse == warehouse,
+                            )
+                            .first()
+                        )
+
+                        if detail_info:
+                            update_data["distance"] = detail_info.distance
+                            update_data["duration_time"] = detail_info.duration_time
+
+            # 4. 필드 업데이트
+            dashboard = self.dashboard_repository.update_dashboard_fields(
+                dashboard_id, update_data
+            )
+            if not dashboard:
+                raise NotFoundException(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
+
+            # 5. 상세 정보 반환 (메모 포함)
+            remarks = self.remark_repository.get_remarks_by_dashboard_id(dashboard_id)
+            return self._prepare_dashboard_detail(dashboard, remarks)
+
+    @transactional
+    def update_status(
+        self,
+        dashboard_id: int,
+        new_status: str,
+        user_id: str,
+        is_admin: bool = False,
+    ) -> Dict[str, Any]:
+        """상태 업데이트 (비관적 락 사용)"""
+        # 1. 락 획득
+        with self.lock_manager.acquire_lock(dashboard_id, user_id, "STATUS"):
+            # 2. 대시보드 조회
+            dashboard = self.dashboard_repository.get_dashboard_detail(dashboard_id)
+            if not dashboard:
+                raise ValueError(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
+
+            # 3. 상태 변경 검증 (관리자는 제한 없음)
+            if not is_admin:
+                # 상태 전이 규칙 검증 로직 (필요시 추가)
+                pass
+
+            # 4. 상태별 자동 시간 업데이트
+            update_data = {"status": new_status}
+            now = get_kst_now()
+
+            # 출발 시간 (IN_PROGRESS로 변경 시)
+            if new_status == "IN_PROGRESS" and not dashboard.depart_time:
+                update_data["depart_time"] = now
+
+            # 완료 시간 (COMPLETE로 변경 시)
+            if new_status == "COMPLETE" and not dashboard.complete_time:
+                update_data["complete_time"] = now
+
+            # 5. 상태 업데이트
+            dashboard = self.dashboard_repository.update_dashboard_fields(
+                dashboard_id, update_data
+            )
+
+            # 6. 상세 정보 반환
+            remarks = self.remark_repository.get_remarks_by_dashboard_id(dashboard_id)
+            return self._prepare_dashboard_detail(dashboard, remarks)
+
+    @transactional
+    def assign_driver(
+        self, assignment: DriverAssignment, user_id: str
+    ) -> List[Dict[str, Any]]:
+        """배차 처리 (비관적 락 사용)"""
+        dashboard_ids = assignment.dashboard_ids
+        if not dashboard_ids:
+            raise ValidationException("배차할 대시보드 ID가 없습니다")
+
+        driver_name = assignment.driver_name
+        driver_contact = assignment.driver_contact
+
+        # 1. 여러 대시보드에 대한 락 획득 (ALL or NOTHING)
+        acquired_ids = self.lock_repository.acquire_locks_for_multiple_dashboards(
+            dashboard_ids, user_id, "ASSIGN"
+        )
+
+        if not acquired_ids or len(acquired_ids) != len(dashboard_ids):
+            # 락 획득 실패 (일부만 성공해도 실패로 간주)
+            for id in acquired_ids:
+                self.lock_repository.release_lock(id, user_id)
+            raise PessimisticLockException(
+                detail="일부 대시보드에 대한 락 획득에 실패했습니다",
+                locked_by="Unknown",
+                lock_type="ASSIGN",
+                dashboard_id=-1,
+            )
+
+        try:
+            # 2. 배차 정보 업데이트
+            updated_dashboards = self.dashboard_repository.assign_driver(
+                dashboard_ids, driver_name, driver_contact
+            )
+
+            # 3. 결과 변환 및 반환
+            result = [
+                self._convert_to_dict(dashboard) for dashboard in updated_dashboards
+            ]
+
+            return result
+        finally:
+            # 4. 락 해제 (성공/실패와 관계없이)
+            for id in acquired_ids:
+                self.lock_repository.release_lock(id, user_id)

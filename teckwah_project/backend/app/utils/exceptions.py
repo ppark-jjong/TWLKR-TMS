@@ -106,3 +106,14 @@ class ServerException(BaseApiException):
             status_code=500,  # Internal Server Error
             error_code="SERVER_ERROR",
         )
+
+
+class ConflictException(BaseApiException):
+    """데이터 충돌 예외"""
+
+    def __init__(self, detail: str = "데이터 충돌이 발생했습니다"):
+        super().__init__(
+            detail=detail,
+            status_code=409,  # Conflict
+            error_code="CONFLICT",
+        )

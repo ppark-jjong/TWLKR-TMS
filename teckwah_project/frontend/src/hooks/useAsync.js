@@ -1,7 +1,7 @@
 // src/hooks/useAsync.js
-import { useState, useCallback, useRef, useEffect } from "react";
-import message from "../utils/message";
-import { useLogger } from "../utils/LogUtils";
+import { useState, useCallback, useRef, useEffect } from 'react';
+import message from '../utils/message';
+import { useLogger } from '../utils/LogUtils';
 
 /**
  * 비동기 작업을 관리하는 커스텀 훅
@@ -27,7 +27,7 @@ const useAsync = (asyncFunction, options = {}) => {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
-  const logger = useLogger("useAsync");
+  const logger = useLogger('useAsync');
   const mountedRef = useRef(true);
   const isFetchingRef = useRef(false);
 
@@ -87,8 +87,8 @@ const useAsync = (asyncFunction, options = {}) => {
         // 컴포넌트가 언마운트되었으면 상태 업데이트 안함
         if (!mountedRef.current) return;
 
-        logger.error("비동기 작업 실패:", err);
-        setError(err.message || "오류가 발생했습니다");
+        logger.error('비동기 작업 실패:', err);
+        setError(err.message || '오류가 발생했습니다');
 
         // 에러 메시지 표시
         if (errorMessage && messageKey) {

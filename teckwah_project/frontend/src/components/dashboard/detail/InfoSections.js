@@ -1,5 +1,5 @@
-// src/components/dashboard/detail/InfoSections.js
-import React, { memo } from 'react';
+// src/components/dashboard/detail/InfoSections.js (개선)
+import React from 'react';
 import { Typography } from 'antd';
 import { FONT_STYLES } from '../../../utils/Constants';
 
@@ -45,7 +45,5 @@ const InfoSection = ({ title, items = [] }) => {
   );
 };
 
-/**
- * 메모이제이션된 대시보드 정보 섹션 컴포넌트
- */
-export const DashboardInfoSection = memo(InfoSection);
+// 간단한 컴포넌트이므로 메모이제이션 제거 (불필요한 최적화 회피)
+export const DashboardInfoSection = InfoSection;

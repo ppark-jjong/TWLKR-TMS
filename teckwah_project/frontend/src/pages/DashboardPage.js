@@ -1,4 +1,4 @@
-// src/pages/DashboardPage.js - 관리자 기능 통합
+// src/pages/DashboardPage.js (개선)
 import React, { useEffect, useCallback, Suspense, useMemo } from 'react';
 import {
   Layout,
@@ -14,6 +14,7 @@ import {
   ReloadOutlined,
   DeleteOutlined,
   PlusOutlined,
+  CarOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -55,7 +56,7 @@ const ModalFallback = () => (
  */
 const DashboardPage = () => {
   const logger = useLogger('DashboardPage');
-  const { isAdmin } = useAuth(); // 관리자 여부 확인
+  const { user, isAdmin } = useAuth(); // 관리자 여부 확인
 
   // 날짜 범위 커스텀 훅 사용
   const {

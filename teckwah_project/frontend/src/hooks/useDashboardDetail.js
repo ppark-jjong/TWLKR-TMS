@@ -1,4 +1,4 @@
-// src/hooks/useDashboardDetail.js (비관적 락 처리 추가)
+// src/hooks/useDashboardDetail.js (개선)
 import { useState, useCallback, useEffect, useRef } from 'react';
 import dayjs from 'dayjs';
 import DashboardService from '../services/DashboardService';
@@ -9,7 +9,6 @@ import { MessageKeys } from '../utils/Constants';
 /**
  * 대시보드 상세 정보 관리 훅
  * 락 관리, 상태 변경, 필드 업데이트, 메모 관리 등 통합
- * 낙관적 락 관련 코드 제거 및 비관적 락 처리 강화
  *
  * @param {Object} options - 훅 옵션
  * @param {number|string} options.dashboardId - 대시보드 ID
@@ -37,34 +36,61 @@ const useDashboardDetail = (options = {}) => {
   const [editMode, setEditMode] = useState({
     fields: false,
     remark: false,
-    status: false, // 상태 변경 편집 모드 추가
+    status: false,
   });
+
+  // 컴포넌트 마운트 상태 추적
+  const isMountedRef = useRef(true);
 
   // 타이머 레퍼런스
   const lockExpiryTimerRef = useRef(null);
   const warningTimerRef = useRef(null);
   const isLoadingRef = useRef(false);
 
+  // 컴포넌트 마운트/언마운트 감지
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      // 타이머 정리
+      clearTimeout(lockExpiryTimerRef.current);
+      clearTimeout(warningTimerRef.current);
+
+      // 언마운트 시 락 해제 (컴포넌트가 마운트된 상태에서만)
+      if (
+        dashboardId &&
+        (editMode.fields || editMode.remark || editMode.status)
+      ) {
+        releaseLock();
+      }
+    };
+  }, []);
+
   /**
    * 락 만료 경고 표시
    */
   const showLockExpiryWarning = useCallback(() => {
-    MessageService.warning(
-      '편집 세션이 곧 만료됩니다. 작업을 완료하거나 저장하세요.',
-      MessageKeys.DASHBOARD.LOCK_WARNING
-    );
+    if (isMountedRef.current) {
+      MessageService.warning(
+        '편집 세션이 곧 만료됩니다. 작업을 완료하거나 저장하세요.',
+        MessageKeys.DASHBOARD.LOCK_WARNING
+      );
+    }
   }, []);
 
   /**
    * 락 만료 처리
    */
   const handleLockExpiry = useCallback(() => {
-    setEditMode({ fields: false, remark: false, status: false });
-    setLockInfo(null);
-    MessageService.error(
-      '편집 세션이 만료되었습니다. 편집 모드를 다시 활성화해야 합니다.',
-      MessageKeys.DASHBOARD.LOCK_EXPIRED
-    );
+    if (isMountedRef.current) {
+      setEditMode({ fields: false, remark: false, status: false });
+      setLockInfo(null);
+      MessageService.error(
+        '편집 세션이 만료되었습니다. 편집 모드를 다시 활성화해야 합니다.',
+        MessageKeys.DASHBOARD.LOCK_EXPIRED
+      );
+    }
   }, []);
 
   /**
@@ -73,6 +99,8 @@ const useDashboardDetail = (options = {}) => {
    */
   const setupLockTimer = useCallback(
     (lockData) => {
+      if (!isMountedRef.current) return;
+
       // 기존 타이머 정리
       clearTimeout(lockExpiryTimerRef.current);
       clearTimeout(warningTimerRef.current);
@@ -110,7 +138,8 @@ const useDashboardDetail = (options = {}) => {
    * @returns {Promise<Object>} 대시보드 상세 정보
    */
   const fetchDashboardDetail = useCallback(async () => {
-    if (!dashboardId || isLoadingRef.current) return null;
+    if (!dashboardId || isLoadingRef.current || !isMountedRef.current)
+      return null;
 
     try {
       isLoadingRef.current = true;
@@ -122,16 +151,26 @@ const useDashboardDetail = (options = {}) => {
       // 성능 최적화 - 중복 요청 방지
       const cacheKey = `dashboard_detail_${dashboardId}`;
       const cachedData = sessionStorage.getItem(cacheKey);
+      const cacheTimestamp = sessionStorage.getItem(`${cacheKey}_timestamp`);
+      const now = Date.now();
 
-      // 캐시된 데이터가 있으면 우선 표시 (Stale-While-Revalidate 패턴)
-      if (cachedData) {
+      // 캐시된 데이터가 있고 유효한 경우 (5분 이내)
+      if (
+        cachedData &&
+        cacheTimestamp &&
+        now - parseInt(cacheTimestamp) < 5 * 60 * 1000
+      ) {
         try {
           const parsedData = JSON.parse(cachedData);
-          setDashboard(parsedData);
 
-          // 메모 내용 설정
-          if (parsedData.remarks && parsedData.remarks.length > 0) {
-            setRemarkContent(parsedData.remarks[0].content || '');
+          // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+          if (isMountedRef.current) {
+            setDashboard(parsedData);
+
+            // 메모 내용 설정
+            if (parsedData.remarks && parsedData.remarks.length > 0) {
+              setRemarkContent(parsedData.remarks[0].content || '');
+            }
           }
         } catch (err) {
           // 캐시 파싱 오류 무시
@@ -142,13 +181,13 @@ const useDashboardDetail = (options = {}) => {
       // API 호출로 최신 데이터 가져오기
       const data = await DashboardService.getDashboardDetail(dashboardId);
 
+      // 컴포넌트가 언마운트되었는지 확인
+      if (!isMountedRef.current) return null;
+
       if (data) {
-        // 세션 스토리지에 캐싱 (10분 만료)
+        // 세션 스토리지에 캐싱
         sessionStorage.setItem(cacheKey, JSON.stringify(data));
-        sessionStorage.setItem(
-          `${cacheKey}_timestamp`,
-          Date.now() + 10 * 60 * 1000
-        );
+        sessionStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
 
         setDashboard(data);
 
@@ -166,11 +205,19 @@ const useDashboardDetail = (options = {}) => {
       return data;
     } catch (err) {
       logger.error('대시보드 상세 정보 조회 실패:', err);
-      setError('상세 정보를 조회하는 중 오류가 발생했습니다');
-      if (onError) onError(err);
+
+      // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+      if (isMountedRef.current) {
+        setError('상세 정보를 조회하는 중 오류가 발생했습니다');
+        if (onError) onError(err);
+      }
+
       return null;
     } finally {
-      setLoading(false);
+      // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
       isLoadingRef.current = false;
     }
   }, [dashboardId, checkLockStatus, onError, logger]);
@@ -180,7 +227,7 @@ const useDashboardDetail = (options = {}) => {
    * @returns {Promise<Object>} 락 상태 정보
    */
   const checkLockStatus = useCallback(async () => {
-    if (!dashboardId) return null;
+    if (!dashboardId || !isMountedRef.current) return null;
 
     try {
       setLockLoading(true);
@@ -216,6 +263,9 @@ const useDashboardDetail = (options = {}) => {
       // API로 락 상태 확인
       const lockStatus = await DashboardService.checkLockStatus(dashboardId);
 
+      // 컴포넌트가 언마운트되었는지 확인
+      if (!isMountedRef.current) return null;
+
       // 캐시 저장
       sessionStorage.setItem(cacheKey, JSON.stringify(lockStatus || {}));
       sessionStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
@@ -232,7 +282,9 @@ const useDashboardDetail = (options = {}) => {
       logger.error('락 상태 확인 실패:', err);
       return null;
     } finally {
-      setLockLoading(false);
+      if (isMountedRef.current) {
+        setLockLoading(false);
+      }
     }
   }, [dashboardId, setupLockTimer, logger]);
 
@@ -243,7 +295,7 @@ const useDashboardDetail = (options = {}) => {
    */
   const acquireLock = useCallback(
     async (lockType) => {
-      if (!dashboardId) return null;
+      if (!dashboardId || !isMountedRef.current) return null;
 
       try {
         setLockLoading(true);
@@ -286,6 +338,9 @@ const useDashboardDetail = (options = {}) => {
           }
         }
 
+        // 컴포넌트가 언마운트되었는지 확인
+        if (!isMountedRef.current) return null;
+
         if (lock) {
           setLockInfo(lock);
           // 락 타이머 설정
@@ -297,7 +352,11 @@ const useDashboardDetail = (options = {}) => {
         return null;
       } catch (err) {
         logger.error('락 획득 실패:', err);
-        setError('편집 모드를 활성화하는 중 오류가 발생했습니다');
+
+        // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+        if (isMountedRef.current) {
+          setError('편집 모드를 활성화하는 중 오류가 발생했습니다');
+        }
 
         // 다른 사용자가 이미 락을 보유하고 있는 경우 (423 Locked)
         if (err.response?.status === 423) {
@@ -319,7 +378,9 @@ const useDashboardDetail = (options = {}) => {
         MessageService.error('편집 모드를 활성화할 수 없습니다');
         return null;
       } finally {
-        setLockLoading(false);
+        if (isMountedRef.current) {
+          setLockLoading(false);
+        }
       }
     },
     [dashboardId, editMode, setupLockTimer, logger]
@@ -330,7 +391,7 @@ const useDashboardDetail = (options = {}) => {
    */
   const startFieldsEdit = useCallback(async () => {
     const lock = await acquireLock('EDIT');
-    if (lock) {
+    if (lock && isMountedRef.current) {
       setEditMode({ ...editMode, fields: true });
       MessageService.success('편집 모드가 활성화되었습니다');
     }
@@ -341,7 +402,7 @@ const useDashboardDetail = (options = {}) => {
    */
   const startRemarkEdit = useCallback(async () => {
     const lock = await acquireLock('REMARK');
-    if (lock) {
+    if (lock && isMountedRef.current) {
       setEditMode({ ...editMode, remark: true });
       MessageService.success('메모 편집 모드가 활성화되었습니다');
     }
@@ -352,7 +413,7 @@ const useDashboardDetail = (options = {}) => {
    */
   const startStatusEdit = useCallback(async () => {
     const lock = await acquireLock('STATUS');
-    if (lock) {
+    if (lock && isMountedRef.current) {
       setEditMode({ ...editMode, status: true });
       MessageService.success('상태 변경 모드가 활성화되었습니다');
     }
@@ -378,7 +439,12 @@ const useDashboardDetail = (options = {}) => {
       // 락 해제 요청
       logger.info(`락 해제 요청: id=${dashboardId}`);
       await DashboardService.releaseLock(dashboardId);
-      setLockInfo(null);
+
+      // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+      if (isMountedRef.current) {
+        setLockInfo(null);
+      }
+
       logger.debug('락 해제 성공');
 
       // 세션 스토리지 캐시 무효화
@@ -398,7 +464,8 @@ const useDashboardDetail = (options = {}) => {
    */
   const updateFields = useCallback(
     async (fields) => {
-      if (!dashboardId || !editMode.fields) return null;
+      if (!dashboardId || !editMode.fields || !isMountedRef.current)
+        return null;
 
       try {
         setLoading(true);
@@ -410,6 +477,9 @@ const useDashboardDetail = (options = {}) => {
           dashboardId,
           fields
         );
+
+        // 컴포넌트가 언마운트되었는지 확인
+        if (!isMountedRef.current) return null;
 
         if (updatedDashboard) {
           setDashboard(updatedDashboard);
@@ -434,7 +504,11 @@ const useDashboardDetail = (options = {}) => {
         return updatedDashboard;
       } catch (err) {
         logger.error('필드 업데이트 실패:', err);
-        setError('정보 업데이트 중 오류가 발생했습니다');
+
+        // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+        if (isMountedRef.current) {
+          setError('정보 업데이트 중 오류가 발생했습니다');
+        }
 
         // 일반적인 에러 메시지 표시
         MessageService.error('정보 업데이트 중 오류가 발생했습니다');
@@ -442,7 +516,9 @@ const useDashboardDetail = (options = {}) => {
         if (onError) onError(err);
         return null;
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
     },
     [dashboardId, editMode, onSuccess, onError, releaseLock, logger]
@@ -453,7 +529,7 @@ const useDashboardDetail = (options = {}) => {
    * @returns {Promise<Object>} 업데이트된 대시보드
    */
   const updateRemark = useCallback(async () => {
-    if (!dashboardId || !editMode.remark) return null;
+    if (!dashboardId || !editMode.remark || !isMountedRef.current) return null;
 
     try {
       setLoading(true);
@@ -461,7 +537,7 @@ const useDashboardDetail = (options = {}) => {
 
       let updatedDashboard;
       // 기존 메모가 있는지 확인
-      if (dashboard.remarks && dashboard.remarks.length > 0) {
+      if (dashboard?.remarks && dashboard.remarks.length > 0) {
         // 메모 업데이트
         logger.info(
           `메모 업데이트 요청: id=${dashboardId}, remarkId=${dashboard.remarks[0].remark_id}`
@@ -479,6 +555,9 @@ const useDashboardDetail = (options = {}) => {
           remarkContent
         );
       }
+
+      // 컴포넌트가 언마운트되었는지 확인
+      if (!isMountedRef.current) return null;
 
       if (updatedDashboard) {
         setDashboard(updatedDashboard);
@@ -503,12 +582,19 @@ const useDashboardDetail = (options = {}) => {
       return updatedDashboard;
     } catch (err) {
       logger.error('메모 업데이트 실패:', err);
-      setError('메모 업데이트 중 오류가 발생했습니다');
+
+      // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+      if (isMountedRef.current) {
+        setError('메모 업데이트 중 오류가 발생했습니다');
+      }
+
       MessageService.error('메모 업데이트 중 오류가 발생했습니다');
       if (onError) onError(err);
       return null;
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [
     dashboardId,
@@ -527,13 +613,20 @@ const useDashboardDetail = (options = {}) => {
    */
   const cancelEdit = useCallback(async () => {
     // 편집 모드 비활성화
-    setEditMode({ fields: false, remark: false, status: false });
+    if (isMountedRef.current) {
+      setEditMode({ fields: false, remark: false, status: false });
+    }
 
     // 락 해제
     await releaseLock();
 
     // 원래 데이터로 복원
-    if (dashboard && dashboard.remarks && dashboard.remarks.length > 0) {
+    if (
+      dashboard &&
+      dashboard.remarks &&
+      dashboard.remarks.length > 0 &&
+      isMountedRef.current
+    ) {
       setRemarkContent(dashboard.remarks[0].content || '');
     }
 
@@ -547,7 +640,7 @@ const useDashboardDetail = (options = {}) => {
    */
   const updateStatus = useCallback(
     async (status) => {
-      if (!dashboardId) return null;
+      if (!dashboardId || !isMountedRef.current) return null;
 
       try {
         // 상태 변경용 락 획득 시도
@@ -566,6 +659,9 @@ const useDashboardDetail = (options = {}) => {
           dashboardId,
           status
         );
+
+        // 컴포넌트가 언마운트되었는지 확인
+        if (!isMountedRef.current) return null;
 
         if (updatedDashboard) {
           setDashboard(updatedDashboard);
@@ -593,7 +689,11 @@ const useDashboardDetail = (options = {}) => {
         return updatedDashboard;
       } catch (err) {
         logger.error('상태 업데이트 실패:', err);
-        setError('상태 변경 중 오류가 발생했습니다');
+
+        // 컴포넌트가 마운트된 상태에서만 상태 업데이트
+        if (isMountedRef.current) {
+          setError('상태 변경 중 오류가 발생했습니다');
+        }
 
         // 오류 메시지 표시
         if (err.response?.status === 400) {
@@ -603,13 +703,18 @@ const useDashboardDetail = (options = {}) => {
         }
 
         // 에디트 모드 종료 및 락 해제
-        setEditMode({ ...editMode, status: false });
+        if (isMountedRef.current) {
+          setEditMode({ ...editMode, status: false });
+        }
+
         await releaseLock();
 
         if (onError) onError(err);
         return null;
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
     },
     [
@@ -648,23 +753,7 @@ const useDashboardDetail = (options = {}) => {
     if (dashboardId) {
       fetchDashboardDetail();
     }
-
-    // 컴포넌트 언마운트 시 정리
-    return () => {
-      clearTimeout(lockExpiryTimerRef.current);
-      clearTimeout(warningTimerRef.current);
-      if (editMode.fields || editMode.remark || editMode.status) {
-        releaseLock();
-      }
-    };
-  }, [
-    dashboardId,
-    fetchDashboardDetail,
-    editMode.fields,
-    editMode.remark,
-    editMode.status,
-    releaseLock,
-  ]);
+  }, [dashboardId, fetchDashboardDetail]);
 
   return {
     // 상태
@@ -684,7 +773,7 @@ const useDashboardDetail = (options = {}) => {
     checkLockStatus,
     startFieldsEdit,
     startRemarkEdit,
-    startStatusEdit, // 상태 변경 시작 함수 추가
+    startStatusEdit,
     updateFields,
     updateRemark,
     releaseLock,

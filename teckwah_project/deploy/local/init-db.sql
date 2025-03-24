@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS refresh_token (
 
 -- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (버전 필드 제거)
 CREATE TABLE IF NOT EXISTS dashboard (
-  dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(15) NOT NULL,
   type ENUM('DELIVERY', 'RETURN') NOT NULL,
   status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING',

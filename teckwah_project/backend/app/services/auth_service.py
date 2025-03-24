@@ -1,12 +1,12 @@
-# backend/app/services/auth_service.py
+# app/services/auth_service.py
 from datetime import datetime, timedelta
-from fastapi import HTTPException, status
 from app.schemas.auth_schema import UserLogin, LoginResponse, Token, UserResponse
 from app.interfaces.repository_interfaces import AuthRepositoryInterface
 from app.utils.auth import create_token, verify_password
 from app.utils.logger import log_info, log_error
 from app.config.settings import get_settings
 from app.utils.transaction import transactional
+from app.utils.exceptions import UnauthorizedException, NotFoundException
 
 settings = get_settings()
 
@@ -21,10 +21,7 @@ class AuthService:
         user = self.repository.get_user_by_id(login_data.user_id)
         if not user:
             log_error(None, "로그인 실패: 사용자 없음", {"user_id": login_data.user_id})
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="아이디 또는 비밀번호가 잘못되었습니다",
-            )
+            raise UnauthorizedException("아이디 또는 비밀번호가 잘못되었습니다")
 
         # 비밀번호 검증 (user_password 필드 사용)
         if not verify_password(login_data.password, user.user_password):
@@ -33,10 +30,7 @@ class AuthService:
                 "로그인 실패: 비밀번호 불일치",
                 {"user_id": login_data.user_id},
             )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="아이디 또는 비밀번호가 잘못되었습니다",
-            )
+            raise UnauthorizedException("아이디 또는 비밀번호가 잘못되었습니다")
 
         # 토큰 생성
         access_token = create_token(
@@ -80,18 +74,12 @@ class AuthService:
         # 리프레시 토큰 유효성 검증
         token_entry = self.repository.get_valid_refresh_token(refresh_token)
         if not token_entry:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="유효하지 않은 리프레시 토큰입니다",
-            )
+            raise UnauthorizedException("유효하지 않은 리프레시 토큰입니다")
 
         # 사용자 정보 조회
         user = self.repository.get_user_by_id(token_entry.user_id)
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="존재하지 않는 사용자입니다",
-            )
+            raise NotFoundException("존재하지 않는 사용자입니다")
 
         # 새 액세스 토큰 생성
         access_token = create_token(

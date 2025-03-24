@@ -17,7 +17,7 @@ class DashboardRemark(Base):
     content = Column(Text, nullable=True)  
     created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
     created_by = Column(String(50), nullable=False)
-    version = Column(Integer, nullable=False, default=1)
+    # version 필드 제거됨
     formatted_content = Column(Text, nullable=True)
 
     # 관계 설정

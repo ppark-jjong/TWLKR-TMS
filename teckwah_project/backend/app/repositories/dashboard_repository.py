@@ -93,47 +93,15 @@ class DashboardRepository(DashboardRepositoryInterface):
             self.db.rollback()
             return None
 
+
     def update_dashboard_fields(
-        self, dashboard_id: int, fields: Dict[str, Any]
-    ) -> Optional[Dashboard]:
-        """대시보드 필드 업데이트"""
+    self, dashboard_id: int, fields: Dict[str, Any]
+) -> Optional[Dashboard]:
+        """대시보드 필드 업데이트 - 비즈니스 로직 제거"""
         try:
             log_info(f"대시보드 필드 업데이트: ID={dashboard_id}, 필드={fields}")
 
-            # 수정된 부분: Dashboard.warehouse 클래스 속성 직접 참조 문제 해결
-            # 우편번호 변경 시 관련 정보도 함께 업데이트
-            if "postal_code" in fields:
-                postal_code = fields["postal_code"]
-                postal_info = (
-                    self.db.query(PostalCode)
-                    .filter(PostalCode.postal_code == postal_code)
-                    .first()
-                )
-
-                if postal_info:
-                    fields["city"] = postal_info.city
-                    fields["county"] = postal_info.county
-                    fields["district"] = postal_info.district
-
-                    # 창고 정보가 있으면 거리, 소요시간 정보도 업데이트
-                    # Dashboard.warehouse 클래스 속성 직접 참조 대신 대시보드 객체에서 warehouse 값 조회
-                    dashboard = self.get_dashboard_detail(dashboard_id)
-                    if dashboard and ("warehouse" in fields or dashboard.warehouse):
-                        warehouse = fields.get("warehouse") or dashboard.warehouse
-                        detail_info = (
-                            self.db.query(PostalCodeDetail)
-                            .filter(
-                                PostalCodeDetail.postal_code == postal_code,
-                                PostalCodeDetail.warehouse == warehouse,
-                            )
-                            .first()
-                        )
-
-                        if detail_info:
-                            fields["distance"] = detail_info.distance
-                            fields["duration_time"] = detail_info.duration_time
-
-            # 필드 업데이트
+            # 필드 업데이트 (단순 DB 작업만 수행)
             result = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)

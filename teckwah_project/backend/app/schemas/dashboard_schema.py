@@ -14,7 +14,6 @@ class DeliveryType(str, Enum):
 
 class RemarkResponse(BaseModel):
     """대시보드 메모 응답 스키마"""
-
     remark_id: int
     dashboard_id: int
     content: str
@@ -183,7 +182,6 @@ class LockRequest(BaseModel):
     """락 요청 스키마"""
 
     lock_type: str = Field(..., description="락 타입 (EDIT, STATUS, ASSIGN, REMARK)")
-
 
 class LockResponse(BaseResponse):
     """락 응답 스키마"""

@@ -139,9 +139,11 @@ class DashboardRemarkRepository:
             self.db.rollback()
             raise
 
+    
+
     def update_remark(
-        self, remark_id: int, content: str, user_id: str
-    ) -> Optional[DashboardRemark]:
+    self, remark_id: int, content: str, user_id: str
+) -> Optional[DashboardRemark]:
         """
         메모 업데이트 (단순 업데이트 방식)
         - 참고: dashboard_id 행에 대한 잠금은 상위 서비스 레이어에서 처리해야 함
@@ -169,9 +171,6 @@ class DashboardRemarkRepository:
                 if content.startswith(f"{user_id}:")
                 else f"{user_id}: {content}"
             )
-            
-            # 버전 증가
-            remark.version += 1
 
             # 3. 변경 사항 저장
             self.db.flush()
@@ -185,11 +184,3 @@ class DashboardRemarkRepository:
             log_error(e, "메모 업데이트 실패", {"remark_id": remark_id})
             self.db.rollback()
             raise
-
-    # 메모 삭제 기능은 비활성화 (필요 없음)
-    def delete_remark(self, remark_id: int) -> bool:
-        """
-        메모 삭제 (비활성화됨)
-        """
-        log_error(None, "메모 삭제 기능이 비활성화되었습니다", {"remark_id": remark_id})
-        return False

@@ -1,14 +1,13 @@
-// src/utils/AxiosConfig.js (수정)
-import axios from "axios";
-import AuthService from "../services/AuthService";
-import message from "./MessageService";
-import { MessageKeys } from "./Constants";
-import TokenManager from "./TokenManager";
-import { useLogger } from "./LogUtils";
-import LRUCache from "../utils/LRUCache";
+// src/utils/AxiosConfig.js (개선)
+import axios from 'axios';
+import AuthService from '../services/AuthService';
+import message from './MessageService';
+import { MessageKeys } from './Constants';
+import TokenManager from './TokenManager';
+import Logger from './LogUtils';
 
 // 로거 초기화
-const logger = useLogger("AxiosConfig");
+const logger = Logger.getLogger('AxiosConfig');
 
 // 토큰 갱신 중인지 확인하는 플래그
 let isRefreshing = false;
@@ -16,11 +15,74 @@ let isRefreshing = false;
 // 토큰 갱신 대기 중인 요청 큐
 let refreshQueue = [];
 
-// 요청 캐싱을 위한 LRU 캐시 설정 (최대 100개 캐시, 5분 TTL)
-const requestCache = new LRUCache(100, 5 * 60 * 1000);
-
 // 진행 중인 요청을 저장할 Map (중복 요청 방지)
 const pendingRequests = new Map();
+
+/**
+ * 캐시 관리 유틸리티
+ * @private
+ */
+const requestCache = {
+  cache: new Map(),
+  maxSize: 100,
+  ttl: 5 * 60 * 1000, // 5분
+
+  /**
+   * 캐시 항목 설정
+   * @param {string} key - 캐시 키
+   * @param {Object} value - 캐시할 값
+   */
+  set(key, value) {
+    // 캐시 크기 제한 체크
+    if (this.cache.size >= this.maxSize) {
+      // 가장 오래된 항목 제거
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+
+    this.cache.set(key, {
+      value,
+      timestamp: Date.now(),
+    });
+  },
+
+  /**
+   * 캐시 항목 조회
+   * @param {string} key - 캐시 키
+   * @returns {Object} 캐시된 값 또는 undefined
+   */
+  get(key) {
+    const item = this.cache.get(key);
+    if (!item) return undefined;
+
+    // TTL 체크
+    if (Date.now() - item.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return undefined;
+    }
+
+    return item.value;
+  },
+
+  /**
+   * 특정 패턴의 캐시 무효화
+   * @param {string} pattern - 캐시 키 패턴
+   */
+  invalidatePattern(pattern) {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    }
+  },
+
+  /**
+   * 캐시 전체 초기화
+   */
+  clear() {
+    this.cache.clear();
+  },
+};
 
 // 요청 식별자 생성 함수
 const getRequestKey = (config) => {
@@ -31,7 +93,7 @@ const getRequestKey = (config) => {
 // 캐시 키 생성 함수
 const getCacheKey = (config) => {
   // GET 요청만 캐싱
-  if (config.method.toLowerCase() !== "get") return null;
+  if (!config.method || config.method.toLowerCase() !== 'get') return null;
 
   const { url, params } = config;
   return `GET:${url}:${JSON.stringify(params || {})}`;
@@ -43,18 +105,19 @@ const shouldUseCache = (config) => {
   if (config.useCache === false) return false;
 
   // GET 요청만 캐싱
-  if (config.method.toLowerCase() !== "get") return false;
+  if (!config.method || config.method.toLowerCase() !== 'get') return false;
 
   // 특정 API 제외 (예: 실시간 데이터)
-  const nonCachableUrls = ["/dashboard/status", "/auth/check-session"];
-  if (nonCachableUrls.some((path) => config.url.includes(path))) return false;
+  const nonCachableUrls = ['/dashboard/status', '/auth/check-session'];
+  if (config.url && nonCachableUrls.some((path) => config.url.includes(path)))
+    return false;
 
   return true;
 };
 
 // Axios 기본 설정
-axios.defaults.baseURL = ""; // 동일 도메인 사용
-axios.defaults.headers.common["Content-Type"] = "application/json";
+axios.defaults.baseURL = ''; // 동일 도메인 사용
+axios.defaults.headers.common['Content-Type'] = 'application/json';
 axios.defaults.timeout = 30000; // 30초 타임아웃
 
 /**
@@ -66,51 +129,58 @@ axios.defaults.timeout = 30000; // 30초 타임아웃
  */
 axios.interceptors.request.use(
   (config) => {
+    if (!config.url) {
+      logger.error('URL이 지정되지 않은 요청');
+      throw new Error('URL이 지정되지 않았습니다');
+    }
+
     logger.debug(`API 요청: ${config.method?.toUpperCase()} ${config.url}`);
 
     // JWT 토큰 설정
     const token = TokenManager.getAccessToken();
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
 
     // 캐시 처리 (GET 요청에만 적용)
     if (shouldUseCache(config)) {
       const cacheKey = getCacheKey(config);
-      const cachedResponse = requestCache.get(cacheKey);
+      if (cacheKey) {
+        const cachedResponse = requestCache.get(cacheKey);
 
-      if (cachedResponse) {
-        logger.debug(`캐시에서 응답 사용: ${config.url}`);
-        // 캐시된 응답 사용을 위한 어댑터 설정
-        const originalAdapter = config.adapter;
-        config.adapter = () => Promise.resolve(cachedResponse);
-        // 캐시 적중 플래그 설정
-        config._fromCache = true;
-        return config;
+        if (cachedResponse) {
+          logger.debug(`캐시에서 응답 사용: ${config.url}`);
+          // 캐시된 응답 사용을 위한 어댑터 설정
+          config.adapter = () => Promise.resolve(cachedResponse);
+          // 캐시 적중 플래그 설정
+          config._fromCache = true;
+          return config;
+        }
       }
     }
 
     // 중복 요청 방지 로직 (GET 요청만 적용)
-    if (config.method?.toLowerCase() === "get") {
+    if (config.method?.toLowerCase() === 'get') {
       const requestKey = getRequestKey(config);
 
       // 동일한 요청이 진행 중인 경우 취소
       if (pendingRequests.has(requestKey)) {
-        const source = pendingRequests.get(requestKey);
-        source.cancel("중복 요청 취소");
+        const controller = pendingRequests.get(requestKey);
+        controller.abort('중복 요청 취소');
         pendingRequests.delete(requestKey); // 기존 요청 제거
       }
 
       // 현재 요청 저장
-      const source = axios.CancelToken.source();
-      config.cancelToken = source.token;
-      pendingRequests.set(requestKey, source);
+      const controller = new AbortController();
+      config.signal = controller.signal;
+      pendingRequests.set(requestKey, controller);
     }
 
     return config;
   },
   (error) => {
-    logger.error("요청 인터셉터 오류:", error);
+    logger.error('요청 인터셉터 오류:', error);
     return Promise.reject(error);
   }
 );
@@ -125,10 +195,15 @@ axios.interceptors.request.use(
  */
 axios.interceptors.response.use(
   (response) => {
+    if (!response.config.url) {
+      logger.error('URL이 없는 응답');
+      return response;
+    }
+
     logger.debug(`API 응답: ${response.config.url} - 상태: ${response.status}`);
 
     // 요청 완료 후 Map에서 제거
-    if (response.config.method?.toLowerCase() === "get") {
+    if (response.config.method?.toLowerCase() === 'get') {
       const requestKey = getRequestKey(response.config);
       pendingRequests.delete(requestKey);
     }
@@ -143,17 +218,17 @@ axios.interceptors.response.use(
     }
 
     // 백엔드 API 응답 구조 검증 및 표준화 ({success, message, data})
-    if (response.data && typeof response.data === "object") {
+    if (response.data && typeof response.data === 'object') {
       // 이미 표준 구조인 경우 그대로 반환
-      if ("success" in response.data) {
+      if ('success' in response.data) {
         return response;
       }
 
       // 표준 구조가 아닌 경우 변환 (레거시 API 호환)
-      logger.warn("비표준 API 응답 구조:", response.config.url);
+      logger.warn('비표준 API 응답 구조:', response.config.url);
       response.data = {
         success: true,
-        message: "데이터를 조회했습니다",
+        message: '데이터를 조회했습니다',
         data: response.data,
       };
     }
@@ -161,23 +236,23 @@ axios.interceptors.response.use(
     return response;
   },
   async (error) => {
-    // 요청 취소 에러 처리 (중복 요청 등)
+    // 요청 취소 에러 처리 (중복 요청, 사용자 취소 등)
     if (axios.isCancel(error)) {
-      logger.info("요청이 취소되었습니다:", error.message);
+      logger.info('요청이 취소되었습니다:', error.message);
       return Promise.reject(error);
     }
 
     // 에러 발생 시에도 진행 중인 요청 Map에서 제거
-    if (error.config?.method?.toLowerCase() === "get") {
+    if (error.config?.method?.toLowerCase() === 'get') {
       const requestKey = getRequestKey(error.config);
       pendingRequests.delete(requestKey);
     }
 
     // 응답이 없는 경우 (네트워크 오류)
     if (!error.response) {
-      logger.error("네트워크 오류 발생:", error.message);
+      logger.error('네트워크 오류 발생:', error.message);
       message.error(
-        "서버와 통신할 수 없습니다. 네트워크 연결을 확인해주세요.",
+        '서버와 통신할 수 없습니다. 네트워크 연결을 확인해주세요.',
         MessageKeys.ERROR.NETWORK
       );
       return Promise.reject(error);
@@ -188,22 +263,27 @@ axios.interceptors.response.use(
     const errorData = error.response.data;
     const originalRequest = error.config;
 
+    if (!originalRequest || !originalRequest.url) {
+      logger.error('오류 응답: 요청 정보 없음', error);
+      return Promise.reject(error);
+    }
+
     logger.debug(`오류 응답: ${status} - ${originalRequest.url}`, errorData);
 
     switch (status) {
       // 401 Unauthorized: 인증 오류, 토큰 만료
       case 401: {
         // 로그인 요청 자체가 실패한 경우는 별도 처리
-        if (originalRequest.url.includes("/auth/login")) {
+        if (originalRequest.url.includes('/auth/login')) {
           return Promise.reject(error);
         }
 
         // 리프레시 토큰 시도 자체가 실패한 경우 로그인 페이지로 이동
-        if (originalRequest.url.includes("/auth/refresh")) {
-          logger.warn("토큰 갱신 실패 - 로그인 필요");
+        if (originalRequest.url.includes('/auth/refresh')) {
+          logger.warn('토큰 갱신 실패 - 로그인 필요');
           AuthService.clearAuthData();
-          message.error("세션이 만료되었습니다. 다시 로그인해주세요.");
-          window.location.href = "/login";
+          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
           return Promise.reject(error);
         }
 
@@ -211,17 +291,17 @@ axios.interceptors.response.use(
 
         // 리프레시 토큰이 없는 경우
         if (!refreshToken) {
-          logger.warn("리프레시 토큰 없음: 로그인 페이지로 이동");
+          logger.warn('리프레시 토큰 없음: 로그인 페이지로 이동');
           AuthService.clearAuthData();
-          message.error("세션이 만료되었습니다. 다시 로그인해주세요.");
-          window.location.href = "/login";
+          message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
           return Promise.reject(error);
         }
 
         // 이미 토큰 갱신 중인 경우 갱신 완료 후 원래 요청 재시도
         if (isRefreshing) {
           try {
-            logger.debug("이미 토큰 갱신 중: 갱신 완료 대기");
+            logger.debug('이미 토큰 갱신 중: 갱신 완료 대기');
             // 갱신 완료를 기다리는 새 프로미스 생성
             return new Promise((resolve) => {
               refreshQueue.push((token) => {
@@ -232,14 +312,14 @@ axios.interceptors.response.use(
               });
             });
           } catch (e) {
-            logger.error("토큰 갱신 대기 중 오류:", e);
+            logger.error('토큰 갱신 대기 중 오류:', e);
             return Promise.reject(error);
           }
         }
 
         // 토큰 갱신 중이 아닌 경우에만 갱신 요청
         isRefreshing = true;
-        logger.debug("토큰 갱신 시작");
+        logger.debug('토큰 갱신 시작');
 
         try {
           // 토큰 갱신 요청
@@ -247,7 +327,7 @@ axios.interceptors.response.use(
 
           // 갱신 성공
           if (response && response.token) {
-            logger.debug("토큰 갱신 성공");
+            logger.debug('토큰 갱신 성공');
             const { access_token, refresh_token } = response.token;
 
             // 토큰 저장
@@ -268,16 +348,16 @@ axios.interceptors.response.use(
             isRefreshing = false;
             return axios(originalRequest);
           } else {
-            logger.error("토큰 갱신 응답 형식 오류");
-            throw new Error("토큰 갱신 실패: 응답 형식 오류");
+            logger.error('토큰 갱신 응답 형식 오류');
+            throw new Error('토큰 갱신 실패: 응답 형식 오류');
           }
         } catch (refreshError) {
           // 갱신 실패
-          logger.error("토큰 갱신 실패:", refreshError);
+          logger.error('토큰 갱신 실패:', refreshError);
           isRefreshing = false;
           AuthService.clearAuthData();
-          message.error("인증 세션이 만료되었습니다. 다시 로그인해주세요.");
-          window.location.href = "/login";
+          message.error('인증 세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
           return Promise.reject(error);
         }
       }
@@ -285,7 +365,7 @@ axios.interceptors.response.use(
       // 403 Forbidden: 권한 없음
       case 403: {
         const errorMsg =
-          errorData?.message || "이 작업을 수행할 권한이 없습니다.";
+          errorData?.message || '이 작업을 수행할 권한이 없습니다.';
         message.error(errorMsg, MessageKeys.AUTH.PERMISSION);
         return Promise.reject(error);
       }
@@ -293,60 +373,41 @@ axios.interceptors.response.use(
       // 404 Not Found: 리소스 없음
       case 404: {
         const errorMsg =
-          errorData?.message || "요청한 리소스를 찾을 수 없습니다.";
+          errorData?.message || '요청한 리소스를 찾을 수 없습니다.';
         message.error(errorMsg, MessageKeys.ERROR.NOT_FOUND);
-        return Promise.reject(error);
-      }
-
-      // 409 Conflict: 데이터 충돌 (낙관적 락 관련 로직 제거, 단순 에러 메시지만 유지)
-      case 409: {
-        logger.warn("데이터 충돌 발생", errorData);
-        const errorMsg =
-          "다른 사용자가 이미 이 데이터를 수정했습니다. 새로고침 후 다시 시도해주세요.";
-        message.error(errorMsg, MessageKeys.DASHBOARD.OPTIMISTIC_LOCK);
-
-        // 캐시 무효화
-        if (originalRequest.url) {
-          const urlPattern = originalRequest.url
-            .split("/")
-            .slice(0, -1)
-            .join("/");
-          requestCache.invalidatePattern(urlPattern);
-        }
-
         return Promise.reject(error);
       }
 
       // 423 Locked: 비관적 락 충돌
       case 423: {
-        logger.warn("비관적 락 충돌 발생", errorData);
+        logger.warn('비관적 락 충돌 발생', errorData);
 
         // 락 정보 추출
         const detail = errorData?.error?.detail || errorData?.detail || {};
-        const lockedBy = detail.locked_by || "다른 사용자";
-        const lockType = detail.lock_type || "";
+        const lockedBy = detail.locked_by || '다른 사용자';
+        const lockType = detail.lock_type || '';
         const expiresAt = detail.expires_at;
 
-        let lockTypeText = "편집";
+        let lockTypeText = '편집';
         switch (lockType) {
-          case "EDIT":
-            lockTypeText = "편집";
+          case 'EDIT':
+            lockTypeText = '편집';
             break;
-          case "STATUS":
-            lockTypeText = "상태 변경";
+          case 'STATUS':
+            lockTypeText = '상태 변경';
             break;
-          case "ASSIGN":
-            lockTypeText = "배차";
+          case 'ASSIGN':
+            lockTypeText = '배차';
             break;
-          case "REMARK":
-            lockTypeText = "메모 작성";
+          case 'REMARK':
+            lockTypeText = '메모 작성';
             break;
         }
 
         // 락 만료 시간 포맷팅
         const expiryInfo = expiresAt
           ? ` (만료: ${new Date(expiresAt).toLocaleTimeString()})`
-          : "";
+          : '';
         const errorMsg = `현재 ${lockedBy}님이 이 데이터를 ${lockTypeText} 중입니다${expiryInfo}. 잠시 후 다시 시도해주세요.`;
 
         // 에러 객체에 락 정보 추가 (컴포넌트에서 활용)
@@ -384,7 +445,7 @@ axios.interceptors.response.use(
           const errorMsg =
             errorData?.message ||
             errorData?.error?.detail ||
-            "요청 데이터가 올바르지 않습니다.";
+            '요청 데이터가 올바르지 않습니다.';
           message.error(errorMsg, MessageKeys.ERROR.BAD_REQUEST);
         }
 
@@ -395,7 +456,7 @@ axios.interceptors.response.use(
       case 500: {
         const errorMsg =
           errorData?.message ||
-          "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+          '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
         message.error(errorMsg, MessageKeys.ERROR.SERVER);
         return Promise.reject(error);
       }
@@ -419,8 +480,8 @@ axios.interceptors.response.use(
  */
 export const cancelAllPendingRequests = () => {
   logger.info(`진행 중인 ${pendingRequests.size}개 요청 모두 취소`);
-  pendingRequests.forEach((source, key) => {
-    source.cancel("사용자 페이지 이탈로 인한 요청 취소");
+  pendingRequests.forEach((controller, key) => {
+    controller.abort('사용자 페이지 이탈로 인한 요청 취소');
     logger.debug(`요청 취소: ${key}`);
   });
   pendingRequests.clear();
