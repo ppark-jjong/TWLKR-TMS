@@ -23,10 +23,6 @@ class RemarkResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class RemarkCreate(BaseModel):
-    """메모 생성 요청 스키마"""
-
-    content: str = Field(max_length=2000, description="메모 내용(2000자 이내)")
 
 
 class RemarkUpdate(BaseModel):

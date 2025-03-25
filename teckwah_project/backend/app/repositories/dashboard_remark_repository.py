@@ -87,55 +87,6 @@ class DashboardRemarkRepository:
             self.db.rollback()
             raise
 
-    def create_remark(
-        self, dashboard_id: int, content: str, user_id: str
-    ) -> Optional[DashboardRemark]:
-        """
-        새 메모 생성
-        """
-        try:
-            # 1. 대시보드 존재 확인
-            dashboard = (
-                self.db.query(Dashboard)
-                .filter(Dashboard.dashboard_id == dashboard_id)
-                .first()
-            )
-            if not dashboard:
-                log_error(
-                    None,
-                    "메모 생성 실패: 대시보드 없음",
-                    {"dashboard_id": dashboard_id},
-                )
-                return None
-
-            # 2. 메모 내용 및 포맷팅된 내용 생성
-            # 수정: user_id 접두사 제거
-            formatted_content = content
-
-            # 3. 메모 객체 생성
-            now = get_kst_now()
-            remark = DashboardRemark(
-                dashboard_id=dashboard_id,
-                content=content,
-                created_at=now,
-                created_by=user_id,
-                formatted_content=formatted_content,
-            )
-
-            self.db.add(remark)
-            self.db.flush()
-            self.db.refresh(remark)
-
-            log_info(
-                f"메모 생성 완료: ID={remark.remark_id}, 대시보드 ID={dashboard_id}"
-            )
-            return remark
-
-        except SQLAlchemyError as e:
-            log_error(e, "메모 생성 실패", {"dashboard_id": dashboard_id})
-            self.db.rollback()
-            raise
-
     def update_remark(
     self, remark_id: int, content: str, user_id: str
 ) -> Optional[DashboardRemark]:

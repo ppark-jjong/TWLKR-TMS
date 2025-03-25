@@ -1,1172 +1,1292 @@
-# 배송 실시간 관제 시스템 상세 동작 명세서
+# 배송 실시간 관제 시스템 백엔드 동작 명세서
 
-## 1. 시스템 개요
+## 1. API 엔드포인트 및 데이터 입출력 구조
 
-### 1.1 시스템 구성
-본 시스템은 배송 실시간 관제를 위한 백엔드 API 서버로, FastAPI 프레임워크를 기반으로 구현되었습니다. 시스템은 다음과 같은 주요 모듈로 구성됩니다:
+### 1.1 인증(Auth) 관련 API
 
-- **인증 모듈**: 사용자 로그인, 토큰 관리, 권한 제어
-- **대시보드 모듈**: 배송 데이터 관리 및 조회
-- **락(Lock) 모듈**: 동시 편집 방지를 위한 비관적 락 관리
-- **메모 모듈**: 대시보드별 메모 관리
-- **시각화 모듈**: 배송 현황 및 시간대별 접수량 데이터 제공
+#### 1.1.1 로그인 API
+- **엔드포인트**: `POST /auth/login`
+- **요청 데이터**: 
+  ```json
+  {
+    "user_id": "사용자ID", // 필수, 문자열
+    "password": "비밀번호" // 필수, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "로그인이 완료되었습니다",
+    "token": {
+      "access_token": "JWT토큰",
+      "refresh_token": "리프레시토큰"
+    },
+    "user": {
+      "user_id": "사용자ID",
+      "user_department": "CS|HES|LENOVO",
+      "user_role": "ADMIN|USER"
+    }
+  }
+  ```
+- **오류 응답**: 
+  ```json
+  {
+    "success": false,
+    "message": "로그인에 실패했습니다"
+  }
+  ```
 
-### 1.2 아키텍처 패턴
-- **계층 구조**: Controller(Router) → Service → Repository → Database
-- **의존성 주입**: Dependency Injection 패턴을 통한 컴포넌트 결합도 최소화
-- **비관적 락**: 데이터 일관성을 위한 동시성 제어 메커니즘
+#### 1.1.2 세션 유효성 확인 API
+- **엔드포인트**: `GET /auth/check-session`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "유효한 세션입니다",
+    "data": {
+      "user": {
+        "user_id": "사용자ID",
+        "user_department": "부서정보",
+        "user_role": "권한정보"
+      }
+    }
+  }
+  ```
+- **오류 응답**:
+  ```json
+  {
+    "success": false,
+    "message": "인증이 필요합니다|인증이 만료되었습니다|인증에 실패했습니다"
+  }
+  ```
 
-### 1.3 데이터베이스 모델
-- **Dashboard**: 배송 데이터의 핵심 테이블
-- **DashboardRemark**: 대시보드별 메모 정보
-- **DashboardLock**: 대시보드 락 관리
-- **User**: 사용자 계정 정보
-- **RefreshToken**: 리프레시 토큰 저장
+#### 1.1.3 토큰 갱신 API
+- **엔드포인트**: `POST /auth/refresh`
+- **요청 데이터**:
+  ```json
+  {
+    "refresh_token": "리프레시토큰" // 필수, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "토큰이 갱신되었습니다",
+    "data": {
+      "token": {
+        "access_token": "새로운액세스토큰",
+        "refresh_token": "새로운리프레시토큰"
+      }
+    }
+  }
+  ```
 
-## 2. 인증 모듈 상세 명세
+#### 1.1.4 로그아웃 API
+- **엔드포인트**: `POST /auth/logout`
+- **요청 데이터**:
+  ```json
+  {
+    "refresh_token": "리프레시토큰" // 필수, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "로그아웃이 완료되었습니다"
+  }
+  ```
 
-### 2.1 인증 흐름
+### 1.2 대시보드(Dashboard) 관련 API
 
-#### 2.1.1 로그인 프로세스
-1. **요청 경로**: `/auth/login` (POST)
-2. **요청 데이터**: `UserLogin` 스키마 (user_id, password)
-3. **처리 흐름**:
-   - `auth_router` → `auth_service.authenticate_user` → `auth_repository.get_user_by_id`
-   - 비밀번호 검증: `verify_password`로 해시된 비밀번호와 일치 확인
-   - 액세스 토큰(60분) 및 리프레시 토큰(7일) 생성
-   - 리프레시 토큰은 DB에 저장
-4. **응답 데이터**: `LoginResponse` (토큰 정보와 사용자 정보 포함)
+#### 1.2.1 대시보드 목록 조회 API
+- **엔드포인트**: `POST /dashboard/list`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "start_date": "2023-01-01", // 필수, 문자열(YYYY-MM-DD)
+    "end_date": "2023-01-31"    // 필수, 문자열(YYYY-MM-DD)
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "데이터를 조회했습니다",
+    "data": {
+      "date_range": {
+        "oldest_date": "2023-01-01",
+        "latest_date": "2023-01-31"
+      },
+      "items": [
+        {
+          "dashboard_id": 1,
+          "order_no": "주문번호",
+          "type": "DELIVERY|RETURN",
+          "status": "WAITING|IN_PROGRESS|COMPLETE|ISSUE|CANCEL",
+          "department": "CS|HES|LENOVO",
+          "warehouse": "SEOUL|BUSAN|GWANGJU|DAEJEON",
+          "eta": "2023-01-01T09:00:00",
+          "create_time": "2023-01-01T08:00:00",
+          "depart_time": "2023-01-01T08:30:00",
+          "customer": "고객명",
+          "region": "서울 강남구 역삼동",
+          "sla": "당일배송",
+          "driver_name": "기사명"
+        }
+      ],
+      "user_role": "ADMIN|USER",
+      "is_admin": true|false
+    }
+  }
+  ```
 
-#### 2.1.2 세션 유효성 검증
-1. **요청 경로**: `/auth/check-session` (GET)
-2. **요청 헤더**: Authorization Bearer 토큰
-3. **처리 흐름**:
-   - 토큰 검증 및 페이로드 디코딩
-   - 만료 시간 확인
-4. **응답 데이터**: 사용자 ID, 부서, 권한 정보 반환
+#### 1.2.2 대시보드 생성 API
+- **엔드포인트**: `POST /dashboard`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "order_no": "주문번호", 
+    "type": "DELIVERY|RETURN",
+    "warehouse": "SEOUL|BUSAN|GWANGJU|DAEJEON",
+    "eta": "2023-01-01T09:00:00",
+    "postal_code": "12345",
+    "address": "상세주소",
+    "customer": "고객명",
+    "contact": "연락처",
+    "sla": "당일배송"
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "대시보드가 생성되었습니다",
+    "data": {
+      "dashboard_id": 1,
+      // 생성된 대시보드 상세 정보
+    }
+  }
+  ```
 
-#### 2.1.3 토큰 갱신
-1. **요청 경로**: `/auth/refresh` (POST)
-2. **요청 데이터**: `RefreshTokenRequest` (refresh_token)
-3. **처리 흐름**:
-   - `auth_service.refresh_token` → `auth_repository.get_valid_refresh_token`
-   - 유효한 리프레시 토큰 확인
-   - 신규 액세스 토큰 및 리프레시 토큰 발급
-4. **응답 데이터**: 새로운 액세스 토큰과 리프레시 토큰
+#### 1.2.3 대시보드 상세 조회 API
+- **엔드포인트**: `GET /dashboard/{dashboard_id}`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수)
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "상세 정보를 조회했습니다",
+    "data": {
+      // 대시보드 상세 정보
+    },
+    "is_locked": false,
+    "lock_info": null // 락 정보 (있는 경우)
+  }
+  ```
 
-#### 2.1.4 로그아웃
-1. **요청 경로**: `/auth/logout` (POST)
-2. **요청 데이터**: `RefreshTokenRequest` (refresh_token)
-3. **처리 흐름**:
-   - `auth_service.logout` → `auth_repository.delete_refresh_token`
-   - DB에서 리프레시 토큰 삭제
-4. **응답 데이터**: 성공 메시지
+#### 1.2.4 대시보드 필드 업데이트 API
+- **엔드포인트**: `PATCH /dashboard/{dashboard_id}/fields`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수)
+- **요청 데이터**:
+  ```json
+  {
+    "eta": "2023-01-01T10:00:00", // 선택, 날짜시간
+    "customer": "변경된고객명", // 선택, 문자열
+    "contact": "변경된연락처", // 선택, 문자열
+    "address": "변경된주소", // 선택, 문자열
+    "postal_code": "변경된우편번호" // 선택, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "필드가 업데이트되었습니다",
+    "data": {
+      // 업데이트된 대시보드 상세 정보
+    }
+  }
+  ```
 
-### 2.2 권한 관리
+#### 1.2.5 대시보드 상태 업데이트 API
+- **엔드포인트**: `PATCH /dashboard/{dashboard_id}/status`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수)
+- **요청 데이터**:
+  ```json
+  {
+    "status": "WAITING|IN_PROGRESS|COMPLETE|ISSUE|CANCEL", // 필수, 문자열
+    "is_admin": false // 선택, 불리언
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "{status} 상태로 변경되었습니다",
+    "data": {
+      // 업데이트된 대시보드 상세 정보
+    }
+  }
+  ```
 
-- **사용자 권한 레벨**:
-  - `USER`: 기본 권한
-  - `ADMIN`: 관리자 권한 (대시보드 삭제 등 특수 권한)
+#### 1.2.6 배차 처리 API
+- **엔드포인트**: `POST /dashboard/assign`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "dashboard_ids": [1, 2, 3], // 필수, 정수 배열
+    "driver_name": "기사명", // 필수, 문자열
+    "driver_contact": "기사연락처" // 필수, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "배차가 완료되었습니다",
+    "data": {
+      "updated_dashboards": [
+        // 업데이트된 대시보드 정보 목록
+      ]
+    }
+  }
+  ```
 
-- **권한 확인 흐름**:
-  - `deps.get_current_user`: 모든 인증 필요 API 접근 시 호출됨
-  - `deps.check_admin_access`: 관리자 전용 기능 접근 시 호출됨
-  - JWT 토큰 내 권한 정보(role) 기반 접근 제어
+#### 1.2.7 대시보드 삭제 API
+- **엔드포인트**: `DELETE /dashboard`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "dashboard_ids": [1, 2, 3] // 필수, 정수 배열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "선택한 항목이 삭제되었습니다",
+    "data": {
+      "deleted_count": 3
+    }
+  }
+  ```
 
-## 3. 대시보드 모듈 상세 명세
+#### 1.2.8 주문번호로 대시보드 검색 API
+- **엔드포인트**: `GET /dashboard/search`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Query 파라미터**: `order_no` (문자열)
+- **응답 데이터**: 대시보드 목록 조회 API와 동일한 형식
 
-### 3.1 대시보드 데이터 조회
+### 1.3 대시보드 락(Lock) 관련 API
 
-#### 3.1.1 날짜별 대시보드 목록 조회
-1. **요청 경로**: `/dashboard/list` (GET)
-2. **요청 파라미터**: 
-   - `date`: 단일 날짜(YYYY-MM-DD)
-   - `start_date` & `end_date`: 날짜 범위
-3. **처리 흐름**:
-   - `dashboard_router.get_dashboard_list` → `dashboard_service.get_dashboard_list_by_date` → `dashboard_repository.get_dashboard_list_by_date`
-   - ETA(예상 도착 시간) 기준으로 대시보드 목록 조회
-   - 날짜 파라미터가 없으면 현재 날짜 기준으로 조회
-4. **응답 데이터**: 
-   - 대시보드 목록
-   - 조회 가능한 가장 오래된/최신 날짜 정보
-   - 사용자 권한 정보
+#### 1.3.1 대시보드 락 획득 API
+- **엔드포인트**: `POST /dashboard/{dashboard_id}/lock`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수)
+- **요청 데이터**:
+  ```json
+  {
+    "lock_type": "EDIT|STATUS|ASSIGN|REMARK" // 필수, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "락이 획득되었습니다",
+    "data": {
+      "dashboard_id": 1,
+      "locked_by": "사용자ID",
+      "lock_type": "EDIT|STATUS|ASSIGN|REMARK"
+    }
+  }
+  ```
+- **오류 응답** (충돌 시):
+  ```json
+  {
+    "success": false,
+    "message": "현재 다른 사용자가 작업 중입니다",
+    "status_code": 423
+  }
+  ```
 
-#### 3.1.2 대시보드 상세 정보 조회
-1. **요청 경로**: `/dashboard/{dashboard_id}` (GET)
-2. **처리 흐름**:
-   - `dashboard_service.get_dashboard_with_status_check` → `dashboard_repository.get_dashboard_detail`
-   - 대시보드 상세 정보 및 메모 목록 조회
-   - 현재 락 상태 확인
-3. **응답 데이터**: 
-   - 대시보드 기본 정보
-   - 메모 목록
-   - 락 상태 정보
+#### 1.3.2 대시보드 락 해제 API
+- **엔드포인트**: `DELETE /dashboard/{dashboard_id}/lock`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수)
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "락이 해제되었습니다",
+    "data": {
+      "dashboard_id": 1
+    }
+  }
+  ```
 
-#### 3.1.3 주문번호로 대시보드 검색
-1. **요청 경로**: `/dashboard/search` (GET)
-2. **요청 파라미터**: `order_no`
-3. **처리 흐름**:
-   - `dashboard_service.search_dashboards_by_order_no` → `dashboard_repository.search_dashboards_by_order_no`
-   - LIKE 검색으로 주문번호에 검색어가 포함된 모든 대시보드 조회
-4. **응답 데이터**: 검색 결과 대시보드 목록
+#### 1.3.3 대시보드 락 상태 확인 API
+- **엔드포인트**: `GET /dashboard/{dashboard_id}/lock/status`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수)
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "락 정보를 조회했습니다",
+    "data": {
+      "dashboard_id": 1,
+      "is_locked": true,
+      "locked_by": "사용자ID",
+      "lock_type": "EDIT|STATUS|ASSIGN|REMARK",
+      "expires_at": "2023-01-01T10:05:00"
+    }
+  }
+  ```
+  또는 락이 없는 경우:
+  ```json
+  {
+    "success": true,
+    "message": "락이 없습니다",
+    "data": {
+      "dashboard_id": 1,
+      "is_locked": false
+    }
+  }
+  ```
 
-### 3.2 대시보드 생성 및 수정
+### 1.4 대시보드 메모(Remark) 관련 API
+- 메모는 대시보드 생성 시 자동으로 빈 메모가 생성되며, 이후에는 업데이트만 가능합니다.
+- 메모 생성 및 삭제 API는 지원하지 않습니다.
 
-#### 3.2.1 대시보드 생성
-1. **요청 경로**: `/dashboard` (POST)
-2. **요청 데이터**: `DashboardCreate` 스키마
-3. **처리 흐름**:
-   - `dashboard_service.create_dashboard` → `dashboard_repository.create_dashboard`
-   - 대시보드 생성 및 기본 상태(WAITING) 설정
-   - 동시에 빈 메모 자동 생성
-4. **응답 데이터**: 생성된 대시보드 상세 정보
+#### 1.4.1 메모 업데이트 API
+- **엔드포인트**: `PATCH /dashboard/{dashboard_id}/remarks/{remark_id}`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **Path 파라미터**: `dashboard_id` (정수), `remark_id` (정수)
+- **요청 데이터**:
+  ```json
+  {
+    "content": "변경된 메모 내용" // 필수, 문자열
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "메모가 업데이트되었습니다",
+    "data": {
+      "remark_id": 1,
+      "dashboard_id": 1,
+      "content": "변경된 메모 내용",
+      "created_at": "2023-01-01T09:00:00",
+      "created_by": "사용자ID",
+      "formatted_content": "변경된 메모 내용"
+    }
+  }
+  ```
 
-#### 3.2.2 대시보드 필드 업데이트
-1. **요청 경로**: `/dashboard/{dashboard_id}/fields` (PATCH)
-2. **요청 데이터**: `FieldsUpdate` 스키마
-3. **처리 흐름**:
-   - 비관적 락 획득 시도: `lock_manager.acquire_lock`
-   - `dashboard_service.update_dashboard_fields` → `dashboard_repository.update_dashboard_fields`
-   - 우편번호 변경 시, 관련 정보(도시, 구/군, 거리, 소요시간) 자동 업데이트
-   - 락 해제
-4. **응답 데이터**: 업데이트된 대시보드 정보
+  ```
 
-#### 3.2.3 대시보드 상태 업데이트
-1. **요청 경로**: `/dashboard/{dashboard_id}/status` (PATCH)
-2. **요청 데이터**: `StatusUpdate` 스키마
-3. **처리 흐름**:
-   - 비관적 락 획득 시도: `lock_manager.acquire_lock`
-   - `dashboard_service.update_status` → `dashboard_repository.update_dashboard_fields`
-   - 상태 변경에 따른 시간 정보 자동 업데이트
-     - IN_PROGRESS로 변경 시 출발 시간(depart_time) 설정
-     - COMPLETE로 변경 시 완료 시간(complete_time) 설정
-   - 락 해제
-4. **응답 데이터**: 업데이트된 대시보드 정보
+### 1.5 시각화(Visualization) 관련 API
 
-#### 3.2.4 배차 처리
-1. **요청 경로**: `/dashboard/assign` (POST)
-2. **요청 데이터**: `DriverAssignment` 스키마
-3. **처리 흐름**:
-   - 모든 대상 대시보드에 대한 락 획득 시도 (ALL or NOTHING)
-   - `dashboard_service.assign_driver` → `dashboard_repository.assign_driver`
-   - 모든 대시보드에 배차 정보(driver_name, driver_contact) 일괄 업데이트
-   - 일괄 락 해제
-4. **응답 데이터**: 업데이트된 대시보드 목록
+#### 1.5.1 배송 현황 데이터 조회 API
+- **엔드포인트**: `POST /visualization/delivery_status`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "start_date": "2023-01-01", // 필수, 문자열(YYYY-MM-DD)
+    "end_date": "2023-01-31"    // 필수, 문자열(YYYY-MM-DD)
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "데이터를 조회했습니다",
+    "data": {
+      "type": "delivery_status",
+      "total_count": 100,
+      "department_breakdown": {
+        "CS": {
+          "total": 30,
+          "status_breakdown": [
+            {
+              "status": "WAITING",
+              "count": 10,
+              "percentage": 33.3
+            },
+            // 기타 상태별 데이터
+          ]
+        },
+        // 기타 부서별 데이터
+      }
+    },
+    "date_range": {
+      "oldest_date": "2023-01-01",
+      "latest_date": "2023-01-31"
+    }
+  }
+  ```
 
-#### 3.2.5 대시보드 삭제 (관리자 전용)
-1. **요청 경로**: `/dashboard` (DELETE)
-2. **요청 데이터**: dashboard_ids 배열
-3. **처리 흐름**:
-   - 관리자 권한 확인: `deps.check_admin_access`
-   - `dashboard_service.delete_dashboards` → `dashboard_repository.delete_dashboards`
-   - 연관된 메모, 락은 CASCADE 옵션으로 자동 삭제
-4. **응답 데이터**: 삭제된 항목 수
+#### 1.5.2 시간대별 접수량 데이터 조회 API
+- **엔드포인트**: `POST /visualization/hourly_orders`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "start_date": "2023-01-01", // 필수, 문자열(YYYY-MM-DD)
+    "end_date": "2023-01-31"    // 필수, 문자열(YYYY-MM-DD)
+  }
+  ```
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "데이터를 조회했습니다",
+    "data": {
+      "type": "hourly_orders",
+      "total_count": 100,
+      "average_count": 25.0,
+      "department_breakdown": {
+        "CS": {
+          "total": 30,
+          "hourly_counts": {
+            "09-10": 5,
+            "10-11": 8,
+            // 기타 시간대별 데이터
+            "야간(19-09)": 10
+          }
+        },
+        // 기타 부서별 데이터
+      },
+      "time_slots": [
+        {"label": "09-10", "start": 9, "end": 10},
+        // 기타 시간대 정보
+        {"label": "야간(19-09)", "start": 19, "end": 9}
+      ],
+      "days": 4
+    },
+    "date_range": {
+      "oldest_date": "2023-01-01",
+      "latest_date": "2023-01-31"
+    }
+  }
+  ```
 
-## 4. 락(Lock) 모듈 상세 명세
+#### 1.5.3 조회 가능 날짜 범위 API
+- **엔드포인트**: `GET /visualization/date_range`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "조회 가능 날짜 범위를 조회했습니다",
+    "date_range": {
+      "oldest_date": "2023-01-01",
+      "latest_date": "2023-01-31"
+    }
+  }
+  ```
 
-### 4.1 락 매커니즘 개요
+### 1.6 다운로드(Download) 관련 API
 
-시스템은 비관적 락(Pessimistic Locking) 방식으로 데이터 일관성을 보장합니다. 주요 특징:
-- 타임아웃 기반 락 (기본 5분)
-- 락 타입별 분리 (EDIT, STATUS, ASSIGN, REMARK)
-- 컨텍스트 매니저 패턴으로 자동 락 해제 (`LockManager` 클래스)
+#### 1.6.1 Excel 다운로드 API
+- **엔드포인트**: `POST /download/excel`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **요청 데이터**:
+  ```json
+  {
+    "start_date": "2023-01-01", // 필수, 문자열(YYYY-MM-DD)
+    "end_date": "2023-01-31"    // 필수, 문자열(YYYY-MM-DD)
+  }
+  ```
+- **응답**: Excel 파일 스트림 (Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
+- **오류 응답**:
+  ```json
+  {
+    "success": false,
+    "message": "다운로드할 데이터가 없습니다"
+  }
+  ```
 
-### 4.2 락 관리 API
+#### 1.6.2 다운로드 가능 날짜 범위 API
+- **엔드포인트**: `GET /download/date-range`
+- **요청 헤더**: `Authorization: Bearer {access_token}`
+- **응답 데이터**:
+  ```json
+  {
+    "success": true,
+    "message": "다운로드 가능 날짜 범위를 조회했습니다",
+    "date_range": {
+      "oldest_date": "2023-01-01",
+      "latest_date": "2023-01-31"
+    }
+  }
+  ```
 
-#### 4.2.1 락 획득
-1. **요청 경로**: `/dashboard/{dashboard_id}/lock` (POST)
-2. **요청 데이터**: `LockRequest` (lock_type)
-3. **처리 흐름**:
-   - `dashboard_lock_router.acquire_dashboard_lock` → `lock_repository.acquire_lock`
-   - 기존 락 확인:
-     - 만료된 락은 자동 해제
-     - 같은 사용자의 락은 갱신
-     - 다른 사용자의 락은 충돌 예외 발생
-   - 새 락 생성 및 만료 시간 설정
-4. **응답 데이터**: 락 정보 (dashboard_id, locked_by, lock_type)
-5. **예외 상황**: 다른 사용자의 락이 있는 경우 423 Locked 상태코드 반환
+## 2. 서비스 로직 및 모듈 간 연결
 
-#### 4.2.2 락 해제
-1. **요청 경로**: `/dashboard/{dashboard_id}/lock` (DELETE)
-2. **처리 흐름**:
-   - `dashboard_lock_router.release_dashboard_lock` → `lock_repository.release_lock`
-   - 락이 없으면 성공 처리 (멱등성)
-   - 본인의 락만 해제 가능 (다른 사용자의 락은 해제 불가)
-3. **응답 데이터**: 성공/실패 메시지
+### 2.1 전체 구조 및 흐름
 
-#### 4.2.3 락 상태 확인
-1. **요청 경로**: `/dashboard/{dashboard_id}/lock/status` (GET)
-2. **처리 흐름**:
-   - `dashboard_lock_router.check_dashboard_lock` → `lock_repository.get_lock_info`
-   - 락 존재 여부 및 상세 정보 조회
-3. **응답 데이터**: 
-   - 락 존재 시: locked_by, lock_type, expires_at 정보
-   - 락 없음 시: is_locked=false
+백엔드는 다음 레이어로 구성됩니다:
+1. **API 라우터 레이어** (app/api/): 클라이언트 요청 수신, 응답 반환
+2. **서비스 레이어** (app/services/): 비즈니스 로직 처리
+3. **레포지토리 레이어** (app/repositories/): 데이터베이스 CRUD 작업
+4. **모델 레이어** (app/models/): 데이터베이스 테이블 정의
+5. **스키마 레이어** (app/schemas/): API 요청/응답 데이터 정의
 
-#### 4.2.4 락 타임아웃 연장
-1. **요청 경로**: `/dashboard/{dashboard_id}/lock/extend` (POST)
-2. **요청 파라미터**: `extension_seconds` (기본값 300초)
-3. **처리 흐름**:
-   - 현재 락 정보 조회
-   - 자신의 락만 연장 가능
-   - `DashboardLock.extend_expiry` 메서드로 만료 시간 연장
-4. **응답 데이터**: 갱신된 락 정보 (expires_at 포함)
+일반적인 API 호출 흐름은 다음과 같습니다:
+```
+클라이언트 → API 라우터 → 서비스 → 레포지토리 → 데이터베이스
+```
 
-### 4.3 자동 락 관리
+응답은 역순으로 클라이언트에게 전달됩니다.
 
-1. **만료된 락 자동 정리**:
-   - 서버 시작 시 `startup_event`에서 `cleanup_expired_locks` 호출
-   - 특정 주기로 만료된 락 일괄 정리 가능
+### 2.2 인증(Auth) 서비스 로직
 
-2. **코드 내 락 관리 패턴**:
-   - `LockManager` 클래스와 컨텍스트 매니저 패턴 사용
-   - 중첩된 try/finally 구조로 예외 발생 시에도 락 해제 보장
-   - 로깅을 통한 락 상태 추적
+#### 2.2.1 로그인 흐름
+1. API 라우터(`auth_router.py`)가 `POST /auth/login` 요청 수신
+2. AuthService(`authenticate_user` 메서드)가 요청 처리:
+   - 사용자 ID로 사용자 조회 (AuthRepository 사용)
+   - 비밀번호 검증 (`verify_password` 유틸리티 함수 사용)
+   - 인증 성공 시 액세스/리프레시 토큰 생성 (`create_token` 유틸리티 함수 사용)
+   - 리프레시 토큰 DB 저장 (AuthRepository 사용)
+   - 토큰 및 사용자 정보 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.2.2 세션 확인 흐름
+1. API 라우터(`auth_router.py`)가 `GET /auth/check-session` 요청 수신
+2. 토큰 검증 로직 수행:
+   - Authorization 헤더에서 토큰 추출
+   - JWT 디코딩 및 검증
+   - 토큰 유효성(만료 여부 등) 확인
+3. 검증 성공 시 사용자 정보 반환
+
+#### 2.2.3 토큰 갱신 흐름
+1. API 라우터(`auth_router.py`)가 `POST /auth/refresh` 요청 수신
+2. AuthService(`refresh_token` 메서드)가 요청 처리:
+   - 리프레시 토큰 검증 (AuthRepository 사용)
+   - 사용자 정보 조회 (AuthRepository 사용)
+   - 새 액세스/리프레시 토큰 생성 (`create_token` 유틸리티 함수 사용)
+   - 새 리프레시 토큰 DB 저장 (AuthRepository 사용)
+   - 새 토큰 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.2.4 로그아웃 흐름
+1. API 라우터(`auth_router.py`)가 `POST /auth/logout` 요청 수신
+2. AuthService(`logout` 메서드)가 요청 처리:
+   - 리프레시 토큰 DB에서 삭제 (AuthRepository 사용)
+3. API 라우터가 클라이언트에 응답 전송
+
+### 2.3 대시보드(Dashboard) 서비스 로직
+
+#### 2.3.1 대시보드 목록 조회 흐름
+1. API 라우터(`dashboard_router.py`)가 `POST /dashboard/list` 요청 수신
+2. DashboardService(`get_dashboard_list_by_date` 메서드)가 요청 처리:
+   - 날짜 범위 파싱 (`get_date_range` 유틸리티 함수 사용)
+   - ETA 기준으로 대시보드 목록 조회 (DashboardRepository 사용)
+   - 추가 메타 정보(날짜 범위, 사용자 권한 등) 설정
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.3.2 대시보드 생성 흐름
+1. API 라우터(`dashboard_router.py`)가 `POST /dashboard` 요청 수신
+2. DashboardService(`create_dashboard` 메서드)가 요청 처리:
+   - 현재 시간 설정 (`get_kst_now` 유틸리티 함수 사용)
+   - 대시보드 데이터 준비 (부서, 상태 등 추가)
+   - 대시보드 생성 (DashboardRepository 사용)
+   - 빈 메모 자동 생성 (DashboardRemarkRepository.create_empty_remark 메서드 사용)
+   - 이 때 생성된 메모는 이후 업데이트만 가능하며, 별도 생성/삭제 불가
+   - 대시보드 상세 정보 변환 및 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.3.3 대시보드 상세 조회 흐름
+1. API 라우터(`dashboard_router.py`)가 `GET /dashboard/{dashboard_id}` 요청 수신
+2. DashboardService(`get_dashboard_with_status_check` 메서드)가 요청 처리:
+   - 대시보드 상세 정보 조회 (DashboardRepository 사용)
+   - 메모 목록 조회 (DashboardRemarkRepository 사용)
+   - 락 상태 확인 (DashboardLockRepository 사용)
+   - 대시보드 상세 정보, 메모, 락 상태 등을 포함한 응답 구성
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.3.4 대시보드 필드 업데이트 흐름
+1. API 라우터(`dashboard_router.py`)가 `PATCH /dashboard/{dashboard_id}/fields` 요청 수신
+2. DashboardService(`update_dashboard_fields` 메서드)가 요청 처리:
+   - 비관적 락 획득 (LockManager 사용)
+   - 필드 업데이트 데이터 준비
+   - 우편번호 변경 시 관련 정보(지역, 거리 등) 업데이트
+   - 대시보드 필드 업데이트 (DashboardRepository 사용)
+   - 메모 목록 조회 (DashboardRemarkRepository 사용)
+   - 필드 업데이트된 대시보드 상세 정보 반환
+   - 락 자동 해제 (LockManager 컨텍스트 매니저)
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.3.5 대시보드 상태 업데이트 흐름
+1. API 라우터(`dashboard_router.py`)가 `PATCH /dashboard/{dashboard_id}/status` 요청 수신
+2. DashboardService(`update_status` 메서드)가 요청 처리:
+   - 비관적 락 획득 (LockManager 사용)
+   - 대시보드 조회 (DashboardRepository 사용)
+   - 상태 업데이트 데이터 준비
+   - 상태 변경에 따른 시간 자동 업데이트(출발 시간, 완료 시간 등)
+   - 대시보드 상태 업데이트 (DashboardRepository 사용)
+   - 메모 목록 조회 (DashboardRemarkRepository 사용)
+   - 상태 업데이트된 대시보드 상세 정보 반환
+   - 락 자동 해제 (LockManager 컨텍스트 매니저)
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.3.6 배차 처리 흐름
+1. API 라우터(`dashboard_router.py`)가 `POST /dashboard/assign` 요청 수신
+2. DashboardService(`assign_driver` 메서드)가 요청 처리:
+   - 여러 대시보드에 대한 락 획득 (DashboardLockRepository 사용)
+   - 배차 정보 업데이트 (DashboardRepository 사용)
+   - 업데이트된 대시보드 목록 반환
+   - 락 해제 (DashboardLockRepository 사용)
+3. API 라우터가 클라이언트에 응답 전송
+
+### 2.4 대시보드 락(Lock) 서비스 로직
+
+#### 2.4.1 락 획득 흐름
+1. API 라우터(`dashboard_lock_router.py`)가 `POST /dashboard/{dashboard_id}/lock` 요청 수신
+2. DashboardLockRepository(`acquire_lock` 메서드)가 요청 처리:
+   - 기존 락 정보 조회
+   - 만료된 락인 경우 자동 해제
+   - 같은 사용자의 락인 경우 갱신
+   - 다른 사용자의 락인 경우 충돌 예외 발생(423 Locked)
+   - 락 없는 경우 새 락 생성
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.4.2 락 해제 흐름
+1. API 라우터(`dashboard_lock_router.py`)가 `DELETE /dashboard/{dashboard_id}/lock` 요청 수신
+2. DashboardLockRepository(`release_lock` 메서드)가 요청 처리:
+   - 락 정보 조회
+   - 본인의 락이 아니면 실패 처리
+   - 락 삭제
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.4.3 락 상태 확인 흐름
+1. API 라우터(`dashboard_lock_router.py`)가 `GET /dashboard/{dashboard_id}/lock/status` 요청 수신
+2. DashboardLockRepository(`get_lock_info` 메서드)가 요청 처리:
+   - 락 정보 조회
+   - 락 상태 정보 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+### 2.5 대시보드 메모(Remark) 서비스 로직
+#### 2.5.1 메모 업데이트 흐름
+1. API 라우터(`dashboard_remark_router.py`)가 `PATCH /dashboard/{dashboard_id}/remarks/{remark_id}` 요청 수신
+2. DashboardRemarkService(`update_remark` 메서드)가 요청 처리:
+   - 메모 조회 (DashboardRemarkRepository 사용)
+   - 작성자 확인
+   - 비관적 락 획득 (LockManager 사용)
+   - 메모 업데이트 (DashboardRemarkRepository 사용)
+   - 업데이트된 메모 정보 반환
+   - 락 자동 해제 (LockManager 컨텍스트 매니저)
+3. API 라우터가 클라이언트에 응답 전송
+
+
+3. API 라우터가 클라이언트에 응답 전송
+
+### 2.6 시각화(Visualization) 서비스 로직
+
+#### 2.6.1 배송 현황 데이터 조회 흐름
+1. API 라우터(`visualization_router.py`)가 `POST /visualization/delivery_status` 요청 수신
+2. VisualizationService(`get_delivery_status` 메서드)가 요청 처리:
+   - 날짜 범위 파싱 (`get_date_range` 유틸리티 함수 사용)
+   - 원시 데이터 조회 (VisualizationRepository 사용)
+   - 데이터 가공 (총 건수, 부서별 데이터, 상태별 데이터 등)
+   - 조회 가능 날짜 범위 조회 (VisualizationRepository 사용)
+   - 가공된 데이터 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+#### 2.6.2 시간대별 접수량 데이터 조회 흐름
+1. API 라우터(`visualization_router.py`)가 `POST /visualization/hourly_orders` 요청 수신
+2. VisualizationService(`get_hourly_orders` 메서드)가 요청 처리:
+   - 날짜 범위 파싱 (`get_date_range` 유틸리티 함수 사용)
+   - 원시 데이터 조회 (VisualizationRepository 사용)
+   - 데이터 가공 (총 건수, 부서별 데이터, 시간대별 데이터 등)
+   - 조회 가능 날짜 범위 조회 (VisualizationRepository 사용)
+   - 가공된 데이터 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+### 2.7 다운로드(Download) 서비스 로직
+
+#### 2.7.1 Excel 다운로드 흐름
+1. API 라우터(`download_router.py`)가 `POST /download/excel` 요청 수신
+2. DownloadService(`get_dashboard_data_for_download` 메서드)가 요청 처리:
+   - 날짜 범위 파싱 (`get_date_range` 유틸리티 함수 사용)
+   - 대시보드 데이터 조회 (DownloadRepository 사용)
+   - Excel 파일 생성 (`_generate_dashboard_xlsx` 메서드)
+   - Excel 파일 스트림 반환
+3. API 라우터가 클라이언트에 응답 전송
+
+## 3. 에러 응답 및 내부 오류 처리
+
+### 3.1 전역 예외 핸들러
+
+FastAPI의 전역 예외 핸들러를 통해 일관된 에러 응답 구조를 제공합니다:
 
 ```python
-# 실제 사용 예 (코드 예시는 제외하라고 하셨지만, 동작 방식 이해를 위해 패턴만 설명)
-with lock_manager.acquire_lock(dashboard_id, user_id, "EDIT"):
-    # 락 획득 상태에서 작업 수행
-    # ...작업 완료...
-# 컨텍스트 종료 시 자동 락 해제
+# backend/main.py에 정의됨
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP 예외에 대한 표준 응답 형식 적용"""
+    error_detail = exc.detail
+    
+    # error_detail이 딕셔너리가 아닌 경우 변환
+    if not isinstance(error_detail, dict):
+        error_detail = {"success": false, "message": str(error_detail)}
+    
+    # success 필드가 없으면 추가
+    if "success" not in error_detail:
+        error_detail["success"] = false
+    
+    # message 필드가 없으면 기본 메시지 추가
+    if "message" not in error_detail:
+        error_detail["message"] = "요청을 처리할 수 없습니다"
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_detail
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """모든 처리되지 않은 예외에 대한 표준 응답 형식 적용"""
+    log_error(exc, f"처리되지 않은 예외: {str(exc)}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": false,
+            "message": "서버 내부 오류가 발생했습니다"
+        }
+    )
 ```
 
-## 5. 메모 모듈 상세 명세
-
-### 5.1 메모 관리 API
-
-#### 5.1.1 메모 생성
-1. **요청 경로**: `/dashboard/{dashboard_id}/remarks` (POST)
-2. **요청 데이터**: `RemarkCreate` (content)
-3. **처리 흐름**:
-   - 비관적 락 획득: `lock_manager.acquire_lock`
-   - `dashboard_remark_service.create_remark` → `remark_repository.create_remark`
-   - 메모 포맷팅: 사용자 ID와 내용 결합 (formatted_content)
-   - 락 해제
-4. **응답 데이터**: 생성된 메모 정보
-
-#### 5.1.2 메모 업데이트
-1. **요청 경로**: `/dashboard/{dashboard_id}/remarks/{remark_id}` (PATCH)
-2. **요청 데이터**: `RemarkUpdate` (content)
-3. **처리 흐름**:
-   - 비관적 락 획득: `lock_manager.acquire_lock`
-   - `dashboard_remark_service.update_remark` → `remark_repository.update_remark`
-   - 메모 내용 및 포맷팅된 내용 업데이트
-   - 락 해제
-4. **응답 데이터**: 업데이트된 메모 정보
-
-#### 5.1.3 메모 삭제
-1. **요청 경로**: `/dashboard/{dashboard_id}/remarks/{remark_id}` (DELETE)
-2. **처리 흐름**:
-   - 비관적 락 획득: `lock_manager.acquire_lock`
-   - 메모 권한 확인: 작성자 또는 관리자만 삭제 가능
-   - `dashboard_remark_service.delete_remark` → `remark_repository.delete_remark`
-   - 락 해제
-3. **응답 데이터**: 성공/실패 메시지
-
-### 5.2 메모 데이터 처리
-
-1. **메모 포맷팅**:
-   - 사용자 ID와 메모 내용을 결합하여 formatted_content 생성
-   - 예: "user_id: 메모 내용"
-   - 이미 포맷팅된 내용은 그대로 유지
-
-2. **자동 메모 생성**:
-   - 대시보드 생성 시 빈 메모 자동 생성
-   - `remark_repository.create_empty_remark` 메서드 사용
-   - 초기 메모는 내용이 null이며, 사용자가 나중에 작성 가능
-
-3. **메모 조회**:
-   - 대시보드 상세 정보 조회 시 메모 목록 함께 조회
-   - 최신 메모가 먼저 표시되도록 정렬 (내림차순)
-
-## 6. 시각화 모듈 상세 명세
-
-### 6.1 배송 현황 데이터
-
-#### 6.1.1 배송 현황 조회
-1. **요청 경로**: `/visualization/delivery_status` (GET)
-2. **요청 파라미터**: `start_date`, `end_date`
-3. **처리 흐름**:
-   - `visualization_service.get_delivery_status` → `visualization_repository.get_raw_delivery_data`
-   - 생성 시간(create_time) 기준으로 날짜 범위 내 데이터 조회
-   - pandas를 활용한 데이터 집계 처리
-   - 부서별, 상태별 통계 생성
-4. **응답 데이터**:
-   - 전체 건수
-   - 부서별 분류 (CS, HES, LENOVO)
-   - 각 부서별 상태 분포 (WAITING, IN_PROGRESS, COMPLETE, ISSUE, CANCEL)
-   - 상태별 비율(%) 계산
-
-#### 6.1.2 시간대별 접수량 조회
-1. **요청 경로**: `/visualization/hourly_orders` (GET)
-2. **요청 파라미터**: `start_date`, `end_date`
-3. **처리 흐름**:
-   - `visualization_service.get_hourly_orders` → `visualization_repository.get_raw_hourly_data`
-   - 생성 시간(create_time) 기준으로 날짜 범위 내 데이터 조회
-   - 시간대 구분:
-     - 주간: 1시간 단위 (09-10, 10-11, ...)
-     - 야간: 야간(19-09)으로 통합
-   - 부서별, 시간대별 집계
-4. **응답 데이터**:
-   - 전체 건수
-   - 일 평균 접수량
-   - 부서별 시간대 분류
-   - 시간대 정의 (label, start, end)
-
-#### 6.1.3 조회 가능 날짜 범위 조회
-1. **요청 경로**: `/visualization/date_range` (GET)
-2. **처리 흐름**:
-   - `visualization_service.get_date_range` → `visualization_repository.get_date_range`
-   - create_time 컬럼의 최소/최대 값 조회
-3. **응답 데이터**: oldest_date, latest_date
-
-### 6.2 데이터 처리 및 분석
-
-1. **pandas를 활용한 집계 처리**:
-   - 시각화 서비스에서 pandas DataFrame으로 데이터 변환
-   - groupby, count, sum 등의 집계 함수 활용
-   - 퍼센티지 계산을 위한 연산 처리
-
-2. **빈 데이터 처리**:
-   - 조회 결과가 없을 경우 빈 구조체 반환
-   - `_create_empty_delivery_status`, `_create_empty_hourly_orders` 메서드 활용
-   - 프론트엔드에서 일관된 데이터 구조 처리 가능
-
-3. **날짜 범위 처리**:
-   - start_date, end_date 파라미터로 유연한 기간 조회
-   - 각 지표별 일평균 계산 (days 값 기반)
-
-## 7. 오류 처리 및 로깅 명세
-
-### 7.1 API 오류 처리
-
-#### 7.1.1 통합 오류 처리 데코레이터
-- `@error_handler` 데코레이터를 모든 API 엔드포인트에 적용
-- 일관된 오류 응답 형식과 로깅 패턴 제공
-- 처리되는 예외 유형:
-  - `PessimisticLockException`: 423 Locked
-  - `ValidationError`: 422 Unprocessable Entity
-  - `ValueError`: 400 Bad Request
-  - `SQLAlchemyError`: 500 Internal Server Error
-  - 기타 예외: 500 Internal Server Error
-
-#### 7.1.2 사용자 정의 예외
-- `BaseApiException`: 모든 API 예외의 기본 클래스
-- `PessimisticLockException`: 락 충돌 시 발생
-- `UnauthorizedException`: 인증 실패 시 발생
-- `ForbiddenException`: 권한 부족 시 발생
-- `NotFoundException`: 리소스 없음 시 발생
-- `ValidationException`: 유효성 검증 실패 시 발생
-- `ServerException`: 서버 내부 오류 시 발생
-
-### 7.2 로깅 시스템
-
-#### 7.2.1 로깅 구조
-- `logger.py`에 정의된 로깅 함수들:
-  - `log_info`: 정보 로깅
-  - `log_error`: 오류 로깅 (스택 트레이스 포함)
-  - `log_warning`: 경고 로깅
-  - `log_debug`: 디버그 로깅
-- JSON 형식의 구조화된 로그:
-  - timestamp, message, context, data 필드 포함
-  - 스택 트레이스 및 추가 컨텍스트 정보 제공
-
-#### 7.2.2 로그 수준별 처리
-- 설정된 로그 레벨: settings.LOG_LEVEL 기반 (기본값: INFO)
-- 로그 핸들러: StreamHandler(콘솔), FileHandler(파일)
-- 로그 파일 경로: logs/app.log
-
-#### 7.2.3 요청 처리 시간 로깅 미들웨어
-- 모든 HTTP 요청에 대해 처리 시간 측정 및 로깅
-- 요청별 고유 ID 생성 및 추적
-- 응답 헤더에 처리 시간 추가 (X-Process-Time)
-
-## 8. 트랜잭션 관리 및 동시성 제어
-
-### 8.1 트랜잭션 관리
-
-#### 8.1.1 트랜잭션 유틸리티
-- `transaction` 컨텍스트 매니저: with 구문으로 트랜잭션 블록 정의
-- `@transactional` 데코레이터: 함수 실행을 트랜잭션으로 감싸는 패턴
-- `@transactional_with_retries` 데코레이터: 재시도 기능이 추가된 트랜잭션
-
-#### 8.1.2 DB 세션 관리
-- `get_db`: FastAPI 의존성으로 DB 세션 제공
-- `get_transaction_db`: 트랜잭션을 위한 세션 제공 (with 구문용)
-- try/finally 패턴으로 세션 자동 반환 보장
-
-### 8.2 동시성 제어
-
-#### 8.2.1 비관적 락 전략
-- 동시 편집 충돌 방지를 위한 메인 전략
-- DB 테이블 `dashboard_lock`에 락 정보 저장
-- 락 타입별 분리로 상황에 맞는 동시성 제어
-- 컨텍스트 매니저 패턴으로 자동 락 관리
-
-#### 8.2.2 FOR UPDATE 락
-- 특정 행에 대한 배타적 접근이 필요한 경우 사용
-- `with_for_update` 구문으로 DB 레벨에서 행 잠금
-- 주로 메모 업데이트 시 사용
-
-#### 8.2.3 일괄 락 처리
-- 배차 처리 시 여러 대시보드에 대한 일괄 락 획득
-- ALL or NOTHING 전략: 하나라도 실패 시 전체 취소
-- 트랜잭션 내에서 모든 락 획득 및 업데이트 처리
-
-## 9. 사용자 시나리오별 동작 흐름
-
-### 9.1 로그인 및 인증 시나리오
-
-1. **로그인 시나리오**:
-   - 사용자: ID/PW 입력 → 로그인 요청
-   - 서버: 사용자 검증 → 토큰 발급 → 응답
-   - 클라이언트: 토큰 저장 → 이후 요청에 Authorization 헤더 포함
-
-2. **세션 유효성 검사 시나리오**:
-   - 페이지 로드 시 `/auth/check-session` API 호출
-   - 유효한 토큰: 대시보드 화면 표시
-   - 만료된 토큰: 리프레시 토큰으로 갱신 시도
-   - 모두 실패: 로그인 페이지로 리디렉션
-
-3. **토큰 갱신 시나리오**:
-   - 액세스 토큰 만료 시 리프레시 토큰으로 갱신 요청
-   - 성공: 새 토큰 쌍 저장 → 원래 요청 재시도
-   - 실패: 로그인 페이지로 리디렉션
-
-### 9.2 대시보드 조회 및 편집 시나리오
-
-1. **날짜별 대시보드 조회 시나리오**:
-   - 사용자: 날짜 선택 → 목록 조회 요청
-   - 서버: ETA 기준으로 해당 날짜의 대시보드 목록 조회
-   - 응답: 일자별 목록 표시 (권한에 따라 버튼 활성화)
-
-2. **대시보드 상세 조회 시나리오**:
-   - 사용자: 목록에서 항목 선택 → 상세 정보 요청
-   - 서버: 상세 정보 및 메모 조회 → 락 상태 확인
-   - 응답: 상세 정보, 메모 목록, 락 상태 표시
-
-3. **대시보드 편집 시나리오**:
-   - 사용자: 편집 버튼 클릭 → 락 획득 요청
-   - 서버: 락 획득 시도 → 성공 시 락 정보 반환
-   - 사용자: 필드 편집 → 저장 요청 
-   - 서버: 비관적 락 확인 → 필드 업데이트 → 락 해제
-   - 응답: 업데이트된 정보 표시
-
-4. **락 충돌 시나리오**:
-   - 사용자A: 편집 중 (락 보유)
-   - 사용자B: 같은 대시보드 편집 시도 → 락 획득 실패
-   - 서버: 423 Locked 응답 (현재 락 보유자 정보 포함)
-   - 사용자B: "다른 사용자가 편집 중" 메시지 표시
-
-### 9.3 상태 변경 및 배차 시나리오
-
-1. **상태 변경 시나리오**:
-   - 사용자: 상태 변경 버튼 클릭 → 락 획득 요청
-   - 서버: 락 획득 → 상태 업데이트 → 시간 정보 자동 갱신
-   - 응답: 업데이트된 상태 및 시간 정보 표시
-
-2. **배차 처리 시나리오**:
-   - 사용자: 여러 대시보드 선택 → 배차 정보 입력 → 요청
-   - 서버: 모든 대시보드에 락 획득 시도 → 성공 시 일괄 업데이트
-   - 응답: 배차 완료 메시지 및 업데이트된 목록 표시
-
-3. **시간 자동 업데이트 시나리오**:
-   - 대기 → 진행: depart_time 자동 설정
-   - 진행 → 완료: complete_time 자동 설정
-   - 프론트엔드: 상태에 따른 시간 정보 표시
-
-### 9.4 메모 관리 시나리오
-
-1. **메모 작성 시나리오**:
-   - 사용자: 메모 내용 입력 → 저장 요청
-   - 서버: 락 획득 → 메모 생성 → 락 해제
-   - 응답: 새 메모 목록 표시 (최신순)
-
-2. **메모 수정 시나리오**:
-   - 사용자: 메모 선택 → 내용 수정 → 저장 요청
-   - 서버: 락 획득 → 메모 업데이트 → 락 해제
-   - 응답: 업데이트된 메모 목록 표시
-
-3. **메모 삭제 시나리오**:
-   - 사용자: 메모 삭제 버튼 클릭 → 삭제 요청
-   - 서버: 권한 확인 (작성자/관리자만 가능) → 락 획득 → 삭제 → 락 해제
-   - 응답: 업데이트된 메모 목록 표시
-
-### 9.5 데이터 시각화 시나리오
-
-1. **배송 현황 시각화 시나리오**:
-   - 사용자: 기간 선택 → 현황 조회 요청
-   - 서버: 데이터 조회 및 집계 → 부서별/상태별 통계 생성
-   - 응답: 데이터 기반 차트 렌더링
-
-2. **시간대별 접수량 시각화 시나리오**:
-   - 사용자: 기간 선택 → 시간대별 데이터 요청
-   - 서버: 데이터 조회 및 시간대별 집계
-   - 응답: 시간대별 접수량 차트 렌더링
-
-3. **조회 가능 기간 처리 시나리오**:
-   - 사용자: 시각화 페이지 접근
-   - 서버: 조회 가능 날짜 범위 제공
-   - 응답: 날짜 선택 UI에 최소/최대 날짜 반영
-
-## 10. 애플리케이션 보안 및 에러 처리
-
-### 10.1 인증 및 권한 보안
-
-1. **JWT 기반 인증**:
-   - 액세스 토큰 만료 시간: 60분
-   - 리프레시 토큰 만료 시간: 7일
-   - 별도의 시크릿 키로 액세스/리프레시 토큰 분리
-
-2. **비밀번호 보안**:
-   - bcrypt 해싱 알고리즘으로 암호화 저장
-   - `verify_password` 함수로 해시 비교
-
-3. **권한 기반 접근 제어**:
-   - 토큰에 사용자 권한 정보(role) 포함
-   - 관리자 전용 기능에 `check_admin_access` 의존성 적용
-
-### 10.2 에러 처리 전략
-
-1. **계층별 에러 처리**:
-   - API 레이어: `@error_handler` 데코레이터 적용
-   - 서비스 레이어: 특정 에러 발생 및 전파
-   - 리포지토리 레이어: DB 에러 처리 및 로깅
-
-2. **일관된 에러 응답 구조**:
-   - HTTP 상태 코드: 400, 401, 403, 404, 422, 423, 500 등
-   - 응답 본문: success(false), message, detail 포함
-   - 필요시 오류 필드 정보 제공
-
-3. **예외 상황별 처리**:
-   - 락 충돌: 423 Locked + 현재 락 보유자 정보
-   - 유효성 검증: 422 Unprocessable Entity + 오류 필드
-   - 인증 실패: 401 Unauthorized + 메시지
-   - 권한 부족: 403 Forbidden + 메시지
-
-### 10.3 시스템 안정성 확보
-
-1. **타임아웃 설정**:
-   - 락 타임아웃: 5분 (설정 가능)
-   - 락 연장 기능: 사용자 요청으로 타임아웃 연장 가능
-
-2. **자동 정리 기능**:
-   - 서버 시작 시 만료된 락 정리
-   - 주기적인 만료 리소스 정리 가능 (추가 구현 필요)
-
-3. **로깅 및 모니터링**:
-   - 구조화된 JSON 로그 (timestamp, context, message)
-   - 요청 처리 시간 및 결과 로깅
-   - 오류 발생 시 스택 트레이스 기록
-
-## 결론
-
-본 명세서는 배송 실시간 관제 시스템의 백엔드 API 서버의 동작을 상세히 기술하였습니다. 인증, 대시보드 관리, 비관적 락 메커니즘, 메모 관리, 시각화 등의 주요 기능을 사용자 시나리오를 중심으로 설명하였습니다. 이 문서를 통해 개발자와 시스템 운영자는 시스템의 내부 동작을 이해하고, 효율적인 유지보수 및 확장이 가능할 것입니다.
-
-# 시스템 데이터 스키마 JSON 명세
-
-## 1. 인증 관련 데이터 스키마
-
-### 1.1 로그인 요청 (UserLogin)
-```json
-{
-  "user_id": "cs_admin",
-  "password": "password123"
-}
+### 3.2 API 엔드포인트 예외 처리
+
+각 API 엔드포인트는 `@error_handler` 데코레이터를 사용하여 일관된 예외 처리를 제공합니다:
+
+```python
+# app/utils/api_decorators.py
+
+def error_handler(operation_name: str):
+    """API 엔드포인트 에러 핸들링 데코레이터"""
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                # 모든 예외를 내부적으로 로깅
+                log_error(e, f"{operation_name} 처리 중 오류 발생")
+                
+                # 일반적인 서버 오류로 응답
+                error_message = "요청을 처리할 수 없습니다"
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+                
+                # 몇 가지 일반적인 예외 유형에 대해서만 다른 상태 코드 사용
+                if isinstance(e, SQLAlchemyError):
+                    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+                elif isinstance(e, ValueError):
+                    status_code = status.HTTP_400_BAD_REQUEST
+                
+                raise HTTPException(
+                    status_code=status_code,
+                    detail={"success": False, "message": error_message}
+                )
+        return wrapper
+    return decorator
 ```
 
-### 1.2 로그인 응답 (LoginResponse)
-```json
-{
-  "token": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  },
-  "user": {
-    "user_id": "cs_admin",
-    "user_department": "CS",
-    "user_role": "ADMIN"
-  }
-}
+### 3.3 주요 HTTP 상태 코드
+
+- **200 OK**: 요청 성공
+- **400 Bad Request**: 잘못된 요청 데이터
+- **401 Unauthorized**: 인증 실패 또는 만료
+- **403 Forbidden**: 권한 없음 (관리자 권한 필요 등)
+- **404 Not Found**: 리소스 없음
+- **423 Locked**: 비관적 락 충돌
+- **500 Internal Server Error**: 서버 내부 오류
+
+### 3.4 비관적 락 충돌 예외 처리
+
+비관적 락 충돌은 `PessimisticLockException`을 사용하여 처리됩니다:
+
+```python
+# app/utils/exceptions.py
+class PessimisticLockException(Exception):
+    """비관적 락 충돌 예외"""
+    def __init__(self, detail: str, locked_by: str, lock_type: str, dashboard_id: int, expires_at: datetime):
+        self.detail = detail
+        self.locked_by = locked_by
+        self.lock_type = lock_type
+        self.dashboard_id = dashboard_id
+        self.expires_at = expires_at
+        super().__init__(self.detail)
 ```
 
-### 1.3 세션 확인 응답
-```json
-{
-  "success": true,
-  "user": {
-    "user_id": "cs_admin",
-    "user_department": "CS",
-    "user_role": "ADMIN"
-  }
-}
-```
+이 예외가 발생하면 HTTP 423 Locked 응답이 클라이언트에게 반환됩니다.
 
-### 1.4 토큰 갱신 요청 (RefreshTokenRequest)
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
+### 3.5 로깅
 
-### 1.5 토큰 갱신 응답
-```json
-{
-  "success": true,
-  "message": "토큰이 갱신되었습니다",
-  "token": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  }
-}
-```
+모든 예외 및 오류는 로깅되어 디버깅 및 모니터링을 용이하게 합니다:
 
-## 2. 대시보드 관련 데이터 스키마
-
-### 2.1 대시보드 목록 응답 (DashboardListResponse)
-```json
-{
-  "success": true,
-  "message": "데이터를 조회했습니다",
-  "data": {
-    "date_range": {
-      "oldest_date": "2024-01-01",
-      "latest_date": "2024-03-24"
-    },
-    "items": [
-      {
-        "dashboard_id": 1,
-        "order_no": "2024-123456",
-        "type": "DELIVERY",
-        "status": "WAITING",
-        "department": "CS",
-        "warehouse": "SEOUL",
-        "eta": "2024-03-24T14:30:00+09:00",
-        "create_time": "2024-03-23T10:15:30+09:00",
-        "depart_time": null,
-        "customer": "홍길동",
-        "region": "서울시 강남구 삼성동",
-        "sla": "당일배송",
-        "driver_name": null
-      },
-      {
-        "dashboard_id": 2,
-        "order_no": "2024-123457",
-        "type": "RETURN",
-        "status": "IN_PROGRESS",
-        "department": "HES",
-        "warehouse": "BUSAN",
-        "eta": "2024-03-24T16:00:00+09:00",
-        "create_time": "2024-03-23T11:20:45+09:00",
-        "depart_time": "2024-03-24T09:30:00+09:00",
-        "customer": "김철수",
-        "region": "부산시 해운대구 우동",
-        "sla": "24시간내",
-        "driver_name": "이배송"
-      }
-    ],
-    "user_role": "ADMIN",
-    "is_admin": true
-  }
-}
-```
-
-### 2.2 대시보드 생성 요청 (DashboardCreate)
-```json
-{
-  "type": "DELIVERY",
-  "warehouse": "SEOUL",
-  "order_no": "2024-123458",
-  "eta": "2024-03-25T15:00:00+09:00",
-  "sla": "당일배송",
-  "postal_code": "06164",
-  "address": "서울시 강남구 테헤란로 123",
-  "customer": "박지민",
-  "contact": "010-1234-5678"
-}
-```
-
-### 2.3 대시보드 상세 응답 (DashboardDetailResponse)
-```json
-{
-  "success": true,
-  "message": "상세 정보를 조회했습니다",
-  "data": {
-    "dashboard_id": 1,
-    "order_no": "2024-123456",
-    "type": "DELIVERY",
-    "status": "WAITING",
-    "department": "CS",
-    "warehouse": "SEOUL",
-    "sla": "당일배송",
-    "eta": "2024-03-24T14:30:00+09:00",
-    "create_time": "2024-03-23T10:15:30+09:00",
-    "depart_time": null,
-    "complete_time": null,
-    "postal_code": "06164",
-    "city": "서울시",
-    "county": "강남구",
-    "district": "삼성동",
-    "region": "서울시 강남구 삼성동",
-    "distance": 5,
-    "duration_time": 30,
-    "address": "서울시 강남구 테헤란로 123",
-    "customer": "홍길동",
-    "contact": "010-1234-5678",
-    "driver_name": null,
-    "driver_contact": null,
-    "remarks": [
-      {
-        "remark_id": 1,
-        "dashboard_id": 1,
-        "content": "고객 부재시 경비실에 맡겨주세요",
-        "created_at": "2024-03-23T10:20:15+09:00",
-        "created_by": "cs_admin",
-        "formatted_content": "cs_admin: 고객 부재시 경비실에 맡겨주세요"
-      }
-    ],
-    "is_locked": false
-  },
-  "is_locked": false,
-  "lock_info": null
-}
-```
-
-### 2.4 필드 업데이트 요청 (FieldsUpdate)
-```json
-{
-  "eta": "2024-03-25T16:30:00+09:00",
-  "customer": "홍길동",
-  "contact": "010-9876-5432",
-  "address": "서울시 강남구 테헤란로 124",
-  "postal_code": "06164"
-}
-```
-
-### 2.5 상태 업데이트 요청 (StatusUpdate)
-```json
-{
-  "status": "IN_PROGRESS",
-  "is_admin": false
-}
-```
-
-### 2.6 배차 처리 요청 (DriverAssignment)
-```json
-{
-  "dashboard_ids": [1, 2, 3],
-  "driver_name": "이배송",
-  "driver_contact": "010-5555-6666"
-}
-```
-
-### 2.7 대시보드 검색 응답
-```json
-{
-  "success": true,
-  "message": "데이터를 조회했습니다",
-  "data": {
-    "date_range": {
-      "oldest_date": "2024-01-01",
-      "latest_date": "2024-03-24"
-    },
-    "items": [
-      {
-        "dashboard_id": 1,
-        "order_no": "2024-123456",
-        "type": "DELIVERY",
-        "status": "WAITING",
-        "department": "CS",
-        "warehouse": "SEOUL",
-        "eta": "2024-03-24T14:30:00+09:00",
-        "create_time": "2024-03-23T10:15:30+09:00",
-        "customer": "홍길동",
-        "region": "서울시 강남구 삼성동",
-        "sla": "당일배송"
-      }
-    ],
-    "user_role": "ADMIN",
-    "is_admin": true
-  }
-}
-```
-
-## 3. 락(Lock) 관련 데이터 스키마
-
-### 3.1 락 획득 요청 (LockRequest)
-```json
-{
-  "lock_type": "EDIT"
-}
-```
-
-### 3.2 락 응답 (LockResponse)
-```json
-{
-  "success": true,
-  "message": "락이 획득되었습니다",
-  "data": {
-    "dashboard_id": 1,
-    "locked_by": "cs_admin",
-    "lock_type": "EDIT"
-  }
-}
-```
-
-### 3.3 락 상태 확인 응답
-```json
-{
-  "success": true,
-  "message": "락 정보를 조회했습니다",
-  "data": {
-    "dashboard_id": 1,
-    "is_locked": true,
-    "locked_by": "cs_admin",
-    "lock_type": "EDIT",
-    "expires_at": "2024-03-24T14:35:20+09:00"
-  }
-}
-```
-
-### 3.4 락 충돌 오류 응답
-```json
-{
-  "detail": {
-    "message": "다른 사용자가 작업 중입니다",
-    "locked_by": "hes_user",
-    "lock_type": "EDIT"
-  }
-}
-```
-
-### 3.5 락 연장 응답
-```json
-{
-  "success": true,
-  "message": "락 타임아웃이 연장되었습니다",
-  "data": {
-    "dashboard_id": 1,
-    "is_locked": true,
-    "locked_by": "cs_admin",
-    "lock_type": "EDIT",
-    "expires_at": "2024-03-24T14:45:20+09:00"
-  }
-}
-```
-
-## 4. 메모 관련 데이터 스키마
-
-### 4.1 메모 생성 요청 (RemarkCreate)
-```json
-{
-  "content": "고객 부재시 경비실에 맡겨주세요"
-}
-```
-
-### 4.2 메모 응답 (RemarkResponse)
-```json
-{
-  "success": true,
-  "message": "메모가 처리되었습니다",
-  "data": {
-    "remark_id": 1,
-    "dashboard_id": 1,
-    "content": "고객 부재시 경비실에 맡겨주세요",
-    "created_at": "2024-03-23T10:20:15+09:00",
-    "created_by": "cs_admin",
-    "formatted_content": "cs_admin: 고객 부재시 경비실에 맡겨주세요"
-  }
-}
-```
-
-### 4.3 메모 업데이트 요청 (RemarkUpdate)
-```json
-{
-  "content": "고객 부재시 옆집에 맡겨주세요"
-}
-```
-
-### 4.4 메모 삭제 응답
-```json
-{
-  "success": true,
-  "message": "메모가 삭제되었습니다"
-}
-```
-
-## 5. 시각화 관련 데이터 스키마
-
-### 5.1 배송 현황 응답 (DeliveryStatusResponse)
-```json
-{
-  "success": true,
-  "message": "데이터를 조회했습니다",
-  "data": {
-    "type": "delivery_status",
-    "total_count": 120,
-    "department_breakdown": {
-      "CS": {
-        "total": 50,
-        "status_breakdown": [
-          {"status": "WAITING", "count": 20, "percentage": 40.0},
-          {"status": "IN_PROGRESS", "count": 15, "percentage": 30.0},
-          {"status": "COMPLETE", "count": 10, "percentage": 20.0},
-          {"status": "ISSUE", "count": 3, "percentage": 6.0},
-          {"status": "CANCEL", "count": 2, "percentage": 4.0}
-        ]
-      },
-      "HES": {
-        "total": 40,
-        "status_breakdown": [
-          {"status": "WAITING", "count": 15, "percentage": 37.5},
-          {"status": "IN_PROGRESS", "count": 10, "percentage": 25.0},
-          {"status": "COMPLETE", "count": 12, "percentage": 30.0},
-          {"status": "ISSUE", "count": 2, "percentage": 5.0},
-          {"status": "CANCEL", "count": 1, "percentage": 2.5}
-        ]
-      },
-      "LENOVO": {
-        "total": 30,
-        "status_breakdown": [
-          {"status": "WAITING", "count": 10, "percentage": 33.3},
-          {"status": "IN_PROGRESS", "count": 8, "percentage": 26.7},
-          {"status": "COMPLETE", "count": 9, "percentage": 30.0},
-          {"status": "ISSUE", "count": 2, "percentage": 6.7},
-          {"status": "CANCEL", "count": 1, "percentage": 3.3}
-        ]
-      }
+```python
+# app/utils/logger.py에 정의된 로깅 함수
+def log_error(
+    error: Union[Exception, Any], 
+    context: str, 
+    data: Optional[Any] = None, 
+    additional_context: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    에러 로깅 - 스택 트레이스 및 추가 컨텍스트 정보 포함
+    """
+    # 호출자 정보 자동 수집
+    frame = inspect.currentframe().f_back
+    func_name = frame.f_code.co_name
+    file_name = frame.f_code.co_filename.split('/')[-1]
+    line_no = frame.f_lineno
+    
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "message": f"에러 발생 ({context}): {str(error) if error else 'None'}",
+        "context": {
+            "file": file_name,
+            "function": func_name,
+            "line": line_no
+        }
     }
-  },
-  "date_range": {
-    "oldest_date": "2024-01-01",
-    "latest_date": "2024-03-24"
-  }
-}
+    
+    # 추가 컨텍스트 정보가 있으면 병합
+    if additional_context:
+        log_entry["context"].update(additional_context)
+    
+    # 데이터 추가
+    if data:
+        try:
+            log_entry["data"] = data if isinstance(data, (dict, list, tuple, set)) else str(data)
+        except Exception:
+            log_entry["data"] = "데이터 직렬화 실패"
+    
+    # 스택 트레이스 추가 (예외 객체인 경우)
+    if isinstance(error, Exception):
+        log_entry["stack_trace"] = traceback.format_exc()
+    
+    logger.error(json.dumps(log_entry, ensure_ascii=False, default=str))
 ```
 
-### 5.2 시간대별 접수량 응답 (HourlyOrdersResponse)
-```json
-{
-  "success": true,
-  "message": "데이터를 조회했습니다",
-  "data": {
-    "type": "hourly_orders",
-    "total_count": 120,
-    "average_count": 40.0,
-    "department_breakdown": {
-      "CS": {
-        "total": 50,
-        "hourly_counts": {
-          "09-10": 5,
-          "10-11": 8,
-          "11-12": 10,
-          "12-13": 3,
-          "13-14": 4,
-          "14-15": 7,
-          "15-16": 6,
-          "16-17": 4,
-          "17-18": 2,
-          "야간(19-09)": 1
+## 4. 인증 및 권한 관리
+
+### 4.1 JWT 기반 인증
+
+#### 4.1.1 토큰 생성
+토큰 생성은 `create_token` 유틸리티 함수를 통해 이루어집니다:
+
+```python
+# app/utils/auth.py
+def create_token(
+    user_id: str,
+    department: str,
+    role: str,
+    expires_delta: timedelta,
+    is_refresh_token: bool = False,
+) -> str:
+    """JWT 토큰 생성"""
+    try:
+        expire = datetime.utcnow() + expires_delta
+        payload = {
+            "sub": user_id,
+            "exp": expire,
+            "department": department,
+            "role": role,
+            "type": "refresh" if is_refresh_token else "access",
         }
-      },
-      "HES": {
-        "total": 40,
-        "hourly_counts": {
-          "09-10": 4,
-          "10-11": 6,
-          "11-12": 8,
-          "12-13": 2,
-          "13-14": 3,
-          "14-15": 5,
-          "15-16": 5,
-          "16-17": 3,
-          "17-18": 2,
-          "야간(19-09)": 2
-        }
-      },
-      "LENOVO": {
-        "total": 30,
-        "hourly_counts": {
-          "09-10": 3,
-          "10-11": 4,
-          "11-12": 6,
-          "12-13": 2,
-          "13-14": 3,
-          "14-15": 4,
-          "15-16": 3,
-          "16-17": 2,
-          "17-18": 2,
-          "야간(19-09)": 1
-        }
-      }
-    },
-    "time_slots": [
-      {"label": "09-10", "start": 9, "end": 10},
-      {"label": "10-11", "start": 10, "end": 11},
-      {"label": "11-12", "start": 11, "end": 12},
-      {"label": "12-13", "start": 12, "end": 13},
-      {"label": "13-14", "start": 13, "end": 14},
-      {"label": "14-15", "start": 14, "end": 15},
-      {"label": "15-16", "start": 15, "end": 16},
-      {"label": "16-17", "start": 16, "end": 17},
-      {"label": "17-18", "start": 17, "end": 18},
-      {"label": "야간(19-09)", "start": 19, "end": 9}
-    ],
-    "days": 3
-  },
-  "date_range": {
-    "oldest_date": "2024-01-01",
-    "latest_date": "2024-03-24"
-  }
-}
+        secret = (
+            settings.JWT_REFRESH_SECRET_KEY
+            if is_refresh_token
+            else settings.JWT_SECRET_KEY
+        )
+        return jwt.encode(payload, secret, algorithm=settings.JWT_ALGORITHM)
+    except Exception as e:
+        log_error(e, "토큰 생성 실패")
+        raise
 ```
 
-### 5.3 날짜 범위 응답 (VisualizationDateRangeResponse)
-```json
-{
-  "success": true,
-  "message": "조회 가능 날짜 범위를 조회했습니다",
-  "date_range": {
-    "oldest_date": "2024-01-01",
-    "latest_date": "2024-03-24"
-  }
-}
+#### 4.1.2 토큰 검증
+토큰 검증은 `get_current_user` 의존성 함수를 통해 이루어집니다:
+
+```python
+# app/api/deps.py
+async def get_current_user(
+    authorization: str = Header(None, alias="Authorization"),
+    request: Request = None,
+) -> TokenData:
+    """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환"""
+    # 요청별 고유 ID 설정
+    if request:
+        set_request_id()
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"success": False, "message": "인증이 필요합니다"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = authorization.split(" ")[1]
+
+    try:
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
+
+        # 토큰 만료 검증
+        exp = payload.get("exp")
+        if not exp or datetime.utcnow().timestamp() > exp:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail={"success": False, "message": "인증이 만료되었습니다"}
+            )
+
+        return TokenData(
+            user_id=payload.get("sub"),
+            department=payload.get("department"),
+            role=payload.get("role"),
+        )
+
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail={"success": False, "message": "인증에 실패했습니다"}
+        )
 ```
 
-## 6. 오류 응답 데이터 스키마
+### 4.2 권한 관리
 
-### 6.1 일반 오류 응답
-```json
-{
-  "detail": {
-    "message": "데이터베이스 처리 중 오류가 발생했습니다"
-  }
-}
+#### 4.2.1 관리자 권한 확인
+관리자 권한 확인은 `check_admin_access` 의존성 함수를 통해 이루어집니다:
+
+```python
+# app/api/deps.py
+async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
+    """관리자 권한 체크"""
+    if current_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"success": False, "message": "권한이 없습니다"}
+        )
+    return current_user
 ```
 
-### 6.2 유효성 검증 오류 응답
-```json
-{
-  "detail": {
-    "message": "입력 데이터가 유효하지 않습니다",
-    "errors": {
-      "postal_code": "올바른 우편번호 형식이 아닙니다",
-      "contact": "올바른 연락처 형식이 아닙니다"
-    }
-  }
-}
+#### 4.2.2 권한 기반 API 접근 제어
+특정 API 엔드포인트는 관리자 권한이 필요합니다:
+
+```python
+# app/api/dashboard_router.py
+@router.delete("", response_model=BaseResponse)
+@error_handler("대시보드 삭제")
+async def delete_dashboards(
+    dashboard_ids: List[int] = Body(..., embed=True),
+    service: DashboardService = Depends(get_dashboard_service),
+    current_user: TokenData = Depends(check_admin_access),  # 관리자 권한 필요
+):
+    """대시보드 삭제 API - 관리자 전용"""
+    # 함수 구현
 ```
 
-### 6.3 인증 오류 응답
-```json
-{
-  "detail": "토큰이 만료되었습니다"
-}
+#### 4.2.3 권한 기반 서비스 로직
+서비스 레이어에서도 사용자 권한에 따라 다른 로직이 적용됩니다:
+
+```python
+# app/services/dashboard_service.py
+@transactional
+def update_status(
+    self,
+    dashboard_id: int,
+    new_status: str,
+    user_id: str,
+    is_admin: bool = False,
+) -> Dict[str, Any]:
+    """상태 업데이트 (비관적 락 적용)"""
+    # 일반 사용자는 특정 상태 변경이 제한될 수 있음
+    # 관리자는 모든 상태 변경 가능
+    # 함수 구현
 ```
 
-### 6.4 권한 오류 응답
-```json
-{
-  "detail": "관리자만 접근할 수 있습니다"
-}
+### 4.3 인증 토큰 저장 및 관리
+
+리프레시 토큰은 데이터베이스에 저장됩니다:
+
+```python
+# app/repositories/auth_repository.py
+def store_refresh_token(
+    self, user_id: str, refresh_token: str, expires_at: datetime
+) -> RefreshToken:
+    """리프레시 토큰 저장
+    - 이미 있는 경우 업데이트
+    - 없는 경우 새로 생성
+    """
+    try:
+        # 기존 토큰 확인 및 삭제
+        existing_token = (
+            self.db.query(RefreshToken)
+            .filter(RefreshToken.user_id == user_id)
+            .first()
+        )
+
+        if existing_token:
+            self.db.delete(existing_token)
+            self.db.flush()
+
+        # 새 토큰 저장
+        token_entry = RefreshToken(
+            user_id=user_id, refresh_token=refresh_token, expires_at=expires_at
+        )
+
+        self.db.add(token_entry)
+        self.db.flush()
+
+        return token_entry
+    except Exception as e:
+        self.db.rollback()
+        raise
 ```
 
-## 7. 데이터 모델별 상세 필드 설명
+## 5. 협업 필수 사항
 
-### 7.1 Dashboard 모델 필드
-```json
-{
-  "dashboard_id": "대시보드 고유 ID (PK)",
-  "order_no": "주문번호 (15자 이내)",
-  "type": "배송 유형 (DELIVERY: 배송, RETURN: 회수)",
-  "status": "배송 상태 (WAITING, IN_PROGRESS, COMPLETE, ISSUE, CANCEL)",
-  "department": "담당 부서 (CS, HES, LENOVO)",
-  "warehouse": "출발 창고 (SEOUL, BUSAN, GWANGJU, DAEJEON)",
-  "sla": "서비스 수준 약정 (10자 이내)",
-  "eta": "예상 도착 시간 (Estimated Time of Arrival)",
-  "create_time": "생성 시간",
-  "depart_time": "출발 시간 (IN_PROGRESS 상태 변경 시 자동 설정)",
-  "complete_time": "완료 시간 (COMPLETE 상태 변경 시 자동 설정)",
-  "postal_code": "우편번호 (5자리)",
-  "city": "도시명",
-  "county": "구/군",
-  "district": "동/읍/면",
-  "region": "지역 (city + county + district)",
-  "distance": "거리 (km)",
-  "duration_time": "예상 소요 시간 (분)",
-  "address": "상세 주소",
-  "customer": "고객명",
-  "contact": "연락처 (xxx-xxxx-xxxx)",
-  "driver_name": "배송 담당자 이름",
-  "driver_contact": "배송 담당자 연락처"
-}
+### 5.1 API 응답 형식
+
+모든 API 응답은 다음과 같은 일관된 형식을 따릅니다:
+
+1. **성공 응답**:
+   ```json
+   {
+     "success": true,
+     "message": "작업 결과 메시지",
+     "data": {
+       // 응답 데이터
+     }
+   }
+   ```
+
+2. **에러 응답**:
+   ```json
+   {
+     "success": false,
+     "message": "에러 메시지",
+     "error": {
+       // 선택적 상세 에러 정보
+     }
+   }
+   ```
+
+### 5.2 비관적 락 처리 방식
+
+#### 5.2.1 락 획득 및 해제
+비관적 락은 `LockManager` 클래스의 컨텍스트 매니저를 통해 관리됩니다:
+
+```python
+# app/utils/lock_manager.py
+@contextmanager
+def acquire_lock(self, dashboard_id: int, user_id: str, lock_type: str):
+    """컨텍스트 매니저: 락 획득 후 컨텍스트 종료 시 락 자동 해제"""
+    lock = None
+    try:
+        # 락 획득 시도
+        lock = self.lock_repository.acquire_lock(dashboard_id, user_id, lock_type)
+        if not lock:
+            raise Exception("다른 사용자가 작업 중입니다")
+
+        # 컨텍스트 내 작업 실행
+        yield lock
+
+    except Exception as e:
+        # 예외 발생 시 로깅 후 전파
+        raise
+    finally:
+        # 컨텍스트 종료 시 락 자동 해제 (획득했을 경우에만)
+        if lock:
+            try:
+                self.lock_repository.release_lock(dashboard_id, user_id)
+            except Exception as e:
+                # 락 해제 실패 로깅
+                pass
 ```
 
-### 7.2 DashboardRemark 모델 필드
-```json
-{
-  "remark_id": "메모 고유 ID (PK)",
-  "dashboard_id": "대시보드 ID (FK)",
-  "content": "메모 내용",
-  "created_at": "생성 시간",
-  "created_by": "작성자 ID",
-  "version": "버전 정보",
-  "formatted_content": "포맷팅된 내용 (created_by: content 형식)"
-}
+#### 5.2.2 만료된 락 자동 정리
+만료된 락은 주기적으로 자동 정리됩니다:
+
+```python
+# app/repositories/dashboard_lock_repository.py
+def cleanup_expired_locks(self) -> int:
+    """만료된 락 자동 정리"""
+    try:
+        # 현재 시간 기준으로 만료된 락 삭제
+        result = (
+            self.db.query(DashboardLock)
+            .filter(DashboardLock.expires_at < datetime.utcnow())
+            .delete(synchronize_session=False)
+        )
+
+        return result
+    except Exception as e:
+        self.db.rollback()
+        return 0
 ```
 
-### 7.3 DashboardLock 모델 필드
-```json
-{
-  "dashboard_id": "대시보드 ID (PK, FK)",
-  "locked_by": "락 획득한 사용자 ID",
-  "locked_at": "락 획득 시간",
-  "lock_type": "락 유형 (EDIT, STATUS, ASSIGN, REMARK)",
-  "expires_at": "락 만료 시간",
-  "lock_timeout": "락 타임아웃 시간 (초)"
-}
+```python
+# backend/main.py
+@app.on_event("startup")
+async def startup_event():
+    """애플리케이션 시작 시 실행되는 이벤트 핸들러"""
+    # 만료된 락 정리
+    try:
+        db = SessionLocal()
+        lock_repository = DashboardLockRepository(db)
+        cleaned_count = lock_repository.cleanup_expired_locks()
+        db.commit()
+    except Exception as e:
+        # 오류 로깅
+        pass
+    finally:
+        db.close()
 ```
 
-### 7.4 User 모델 필드
-```json
-{
-  "user_id": "사용자 ID (PK)",
-  "user_password": "암호화된 비밀번호",
-  "user_department": "소속 부서 (CS, HES, LENOVO)",
-  "user_role": "권한 (ADMIN, USER)"
-}
+#### 5.2.3 락 타임아웃
+락은 5분 후 자동으로 만료됩니다. 락 연장 기능은 제거되었습니다.
+
+```python
+# app/repositories/dashboard_lock_repository.py
+def acquire_lock(
+    self, dashboard_id: int, user_id: str, lock_type: str
+) -> Optional[DashboardLock]:
+    """락 획득 시도"""
+    try:
+        # ...
+
+        # 새 락 생성
+        lock = DashboardLock(
+            dashboard_id=dashboard_id,
+            locked_by=user_id,
+            locked_at=datetime.utcnow(),
+            lock_type=lock_type,
+            expires_at=datetime.utcnow() + timedelta(seconds=self.lock_timeout),
+            lock_timeout=self.lock_timeout,
+        )
+
+        self.db.add(lock)
+        self.db.flush()
+        return lock
+
+    except Exception as e:
+        # ...
 ```
 
-### 7.5 RefreshToken 모델 필드
-```json
-{
-  "refresh_token_id": "리프레시 토큰 ID (PK)",
-  "user_id": "사용자 ID (FK)",
-  "refresh_token": "리프레시 토큰 값",
-  "expires_at": "토큰 만료 시간",
-  "created_at": "토큰 생성 시간"
-}
+### 5.3 트랜잭션 관리
+
+모든 중요 비즈니스 로직은 트랜잭션 내에서 실행됩니다:
+
+```python
+# app/utils/transaction.py
+def transactional(func: Callable[..., T]) -> Callable[..., T]:
+    """
+    트랜잭션 데코레이터
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> T:
+        # db 세션 찾기
+        db = None
+
+        # self.db 형태로 첫 번째 인자(self)에 db가 있는 경우
+        if args and hasattr(args[0], "db"):
+            db = args[0].db
+        # 레포지토리 형태로 첫 번째 인자(self)의 repository.db에 있는 경우
+        elif (
+            args
+            and hasattr(args[0], "repository")
+            and hasattr(args[0].repository, "db")
+        ):
+            db = args[0].repository.db
+        # 명시적 db 인자가 있는 경우
+        elif "db" in kwargs:
+            db = kwargs["db"]
+
+        # db 세션을 찾지 못한 경우
+        if db is None:
+            raise Exception("서버 내부 오류가 발생했습니다")
+
+        # 트랜잭션 컨텍스트 관리자 사용
+        try:
+            result = func(*args, **kwargs)
+            db.commit()
+            return result
+        except Exception as e:
+            db.rollback()
+            raise
+
+    return wrapper
 ```
 
-### 7.6 PostalCode 모델 필드
-```json
-{
-  "postal_code": "우편번호 (PK)",
-  "city": "도시명",
-  "county": "구/군",
-  "district": "동/읍/면"
-}
+이 데코레이터는 중요한 서비스 메서드에 적용됩니다:
+
+```python
+# app/services/dashboard_service.py
+@transactional
+def update_dashboard_fields(
+    self, dashboard_id: int, fields_update: FieldsUpdate, user_id: str
+) -> Dict[str, Any]:
+    """대시보드 필드 업데이트 (비관적 락 사용)"""
+    # 함수 구현
 ```
 
-### 7.7 PostalCodeDetail 모델 필드
-```json
-{
-  "postal_code": "우편번호 (PK, FK)",
-  "warehouse": "창고 (PK)",
-  "distance": "거리 (km)",
-  "duration_time": "소요 시간 (분)"
-}
-```
+### 5.4 날짜/시간 처리
 
-이상의 데이터 스키마 명세는 시스템에서 사용되는 주요 데이터 구조와 형식을 JSON 예시로 표현한 것입니다. 이 명세를 통해 클라이언트와 서버 간 데이터 교환 형식을 이해하고 API 통합 작업 시 참고할 수 있습니다.
+모든 날짜/시간은 KST(한국 표준시)로 처리됩니다:
+
+```python
+# app/utils/datetime_helper.py
+def get_kst_now():
+    """현재 시간을 KST로 반환"""
+    return datetime.now(KST)
+
+
+def localize_to_kst(dt):
+    """datetime 객체에 KST 시간대 정보 추가"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return KST.localize(dt)
+    return dt.astimezone(KST)
+
+
+def get_date_range(date_str):
+    """
+    날짜 문자열(YYYY-MM-DD)을 받아 해당 날짜의 시작과 끝 datetime 객체 반환
+    KST 시간대로 설정하여 반환
+    """
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        # 시간대 정보 추가
+        start_date = KST.localize(
+            datetime(date_obj.year, date_obj.month, date_obj.day, 0, 0, 0)
+        )
+        end_date = KST.localize(
+            datetime(date_obj.year, date_obj.month, date_obj.day, 23, 59, 59)
+        )
+        return start_date, end_date
+    except ValueError:
+        raise ValueError(f"Invalid date format: {date_str}. Expected: YYYY-MM-DD")
+```

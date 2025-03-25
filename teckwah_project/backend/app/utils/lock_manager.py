@@ -15,27 +15,13 @@ class LockManager:
 
     @contextmanager
     def acquire_lock(self, dashboard_id: int, user_id: str, lock_type: str):
-        """컨텍스트 매니저: 락 획득 후 컨텍스트 종료 시 락 자동 해제
-        
-        사용 예:
-        ```
-        with lock_manager.acquire_lock(dashboard_id, user_id, "EDIT"):
-            # 락이 획득된 상태에서 작업 수행
-            do_something()
-        # 컨텍스트 종료 시 락 자동 해제
-        ```
-        """
+        """컨텍스트 매니저: 락 획득 후 컨텍스트 종료 시 락 자동 해제"""
         lock = None
         try:
             # 락 획득 시도
             lock = self.lock_repository.acquire_lock(dashboard_id, user_id, lock_type)
             if not lock:
-                raise PessimisticLockException(
-                    detail="락 획득에 실패했습니다",
-                    locked_by="Unknown",
-                    lock_type=lock_type,
-                    dashboard_id=dashboard_id,
-                )
+                raise Exception("다른 사용자가 작업 중입니다")
 
             log_info(
                 f"락 획득 성공: dashboard_id={dashboard_id}, user_id={user_id}, type={lock_type}"
@@ -44,11 +30,8 @@ class LockManager:
             # 컨텍스트 내 작업 실행
             yield lock
 
-        except PessimisticLockException:
-            # 락 획득 실패 예외는 그대로 전파
-            raise
         except Exception as e:
-            # 다른 예외 발생 시 로깅 후 전파
+            # 예외 발생 시 로깅 후 전파
             log_error(e, f"락 컨텍스트 내 오류: dashboard_id={dashboard_id}")
             raise
         finally:
@@ -65,8 +48,7 @@ class LockManager:
                         f"락 자동 해제 실패: dashboard_id={dashboard_id}",
                         {"error": str(e)},
                     )
-                    # 락 해제 실패는 critical 이슈가 아니므로 예외를 발생시키지 않음
-    
+
     def auto_release_expired_locks(self):
         """만료된 락을 자동으로 해제하는 메서드
         주기적으로 호출하여 시스템 안정성 확보

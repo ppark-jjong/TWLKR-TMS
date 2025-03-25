@@ -32,15 +32,8 @@ def transaction(db: Session) -> Generator[Session, None, None]:
 
 def transactional(func: Callable[..., T]) -> Callable[..., T]:
     """
-    트랜잭션 데코레이터 - 함수 실행을 트랜잭션으로 감싸줌
-
-    Example:
-        @transactional
-        def create_dashboard(self, dashboard_data, db):
-            # 트랜잭션 내에서 데이터베이스 작업 수행
-            pass
+    트랜잭션 데코레이터 - 간소화된 에러 처리
     """
-
     @wraps(func)
     def wrapper(*args, **kwargs) -> T:
         # db 세션 찾기
@@ -62,15 +55,19 @@ def transactional(func: Callable[..., T]) -> Callable[..., T]:
 
         # db 세션을 찾지 못한 경우
         if db is None:
-            raise ValueError(
-                "트랜잭션 데코레이터를 사용하려면 db 세션이 필요합니다. "
-                "클래스 메서드라면 self.db 또는 self.repository.db가 있어야 하고, "
-                "그렇지 않으면 db 인자를 명시적으로 전달해야 합니다."
-            )
+            raise Exception("서버 내부 오류가 발생했습니다")
 
         # 트랜잭션 컨텍스트 관리자 사용
-        with transaction(db):
-            return func(*args, **kwargs)
+        try:
+            log_info("트랜잭션 시작")
+            result = func(*args, **kwargs)
+            db.commit()
+            log_info("트랜잭션 커밋 완료")
+            return result
+        except Exception as e:
+            log_error(e, "트랜잭션 롤백")
+            db.rollback()
+            raise
 
     return wrapper
 
