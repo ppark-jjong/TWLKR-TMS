@@ -31,10 +31,7 @@ async def download_dashboard_excel(
     service: DownloadService = Depends(get_download_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 데이터 Excel 다운로드 API
-    - create_time 기준으로 지정된 날짜 범위 내 데이터 다운로드
-    - Excel(.xlsx) 형식으로 제공
-    """
+    """대시보드 데이터 Excel 다운로드 API"""
     log_info(f"Excel 다운로드 요청: {download_request.start_date} ~ {download_request.end_date}")
     
     try:
@@ -65,18 +62,12 @@ async def download_dashboard_excel(
         
         return response
         
-    except ValueError as e:
-        log_error(e, f"Excel 다운로드 실패: 날짜 형식 오류")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": f"날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)"}
-        )
+    except ValueError:
+        log_error(None, f"Excel 다운로드 실패: 날짜 형식 오류")
+        raise Exception("날짜 형식이 올바르지 않습니다")
     except Exception as e:
         log_error(e, "Excel 다운로드 실패")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"message": f"Excel 다운로드 중 오류가 발생했습니다: {str(e)}"}
-        )
+        raise Exception("다운로드 중 오류가 발생했습니다")
 
 
 @router.get("/date-range", response_model=DownloadDateRangeResponse)
@@ -85,9 +76,7 @@ async def get_download_date_range(
     service: DownloadService = Depends(get_download_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """다운로드 가능한 날짜 범위 조회 API
-    - create_time 컬럼의 최소/최대 값을 기준으로 다운로드 가능 기간 제공
-    """
+    """다운로드 가능한 날짜 범위 조회 API"""
     log_info("다운로드 가능 날짜 범위 조회 요청")
     
     date_range = service.get_download_date_range()

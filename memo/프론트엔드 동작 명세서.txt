@@ -1,587 +1,1214 @@
-# 프론트엔드 동작 명세서
-
-## 1. 시스템 개요
-
-### 1.1 시스템 목적
-- 배송 실시간 관제 시스템의 프론트엔드 애플리케이션으로, 배송 추적, 시각화, 관리 기능을 제공합니다.
-- 다양한 사용자 권한 레벨(일반 사용자, 관리자)에 따른 차별화된 기능을 제공합니다.
-- React 기반의 SPA(Single Page Application)로 구현되어 사용자 경험을 최적화합니다.
-
-### 1.2 기술 스택
-- **프레임워크**: React 18
-- **라우팅**: React Router 6
-- **UI 컴포넌트**: Ant Design 5.9.0
-- **상태 관리**: Context API
-- **HTTP 클라이언트**: Axios
-- **시각화 라이브러리**: @ant-design/plots
-- **날짜 처리**: Dayjs
-- **빌드 도구**: Create React App (React Scripts 5.0.1)
-- **코드 최적화**: 지연 로딩(Lazy Loading) 및 코드 분할(Code Splitting)
-
-### 1.3 시스템 아키텍처
-
-#### 1.3.1 디렉토리 구조
-```
-src/
-├── components/            # UI 컴포넌트
-│   ├── admin/             # 관리자 관련 컴포넌트
-│   ├── common/            # 공통 컴포넌트
-│   ├── dashboard/         # 대시보드 관련 컴포넌트
-│   └── visualization/     # 시각화 관련 컴포넌트
-├── contexts/              # React Context 정의
-├── controllers/           # 비즈니스 로직 컨트롤러
-├── hooks/                 # 커스텀 훅
-├── pages/                 # 페이지 컴포넌트
-├── services/              # API 서비스
-├── utils/                 # 유틸리티 함수
-├── App.js                 # 루트 App 컴포넌트
-├── AppRoutes.js           # 라우팅 설정
-├── index.js               # 진입점
-└── lazyComponents.js      # 지연 로딩 설정
-```
-
-#### 1.3.2 아키텍처 개념도
-```
-사용자 → [브라우저] → [SPA (React)] → [컨텍스트 API (상태 관리)]
-                            ↓
-                   [컨트롤러/서비스 레이어]
-                            ↓
-                    [API 클라이언트(Axios)]
-                            ↓
-                     [백엔드 서버 API]
-```
-
-## 2. 주요 기능 및 페이지
-
-### 2.1 페이지 구성
-
-#### 2.1.1 로그인 페이지
-- **경로**: `/login`
-- **주요 기능**: 사용자 인증, 권한에 따른 리디렉션
-- **컴포넌트**: `LoginPage`
-- **권한 제한**: 인증되지 않은 사용자만 접근 가능
-- **상세 동작**:
-  - 성공적인 로그인 후 권한에 따라 대시보드 또는 관리자 페이지로 리디렉션
-  - 사용자 정보 및 토큰은 localStorage에 저장
-  - 로그인 실패 시 적절한 오류 메시지 표시
-
-#### 2.1.2 대시보드 페이지
-- **경로**: `/dashboard`
-- **주요 기능**: 배송 목록 조회, 필터링, 상태 변경, 상세 정보 조회, 배차 관리
-- **컴포넌트**: `DashboardPage`, `DashboardTable`, `DashboardFilters`
-- **권한 제한**: 인증된 사용자만 접근 가능
-- **상세 동작**:
-  - 날짜 범위 기반 배송 데이터 조회
-  - 종류, 부서, 창고별 필터링
-  - 주문번호 검색
-  - 선택한 항목 배차 처리
-  - 상세 정보 모달을 통한 배송 정보 조회 및 수정
-  - 상태별로 색상 구분된 목록 표시
-
-#### 2.1.3 시각화 페이지
-- **경로**: `/visualization`
-- **주요 기능**: 배송 데이터 시각화, 차트 표시, 통계 정보 제공
-- **컴포넌트**: `VisualizationPage`, `StatusPieChart`, `HourlyBarChart`
-- **권한 제한**: 인증된 사용자만 접근 가능
-- **상세 동작**:
-  - 배송 상태별 파이 차트 표시
-  - 시간대별 접수량 바 차트 표시
-  - 날짜 범위 지정 및 데이터 새로고침
-  - 부서별 통계 정보 제공
-
-#### 2.1.4 관리자 페이지
-- **경로**: `/admin`
-- **주요 기능**: 사용자 관리, 시스템 설정, 데이터 관리
-- **컴포넌트**: `AdminPage`, `AdminModule`, `UserManagementTab`
-- **권한 제한**: 관리자 권한 사용자만 접근 가능
-- **상세 동작**:
-  - 사용자 목록 조회, 추가, 수정, 삭제
-  - 시스템 설정 관리
-  - 데이터 내보내기 및 정리 기능
-  - 통계 정보 표시
-
-### 2.2 공통 컴포넌트
-
-#### 2.2.1 메인 레이아웃
-- **컴포넌트**: `MainLayout`, `Sidebar`
-- **기능**: 일관된 레이아웃 제공, 네비게이션, 세션 정보 표시
-- **상세 동작**:
-  - 좌측 사이드바를 통한 메뉴 접근
-  - 사용자 정보 및 역할 표시
-  - 세션 만료 시간 표시
-  - 권한에 따른 메뉴 항목 차등 표시
-
-#### 2.2.2 오류 경계
-- **컴포넌트**: `ErrorBoundary`, `ErrorBoundaryWithFallback`
-- **기능**: 예외 처리 및 대체 UI 표시
-- **상세 동작**:
-  - 컴포넌트 렌더링 오류 포착
-  - 사용자 친화적인 오류 메시지 표시
-  - 복구 기능 제공
-  - 로깅을 통한 오류 추적
-
-#### 2.2.3 로딩 스피너
-- **컴포넌트**: `LoadingSpin`
-- **기능**: 데이터 로딩 상태 표시
-- **상세 동작**:
-  - API 호출 중 로딩 상태 표시
-  - 사용자 정의 팁 메시지 지원
-
-## 3. 상태 관리
-
-### 3.1 Context API
-
-#### 3.1.1 인증 컨텍스트
-- **파일**: `AuthContext.js`
-- **주요 기능**: 사용자 인증 상태 관리, 로그인/로그아웃 처리, 권한 확인
-- **주요 상태**:
-  - `user`: 현재 로그인한 사용자 정보
-  - `isAuthenticated`: 인증 여부
-  - `isAdmin`: 관리자 권한 여부
-  - `authChecking`: 인증 확인 중 상태
-- **주요 함수**:
-  - `login(userId, password)`: 로그인 처리
-  - `logout()`: 로그아웃 처리
-  - `retryAuth()`: 인증 재시도
-  - `checkSession()`: 세션 유효성 검사
-
-#### 3.1.2 대시보드 컨텍스트
-- **파일**: `DashboardContext.js`
-- **주요 기능**: 대시보드 데이터 관리, 검색, 필터링
-- **주요 상태**:
-  - `dashboards`: 대시보드 항목 목록
-  - `loading`: 로딩 상태
-  - `dateRange`: 조회 날짜 범위
-  - `searchMode`: 검색 모드 여부
-- **주요 함수**:
-  - `fetchDashboards(startDate, endDate, forceRefresh)`: 대시보드 데이터 조회
-  - `searchByOrderNo(orderNo)`: 주문번호로 검색
-  - `resetSearchMode()`: 검색 모드 초기화
-  - `updateDashboard(dashboardId, updates)`: 대시보드 항목 업데이트
-  - `removeDashboards(dashboardIds)`: 대시보드 항목 삭제
-
-### 3.2 커스텀 훅
-
-#### 3.2.1 대시보드 상세 정보 훅
-- **파일**: `useDashboardDetail.js`
-- **주요 기능**: 대시보드 상세 정보 관리, 락 관리, 편집 모드 관리
-- **주요 상태**:
-  - `dashboard`: 대시보드 상세 정보
-  - `loading`: 로딩 상태
-  - `editMode`: 편집 모드 (필드, 메모)
-  - `lockInfo`: 락 정보
-- **주요 함수**:
-  - `fetchDashboardDetail()`: 상세 정보 조회
-  - `startFieldsEdit()`: 필드 편집 시작
-  - `startRemarkEdit()`: 메모 편집 시작
-  - `updateFields(fields)`: 필드 업데이트
-  - `updateRemark()`: 메모 업데이트
-  - `updateStatus(status)`: 상태 업데이트
-
-#### 3.2.2 비동기 작업 관리 훅
-- **파일**: `useAsync.js`
-- **주요 기능**: 비동기 작업 관리, 로딩/에러 상태 처리
-- **주요 상태**:
-  - `loading`: 로딩 상태
-  - `error`: 에러 상태
-  - `data`: 결과 데이터
-- **주요 함수**:
-  - `execute(...args)`: 비동기 함수 실행
-
-#### 3.2.3 날짜 범위 관리 훅
-- **파일**: `useDateRange.js`
-- **주요 기능**: 날짜 범위 선택 및 관리
-- **주요 상태**:
-  - `dateRange`: 선택된 날짜 범위
-  - `availableDateRange`: 가능한 날짜 범위
-  - `loading`: 로딩 상태
-- **주요 함수**:
-  - `handleDateRangeChange(dates)`: 날짜 범위 변경 처리
-  - `disabledDate(current)`: 날짜 선택 제한
-
-#### 3.2.4 테이블 상태 관리 훅
-- **파일**: `useTableState.js`
-- **주요 기능**: 테이블 정렬, 필터링, 페이징 관리
-- **주요 상태**:
-  - `sortedInfo`: 정렬 상태
-  - `filters`: 필터 상태
-  - `filteredData`: 필터링된 데이터
-- **주요 함수**:
-  - `handleSortChange(sorter)`: 정렬 변경 처리
-  - `handleFilterChange(filterType, value)`: 필터 변경 처리
-  - `handleFilterReset()`: 필터 초기화
-  - `processData(data)`: 데이터 처리 (필터링, 정렬)
-
-## 4. API 통신
-
-### 4.1 API 서비스
-
-#### 4.1.1 API 기본 서비스
-- **파일**: `ApiService.js`
-- **주요 기능**: 백엔드 API 요청 처리
-- **주요 함수**:
-  - 인증 관련: `login()`, `refreshToken()`, `logout()`, `checkSession()`
-  - 대시보드 관련: `getDashboardList()`, `getDashboardDetail()`, `createDashboard()`
-  - 대시보드 조작: `updateDashboardFields()`, `updateStatus()`, `assignDriver()`
-  - 시각화 관련: `getDeliveryStatus()`, `getHourlyOrders()`, `getDateRange()`
-  - 락 관련: `acquireLock()`, `releaseLock()`, `checkLockStatus()`
-
-#### 4.1.2 대시보드 서비스
-- **파일**: `DashboardService.js`
-- **주요 기능**: 대시보드 비즈니스 로직 처리
-- **주요 함수**:
-  - `getDashboardList(startDate, endDate)`: 대시보드 목록 조회
-  - `searchByOrderNo(orderNo)`: 주문번호로 검색
-  - `getDashboardDetail(dashboardId)`: 상세 정보 조회
-  - `updateFields(dashboardId, fields)`: 필드 업데이트
-  - `updateStatus(dashboardId, status, isAdmin)`: 상태 업데이트
-  - `assignDriver(driverData)`: 배차 처리
-  - `sortDashboardsByStatus(dashboards)`: 상태별 정렬
-
-#### 4.1.3 시각화 서비스
-- **파일**: `VisualizationService.js`
-- **주요 기능**: 시각화 데이터 처리
-- **주요 함수**:
-  - `getDeliveryStatus(startDate, endDate)`: 배송 상태 데이터 조회
-  - `getHourlyOrders(startDate, endDate)`: 시간대별 접수량 데이터 조회
-  - `getDateRange()`: 가능한 날짜 범위 조회
-
-### 4.2 Axios 설정
-
-#### 4.2.1 인터셉터
-- **파일**: `AxiosConfig.js`
-- **주요 기능**: 요청/응답 인터셉터, 에러 처리, 토큰 관리
-- **상세 동작**:
-  - JWT 토큰 자동 포함
-  - 중복 요청 방지
-  - 응답 캐싱
-  - 토큰 만료 처리 및 자동 갱신
-  - HTTP 상태 코드별 에러 처리
-  - 락 충돌 처리
-
-#### 4.2.2 요청 제어
-- **파일**: `AxiosConfig.js`
-- **주요 기능**: 요청 취소, 캐시 관리, 재시도 로직
-- **주요 함수**:
-  - `cancelAllPendingRequests()`: 모든 진행 중인 요청 취소
-  - `invalidateCache(urlPattern)`: 캐시 무효화
-  - `clearCache()`: 전체 캐시 초기화
-  - `withRetry(apiCall, maxRetries, retryDelay)`: 재시도 로직
-
-## 5. 컴포넌트 상세
-
-### 5.1 대시보드 컴포넌트
-
-#### 5.1.1 대시보드 테이블
-- **파일**: `DashboardTable.js`
-- **주요 기능**: 배송 데이터 테이블 표시, 정렬, 선택
-- **주요 속성**:
-  - `dataSource`: 표시할 데이터
-  - `loading`: 로딩 상태
-  - `selectedRows`: 선택된 행
-  - `onRowClick`: 행 클릭 핸들러
-- **상세 동작**:
-  - 상태별 행 배경색 설정
-  - 열 정렬 기능
-  - 행 선택 기능
-  - 페이지네이션 처리
-
-#### 5.1.2 대시보드 필터
-- **파일**: `DashboardFilters.js`
-- **주요 기능**: 필터링 UI 제공
-- **주요 속성**:
-  - `filters`: 필터 상태
-  - `onFilterChange`: 필터 변경 핸들러
-  - `onResetFilters`: 필터 초기화 핸들러
-  - `onApplyFilters`: 필터 적용 핸들러
-- **상세 동작**:
-  - 종류, 부서, 창고별 필터 드롭다운
-  - 주문번호 검색 입력
-  - 필터 적용/초기화 버튼
-
-#### 5.1.3 대시보드 상세 모달
-- **파일**: `DashboardDetailModal.js`
-- **주요 기능**: 대시보드 상세 정보 표시 및 편집
-- **주요 속성**:
-  - `visible`: 모달 표시 여부
-  - `dashboard`: 대시보드 데이터
-  - `onCancel`: 취소 핸들러
-  - `onSuccess`: 성공 핸들러
-- **상세 동작**:
-  - 필드 편집 모드
-  - 메모 편집 모드
-  - 상태 변경 버튼
-  - 락 정보 표시
-
-### 5.2 시각화 컴포넌트
-
-#### 5.2.1 상태 파이 차트
-- **파일**: `StatusPieChart.js`
-- **주요 기능**: 배송 상태별 파이 차트 표시
-- **주요 속성**:
-  - `data`: 차트 데이터
-  - `dateRange`: 날짜 범위
-- **상세 동작**:
-  - 부서별 파이 차트 표시
-  - 상태별 색상 구분
-  - 통계 정보 표시
-
-#### 5.2.2 시간대별 바 차트
-- **파일**: `HourlyBarChart.js`
-- **주요 기능**: 시간대별 접수량 바 차트 표시
-- **주요 속성**:
-  - `data`: 차트 데이터
-  - `dateRange`: 날짜 범위
-- **상세 동작**:
-  - 시간대별 접수량 막대 표시
-  - 부서별 그룹화
-  - 주간/야간 구분
-  - 통계 정보 표시
-
-### 5.3 관리자 컴포넌트
-
-#### 5.3.1 사용자 관리 탭
-- **파일**: `UserManagementTab.js`
-- **주요 기능**: 사용자 관리 UI 제공
-- **주요 속성**:
-  - `userList`: 사용자 목록
-  - `onUserSave`: 사용자 저장 핸들러
-  - `onUserDelete`: 사용자 삭제 핸들러
-- **상세 동작**:
-  - 사용자 목록 테이블
-  - 사용자 추가/편집 모달
-  - 권한 및 부서 관리
-
-#### 5.3.2 시스템 설정 탭
-- **파일**: `SystemSettingsTab.js`
-- **주요 기능**: 시스템 설정 UI 제공
-- **주요 속성**:
-  - `systemSettings`: 시스템 설정
-  - `onSettingsSave`: 설정 저장 핸들러
-- **상세 동작**:
-  - API 타임아웃 설정
-  - 자동 새로고침 간격 설정
-  - 락 메커니즘 설정
-
-#### 5.3.3 데이터 관리 탭
-- **파일**: `DataManagementTab.js`
-- **주요 기능**: 데이터 관리 UI 제공
-- **주요 속성**:
-  - `dataStats`: 데이터 통계
-  - `onDataExport`: 데이터 내보내기 핸들러
-  - `onDataCleanup`: 데이터 정리 핸들러
-- **상세 동작**:
-  - 데이터 통계 표시
-  - 데이터 내보내기 기능
-  - 오래된 데이터 정리 기능
-
-## 6. 인증 및 권한
-
-### 6.1 인증 흐름
-
-#### 6.1.1 로그인 프로세스
-- **주요 파일**: `AuthService.js`, `LoginPage.js`
-- **상세 동작**:
-  1. 사용자가 로그인 페이지에서 ID/비밀번호 입력
-  2. `login()` API 호출
-  3. 성공 시 토큰 및 사용자 정보 저장
-  4. 권한에 따라 대시보드 또는 관리자 페이지로 리디렉션
-
-#### 6.1.2 토큰 관리
-- **주요 파일**: `TokenManager.js`
-- **상세 동작**:
-  - 액세스 토큰 및 리프레시 토큰 localStorage에 저장
-  - 토큰 만료 감지
-  - 리프레시 토큰을 통한 액세스 토큰 갱신
-  - 세션 만료 시 로그인 페이지로 리디렉션
-
-### 6.2 권한 제어
-
-#### 6.2.1 권한 기반 라우팅
-- **주요 파일**: `AppRoutes.js`
-- **상세 동작**:
-  - `PrivateRoute` 컴포넌트를 통한 인증 필요 경로 보호
-  - 관리자 전용 경로 (`/admin`) 별도 권한 체크
-  - 권한 없는 접근 시 적절한 경로로 리디렉션
-
-#### 6.2.2 UI 권한 제어
-- **주요 파일**: `Sidebar.js`, `DashboardPage.js`
-- **상세 동작**:
-  - 권한에 따른 메뉴 항목 표시/숨김
-  - 관리자 전용 버튼 (삭제 등) 조건부 렌더링
-  - 상태 변경 제한 (관리자는 모든 상태 변경 가능, 일반 사용자는 제한)
-
-## 7. 성능 최적화
-
-### 7.1 코드 분할 및 지연 로딩
-
-#### 7.1.1 페이지 레벨 코드 분할
-- **주요 파일**: `AppRoutes.js`, `lazyComponents.js`
-- **상세 동작**:
-  - React.lazy 및 Suspense를 통한 페이지 레벨 코드 분할
-  - 필요한 시점에 컴포넌트 로드
-  - 초기 로딩 시간 개선
-
-#### 7.1.2 모달 코드 분할
-- **주요 파일**: `lazyComponents.js`
-- **상세 동작**:
-  - 모달 컴포넌트 지연 로딩
-  - 사용자 인터랙션 예상 시점에 사전 로드
-  - 모달 표시 지연 최소화
-
-### 7.2 메모이제이션
-
-#### 7.2.1 컴포넌트 메모이제이션
-- **주요 파일**: `DashboardList.js`, `DashboardTable.js`
-- **상세 동작**:
-  - React.memo를 통한 불필요한 리렌더링 방지
-  - 컴포넌트별 최적의 비교 함수 구현
-
-#### 7.2.2 핸들러 메모이제이션
-- **주요 파일**: `DashboardPage.js`, `VisualizationPage.js`
-- **상세 동작**:
-  - useCallback을 통한 이벤트 핸들러 메모이제이션
-  - 렌더링마다 핸들러 재생성 방지
-
-#### 7.2.3 계산 값 메모이제이션
-- **주요 파일**: `DashboardDetailModal.js`, `StatusPieChart.js`
-- **상세 동작**:
-  - useMemo를 통한 계산 값 메모이제이션
-  - 복잡한 데이터 변환 최적화
-
-### 7.3 네트워크 최적화
-
-#### 7.3.1 API 응답 캐싱
-- **주요 파일**: `AxiosConfig.js`
-- **상세 동작**:
-  - GET 요청 응답 캐싱
-  - 캐시 TTL 관리
-  - 필요 시 캐시 무효화
-
-#### 7.3.2 중복 요청 방지
-- **주요 파일**: `AxiosConfig.js`
-- **상세 동작**:
-  - 동일 요청 식별 및 중복 요청 취소
-  - 불필요한 API 호출 절감
-
-## 8. 에러 처리
-
-### 8.1 에러 경계
-
-#### 8.1.1 전역 에러 경계
-- **주요 파일**: `ErrorBoundary.js`
-- **상세 동작**:
-  - 리액트 컴포넌트 트리의 JavaScript 에러 포착
-  - 대체 UI 표시
-  - 오류 로깅
-  - 복구 옵션 제공
-
-#### 8.1.2 컴포넌트별 에러 경계
-- **주요 파일**: `ErrorBoundaryWithFallback.js`
-- **상세 동작**:
-  - 특정 컴포넌트 영역의 에러 격리
-  - 컴포넌트별 맞춤형 폴백 UI
-
-### 8.2 API 에러 처리
-
-#### 8.2.1 HTTP 에러 처리
-- **주요 파일**: `AxiosConfig.js`, `ErrorHandler.js`
-- **상세 동작**:
-  - HTTP 상태 코드별 표준화된 에러 처리
-  - 인증 오류 (401): 토큰 갱신 또는 로그인 페이지 리디렉션
-  - 권한 오류 (403): 권한 없음 메시지 표시
-  - 락 충돌 (423): 락 정보 표시
-  - 서버 오류 (500): 사용자 친화적인 오류 메시지 표시
-
-#### 8.2.2 필드 유효성 검증 오류
-- **주요 파일**: `validator.js`, `CreateDashboardModal.js`
-- **상세 동작**:
-  - 백엔드 필드 유효성 검증 오류 처리
-  - 폼 필드에 오류 메시지 표시
-  - 사용자에게 명확한 피드백 제공
-
-## 9. 국제화 및 지역화
-
-### 9.1 언어 설정
-
-#### 9.1.1 UI 언어
-- **주요 파일**: `App.js`
-- **상세 동작**:
-  - Ant Design 로케일 설정 (koKR)
-  - 한국어 UI 제공
-
-#### 9.1.2 날짜 및 시간 형식
-- **주요 파일**: `Formatter.js`
-- **상세 동작**:
-  - 한국 날짜/시간 형식 적용
-  - Dayjs를 통한 일관된 날짜 처리
-
-### 9.2 숫자 및 통화 형식
-
-#### 9.2.1 숫자 포맷팅
-- **주요 파일**: `Formatter.js`
-- **상세 동작**:
-  - 숫자 천 단위 콤마 추가
-  - 한국 로케일 적용
-
-## 10. 보안 고려사항
-
-### 10.1 인증 보안
-
-#### 10.1.1 토큰 관리
-- **주요 파일**: `TokenManager.js`, `AxiosConfig.js`
-- **상세 동작**:
-  - JWT 토큰 안전한 저장 및 관리
-  - 토큰 만료 처리
-  - 자동 토큰 갱신
-
-#### 10.1.2 세션 타임아웃
-- **주요 파일**: `Sidebar.js`
-- **상세 동작**:
-  - 세션 만료 시간 표시
-  - 만료 임박 시 경고 메시지
-
-### 10.2 권한 보안
-
-#### 10.2.1 최소 권한 원칙
-- **주요 파일**: `AppRoutes.js`, `DashboardPage.js`
-- **상세 동작**:
-  - 사용자 역할에 따른 기능 제한
-  - 관리자 전용 기능 보호
-
-#### 10.2.2 락 메커니즘
-- **주요 파일**: `useDashboardDetail.js`
-- **상세 동작**:
-  - 동시 편집 충돌 방지
-  - 락 획득 및 해제
-  - 락 만료 처리
-
-## 11. 배포 고려사항
-
-### 11.1 빌드 최적화
-
-#### 11.1.1 번들 크기 최적화
-- **주요 파일**: `package.json`
-- **상세 동작**:
-  - 소스맵 생성 비활성화 (프로덕션)
-  - 번들 분석 도구 설정
-
-#### 11.1.2 브라우저 지원
-- **주요 파일**: `package.json`
-- **상세 동작**:
-  - browserslist 설정
-  - 지원 브라우저 정의
-
-### 11.2 환경별 설정
-
-#### 11.2.1 개발 환경
-- **주요 파일**: `Logger.js`
-- **상세 동작**:
-  - 개발 환경에서만 디버그 로그 출력
-  - 상세 디버깅 정보 제공
-
-#### 11.2.2 프로덕션 환경
-- **주요 파일**: `Logger.js`, `package.json`
-- **상세 동작**:
-  - 디버그 로그 제거
-  - 성능 최적화 빌드 설정
+1. 시스템 아키텍처 개요
+1.1 프론트엔드 구조
+핵심 구성요소
+
+컨텍스트 기반 상태 관리: AuthContext, DashboardContext 등을 통한 전역 상태 관리
+
+서비스 레이어: API 호출을 추상화하는 서비스 모듈(AuthService, DashboardService 등)
+
+컨트롤러 계층: 예: useDashboardController와 같은 비즈니스 로직 관리 훅
+
+컴포넌트 계층: UI 렌더링 및 사용자 인터랙션 처리
+
+유틸리티 모듈: 공통 기능 제공(AppUtils, TokenManager, MessageService 등)
+
+데이터 흐름
+
+사용자 인터랙션 발생
+
+컴포넌트 레벨에서 컨트롤러 계층의 함수 호출
+
+컨트롤러가 서비스 레이어의 API 함수 호출
+
+서비스 레이어가 실제 HTTP 요청 실행 및 응답 처리
+
+결과가 컨트롤러를 통해 컴포넌트로 전달되어 UI 업데이트
+
+1.2 공통 API 응답 형식
+모든 API 응답은 다음 형식을 따릅니다:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "성공 메시지",
+  "data": {
+    // 실제 데이터 (엔드포인트별로 상이)
+  }
+}
+오류 시 응답 형식:
+
+json
+복사
+편집
+{
+  "success": false,
+  "message": "오류 메시지",
+  "error": {
+    "code": "ERROR_CODE",
+    "detail": "상세 오류 정보",
+    "fields": {
+      "field_name": "필드별 오류 메시지"
+    }
+  }
+}
+2. 인증 시스템
+2.1 로그인 프로세스
+사용자 시나리오
+
+사용자가 로그인 페이지 접근
+
+아이디/비밀번호 입력 후 로그인 버튼 클릭
+
+인증 성공 시 대시보드로 리디렉션
+
+실패 시 오류 메시지 표시
+
+API 엔드포인트: /auth/login
+요청 형식:
+
+json
+복사
+편집
+{
+  "user_id": "사용자아이디",
+  "password": "비밀번호"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "로그인 성공",
+  "data": {
+    "token": {
+      "access_token": "...",
+      "refresh_token": "..."
+    },
+    "user": {
+      "user_id": "user123",
+      "user_name": "홍길동",
+      "user_role": "USER",
+      "user_department": "CS"
+    }
+  }
+}
+2.2 토큰 갱신 메커니즘
+작동 방식
+
+액세스 토큰 만료 시 자동 갱신 프로세스 시작
+
+리프레시 토큰을 사용하여 새 액세스 토큰 요청
+
+성공 시 새 토큰으로 이전 요청 재시도
+
+모든 토큰이 만료된 경우 로그인 페이지로 강제 이동
+
+API 엔드포인트: /auth/refresh
+요청 형식:
+
+json
+복사
+편집
+{
+  "refresh_token": "..."
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "토큰 갱신 성공",
+  "data": {
+    "token": {
+      "access_token": "...",
+      "refresh_token": "..."
+    }
+  }
+}
+2.3 세션 확인 프로세스
+API 엔드포인트: /auth/check-session
+요청 형식: 헤더에 액세스 토큰만 포함
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "유효한 세션",
+  "data": {
+    "user": {
+      "user_id": "user123",
+      "user_name": "홍길동",
+      "user_role": "USER",
+      "user_department": "CS"
+    }
+  }
+}
+3. 대시보드/배차 페이지
+3.1 대시보드 목록 조회
+사용자 시나리오
+
+사용자가 대시보드 페이지 접속
+
+날짜 범위(RangePicker) 선택 또는 기본값(최근 7일) 사용
+
+해당 날짜 범위의 모든 주문 데이터 로드 및 표시
+
+API 엔드포인트: /dashboard/list
+요청 형식:
+
+json
+복사
+편집
+{
+  "start_date": "2023-09-01",
+  "end_date": "2023-09-07"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "데이터 조회 성공",
+  "data": {
+    "items": [
+      {
+        "dashboard_id": 1001,
+        "order_no": "ORD123456",
+        ...
+        "version": 1
+      }
+    ],
+    "date_range": {
+      "oldest_date": "2023-07-01",
+      "latest_date": "2023-09-07"
+    }
+  }
+}
+3.2 주문번호 검색
+사용자 시나리오
+
+사용자가 주문번호 검색창에 값 입력
+
+검색 버튼 클릭 또는 엔터키 입력
+
+해당 주문번호와 일치하는 주문만 표시
+
+API 엔드포인트: /dashboard/search
+요청 형식:
+
+json
+복사
+편집
+{
+  "order_no": "ORD123456"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "검색 결과",
+  "data": {
+    "items": [
+      {
+        "dashboard_id": 1001,
+        "order_no": "ORD123456",
+        ...
+      }
+    ]
+  }
+}
+3.3 새 주문 생성
+사용자 시나리오
+
+사용자가 "신규 등록" 버튼 클릭
+
+주문 정보 입력 모달 표시
+
+필수 정보 입력 후 저장 버튼 클릭
+
+성공 시 목록 새로고침, 실패 시 오류 메시지 표시
+
+API 엔드포인트: /dashboard/create
+요청 형식:
+
+json
+복사
+편집
+{
+  "type": "DELIVERY",
+  "order_no": "ORD123456",
+  ...
+  "remark": "부재시 경비실에 맡겨주세요"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "주문이 생성되었습니다",
+  "data": {
+    "dashboard_id": 1002,
+    "order_no": "ORD123456",
+    ...
+    "version": 1
+  }
+}
+3.4 배차 처리
+사용자 시나리오
+
+사용자가 하나 이상의 주문을 선택
+
+"배차" 버튼 클릭
+
+배송 담당자 정보 입력 모달 표시
+
+담당자명, 연락처 입력 후 저장
+
+성공 시 선택된 주문들 업데이트
+
+API 엔드포인트: /dashboard/assign-driver
+요청 형식:
+
+json
+복사
+편집
+{
+  "dashboard_ids": [1001, 1002, 1003],
+  "driver_name": "김기사",
+  "driver_contact": "010-9876-5432"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "배차가 완료되었습니다",
+  "data": {
+    "updated_ids": [1001, 1002, 1003],
+    "failed_ids": []
+  }
+}
+4. 배송 상세 및 편집 기능
+4.1 배송 상세 정보 조회
+사용자 시나리오
+
+사용자가 대시보드 목록에서 특정 주문 클릭
+
+해당 주문의 상세 정보 모달 표시
+
+락 상태 확인 후 편집 가능 여부 결정
+
+API 엔드포인트: /dashboard/{dashboard_id}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "상세 정보 조회 성공",
+  "data": {
+    "dashboard_id": 1001,
+    ...
+    "remarks": [
+      {
+        "remark_id": 201,
+        "content": "부재시 경비실에 맡겨주세요",
+        ...
+      }
+    ]
+  }
+}
+4.2 배송 정보 수정
+사용자 시나리오
+
+사용자가 상세 모달에서 "정보 수정" 버튼 클릭
+
+락 획득 시도(성공 시 편집 모드 활성화, 실패 시 에러 메시지)
+
+필드 수정 후 "저장" 버튼 클릭
+
+성공 시 락 해제 및 업데이트된 정보 표시
+
+API 엔드포인트: /dashboard/{dashboard_id}/fields
+요청 형식:
+
+json
+복사
+편집
+{
+  "eta": "2023-09-07T16:30:00",
+  "postal_code": "12345",
+  "address": "서울시 강남구 역삼동 123-456 디오빌 101호",
+  "customer": "김고객",
+  "contact": "010-1234-5678"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "정보가 업데이트되었습니다",
+  "data": {
+    "dashboard_id": 1001,
+    ...
+    "version": 2
+  }
+}
+4.3 메모 수정
+사용자 시나리오
+
+사용자가 상세 모달에서 "메모 편집" 버튼 클릭
+
+락 획득 시도(성공 시 편집 모드 활성화)
+
+메모 내용 수정 후 "저장" 버튼 클릭
+
+성공 시 락 해제 및 업데이트된 메모 표시
+
+API 엔드포인트: /dashboard/{dashboard_id}/remark
+요청 형식:
+
+json
+복사
+편집
+{
+  "content": "부재시 경비실에 맡겨주세요. 연락 부탁드립니다."
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "메모가 업데이트되었습니다",
+  "data": {
+    "dashboard_id": 1001,
+    "remarks": [
+      {
+        ...
+      }
+    ]
+  }
+}
+4.4 상태 변경
+사용자 시나리오
+
+사용자가 상세 모달에서 상태 변경 버튼 클릭
+
+상태 변경 확인 모달 표시
+
+확인 후 락 획득 시도 및 상태 변경 API 호출
+
+성공 시 락 해제 및 업데이트된 상태 표시
+
+API 엔드포인트: /dashboard/{dashboard_id}/status
+요청 형식:
+
+json
+복사
+편집
+{
+  "status": "IN_PROGRESS"
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "상태가 변경되었습니다",
+  "data": {
+    "dashboard_id": 1001,
+    "order_no": "ORD123456",
+    "status": "IN_PROGRESS",
+    "previous_status": "WAITING",
+    "depart_time": "2023-09-07T11:30:00",
+    ...
+  }
+}
+5. 비관적 락(Pessimistic Lock) 메커니즘
+5.1 락 획득 프로세스
+사용자 시나리오
+
+사용자가 편집 버튼 클릭(필드 편집, 메모 편집, 상태 변경 등)
+
+프론트엔드에서 락 획득 API 호출
+
+성공 시 편집 UI 활성화, 실패 시 오류 메시지 표시
+
+API 엔드포인트: /dashboard/{dashboard_id}/lock
+요청 형식:
+
+json
+복사
+편집
+{
+  "lock_type": "EDIT"
+}
+응답 형식 (성공):
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "락 획득 성공",
+  "data": {
+    "dashboard_id": 1001,
+    "is_locked": true,
+    "locked_by": "user123",
+    "lock_type": "EDIT",
+    ...
+  }
+}
+응답 형식 (실패 - 이미 락이 있는 경우, 423 Locked):
+
+json
+복사
+편집
+{
+  "success": false,
+  "message": "다른 사용자가 이 데이터를 편집 중입니다",
+  "error": {
+    "code": "RESOURCE_LOCKED",
+    "detail": {
+      "locked_by": "other_user",
+      "lock_type": "EDIT",
+      ...
+    }
+  }
+}
+5.2 락 상태 확인
+API 엔드포인트: /dashboard/{dashboard_id}/lock/status
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "락 상태 조회 성공",
+  "data": {
+    "dashboard_id": 1001,
+    "is_locked": true,
+    "locked_by": "user123",
+    "lock_type": "EDIT",
+    ...
+  }
+}
+5.3 락 해제 프로세스
+사용자 시나리오
+
+사용자가 편집 완료 후 저장 또는 취소 버튼 클릭
+
+락 해제 API 호출
+
+편집 모드 종료
+
+API 엔드포인트: /dashboard/{dashboard_id}/lock
+HTTP 메서드: DELETE
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "락이 해제되었습니다",
+  "data": {
+    "dashboard_id": 1001,
+    "is_locked": false
+  }
+}
+5.4 비관적 락 타입 및 상세 로직
+각 락 타입별 동작 메커니즘
+
+json
+복사
+편집
+{
+  "lock_types": {
+    "EDIT": {
+      "purpose": "주문 기본 정보 수정",
+      "affected_fields": ["eta", "postal_code", "address", "customer", "contact"],
+      "ui_elements": ["정보 수정 버튼", "필드 편집 폼"]
+    },
+    "STATUS": {
+      "purpose": "주문 상태 변경",
+      "affected_fields": ["status", "depart_time", "complete_time"],
+      "ui_elements": ["상태 변경 버튼", "상태 변경 확인 모달"]
+    },
+    "REMARK": {
+      "purpose": "메모 추가/수정",
+      "affected_fields": ["remarks.content"],
+      "ui_elements": ["메모 편집 버튼", "메모 입력 폼"]
+    },
+    "ASSIGN": {
+      "purpose": "배차 정보 할당/수정",
+      "affected_fields": ["driver_name", "driver_contact"],
+      "ui_elements": ["배차 버튼", "배차 정보 입력 모달"]
+    }
+  }
+}
+5.5 락 자동 만료 메커니즘
+useDashboardDetail 훅에 구현된 락 만료 로직 예시
+
+json
+복사
+편집
+{
+  "lock_expiry_mechanism": {
+    "timer_setup": {
+      "acquisition": "서버로부터 락 획득 및 만료 시간 수신",
+      "expiry_timer": "락 만료 시간에 맞춰 타이머 설정",
+      "warning_timer": "만료 1분 전 경고 타이머 설정"
+    },
+    "events": {
+      "expiry_warning": {
+        "timing": "만료 1분 전",
+        "action": "showLockExpiryWarning() 호출",
+        "message": "편집 세션이 곧 만료됩니다. 작업을 완료하거나 저장하세요."
+      },
+      "expiry": {
+        "timing": "락 만료 시간",
+        "action": "handleLockExpiry() 호출",
+        "ui_effect": "편집 모드 강제 종료, 락 정보 초기화",
+        "message": "편집 세션이 만료되었습니다. 다시 편집하려면 락을 재획득하세요."
+      }
+    },
+    "cleanup": "컴포넌트 언마운트 시 타이머 정리 및 락 해제 시도"
+  }
+}
+6. 시각화 페이지
+6.1 배송 현황 파이 차트 데이터
+사용자 시나리오
+
+사용자가 시각화 페이지 접속
+
+날짜 범위 선택 (기본값: 최근 7일)
+
+배송 현황 차트 유형 선택
+
+해당 기간의 차트 데이터 로드 및 표시
+
+API 엔드포인트: /visualization/delivery-status
+요청 형식:
+
+json
+복사
+편집
+{
+  "start_date": "2023-09-01",
+  "end_date": "2023-09-07"
+}
+응답 형식(일부 예시):
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "배송 현황 데이터 조회 성공",
+  "data": {
+    "type": "delivery_status",
+    "total_count": 358,
+    "department_breakdown": {
+      "CS": {
+        "total": 150,
+        "status_breakdown": [
+          {"status": "WAITING", "count": 30, "percentage": 20.0},
+          ...
+        ]
+      },
+      ...
+    }
+  }
+}
+6.2 시간대별 주문 분포 차트 데이터
+사용자 시나리오
+
+사용자가 시각화 페이지에서 "시간대별 접수량" 차트 선택
+
+날짜 범위 선택 또는 기본값 사용
+
+시간대별 주문 분포 데이터 로드 및 표시
+
+API 엔드포인트: /visualization/hourly-orders
+요청 형식:
+
+json
+복사
+편집
+{
+  "start_date": "2023-09-01",
+  "end_date": "2023-09-07"
+}
+응답 형식(일부 예시):
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "시간대별 접수량 데이터 조회 성공",
+  "data": {
+    "type": "hourly_orders",
+    "total_count": 358,
+    ...
+    "time_slots": [
+      {"label": "09-10", "start": 9, "end": 10},
+      ...
+    ]
+  }
+}
+6.3 날짜 범위 정보 조회
+API 엔드포인트: /visualization/date-range
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "조회 가능한 날짜 범위 조회 성공",
+  "data": {
+    "oldest_date": "2023-07-01",
+    "latest_date": "2023-09-07"
+  }
+}
+7. 관리자 페이지
+7.1 주문 삭제
+사용자 시나리오
+
+관리자가 하나 이상의 주문 선택
+
+"삭제" 버튼 클릭
+
+확인 대화상자에서 확인
+
+성공 시 목록에서 해당 주문 제거
+
+API 엔드포인트: /dashboard/delete
+요청 형식:
+
+json
+복사
+편집
+{
+  "dashboard_ids": [1001, 1002, 1003]
+}
+응답 형식:
+
+json
+복사
+편집
+{
+  "success": true,
+  "message": "선택한 주문이 삭제되었습니다",
+  "data": {
+    "deleted_ids": [1001, 1002, 1003],
+    "failed_ids": []
+  }
+}
+7.2 데이터 다운로드
+아래는 기존 3.txt에서 간단히 언급된 7.2절을 보완하여, 2.txt에 상세히 기술된 “7.2 데이터 다운로드 상세 명세”를 통합한 내용입니다.
+
+7.2.1 엑셀 다운로드 서비스 구조
+서비스 계층 (DownloadService.js)
+
+downloadAsExcel(startDate, endDate, options): 날짜 범위 기반 엑셀 파일 요청
+
+downloadFile(blob, filename): 실제 파일 다운로드 처리
+
+사용자 인터페이스 (DownloadPage.js)
+
+날짜 범위 선택기: RangePicker 컴포넌트 (오늘/최근 3일/최근 7일/최근 30일)
+
+다운로드 버튼: Excel 다운로드 버튼
+
+경고 메시지: 대용량 데이터 다운로드 시 주의사항 표시
+
+7.2.2 API 명세 상세
+엑셀 다운로드 API 엔드포인트
+
+요청 URL: /download/excel
+
+HTTP 메서드: GET
+
+응답 타입: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (Blob)
+
+요청 파라미터
+
+json
+복사
+편집
+{
+  "start_date": "2023-09-01",
+  "end_date": "2023-09-07"
+}
+추가 옵션: 현재는 간소화되어 기본 다운로드 옵션만 제공. 향후 확장을 위해 구조만 남겨둔 상태.
+
+7.2.3 권한 제어 메커니즘
+다운로드 페이지는 관리자 전용이며, PrivateRoute 보호를 거칩니다:
+
+json
+복사
+편집
+{
+  "access_control": {
+    "route_protection": "RequireAdmin=true",
+    "redirection": "/dashboard",
+    "error_message": "관리자 권한이 필요합니다",
+    "conditional_rendering": {
+      "unauthorized_view": "403 Status 컴포넌트",
+      "authorized_view": "DownloadPage 컴포넌트"
+    }
+  }
+}
+인증된 사용자(isAuthenticated)만 접근 가능
+
+관리자(requireAdmin=true) 여부 확인
+
+7.2.4 오류 처리
+에러 유형	메시지	대응 방식
+네트워크 오류	"데이터 다운로드 중 오류 발생"	재시도 버튼 제공
+권한 부족(403)	"관리자 권한이 필요합니다"	대시보드로 리디렉션
+서버 오류(500)	"서버 처리 중 오류가 발생했습니다"	기술 지원 안내
+7.2.5 다운로드 프로세스 세부 흐름
+관리자가 날짜 범위 선택
+
+다운로드 버튼 클릭 시 downloadAsExcel 메서드 호출
+
+서비스에서 ApiService._request 메서드를 통해 Blob 응답 요청
+
+응답 수신 후 downloadFile 메서드를 통해 파일 저장 대화상자 표시
+
+사용자가 위치 선택 후 파일 저장
+
+7.2.6 파일 처리 메커니즘
+프론트엔드 Blob 처리 로직 예시:
+
+json
+복사
+편집
+{
+  "process_flow": {
+    "request": {
+      "responseType": "blob",
+      "headers": {
+        "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      }
+    },
+    "response_handling": {
+      "create_object_url": "window.URL.createObjectURL(blob)",
+      "create_anchor": "document.createElement('a')",
+      "set_download_attribute": "link.setAttribute('download', filename)",
+      "trigger_download": "link.click()",
+      "cleanup": [
+        "window.URL.revokeObjectURL(url)",
+        "document.body.removeChild(link)"
+      ]
+    }
+  }
+}
+7.2.7 성능 고려사항
+대용량 다운로드 처리: 30일 이상 데이터 다운로드 시 최대 3분 타임아웃 설정
+
+진행 표시: 다운로드 진행 중 로딩 인디케이터 표시
+
+파일 크기 제한 없음: 브라우저 메모리 한도 내에서 처리
+
+7.2.8 UI/UX 상세
+접근성: 키보드만으로도 날짜 선택 및 다운로드 가능
+
+반응형 디자인: 모바일 환경에서도 최적화
+
+다운로드 상태 피드백: 다운로드 시작, 진행, 완료 상태를 시각적으로 표시
+
+8. 공통 컴포넌트 및 유틸리티
+8.1 사이드바 메뉴 구조
+대시보드: 모든 사용자 접근 가능
+
+시각화: 모든 사용자 접근 가능
+
+다운로드: 관리자만 접근 가능
+
+8.2 날짜 범위 선택기
+공통 날짜 범위 선택 옵션:
+
+오늘
+
+최근 3일
+
+최근 7일
+
+최근 30일
+
+사용자 정의 범위 (수동 선택)
+
+8.3 필터링 및 검색 메커니즘
+대시보드 페이지의 필터링 옵션:
+
+종류: DELIVERY, RETURN
+
+부서: CS, HES, LENOVO
+
+출발 허브: SEOUL, BUSAN, GWANGJU, DAEJEON
+
+주문번호 검색: 정확한 주문번호 검색
+
+9. 오류 처리 및 사용자 피드백 시스템
+9.1 에러 유형 및 HTTP 상태 코드
+상태 코드	에러 유형	처리 방식
+400	잘못된 요청	필드별 유효성 검증 오류 메시지 표시
+401	인증 실패	토큰 갱신 또는 로그인 페이지 리디렉션
+403	권한 없음	권한 오류 메시지 표시
+404	리소스 없음	"리소스를 찾을 수 없음" 메시지 표시
+423	락 충돌	"다른 사용자가 편집 중" 메시지 및 락 정보 표시
+500	서버 오류	일반 오류 메시지 표시 및 로깅
+9.2 메시지 서비스
+모든 사용자 피드백은 중앙화된 메시지 서비스를 통해 관리:
+
+성공 메시지: 녹색, 2초간 표시
+
+정보 메시지: 파란색, 2초간 표시
+
+경고 메시지: 노란색, 3초간 표시
+
+오류 메시지: 빨간색, 3초간 표시
+
+로딩 메시지: 진행 표시, 작업 완료 시까지 표시
+
+9.3 비관적 락 관련 특수 메시지
+락 만료 경고: 만료 1분 전 표시되는 경고 메시지
+
+락 만료: 락 만료 시 편집 모드 강제 종료 및 메시지 표시
+
+락 충돌 메시지: 다른 사용자가 락 보유 중일 때(locked_by, lock_type, expires_at 등)
+
+9.4 에러 처리 및 인터셉터 고급 메커니즘
+AxiosConfig.js에 구현된 고급 인터셉터 메커니즘:
+
+json
+복사
+편집
+{
+  "interceptors": {
+    "request": {
+      "jwt_token": "모든 요청에 Bearer 토큰 자동 첨부",
+      "duplicate_prevention": "중복 요청 감지 및 이전 요청 취소",
+      "request_caching": "GET 요청에 대한 메모리 캐싱",
+      "logging": "API 요청 로깅"
+    },
+    "response": {
+      "standard_response": "응답 구조 표준화",
+      "cache_storage": "캐시 저장소에 응답 저장",
+      "error_handling": {
+        "401": {
+          "action": "토큰 갱신 시도 후 재시도",
+          "failure": "로그인 페이지 리디렉션"
+        },
+        "403": "권한 없음 메시지 표시",
+        "404": "리소스 없음 메시지 표시",
+        "423": {
+          "action": "락 충돌 정보 추출 및 표시",
+          "data_extraction": "locked_by, lock_type, expires_at",
+          "message_formatting": "사용자 친화적 메시지 생성"
+        },
+        "500": "서버 오류 메시지 표시",
+        "network": "네트워크 연결 실패 메시지"
+      }
+    }
+  },
+  "token_refresh_strategy": {
+    "refresh_queue": "토큰 갱신 중 발생한 요청 큐에 저장",
+    "single_refresh": "한 번에 하나의 갱신만 실행",
+    "queue_processing": "갱신 완료 후 대기 중 요청 모두 처리"
+  }
+}
+9.5 ErrorBoundary 계층화 전략
+에러 경계 컴포넌트 종류
+
+ErrorBoundary: 기본 에러 경계
+
+ErrorBoundaryWithName: 컴포넌트 이름 표시
+
+ErrorBoundaryWithFallback: 커스텀 폴백 UI 지원
+
+Fallback UI 예시
+
+SevereCrashFallback: 심각 오류용(페이지 새로고침/홈 이동)
+
+RecoverableFallback: 복구 가능 오류용(재시도 기능)
+
+LoadingErrorFallback: 로딩 중 오류용
+
+SimpleFallback: 최소한의 UI만 표시
+
+적용 범위
+
+앱 전체(App.js)
+
+라우트 단위(AppRoutes.js)
+
+중요 컴포넌트 단위
+
+10. 코드 분할 및 성능 최적화 전략
+10.1 지연 로딩 및 Suspense 전략
+lazyComponents.js를 이용한 페이지·모달 단위 코드 분할
+
+Suspense를 활용한 로딩 화면 처리
+
+json
+복사
+편집
+{
+  "lazy_loading_strategy": {
+    "page_components": {
+      "DashboardPage": "...",
+      "VisualizationPage": "...",
+      "LoginPage": "...",
+      "DownloadPage": "..."
+    },
+    "modal_components": {
+      "DashboardDetailModal": "...",
+      "CreateDashboardModal": "...",
+      "AssignDriverModal": "..."
+    }
+  },
+  "suspense_implementation": {
+    "global_fallback": "PageLoadingFallback",
+    "component_fallback": "...",
+    "error_handling": "ErrorBoundaryWithFallback와 Suspense 결합"
+  }
+}
+10.2 캐싱 및 최적화 전략
+캐싱 전략
+
+json
+복사
+편집
+{
+  "caching_strategy": {
+    "api_response_cache": {
+      "implementation": "requestCache in AxiosConfig.js",
+      "ttl": "5분",
+      "maxSize": "100개",
+      "invalidation": "패턴 기반 무효화"
+    },
+    "date_range_cache": {
+      "implementation": "localStorage in useDateRange.js",
+      "ttl": "1시간",
+      "stale_while_revalidate": "캐시된 데이터 표시 후 백그라운드 갱신"
+    },
+    "lock_status_cache": {
+      "implementation": "sessionStorage in useDashboardDetail.js",
+      "ttl": "10초"
+    }
+  },
+  "performance_optimizations": {
+    "memo_strategy": {
+      "component_memoization": "DashboardList, DashboardFilters 등",
+      "callback_memoization": "useCallback으로 이벤트 핸들러 최적화",
+      "value_memoization": "useMemo로 계산 비용 높은 값 캐싱"
+    },
+    "rendering_optimization": {
+      "conditional_rendering": "불필요한 렌더링 방지",
+      "virtual_scrolling": "대용량 목록 최적화"
+    }
+  }
+}
+11. 상태 변경 워크플로우 및 권한 제어
+11.1 상태 변경 규칙 및 흐름
+json
+복사
+편집
+{
+  "status_transition_rules": {
+    "general_user": {
+      "WAITING": ["IN_PROGRESS", "CANCEL"],
+      "IN_PROGRESS": ["COMPLETE", "ISSUE"],
+      "COMPLETE": [],
+      "ISSUE": ["IN_PROGRESS"],
+      "CANCEL": []
+    },
+    "admin_user": {
+      "WAITING": ["IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"],
+      "IN_PROGRESS": ["WAITING", "COMPLETE", "ISSUE", "CANCEL"],
+      "COMPLETE": ["WAITING", "IN_PROGRESS", "ISSUE", "CANCEL"],
+      "ISSUE": ["WAITING", "IN_PROGRESS", "COMPLETE", "CANCEL"],
+      "CANCEL": ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE"]
+    }
+  },
+  "status_side_effects": {
+    "WAITING_to_IN_PROGRESS": "depart_time 자동 설정",
+    "any_to_COMPLETE": "complete_time 자동 설정",
+    "any_to_ISSUE": "complete_time 자동 설정"
+  },
+  "status_validation": {
+    "validation_logic": "canChangeToStatus(현재 상태, 목표 상태, 권한)",
+    "status_button_control": "규칙에 따라 버튼 활성/비활성",
+    "confirmation_flow": "상태 변경 전 확인 모달 표시"
+  }
+}
+11.2 배차 로직 상세
+json
+복사
+편집
+{
+  "assignment_process": {
+    "general_user": {
+      "eligible_status": ["WAITING"],
+      "validation": "WAITING 상태만 배차 가능",
+      "error_handling": "대기 상태가 아닌 주문 포함 시 오류"
+    },
+    "admin_user": {
+      "eligible_status": ["WAITING", "IN_PROGRESS", "ISSUE"],
+      "bypassing_validation": "어떤 상태든 재배정 가능",
+      "forced_assignment": "이미 배차된 주문도 재배정 가능"
+    }
+  },
+  "bulk_assignment": {
+    "implementation": "다중 주문 동시 배차",
+    "validation": "선택된 모든 주문에 대한 권한 검증",
+    "partial_success": "성공/실패 ID 목록 각각 반환"
+  }
+}
+12. 자동화된 에러 로깅 및 추적 시스템
+12.1 로깅 계층 및 구조
+Logger.js에 구현된 로깅 시스템 예시:
+
+json
+복사
+편집
+{
+  "logging_levels": {
+    "debug": "개발 환경에서만 출력",
+    "info": "일반 정보성 로그",
+    "warn": "잠재적 문제 상황",
+    "error": "오류 발생 시 항상 출력"
+  },
+  "logger_namespaces": {
+    "format": "[네임스페이스] 레벨: 메시지",
+    "examples": [
+      "[DashboardController] INFO: 데이터 로드 시작",
+      "[AxiosConfig] ERROR: API 요청 실패"
+    ]
+  },
+  "logging_strategy": {
+    "performance_measurement": "logger.measure() 사용",
+    "conditional_logging": "개발/운영 환경 구분",
+    "error_context": "오류 발생 컨텍스트 포함"
+  }
+}
+12.2 메시지 시스템 세부 구조
+MessageService.js와 MessageKeys.js의 통합 메시지 관리:
+
+json
+복사
+편집
+{
+  "message_types": {
+    "success": {"style": "녹색", "duration": "2초"},
+    "error": {"style": "빨간색", "duration": "3초"},
+    "info": {"style": "파란색", "duration": "2초"},
+    "warning": {"style": "노란색", "duration": "3초"},
+    "loading": {"style": "로딩 스피너", "duration": "대기"}
+  },
+  "message_identification": {
+    "key_system": "중복 메시지 방지 및 업데이트",
+    "key_categories": {
+      "AUTH": ["LOGIN", "LOGOUT", "SESSION", "PERMISSION"],
+      "DASHBOARD": ["LOAD", "CREATE", "UPDATE", "DELETE", "PESSIMISTIC_LOCK"],
+      "VISUALIZATION": ["LOAD", "DATE_RANGE"],
+      "ERROR": ["NETWORK", "SERVER", "UNKNOWN", "TIMEOUT"],
+      "VALIDATION": ["FIELD_ERROR"]
+    }
+  }
+}
+13. 사용자 시나리오별 권한 기반 UI 적응
+13.1 권한별 UI 조건부 렌더링
+json
+복사
+편집
+{
+  "conditional_ui_elements": {
+    "admin_only": [
+      {
+        "component": "삭제 버튼",
+        "visibility_condition": "isAdmin === true"
+      },
+      {
+        "component": "다운로드 메뉴",
+        "visibility_condition": "isAdmin === true"
+      },
+      {
+        "component": "상태 변경(모든 상태)",
+        "visibility_condition": "isAdmin === true"
+      }
+    ],
+    "authenticated_only": [
+      {
+        "component": "대시보드, 시각화 페이지",
+        "visibility_condition": "isAuthenticated === true"
+      }
+    ]
+  },
+  "route_protection_strategy": {
+    "admin_routes": {
+      "path": "/download",
+      "protection": "requireAdmin=true"
+    },
+    "authenticated_routes": ["/dashboard", "/visualization"],
+    "public_routes": ["/login"]
+  },
+  "role_based_behavior": {
+    "status_change_permissions": "isAdmin 여부에 따라 가능 범위 달라짐",
+    "edit_permissions": "일반 사용자도 기본 필드 편집 가능, 상태 변경은 규칙 적용"
+  }
+}
+13.2 인증 상태에 따른 리디렉션 로직
+json
+복사
+편집
+{
+  "redirection_rules": {
+    "unauthenticated_to_protected": {
+      "condition": "!isAuthenticated && !publicPaths.includes(currentPath)",
+      "action": "returnUrl 저장 후 /login 이동"
+    },
+    "authenticated_to_login": {
+      "condition": "isAuthenticated && path === '/login'",
+      "action": "/dashboard로 리디렉션"
+    },
+    "unauthorized_to_admin": {
+      "condition": "adminPaths.includes(currentPath) && !isAdmin",
+      "action": "/dashboard로 리디렉션"
+    },
+    "after_login": {
+      "logic": "returnUrl 또는 기본 페이지(/dashboard)로 이동"
+    }
+  }
+}

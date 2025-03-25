@@ -25,7 +25,6 @@ from app.repositories.dashboard_repository import DashboardRepository
 from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from app.repositories.dashboard_lock_repository import DashboardLockRepository
 from app.utils.datetime_helper import get_date_range
-from app.utils.exceptions import PessimisticLockException
 from app.utils.api_decorators import error_handler
 from app.utils.lock_manager import LockManager
 
@@ -44,19 +43,18 @@ def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     )
 
 
-@router.get("/list", response_model=DashboardListResponse)
+@router.post("/list", response_model=DashboardListResponse)
 @error_handler("대시보드 목록 조회")
 async def get_dashboard_list(
-    date: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    date_range: Dict[str, str] = Body(...),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 목록 조회 API - ETA 기준 하루 단위 또는 날짜 범위
-    - 모든 사용자에게 동일한 데이터 제공, 권한 정보 포함
-    """
+    """대시보드 목록 조회 API - ETA 기준 하루 단위 또는 날짜 범위"""
     # 날짜 범위로 조회하는 경우
+    start_date = date_range.get("start_date")
+    end_date = date_range.get("end_date")
+    
     if start_date and end_date:
         log_info(f"대시보드 목록 조회 요청 (범위): {start_date} ~ {end_date}")
         try:
@@ -64,35 +62,7 @@ async def get_dashboard_list(
             _, end_date_obj = get_date_range(end_date)
         except ValueError:
             log_error(None, f"날짜 형식 오류: {start_date}, {end_date}")
-            return DashboardListResponse(
-                success=False,
-                message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                data={
-                    "date_range": {
-                        "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                        "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                    },
-                    "items": [],
-                },
-            )
-    # 단일 날짜로 조회하는 경우 (기존 호환성 유지)
-    elif date:
-        log_info(f"대시보드 목록 조회 요청 (단일): {date}")
-        try:
-            start_date_obj, end_date_obj = get_date_range(date)
-        except ValueError:
-            log_error(None, f"날짜 형식 오류: {date}")
-            return DashboardListResponse(
-                success=False,
-                message="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-                data={
-                    "date_range": {
-                        "oldest_date": datetime.now().strftime("%Y-%m-%d"),
-                        "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                    },
-                    "items": [],
-                },
-            )
+            raise Exception("날짜 형식이 올바르지 않습니다")
     else:
         # 날짜 정보가 없는 경우 현재 날짜 사용
         log_info("날짜 정보 없음, 현재 날짜 사용")
@@ -119,8 +89,8 @@ async def get_dashboard_list(
                 "latest_date": latest_date.strftime("%Y-%m-%d"),
             },
             "items": items,
-            "user_role": current_user.role,  # 사용자 권한 정보 추가
-            "is_admin": is_admin,  # 관리자 여부 추가
+            "user_role": current_user.role,
+            "is_admin": is_admin,
         },
     )
 
@@ -147,7 +117,6 @@ async def create_dashboard(
     )
 
 
-# 대시보드 상세 조회 API
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
 @error_handler("대시보드 상세 정보 조회")
 async def get_dashboard_detail(
@@ -181,7 +150,6 @@ async def get_dashboard_detail(
     )
 
 
-# 필드 업데이트 API
 @router.patch("/{dashboard_id}/fields", response_model=DashboardDetailResponse)
 @error_handler("대시보드 필드 업데이트")
 async def update_fields(
@@ -201,7 +169,6 @@ async def update_fields(
     )
 
 
-# 상태 업데이트 API
 @router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
 @error_handler("대시보드 상태 업데이트")
 async def update_status(
@@ -249,7 +216,7 @@ async def assign_driver(
 @router.delete("", response_model=BaseResponse)
 @error_handler("대시보드 삭제")
 async def delete_dashboards(
-    dashboard_ids: List[int],
+    dashboard_ids: List[int] = Body(..., embed=True),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(check_admin_access),
 ):
@@ -267,12 +234,7 @@ async def delete_dashboards(
 @router.get("/search", response_model=DashboardListResponse)
 @error_handler("주문번호로 대시보드 검색")
 async def search_dashboards_by_order_no(
-    order_no: str = Query(
-        ...,
-        description="검색할 주문번호",
-        min_length=1,  # 최소 한 글자 이상
-        regex=r"^[\d\-]+$",  # 숫자와 하이픈만 허용
-    ),
+    order_no: str = Query(..., description="검색할 주문번호"),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: TokenData = Depends(get_current_user),
 ):

@@ -4,7 +4,6 @@ from datetime import datetime
 
 from app.schemas.dashboard_schema import RemarkCreate, RemarkUpdate, RemarkResponse
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException, ValidationException, NotFoundException, ForbiddenException
 from app.utils.transaction import transactional
 
 class DashboardRemarkService:
@@ -16,13 +15,13 @@ class DashboardRemarkService:
         lock_repository,
         dashboard_repository,
         lock_manager,
-        db=None,  # 트랜잭션 데코레이터에서 사용
+        db=None,
     ):
         self.remark_repository = remark_repository
         self.lock_repository = lock_repository
         self.dashboard_repository = dashboard_repository
         self.lock_manager = lock_manager
-        self.db = getattr(remark_repository, 'db', None)  # 리포지토리에서 db 세션 추출
+        self.db = getattr(remark_repository, 'db', None)
 
     @transactional
     def create_remark(
@@ -34,7 +33,7 @@ class DashboardRemarkService:
             # 2. 대시보드 존재 여부 확인
             dashboard = self.dashboard_repository.get_dashboard_detail(dashboard_id)
             if not dashboard:
-                raise ValueError(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
+                raise Exception("대시보드를 찾을 수 없습니다")
 
             # 3. 메모 생성
             content = remark_data.content
@@ -42,7 +41,7 @@ class DashboardRemarkService:
                 dashboard_id, content, user_id
             )
             if not remark:
-                raise ValueError("메모 생성에 실패했습니다")
+                raise Exception("메모 생성에 실패했습니다")
 
             # 4. 응답 구성
             return self._build_remark_response(remark)
@@ -55,25 +54,21 @@ class DashboardRemarkService:
         # 1. 메모 조회
         remark = self.remark_repository.get_remark_by_id(remark_id)
         if not remark:
-            raise NotFoundException(f"메모를 찾을 수 없습니다: ID={remark_id}")
+            raise Exception("메모를 찾을 수 없습니다")
 
         # 작성자 확인
         if remark.created_by != user_id:
-            raise ForbiddenException("자신이 작성한 메모만 수정할 수 있습니다")
+            raise Exception("메모 수정 권한이 없습니다")
 
         # 2. 락 획득
         with self.lock_manager.acquire_lock(remark.dashboard_id, user_id, "REMARK"):
-            # 내용 검증
-            if not remark_update.content or not remark_update.content.strip():
-                raise ValidationException("메모 내용은 비어있을 수 없습니다")
-                
             # 3. 메모 업데이트
             content = remark_update.content
             updated_remark = self.remark_repository.update_remark(
                 remark_id, content, user_id
             )
             if not updated_remark:
-                raise ValidationException("메모 업데이트에 실패했습니다")
+                raise Exception("메모 업데이트에 실패했습니다")
 
             # 4. 응답 구성
             return self._build_remark_response(updated_remark)
@@ -86,18 +81,18 @@ class DashboardRemarkService:
         # 1. 메모 조회
         remark = self.remark_repository.get_remark_by_id(remark_id)
         if not remark:
-            raise NotFoundException(f"메모를 찾을 수 없습니다: ID={remark_id}")
+            raise Exception("메모를 찾을 수 없습니다")
 
         # 2. 권한 확인
         if not is_admin and remark.created_by != user_id:
-            raise ForbiddenException("메모 삭제 권한이 없습니다")
+            raise Exception("메모 삭제 권한이 없습니다")
 
         # 3. 락 획득
         with self.lock_manager.acquire_lock(remark.dashboard_id, user_id, "REMARK"):
             # 4. 메모 삭제
             result = self.remark_repository.delete_remark(remark_id)
             if not result:
-                raise ValidationException("메모 삭제에 실패했습니다")
+                raise Exception("메모 삭제에 실패했습니다")
 
             return True
 
@@ -119,6 +114,6 @@ class DashboardRemarkService:
                     remark.created_at.isoformat() if remark.created_at else None
                 ),
                 "created_by": remark.created_by,
-                "formatted_content": remark.formatted_content or "",
+                "formatted_content": remark.content or "",  
             },
         }

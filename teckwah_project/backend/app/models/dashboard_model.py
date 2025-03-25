@@ -49,7 +49,6 @@ class Dashboard(Base):
     contact = Column(String(20), nullable=True)
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    # version 필드 제거함
 
     # Relationships
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)

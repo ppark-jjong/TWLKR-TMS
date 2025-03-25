@@ -154,7 +154,6 @@ class DashboardService:
             # 기타 객체는 dict로 변환 시도
             return dict(obj)
 
- # 비즈니스 로직이 추가된 메서드
     @transactional
     def update_dashboard_fields(
         self, dashboard_id: int, fields_update: FieldsUpdate, user_id: str
@@ -165,9 +164,9 @@ class DashboardService:
             # 2. 필드 업데이트 데이터 준비
             update_data = fields_update.model_dump(exclude_unset=True)
             if not update_data:
-                raise ValidationException("업데이트할 필드가 없습니다")
+                raise Exception("업데이트할 데이터가 없습니다")
 
-            # 3. 우편번호 변경 시 관련 정보도 함께 업데이트 (비즈니스 로직)
+            # 3. 우편번호 변경 시 관련 정보도 함께 업데이트
             if "postal_code" in update_data:
                 postal_code = update_data["postal_code"]
                 postal_info = (
@@ -203,7 +202,7 @@ class DashboardService:
                 dashboard_id, update_data
             )
             if not dashboard:
-                raise NotFoundException(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
+                raise Exception("대시보드를 찾을 수 없습니다")
 
             # 5. 상세 정보 반환 (메모 포함)
             remarks = self.remark_repository.get_remarks_by_dashboard_id(dashboard_id)
@@ -223,12 +222,9 @@ class DashboardService:
             # 2. 대시보드 조회
             dashboard = self.dashboard_repository.get_dashboard_detail(dashboard_id)
             if not dashboard:
-                raise ValueError(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
+                raise Exception("대시보드를 찾을 수 없습니다")
 
-            # 3. 상태 변경 검증 (관리자는 제한 없음)
-            if not is_admin:
-                # 상태 전이 규칙 검증 로직 (필요시 추가)
-                pass
+            # 3. 상태 변경 - 상세 검증 로직 제거
 
             # 4. 상태별 자동 시간 업데이트
             update_data = {"status": new_status}
@@ -238,8 +234,8 @@ class DashboardService:
             if new_status == "IN_PROGRESS" and not dashboard.depart_time:
                 update_data["depart_time"] = now
 
-            # 완료 시간 (COMPLETE로 변경 시)
-            if new_status == "COMPLETE" and not dashboard.complete_time:
+            # 완료 시간 (COMPLETE나 ISSUE로 변경 시)
+            if (new_status == "COMPLETE" or new_status == "ISSUE") and not dashboard.complete_time:
                 update_data["complete_time"] = now
 
             # 5. 상태 업데이트
@@ -258,7 +254,7 @@ class DashboardService:
         """배차 처리 (비관적 락 사용)"""
         dashboard_ids = assignment.dashboard_ids
         if not dashboard_ids:
-            raise ValidationException("배차할 대시보드 ID가 없습니다")
+            raise Exception("배차할 대시보드 ID가 없습니다")
 
         driver_name = assignment.driver_name
         driver_contact = assignment.driver_contact
@@ -269,15 +265,8 @@ class DashboardService:
         )
 
         if not acquired_ids or len(acquired_ids) != len(dashboard_ids):
-            # 락 획득 실패 (일부만 성공해도 실패로 간주)
-            for id in acquired_ids:
-                self.lock_repository.release_lock(id, user_id)
-            raise PessimisticLockException(
-                detail="일부 대시보드에 대한 락 획득에 실패했습니다",
-                locked_by="Unknown",
-                lock_type="ASSIGN",
-                dashboard_id=-1,
-            )
+            # 락 획득 실패 - 단순화된 예외
+            raise Exception("배차 처리를 위한 락 획득에 실패했습니다")
 
         try:
             # 2. 배차 정보 업데이트

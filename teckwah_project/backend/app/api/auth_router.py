@@ -30,10 +30,7 @@ def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
 async def login(
     login_data: UserLogin, auth_service: AuthService = Depends(get_auth_service)
 ):
-    """로그인 API
-    - 인증 성공 시 액세스 토큰(60분)과 리프레시 토큰(7일) 발급
-    - 리프레시 토큰은 DB에 저장
-    """
+    """로그인 API"""
     log_info(f"로그인 요청 데이터: {login_data.dict()}")
     login_response = auth_service.authenticate_user(login_data)
     log_info(f"로그인 성공 응답: user_id={login_data.user_id}")
@@ -47,28 +44,40 @@ async def check_session(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="접근 권한이 없습니다. 다시 로그인해주세요.",
+            detail={"success": False, "message": "인증이 필요합니다"}
         )
 
     token = authorization.split(" ")[1]
 
-    # 토큰 검증 로직
-    payload = jwt.decode(
-        token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-    )
+    try:
+        # 토큰 검증 로직
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
 
-    # 유효성 검사
-    if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp", 0)):
-        raise HTTPException(status_code=401, detail="토큰이 만료되었습니다")
+        # 유효성 검사
+        if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp", 0)):
+            raise HTTPException(
+                status_code=401, 
+                detail={"success": False, "message": "인증이 만료되었습니다"}
+            )
 
-    return {
-        "success": True,
-        "user": {
-            "user_id": payload.get("sub"),
-            "user_department": payload.get("department"),
-            "user_role": payload.get("role"),
-        },
-    }
+        return {
+            "success": True,
+            "message": "유효한 세션입니다",
+            "data": {
+                "user": {
+                    "user_id": payload.get("sub"),
+                    "user_department": payload.get("department"),
+                    "user_role": payload.get("role"),
+                }
+            }
+        }
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail={"success": False, "message": "인증에 실패했습니다"}
+        )
 
 
 @router.post("/refresh")
@@ -81,16 +90,17 @@ async def refresh_token(
     if not refresh_data.refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="리프레시 토큰이 필요합니다.",
+            detail={"success": False, "message": "인증이 필요합니다"}
         )
 
     token_data = auth_service.refresh_token(refresh_data.refresh_token)
 
-    # 토큰을 응답 바디에 포함
     return {
         "success": True,
         "message": "토큰이 갱신되었습니다",
-        "token": token_data,
+        "data": {
+            "token": token_data
+        },
     }
 
 

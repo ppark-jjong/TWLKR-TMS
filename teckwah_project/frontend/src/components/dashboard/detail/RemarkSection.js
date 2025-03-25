@@ -117,3 +117,4 @@ const RemarkSection = ({
 };
 
 export default memo(RemarkSection);
+RemarkSection;

@@ -70,7 +70,7 @@ class DashboardRemarkRepository:
                 content=None,  # 빈 내용 (NULL)
                 created_at=now,
                 created_by=user_id,
-                formatted_content=f"{user_id}: ",  # 기본 포맷 제공
+                formatted_content="",  # 접두사 제거
             )
 
             self.db.add(remark)
@@ -109,11 +109,8 @@ class DashboardRemarkRepository:
                 return None
 
             # 2. 메모 내용 및 포맷팅된 내용 생성
-            formatted_content = (
-                content
-                if content.startswith(f"{user_id}:")
-                else f"{user_id}: {content}"
-            )
+            # 수정: user_id 접두사 제거
+            formatted_content = content
 
             # 3. 메모 객체 생성
             now = get_kst_now()
@@ -139,8 +136,6 @@ class DashboardRemarkRepository:
             self.db.rollback()
             raise
 
-    
-
     def update_remark(
     self, remark_id: int, content: str, user_id: str
 ) -> Optional[DashboardRemark]:
@@ -165,12 +160,9 @@ class DashboardRemarkRepository:
                 return None
 
             # 2. 메모 내용 및 포맷팅된 내용 업데이트
+            # 수정: user_id 접두사 제거
             remark.content = content
-            remark.formatted_content = (
-                content
-                if content.startswith(f"{user_id}:")
-                else f"{user_id}: {content}"
-            )
+            remark.formatted_content = content
 
             # 3. 변경 사항 저장
             self.db.flush()

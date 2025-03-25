@@ -1,5 +1,4 @@
 # backend/app/api/dashboard_lock_router.py
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -10,7 +9,6 @@ from app.config.database import get_db
 from app.api.deps import get_current_user
 from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
 from app.utils.api_decorators import error_handler
 
 router = APIRouter()
@@ -47,11 +45,14 @@ async def acquire_dashboard_lock(
                 "lock_type": lock_data.lock_type,
             },
         )
-    except PessimisticLockException as e:
-        # 이미 락이 존재하는 경우
+    except Exception as e:
+        log_error(e, "락 획득 실패")
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail={"message": str(e.detail), "locked_by": e.locked_by},
+            detail={
+                "success": False,
+                "message": "현재 다른 사용자가 작업 중입니다"
+            }
         )
 
 
@@ -110,42 +111,13 @@ async def check_dashboard_lock(
 @error_handler("대시보드 락 타임아웃 연장")
 async def extend_dashboard_lock(
     dashboard_id: int,
-    extension_seconds: Optional[int] = 300,  # 기본 5분 연장
+    extension_seconds: Optional[int] = 300,
     repository: DashboardLockRepository = Depends(get_lock_repository),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 락 타임아웃 연장 API"""
-    log_info(
-        f"락 연장 요청: dashboard_id={dashboard_id}, user_id={current_user.user_id}, seconds={extension_seconds}"
-    )
-
-    # 현재 락 정보 조회
-    lock_info = repository.get_lock_info(dashboard_id)
-
-    if not lock_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="락이 없습니다"
-        )
-
-    # 자신의 락만 연장 가능
-    if lock_info.locked_by != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="다른 사용자의 락은 연장할 수 없습니다",
-        )
-
-    # 락 연장
-    lock_info.extend_expiry(extension_seconds)
-    repository.db.commit()
-
-    return LockResponse(
-        success=True,
-        message="락 타임아웃이 연장되었습니다",
-        data={
-            "dashboard_id": dashboard_id,
-            "is_locked": True,
-            "locked_by": lock_info.locked_by,
-            "lock_type": lock_info.lock_type,
-            "expires_at": lock_info.expires_at.isoformat(),
-        },
+    """대시보드 락 타임아웃 연장 API - 비활성화됨"""
+    log_info(f"락 연장 API는 더 이상 사용되지 않습니다: dashboard_id={dashboard_id}")
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={"success": False, "message": "해당 API는 더 이상 사용되지 않습니다"}
     )

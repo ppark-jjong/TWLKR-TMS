@@ -13,7 +13,6 @@ from app.config.database import get_db
 from app.api.deps import get_current_user
 from app.schemas.auth_schema import TokenData
 from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
 from app.utils.api_decorators import error_handler
 from app.utils.lock_manager import LockManager
 
@@ -78,4 +77,4 @@ async def delete_remark(
         success=True,
         message="메모가 삭제되었습니다",
         data={"remark_id": remark_id, "deleted": result}
-    )   
+    )

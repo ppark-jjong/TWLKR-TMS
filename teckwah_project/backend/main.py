@@ -1,5 +1,6 @@
-# backend/main.py 수정 - 다운로드 라우터 등록 부분
+# backend/main.py (기존 코드에 추가)
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,7 @@ from app.api import (
     visualization_router,
     dashboard_remark_router,
     dashboard_lock_router,
-    download_router,  # 다운로드 라우터 추가
+    download_router,
 )
 from app.config.settings import get_settings
 from app.utils.logger import log_info, log_error
@@ -41,12 +42,48 @@ app = FastAPI(
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 출처 허용 (개발용)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # 모든 메서드 허용
-    allow_headers=["*"],  # 모든 헤더 허용
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+
+# 글로벌 예외 핸들러 추가
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP 예외에 대한 표준 응답 형식 적용"""
+    error_detail = exc.detail
+    
+    # error_detail이 딕셔너리가 아닌 경우 변환
+    if not isinstance(error_detail, dict):
+        error_detail = {"success": False, "message": str(error_detail)}
+    
+    # success 필드가 없으면 추가
+    if "success" not in error_detail:
+        error_detail["success"] = False
+    
+    # message 필드가 없으면 기본 메시지 추가
+    if "message" not in error_detail:
+        error_detail["message"] = "요청을 처리할 수 없습니다"
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_detail
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """모든 처리되지 않은 예외에 대한 표준 응답 형식 적용"""
+    log_error(exc, f"처리되지 않은 예외: {str(exc)}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "message": "서버 내부 오류가 발생했습니다"
+        }
+    )
 
 # 요청 처리 시간 로깅 미들웨어
 @app.middleware("http")
@@ -111,7 +148,7 @@ app.include_router(
 )
 app.include_router(dashboard_remark_router.router, prefix="/dashboard", tags=["메모"])
 app.include_router(dashboard_lock_router.router, prefix="/dashboard", tags=["락 관리"])
-# 다운로드 라우터 등록 (추가)
+# 다운로드 라우터 등록
 app.include_router(download_router.router, prefix="/download", tags=["다운로드"])
 
 

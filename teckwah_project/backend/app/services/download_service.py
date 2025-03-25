@@ -1,6 +1,6 @@
 # backend/app/services/download_service.py
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Tuple
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -76,8 +76,8 @@ class DownloadService:
             ]
             
             # 3. 헤더 스타일 설정
-            header_fill = PatternFill(start_color="003366", end_color="003366", fill_type="solid")
-            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+            header_font = Font(bold=True)
             header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             border = Border(
                 left=Side(style="thin"), 
@@ -100,7 +100,7 @@ class DownloadService:
                 remarks_text = ""
                 if hasattr(dashboard, "remarks") and dashboard.remarks:
                     remarks = sorted(dashboard.remarks, key=lambda r: r.created_at, reverse=True)
-                    remarks_text = " | ".join([r.formatted_content for r in remarks if r.formatted_content])
+                    remarks_text = " | ".join([r.content for r in remarks if r.content])
                 
                 # 유형 매핑
                 type_map = {"DELIVERY": "배송", "RETURN": "회수"}

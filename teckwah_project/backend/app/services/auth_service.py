@@ -15,22 +15,19 @@ class AuthService:
     def __init__(self, auth_repository: AuthRepositoryInterface):
         self.repository = auth_repository
 
+
     def authenticate_user(self, login_data: UserLogin) -> LoginResponse:
         """사용자 인증 및 토큰 발급"""
         # 사용자 조회
         user = self.repository.get_user_by_id(login_data.user_id)
         if not user:
-            log_error(None, "로그인 실패: 사용자 없음", {"user_id": login_data.user_id})
-            raise UnauthorizedException("아이디 또는 비밀번호가 잘못되었습니다")
+            log_error(None, "로그인 실패: 사용자 없음")
+            raise Exception("로그인에 실패했습니다")
 
         # 비밀번호 검증 (user_password 필드 사용)
         if not verify_password(login_data.password, user.user_password):
-            log_error(
-                None,
-                "로그인 실패: 비밀번호 불일치",
-                {"user_id": login_data.user_id},
-            )
-            raise UnauthorizedException("아이디 또는 비밀번호가 잘못되었습니다")
+            log_error(None, "로그인 실패: 비밀번호 불일치")
+            raise Exception("로그인에 실패했습니다")
 
         # 토큰 생성
         access_token = create_token(
@@ -68,18 +65,23 @@ class AuthService:
             ),
         )
 
+    def logout(self, refresh_token: str) -> bool:
+        """로그아웃 처리 - 리프레시 토큰 삭제"""
+        result = self.repository.delete_refresh_token(refresh_token)
+        return result
+    
     @transactional
     def refresh_token(self, refresh_token: str) -> Token:
         """리프레시 토큰을 사용하여 액세스 토큰 갱신"""
         # 리프레시 토큰 유효성 검증
         token_entry = self.repository.get_valid_refresh_token(refresh_token)
         if not token_entry:
-            raise UnauthorizedException("유효하지 않은 리프레시 토큰입니다")
+            raise Exception("인증에 실패했습니다")
 
         # 사용자 정보 조회
         user = self.repository.get_user_by_id(token_entry.user_id)
         if not user:
-            raise NotFoundException("존재하지 않는 사용자입니다")
+            raise Exception("사용자 정보를 찾을 수 없습니다")
 
         # 새 액세스 토큰 생성
         access_token = create_token(
@@ -89,7 +91,7 @@ class AuthService:
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         )
 
-        # 새 리프레시 토큰 생성 (선택적으로 갱신)
+        # 새 리프레시 토큰 생성
         new_refresh_token = create_token(
             user_id=user.user_id,
             department=user.user_department,
@@ -109,8 +111,3 @@ class AuthService:
         log_info(f"토큰 갱신 성공: {user.user_id}")
 
         return Token(access_token=access_token, refresh_token=new_refresh_token)
-
-    def logout(self, refresh_token: str) -> bool:
-        """로그아웃 처리 - 리프레시 토큰 삭제"""
-        result = self.repository.delete_refresh_token(refresh_token)
-        return result

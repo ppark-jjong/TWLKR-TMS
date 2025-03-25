@@ -110,6 +110,50 @@ class ApiService {
     });
   }
 
+  // 배차 처리 API 수정 - dashboard_ids 배열로 변경
+  async assignDriver(data) {
+    return this.request('post', '/dashboard/assign', {
+      data,
+    });
+  }
+
+  // 메모 관련 API 수정 - 단일 remark만 지원
+  async updateRemark(dashboardId, remarkId, content) {
+    if (!dashboardId || !remarkId)
+      throw new Error('대시보드 ID와 메모 ID가 필요합니다');
+    return this.request(
+      'patch',
+      `/dashboard/${dashboardId}/remarks/${remarkId}`,
+      {
+        data: { content },
+      }
+    );
+  }
+
+  // 시각화 API 수정 - 언더스코어 사용
+  async getDeliveryStatus(startDate, endDate) {
+    return this.request('get', '/visualization/delivery_status', {
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    });
+  }
+
+  async getHourlyOrders(startDate, endDate) {
+    return this.request('get', '/visualization/hourly_orders', {
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    });
+  }
+
+  // session 체크 API 추가
+  async checkSession() {
+    return this.request('get', '/auth/check-session');
+  }
+
   // 락 관련 API
   async acquireLock(dashboardId, lockType) {
     if (!dashboardId || !lockType)

@@ -1,6 +1,5 @@
 # backend/app/api/visualization_router.py
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 from pydantic import ValidationError
@@ -28,15 +27,17 @@ def get_visualization_service(db: Session = Depends(get_db)) -> VisualizationSer
     return VisualizationService(repository)
 
 
-@router.get("/delivery_status", response_model=DeliveryStatusResponse)
+@router.post("/delivery_status", response_model=DeliveryStatusResponse)
 @error_handler("배송 현황 데이터 조회")
 async def get_delivery_status(
-    start_date: str,
-    end_date: str,
+    date_range: Dict[str, str] = Body(...),
     service: VisualizationService = Depends(get_visualization_service),
     current_user: TokenData = Depends(get_current_user),
 ):
     """배송 현황 데이터 조회 API - create_time 기준으로 변경"""
+    start_date = date_range.get("start_date")
+    end_date = date_range.get("end_date")
+    
     log_info(f"배송 현황 데이터 조회 요청: {start_date} ~ {end_date}")
 
     try:
@@ -45,7 +46,7 @@ async def get_delivery_status(
         _, end_dt = get_date_range(end_date)
     except ValueError as e:
         log_error(e, f"날짜 형식 오류: {start_date}, {end_date}")
-        raise ValueError(f"날짜 형식이 올바르지 않습니다: {str(e)}")
+        raise Exception("날짜 형식이 올바르지 않습니다")
 
     # create_time 기준으로 데이터 조회 변경
     data = service.get_delivery_status(start_dt, end_dt)
@@ -68,15 +69,17 @@ async def get_delivery_status(
     )
 
 
-@router.get("/hourly_orders", response_model=HourlyOrdersResponse)
+@router.post("/hourly_orders", response_model=HourlyOrdersResponse)
 @error_handler("시간대별 접수량 데이터 조회")
 async def get_hourly_orders(
-    start_date: str,
-    end_date: str,
+    date_range: Dict[str, str] = Body(...),
     service: VisualizationService = Depends(get_visualization_service),
     current_user: TokenData = Depends(get_current_user),
 ):
     """시간대별 접수량 데이터 조회 API - create_time 기준"""
+    start_date = date_range.get("start_date")
+    end_date = date_range.get("end_date")
+    
     log_info(f"시간대별 접수량 데이터 조회 요청: {start_date} ~ {end_date}")
 
     try:
@@ -85,7 +88,7 @@ async def get_hourly_orders(
         _, end_dt = get_date_range(end_date)
     except ValueError as e:
         log_error(e, f"날짜 형식 오류: {start_date}, {end_date}")
-        raise ValueError(f"날짜 형식이 올바르지 않습니다: {str(e)}")
+        raise Exception("날짜 형식이 올바르지 않습니다")
 
     # create_time 기준으로 데이터 조회
     data = service.get_hourly_orders(start_dt, end_dt)
@@ -100,7 +103,6 @@ async def get_hourly_orders(
         else "데이터를 조회했습니다"
     )
 
-    # 명시적으로 HourlyOrdersResponse 생성 시 필요한 필드 확인
     return HourlyOrdersResponse(
         success=True,
         message=message_text,
@@ -118,10 +120,7 @@ async def get_date_range_api(
     service: VisualizationService = Depends(get_visualization_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """
-    조회 가능한 날짜 범위 조회 API
-    - create_time 컬럼의 최소/최대 값을 기준으로 조회 가능 기간 제공
-    """
+    """조회 가능한 날짜 범위 조회 API"""
     log_info("조회 가능 날짜 범위 조회 요청")
 
     oldest_date, latest_date = service.get_date_range()

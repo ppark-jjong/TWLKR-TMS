@@ -32,7 +32,6 @@ def get_lock_manager(repos: Dict[str, Any] = Depends(get_repositories)) -> LockM
     """LockManager 의존성 주입"""
     return LockManager(repos["lock"])
 
-
 async def get_current_user(
     authorization: str = Header(None, alias="Authorization"),
     request: Request = None,
@@ -45,7 +44,7 @@ async def get_current_user(
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="인증 토큰이 필요합니다",
+            detail={"success": False, "message": "인증이 필요합니다"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -60,7 +59,8 @@ async def get_current_user(
         exp = payload.get("exp")
         if not exp or datetime.utcnow().timestamp() > exp:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="토큰이 만료되었습니다"
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail={"success": False, "message": "인증이 만료되었습니다"}
             )
 
         return TokenData(
@@ -71,10 +71,9 @@ async def get_current_user(
 
     except JWTError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="유효하지 않은 토큰입니다"
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail={"success": False, "message": "인증에 실패했습니다"}
         )
-
-
 async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
     """관리자 권한 체크"""
     if current_user.role != "ADMIN":
