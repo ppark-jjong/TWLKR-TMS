@@ -1,0 +1,33 @@
+# teckwah_project/deploy/requirements.txt
+# 백엔드 의존성 (FastAPI)
+fastapi==0.109.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+sqlalchemy==2.0.25
+pymysql==1.1.0
+mysqlclient==2.2.1
+mysql-connector-python==8.0.33
+python-jose==3.3.0
+passlib==1.7.4
+python-multipart==0.0.6
+bcrypt==3.2.0
+python-dateutil==2.8.2
+python-dotenv==1.0.0
+PyJWT==2.8.0
+cryptography==41.0.7
+uvicorn==0.27.0
+pandas==2.2.0
+openpyxl==3.1.2
+loguru==0.7.2
+
+# 프론트엔드 의존성 (Dash)
+dash==2.14.1
+dash-bootstrap-components==1.5.0
+dash-core-components==2.0.0
+dash-html-components==2.0.0
+dash-table==5.0.0
+plotly==5.18.0
+requests==2.31.0
+
+# 유틸리티 및 감시
+supervisor==4.2.5

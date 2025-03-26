@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - '8000:8000' # FastAPI
+      - '3000:3000' # Dash
+    env_file:
+      - .env.local
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
