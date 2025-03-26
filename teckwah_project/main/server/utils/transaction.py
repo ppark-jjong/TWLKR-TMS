@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Generator, Callable, TypeVar, Any, Optional
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.utils.logger import log_info, log_error
+from main.server.utils.logger import log_info, log_error
 
 T = TypeVar("T")
 

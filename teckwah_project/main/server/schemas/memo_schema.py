@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-from .common_schema import BaseResponse
+from main.server.schemas.common_schema import BaseResponse
 
 
 class MemoCreate(BaseModel):

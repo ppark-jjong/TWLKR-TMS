@@ -1,11 +1,11 @@
 # teckwah_project/main/dash/layouts/main_layout.py
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from layouts.login_layout import create_login_layout
-from layouts.dashboard_layout import create_dashboard_layout
-from layouts.visualization_layout import create_visualization_layout
-from layouts.download_layout import create_download_layout
-from components.navbar import create_navbar
+from main.dash.layouts.login_layout import create_login_layout
+from main.dash.layouts.dashboard_layout import create_dashboard_layout
+from main.dash.layouts.visualization_layout import create_visualization_layout
+from main.dash.layouts.download_layout import create_download_layout
+from main.dash.components.navbar import create_navbar
 
 def create_layout(app):
     """전체 레이아웃 생성"""

@@ -1,12 +1,12 @@
 # teckwah_project/main/server/services/auth_service.py
 from datetime import datetime, timedelta
-from app.schemas.auth_schema import UserLogin, LoginResponse, Token, UserResponse
-from app.repositories.auth_repository import AuthRepository
-from app.utils.auth import create_token, verify_password
-from app.utils.logger import log_info, log_error
-from app.config.settings import get_settings
-from app.utils.transaction import transactional
-from app.utils.exceptions import UnauthorizedException, NotFoundException
+from main.server.schemas.auth_schema import UserLogin, LoginResponse, Token, UserResponse
+from main.server.repositories.auth_repository import AuthRepository
+from main.server.utils.auth import create_token, verify_password
+from main.server.utils.logger import log_info, log_error
+from main.server.config.settings import get_settings
+from main.server.utils.transaction import transactional
+from main.server.utils.exceptions import UnauthorizedException, NotFoundException
 
 settings = get_settings()
 

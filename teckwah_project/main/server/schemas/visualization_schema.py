@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 from enum import Enum
-from .common_schema import BaseResponse, DateRangeInfo
+from main.server.schemas.common_schema import BaseResponse, DateRangeInfo
 
 
 class ChartType(str, Enum):

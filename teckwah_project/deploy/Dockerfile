@@ -17,22 +17,27 @@ RUN apt-get update && \
 COPY deploy/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 전체 main 디렉토리를 복사 (개별 파일 복사 대신)
+COPY main/ /app/main/
+
 # supervisord 설정 복사
 COPY main/supervisord.conf /etc/supervisor/conf.d/app.conf
 
-# 애플리케이션 코드 복사
-COPY main/server/ /app/main/server/
-COPY main/dash/ /app/main/dash/
+# 환경 변수 설정
 COPY deploy/.env.local /app/.env
 
-# 정적 파일 및 디렉토리 생성
+# Python 패키지 구조 생성 (누락된 __init__.py 파일 추가)
+# RUN touch /app/main/__init__.py
+# RUN touch /app/main/server/__init__.py
+
+# 정적 파일 및 디렉토리 확인
 RUN mkdir -p /app/main/dash/assets
 
 # 권한 설정
 RUN chmod -R 755 /app
 
-# Python 패키지 경로 설정
-ENV PYTHONPATH=/app:/app/main/server:/app/main/dash
+# Python 패키지 경로 설정 (상위 디렉토리도 포함)
+ENV PYTHONPATH=/app
 
 # supervisord로 FastAPI와 Dash 동시 실행
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/app.conf"]

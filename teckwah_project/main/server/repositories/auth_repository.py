@@ -1,15 +1,14 @@
-# teckwah_project/main/server/repositories/auth_repository.py
+# main/server/repositories/auth_repository.py
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 
-from app.models.user_model import User
-from app.models.refresh_token_model import RefreshToken
-from app.utils.logger import log_info, log_error
-from app.interfaces.repository_interfaces import AuthRepositoryInterface
+from main.server.models.user_model import User
+from main.server.models.refresh_token_model import RefreshToken
+from main.server.utils.logger import log_info, log_error
 
 
-class AuthRepository(AuthRepositoryInterface):
+class AuthRepository:
     """인증 저장소 구현"""
 
     def __init__(self, db: Session):

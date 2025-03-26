@@ -8,9 +8,9 @@ import json
 import pandas as pd
 from typing import Dict, Any, List, Optional
 
-from api.api_client import ApiClient
-from utils.auth_helper import is_token_valid
-from utils.format_helper import create_color_scale
+from main.dash.api.api_client import ApiClient
+from main.dash.utils.auth_helper import is_token_valid
+from main.dash.utils.format_helper import create_color_scale
 
 logger = logging.getLogger(__name__)
 

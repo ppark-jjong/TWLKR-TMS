@@ -3,11 +3,12 @@ import logging
 from dash import Dash
 
 # 콜백 모듈 가져오기
-import auth_callbacks
-import common_callbacks
-import dashboard_callbacks
-import visualization_callbacks
-import download_callbacks
+
+from main.dash.callbacks import auth_callbacks
+from main.dash.callbacks import common_callbacks 
+from main.dash.callbacks import dashboard_callbacks
+from main.dash.callbacks import visualization_callbacks
+from main.dash.callbacks import download_callbacks
 
 logger = logging.getLogger(__name__)
 

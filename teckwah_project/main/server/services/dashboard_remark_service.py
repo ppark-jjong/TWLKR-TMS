@@ -2,10 +2,10 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from app.schemas.dashboard_schema import RemarkCreate, RemarkUpdate, RemarkResponse
-from app.utils.logger import log_info, log_error
-from app.utils.transaction import transactional
-from app.utils.exceptions import NotFoundException, ValidationException
+from main.server.schemas.dashboard_schema import RemarkCreate, RemarkUpdate, RemarkResponse
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.transaction import transactional
+from main.server.utils.exceptions import NotFoundException, ValidationException
 
 class DashboardRemarkService:
     """대시보드 메모 서비스"""

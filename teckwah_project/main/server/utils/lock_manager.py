@@ -3,8 +3,8 @@ from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 
-from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.exceptions import PessimisticLockException
 
 
 class LockManager:

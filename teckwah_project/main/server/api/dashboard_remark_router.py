@@ -3,18 +3,18 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.schemas.dashboard_schema import RemarkResponse, RemarkCreate, RemarkUpdate
-from app.schemas.common_schema import ApiResponse
-from app.services.dashboard_remark_service import DashboardRemarkService
-from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
-from app.repositories.dashboard_lock_repository import DashboardLockRepository
-from app.repositories.dashboard_repository import DashboardRepository
-from app.config.database import get_db
-from app.api.deps import get_current_user
-from app.schemas.auth_schema import TokenData
-from app.utils.logger import log_info, log_error
-from app.utils.api_decorators import error_handler
-from app.utils.lock_manager import LockManager
+from main.server.schemas.dashboard_schema import RemarkResponse, RemarkCreate, RemarkUpdate
+from main.server.schemas.common_schema import ApiResponse
+from main.server.services.dashboard_remark_service import DashboardRemarkService
+from main.server.repositories.dashboard_remark_repository import DashboardRemarkRepository
+from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
+from main.server.repositories.dashboard_repository import DashboardRepository
+from main.server.config.database import get_db
+from main.server.api.deps import get_current_user
+from main.server.schemas.auth_schema import TokenData
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.api_decorators import error_handler
+from main.server.utils.lock_manager import LockManager
 
 router = APIRouter()
 

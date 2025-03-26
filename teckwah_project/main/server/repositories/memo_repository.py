@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.models.dashboard_memo_model import DashboardMemo
-from app.utils.logger import log_error, log_info
+from main.server.models.dashboard_memo_model import DashboardMemo
+from main.server.utils.logger import log_error, log_info
 
 
 class MemoRepository:

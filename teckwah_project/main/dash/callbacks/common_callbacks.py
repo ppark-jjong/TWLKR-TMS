@@ -6,15 +6,15 @@ import logging
 import json
 from typing import Dict, Any, List, Optional
 
-from components.navbar import create_navbar
-from components.alerts import create_alert
-from layouts.login_layout import create_login_layout
-from layouts.dashboard_layout import create_dashboard_layout
-from layouts.visualization_layout import create_visualization_layout
-from layouts.download_layout import create_download_layout
+from main.dash.components.navbar import create_navbar
+from main.dash.components.alerts import create_alert
+from main.dash.layouts.login_layout import create_login_layout
+from main.dash.layouts.dashboard_layout import create_dashboard_layout
+from main.dash.layouts.visualization_layout import create_visualization_layout
+from main.dash.layouts.download_layout import create_download_layout
 
-from utils.auth_helper import is_token_valid, is_admin_user, handle_auth_error
-from api.api_client import ApiClient
+from main.dash.utils.auth_helper import is_token_valid, is_admin_user, handle_auth_error
+from main.dash.api.api_client import ApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def register_callbacks(app: Dash):
         # 내용이 없으면 무시
         if not message:
             raise PreventUpdate
-        
+                
         # 알림 컴포넌트 생성
         return create_alert(message, color, True, duration)
     
@@ -150,7 +150,7 @@ def register_callbacks(app: Dash):
         if not app_state or "modals" not in app_state:
             raise PreventUpdate
         
-        from components.modals import create_detail_modal, create_assign_modal, create_delete_confirm_modal, create_new_dashboard_modal
+        from main.dash.components.modals import create_detail_modal, create_assign_modal, create_delete_confirm_modal, create_new_dashboard_modal
         
         # 모든 모달 컴포넌트 생성
         detail_modal = create_detail_modal()

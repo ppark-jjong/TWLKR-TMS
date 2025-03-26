@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from .common_schema import BaseResponse, DateRangeInfo
+from main.server.schemas.common_schema import BaseResponse, DateRangeInfo
 from enum import Enum
 
 
@@ -24,10 +24,14 @@ class RemarkResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RemarkCreate(BaseModel):
+    """메모 생성 요청 스키마"""
+    dashboard_id: int
+    content: str = Field(max_length=2000, description="메모 내용")
+
 
 class RemarkUpdate(BaseModel):
     """메모 업데이트 요청 스키마"""
-
     content: str = Field(max_length=2000, description="변경할 메모 내용")
 
 

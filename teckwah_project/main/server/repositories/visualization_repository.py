@@ -1,15 +1,14 @@
-# teckwah_project/main/server/repositories/visualization_repository.py
+# main/server/repositories/visualization_repository.py
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_, text
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
 
-from app.models.dashboard_model import Dashboard
-from app.utils.logger import log_info, log_error
-from app.interfaces.repository_interfaces import VisualizationRepositoryInterface
+from main.server.models.dashboard_model import Dashboard
+from main.server.utils.logger import log_info, log_error
 
 
-class VisualizationRepository(VisualizationRepositoryInterface):
+class VisualizationRepository:
     """시각화 저장소 구현"""
 
     def __init__(self, db: Session):

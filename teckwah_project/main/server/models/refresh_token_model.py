@@ -1,6 +1,6 @@
 # teckwah_project/main/server/models/refresh_token_model.py
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
-from app.config.database import Base
+from main.server.config.database import Base
 
 
 class RefreshToken(Base):

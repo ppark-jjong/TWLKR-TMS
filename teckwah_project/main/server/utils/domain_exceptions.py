@@ -2,7 +2,7 @@
 """
 도메인 예외 정의 - 서비스 계층에서 사용하는 도메인 특화 예외
 """
-from app.utils.exceptions import BaseApiException, ValidationException, NotFoundException
+from main.server.utils.exceptions import BaseApiException, ValidationException, NotFoundException
 
 
 class DashboardDomainException(BaseApiException):

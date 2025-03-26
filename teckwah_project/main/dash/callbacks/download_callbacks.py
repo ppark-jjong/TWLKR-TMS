@@ -7,8 +7,8 @@ import io
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from api.api_client import ApiClient
-from utils.auth_helper import is_token_valid, is_admin_user
+from main.dash.api.api_client import ApiClient
+from main.dash.utils.auth_helper import is_token_valid, is_admin_user
 
 logger = logging.getLogger(__name__)
 

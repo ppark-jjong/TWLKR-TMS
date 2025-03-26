@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
-from app.models.dashboard_model import Dashboard
-from app.utils.logger import log_info, log_error
-from app.utils.datetime_helper import localize_to_kst, get_kst_now
+from main.server.models.dashboard_model import Dashboard
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.datetime_helper import localize_to_kst, get_kst_now
 
 
 class DownloadRepository:

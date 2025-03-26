@@ -1,7 +1,7 @@
 # teckwah_project/main/server/models/postal_code_model.py
 from sqlalchemy import Column, String, Integer, Enum, ForeignKey
 from sqlalchemy.orm import relationship
-from app.config.database import Base
+from main.server.config.database import Base
 
 
 class PostalCode(Base):

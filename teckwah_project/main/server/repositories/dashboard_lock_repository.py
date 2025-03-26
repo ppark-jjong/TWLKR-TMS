@@ -4,10 +4,10 @@ from sqlalchemy import and_, text
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from app.models.dashboard_lock_model import DashboardLock
-from app.config.settings import get_settings
-from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException
+from main.server.models.dashboard_lock_model import DashboardLock
+from main.server.config.settings import get_settings
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.exceptions import PessimisticLockException
 
 settings = get_settings()
 

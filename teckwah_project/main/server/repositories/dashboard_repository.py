@@ -5,10 +5,10 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 import pytz
 
-from app.models.dashboard_model import Dashboard
-from app.models.postal_code_model import PostalCode, PostalCodeDetail
-from app.utils.logger import log_info, log_error
-from app.utils.datetime_helper import KST, get_kst_now, localize_to_kst
+from main.server.models.dashboard_model import Dashboard
+from main.server.models.postal_code_model import PostalCode, PostalCodeDetail
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.datetime_helper import KST, get_kst_now, localize_to_kst
 
 
 class DashboardRepository:

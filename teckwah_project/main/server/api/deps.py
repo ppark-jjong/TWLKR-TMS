@@ -5,16 +5,16 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.config.database import get_db
-from app.config.settings import get_settings
-from app.schemas.auth_schema import TokenData
-from app.utils.logger import log_info, log_error, set_request_id
-from app.models.dashboard_model import Dashboard
-from app.schemas.dashboard_schema import StatusUpdate
-from app.repositories.dashboard_repository import DashboardRepository
-from app.repositories.dashboard_lock_repository import DashboardLockRepository
-from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
-from app.utils.lock_manager import LockManager
+from main.server.config.database import get_db
+from main.server.config.settings import get_settings
+from main.server.schemas.auth_schema import TokenData
+from main.server.utils.logger import log_info, log_error, set_request_id
+from main.server.models.dashboard_model import Dashboard
+from main.server.schemas.dashboard_schema import StatusUpdate
+from main.server.repositories.dashboard_repository import DashboardRepository
+from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
+from main.server.repositories.dashboard_remark_repository import DashboardRemarkRepository
+from main.server.utils.lock_manager import LockManager
 
 settings = get_settings()
 
@@ -37,9 +37,9 @@ async def get_current_user(
     request: Request = None,
 ) -> TokenData:
     """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환"""
-    # 요청별 고유 ID 설정
-    if request:
-        set_request_id()
+    # 미들웨어에서 이미 요청 ID를 설정했으므로 여기서는 불필요
+    # if request:
+    #     set_request_id()
 
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(

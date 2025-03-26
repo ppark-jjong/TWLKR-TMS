@@ -5,8 +5,8 @@ import logging
 import json
 from typing import Dict, Any, List, Optional
 
-from api.api_client import ApiClient
-from utils.auth_helper import is_token_valid, get_formatted_timestamp
+from main.dash.api.api_client import ApiClient
+from main.dash.utils.auth_helper import is_token_valid, get_formatted_timestamp
 
 logger = logging.getLogger(__name__)
 

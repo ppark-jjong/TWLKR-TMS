@@ -3,9 +3,9 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 import pandas as pd
 
-from app.utils.logger import log_info, log_error
-from app.utils.datetime_helper import get_kst_now, localize_to_kst
-from app.repositories.visualization_repository import VisualizationRepository
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.datetime_helper import get_kst_now, localize_to_kst
+from main.server.repositories.visualization_repository import VisualizationRepository
 
 class VisualizationService:
     """시각화 서비스"""

@@ -6,14 +6,14 @@ from typing import Optional
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 
-from app.schemas.auth_schema import UserLogin, LoginResponse, Token, RefreshTokenRequest
-from app.services.auth_service import AuthService
-from app.repositories.auth_repository import AuthRepository
-from app.config.database import get_db
-from app.config.settings import get_settings
-from app.utils.logger import log_info, log_error
-from app.utils.auth import create_token
-from app.utils.api_decorators import error_handler
+from main.server.schemas.auth_schema import UserLogin, LoginResponse, Token, RefreshTokenRequest
+from main.server.services.auth_service import AuthService
+from main.server.repositories.auth_repository import AuthRepository
+from main.server.config.database import get_db
+from main.server.config.settings import get_settings
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.auth import create_token
+from main.server.utils.api_decorators import error_handler
 
 router = APIRouter()
 settings = get_settings()

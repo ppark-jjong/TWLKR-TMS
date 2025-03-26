@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.models.dashboard_remark_model import DashboardRemark
-from app.models.dashboard_model import Dashboard
-from app.utils.logger import log_info, log_error
-from app.utils.datetime_helper import get_kst_now
+from main.server.models.dashboard_remark_model import DashboardRemark
+from main.server.models.dashboard_model import Dashboard
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.datetime_helper import get_kst_now
 
 
 class DashboardRemarkRepository:

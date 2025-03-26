@@ -3,7 +3,7 @@ import functools
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.utils.logger import log_error
+from main.server.utils.logger import log_error
 
 def error_handler(operation_name: str):
     """API 엔드포인트 에러 핸들링 데코레이터"""

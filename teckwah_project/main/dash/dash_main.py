@@ -19,8 +19,8 @@ app = dash.Dash(
 )
 
 # 레이아웃 및 콜백 가져오기
-from layouts.main_layout import create_layout
-from callbacks.callback import register_callbacks
+from main.dash.layouts.main_layout import create_layout
+from main.dash.callbacks.callback import register_callbacks
 
 # 앱 레이아웃 설정
 app.layout = create_layout(app)

@@ -2,14 +2,14 @@
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
-from app.models.dashboard_model import Dashboard
-from app.models.postal_code_model import PostalCode, PostalCodeDetail
-from app.schemas.dashboard_schema import StatusUpdate, FieldsUpdate, DriverAssignment
-from app.utils.datetime_helper import get_kst_now, localize_to_kst
-from app.utils.logger import log_info, log_error
-from app.utils.exceptions import PessimisticLockException, ValidationException, NotFoundException
-from app.utils.transaction import transactional, transactional_with_retries
-from app.utils.constants import STATUS_TRANSITIONS
+from main.server.models.dashboard_model import Dashboard
+from main.server.models.postal_code_model import PostalCode, PostalCodeDetail
+from main.server.schemas.dashboard_schema import StatusUpdate, FieldsUpdate, DriverAssignment
+from main.server.utils.datetime_helper import get_kst_now, localize_to_kst
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.exceptions import PessimisticLockException, ValidationException, NotFoundException
+from main.server.utils.transaction import transactional, transactional_with_retries
+from main.server.utils.constants import STATUS_TRANSITIONS
 
 class DashboardService:
     """대시보드 서비스"""

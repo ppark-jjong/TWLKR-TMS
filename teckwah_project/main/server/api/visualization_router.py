@@ -4,19 +4,19 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 from pydantic import ValidationError
 
-from app.services.visualization_service import VisualizationService
-from app.repositories.visualization_repository import VisualizationRepository
-from app.config.database import get_db
-from app.api.deps import get_current_user
-from app.schemas.auth_schema import TokenData
-from app.utils.logger import log_info, log_error
-from app.utils.datetime_helper import get_date_range, get_kst_now
-from app.schemas.visualization_schema import (
+from main.server.services.visualization_service import VisualizationService
+from main.server.repositories.visualization_repository import VisualizationRepository
+from main.server.config.database import get_db
+from main.server.api.deps import get_current_user
+from main.server.schemas.auth_schema import TokenData
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.datetime_helper import get_date_range, get_kst_now
+from main.server.schemas.visualization_schema import (
     DeliveryStatusResponse,
     HourlyOrdersResponse,
     VisualizationDateRangeResponse,
 )
-from app.utils.api_decorators import error_handler
+from main.server.utils.api_decorators import error_handler
 
 router = APIRouter()
 

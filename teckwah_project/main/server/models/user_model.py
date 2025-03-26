@@ -1,6 +1,6 @@
 # teckwah_project/main/server/models/user_model.py
 from sqlalchemy import Column, String, Enum
-from app.config.database import Base
+from main.server.config.database import Base
 
 
 class User(Base):
@@ -12,4 +12,4 @@ class User(Base):
     user_role = Column(Enum("ADMIN", "USER"), nullable=False, server_default="USER")
 
     def __repr__(self):
-        return f"<User(id={self.user_id}, department={self.user_department})>"
+        return f"<User {self.user_id}>"

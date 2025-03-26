@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.schemas.dashboard_schema import LockResponse, LockRequest
-from app.repositories.dashboard_lock_repository import DashboardLockRepository
-from app.config.database import get_db
-from app.api.deps import get_current_user
-from app.schemas.auth_schema import TokenData
-from app.utils.logger import log_info, log_error
-from app.utils.api_decorators import error_handler
+from main.server.schemas.dashboard_schema import LockResponse, LockRequest
+from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
+from main.server.config.database import get_db
+from main.server.api.deps import get_current_user
+from main.server.schemas.auth_schema import TokenData
+from main.server.utils.logger import log_info, log_error
+from main.server.utils.api_decorators import error_handler
 
 router = APIRouter()
 

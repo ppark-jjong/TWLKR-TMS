@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from app.schemas.dashboard_schema import (
+from main.server.schemas.dashboard_schema import (
     DashboardCreate,
     DashboardResponse,
     DashboardDetail,
@@ -15,18 +15,18 @@ from app.schemas.dashboard_schema import (
     DashboardDetailResponse,
     FieldsUpdate,
 )
-from app.schemas.common_schema import BaseResponse, DateRangeInfo
-from app.services.dashboard_service import DashboardService
-from app.config.database import get_db
-from app.api.deps import get_current_user, check_admin_access
-from app.schemas.auth_schema import TokenData
-from app.utils.logger import log_info, log_error
-from app.repositories.dashboard_repository import DashboardRepository
-from app.repositories.dashboard_remark_repository import DashboardRemarkRepository
-from app.repositories.dashboard_lock_repository import DashboardLockRepository
-from app.utils.datetime_helper import get_date_range
-from app.utils.api_decorators import error_handler
-from app.utils.lock_manager import LockManager
+from main.server.schemas.common_schema import BaseResponse, DateRangeInfo
+from main.server.services.dashboard_service import DashboardService
+from main.server.config.database import get_db
+from main.server.api.deps import get_current_user, check_admin_access
+from main.server.schemas.auth_schema import TokenData
+from main.server.utils.logger import log_info, log_error
+from main.server.repositories.dashboard_repository import DashboardRepository
+from main.server.repositories.dashboard_remark_repository import DashboardRemarkRepository
+from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
+from main.server.utils.datetime_helper import get_date_range
+from main.server.utils.api_decorators import error_handler
+from main.server.utils.lock_manager import LockManager
 
 router = APIRouter()
 

@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Callable
 
-from app.api import (
+from main.server.api import (
     auth_router,
     dashboard_router,
     visualization_router,
@@ -17,13 +17,15 @@ from app.api import (
     dashboard_lock_router,
     download_router,
 )
-from app.config.settings import get_settings
-from app.utils.logger import log_info, log_error
-from app.repositories.dashboard_lock_repository import DashboardLockRepository
-from app.config.database import get_db, SessionLocal
+from main.server.config.settings import get_settings
+from main.server.utils.logger import log_info, log_error, set_request_id
+from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
+from main.server.config.database import get_db, SessionLocal
 import uuid
 
 settings = get_settings()
+
+
 
 
 
@@ -89,8 +91,8 @@ async def general_exception_handler(request: Request, exc: Exception):
 # 요청 처리 시간 로깅 미들웨어
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Callable) -> Response:
-    # 요청별 고유 ID 생성
-    request_id = str(uuid.uuid4())
+    # 요청별 고유 ID 생성 및 설정
+    request_id = set_request_id()
     request.state.request_id = request_id
 
     # 요청 시작 시간
@@ -100,7 +102,6 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     log_info(
         f"요청 시작: {request.method} {request.url.path}",
         {
-            "request_id": request_id,
             "client": request.client.host if request.client else "unknown",
         },
     )
@@ -114,7 +115,6 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         log_info(
             f"요청 완료: {request.method} {request.url.path}",
             {
-                "request_id": request_id,
                 "status_code": response.status_code,
                 "process_time_ms": round(process_time * 1000, 2),
             },
@@ -122,6 +122,7 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
 
         # 응답 헤더에 처리 시간 추가 (선택사항)
         response.headers["X-Process-Time"] = str(process_time)
+        response.headers["X-Request-ID"] = request_id
 
         return response
     except Exception as e:
@@ -131,7 +132,6 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
             e,
             f"요청 처리 오류: {request.method} {request.url.path}",
             {
-                "request_id": request_id,
                 "process_time_ms": round(process_time * 1000, 2),
             },
         )

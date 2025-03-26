@@ -1,7 +1,7 @@
 # teckwah_project/main/server/models/dashboard_remark_model.py
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
-from app.config.database import Base
+from main.server.config.database import Base
 
 
 class DashboardRemark(Base):

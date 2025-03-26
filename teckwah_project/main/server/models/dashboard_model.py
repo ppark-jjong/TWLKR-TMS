@@ -11,7 +11,7 @@ from sqlalchemy import (
     Computed,
 )
 from sqlalchemy.orm import relationship
-from app.config.database import Base
+from main.server.config.database import Base
 
 
 class Dashboard(Base):

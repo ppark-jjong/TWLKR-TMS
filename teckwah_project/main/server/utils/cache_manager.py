@@ -2,7 +2,7 @@
 import time
 from typing import Any, Dict, Callable, Optional, TypeVar, Tuple, Generic
 from functools import wraps
-from app.utils.logger import log_info, log_error
+from main.server.utils.logger import log_info, log_error
 
 T = TypeVar("T")
 

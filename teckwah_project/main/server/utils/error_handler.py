@@ -1,8 +1,8 @@
 # teckwah_project/main/server/utils/error_handler.py
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
-from app.utils.logger import log_error
-from app.utils.exceptions import BaseApiException, ValidationException, NotFoundException, PessimisticLockException
+from main.server.utils.logger import log_error
+from main.server.utils.exceptions import BaseApiException, ValidationException, NotFoundException, PessimisticLockException
 
 def handle_database_error(error: SQLAlchemyError, operation: str) -> None:
     """데이터베이스 에러 세분화된 처리"""

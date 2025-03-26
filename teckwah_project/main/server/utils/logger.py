@@ -1,6 +1,8 @@
 # teckwah_project/main/server/utils/logger.py
 import logging
 import json
+import uuid
+from contextvars import ContextVar
 from datetime import datetime
 from typing import Any, Optional, Dict, Union
 import traceback
@@ -8,6 +10,28 @@ import inspect
 
 logger = logging.getLogger("delivery-system")
 
+# 요청별 고유 ID를 저장하기 위한 ContextVar
+request_id_var: ContextVar[str] = ContextVar('request_id', default='')
+
+def set_request_id() -> str:
+    """
+    현재 요청에 대한 고유 ID를 생성하고 설정
+    
+    Returns:
+        str: 생성된 요청 ID
+    """
+    request_id = str(uuid.uuid4())
+    request_id_var.set(request_id)
+    return request_id
+
+def get_request_id() -> str:
+    """
+    현재 요청의 고유 ID를 반환
+    
+    Returns:
+        str: 현재 요청의 ID
+    """
+    return request_id_var.get()
 
 def log_info(message: str, data: Optional[Any] = None, context: Optional[Dict[str, Any]] = None) -> None:
     """
@@ -29,6 +53,11 @@ def log_info(message: str, data: Optional[Any] = None, context: Optional[Dict[st
             "function": func_name,
             "line": line_no
         }
+    
+    # 요청 ID 추가
+    request_id = get_request_id()
+    if request_id:
+        context["request_id"] = request_id
     
     log_entry = {
         "timestamp": datetime.now().isoformat(),
@@ -70,19 +99,26 @@ def log_error(
     file_name = frame.f_code.co_filename.split('/')[-1]
     line_no = frame.f_lineno
     
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "message": f"에러 발생 ({context}): {str(error) if error else 'None'}",
-        "context": {
-            "file": file_name,
-            "function": func_name,
-            "line": line_no
-        }
+    log_context = {
+        "file": file_name,
+        "function": func_name,
+        "line": line_no
     }
+    
+    # 요청 ID 추가
+    request_id = get_request_id()
+    if request_id:
+        log_context["request_id"] = request_id
     
     # 추가 컨텍스트 정보가 있으면 병합
     if additional_context:
-        log_entry["context"].update(additional_context)
+        log_context.update(additional_context)
+    
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "message": f"에러 발생 ({context}): {str(error) if error else 'None'}",
+        "context": log_context
+    }
     
     # 데이터 추가
     if data:
@@ -123,6 +159,11 @@ def log_warning(
             "line": line_no
         }
     
+    # 요청 ID 추가
+    request_id = get_request_id()
+    if request_id:
+        context["request_id"] = request_id
+    
     log_entry = {
         "timestamp": datetime.now().isoformat(),
         "message": message,
@@ -162,6 +203,11 @@ def log_debug(
             "function": func_name,
             "line": line_no
         }
+    
+    # 요청 ID 추가
+    request_id = get_request_id()
+    if request_id:
+        context["request_id"] = request_id
     
     log_entry = {
         "timestamp": datetime.now().isoformat(),
