@@ -185,12 +185,13 @@ BEGIN
 END //
 DELIMITER ;
 
--- 11. 이벤트 스케줄러: 만료된 락 정기 정리 (10분마다)
+-- 대신 아래와 같이 저장 프로시저만 남기고 이벤트는 제거
 DELIMITER //
-CREATE EVENT IF NOT EXISTS evt_cleanup_locks
-ON SCHEDULE EVERY 10 MINUTE
-DO
+CREATE PROCEDURE cleanup_expired_locks()
 BEGIN
-  CALL cleanup_expired_locks();
+  DELETE FROM dashboard_lock
+  WHERE expires_at < NOW();
+  
+  SELECT ROW_COUNT() AS cleaned_locks;
 END //
 DELIMITER ;

@@ -14,6 +14,7 @@ class DeliveryType(str, Enum):
 
 class RemarkResponse(BaseModel):
     """대시보드 메모 응답 스키마"""
+
     remark_id: int
     dashboard_id: int
     content: str
@@ -26,12 +27,14 @@ class RemarkResponse(BaseModel):
 
 class RemarkCreate(BaseModel):
     """메모 생성 요청 스키마"""
+
     dashboard_id: int
     content: str = Field(max_length=2000, description="메모 내용")
 
 
 class RemarkUpdate(BaseModel):
     """메모 업데이트 요청 스키마"""
+
     content: str = Field(max_length=2000, description="변경할 메모 내용")
 
 
@@ -62,23 +65,28 @@ class Warehouse(str, Enum):
 # 기본 대시보드 필드
 class DashboardBase(BaseModel):
     """대시보드 기본 필드 스키마"""
+
     type: DeliveryType
     warehouse: Warehouse
     order_no: str
     eta: datetime
 
+
 # 생성 요청
 class DashboardCreate(DashboardBase):
     """대시보드 생성 요청 스키마"""
+
     sla: str
     postal_code: str
     address: str
     customer: str
     contact: Optional[str] = None
 
+
 # 기본 응답
 class DashboardResponse(DashboardBase):
     """대시보드 기본 응답 스키마"""
+
     dashboard_id: int
     department: Department
     status: DeliveryStatus
@@ -95,6 +103,7 @@ class DashboardResponse(DashboardBase):
 # 상세 응답 (기본 응답 확장)
 class DashboardDetail(DashboardResponse):
     """대시보드 상세 응답 스키마"""
+
     driver_contact: Optional[str] = None
     complete_time: Optional[datetime] = None
     address: str
@@ -114,10 +123,10 @@ class DashboardDetail(DashboardResponse):
     lock_expires_at: Optional[str] = None
 
 
-
 # 목록 데이터
 class DashboardListData(BaseModel):
     """대시보드 목록 데이터 스키마"""
+
     items: List[DashboardResponse]
     date_range: Dict[str, str]
     user_role: Optional[str] = None
@@ -127,22 +136,25 @@ class DashboardListData(BaseModel):
 # 목록 응답
 class DashboardListResponse(BaseModel):
     """대시보드 목록 응답 스키마"""
+
     success: bool = True
     message: str
     data: Optional[Dict[str, Any]] = None
+
 
 # 관리자 목록 응답
 class AdminDashboardListResponse(BaseModel):
     """관리자용 대시보드 목록 응답 스키마"""
+
     success: bool = True
     message: str
     data: Optional[Dict[str, Any]] = None
-
 
 
 # 상세 응답 - 락 정보 포함
 class DashboardDetailResponse(BaseModel):
     """대시보드 상세 응답 스키마"""
+
     success: bool = True
     message: str
     data: Optional[DashboardDetail] = None
@@ -154,10 +166,13 @@ class DashboardDetailResponse(BaseModel):
 # 락 관련 스키마
 class LockRequest(BaseModel):
     """락 요청 스키마"""
+
     lock_type: str
+
 
 class LockResponse(BaseModel):
     """락 응답 스키마"""
+
     success: bool = True
     message: str
     data: Optional[Dict[str, Any]] = None
@@ -166,6 +181,7 @@ class LockResponse(BaseModel):
 # 상태 변경
 class StatusUpdate(BaseModel):
     """상태 업데이트 요청 스키마"""
+
     status: DeliveryStatus
     is_admin: bool = False
 
@@ -173,15 +189,18 @@ class StatusUpdate(BaseModel):
 # 필드 업데이트
 class FieldsUpdate(BaseModel):
     """필드 업데이트 요청 스키마"""
+
     eta: Optional[datetime] = None
     customer: Optional[str] = None
     contact: Optional[str] = None
     address: Optional[str] = None
     postal_code: Optional[str] = None
-    
+
+
 # 배차 처리
 class DriverAssignment(BaseModel):
     """배차 처리 요청 스키마"""
+
     dashboard_ids: List[int]
     driver_name: str
     driver_contact: str

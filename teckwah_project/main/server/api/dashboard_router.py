@@ -14,6 +14,7 @@ from main.server.schemas.dashboard_schema import (
     AdminDashboardListResponse,
     DashboardDetailResponse,
     FieldsUpdate,
+    RemarkUpdate,
 )
 from main.server.schemas.common_schema import BaseResponse, DateRangeInfo
 from main.server.services.dashboard_service import DashboardService
@@ -22,8 +23,6 @@ from main.server.api.deps import get_current_user, check_admin_access
 from main.server.schemas.auth_schema import TokenData
 from main.server.utils.logger import log_info, log_error
 from main.server.repositories.dashboard_repository import DashboardRepository
-from main.server.repositories.dashboard_remark_repository import DashboardRemarkRepository
-from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
 from main.server.utils.datetime_helper import get_date_range
 from main.server.utils.api_decorators import error_handler
 from main.server.utils.lock_manager import LockManager
@@ -34,13 +33,8 @@ router = APIRouter()
 def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     """DashboardService 의존성 주입"""
     repository = DashboardRepository(db)
-    remark_repository = DashboardRemarkRepository(db)
-    lock_repository = DashboardLockRepository(db)
-    lock_manager = LockManager(lock_repository)
-
-    return DashboardService(
-        repository, remark_repository, lock_repository, lock_manager
-    )
+    lock_manager = LockManager(repository)
+    return DashboardService(repository, lock_manager)
 
 
 @router.post("/list", response_model=DashboardListResponse)
@@ -54,7 +48,7 @@ async def get_dashboard_list(
     # 날짜 범위로 조회하는 경우
     start_date = date_range.get("start_date")
     end_date = date_range.get("end_date")
-    
+
     if start_date and end_date:
         log_info(f"대시보드 목록 조회 요청 (범위): {start_date} ~ {end_date}")
         try:
@@ -131,14 +125,14 @@ async def get_dashboard_detail(
     result = service.get_dashboard_with_status_check(dashboard_id)
 
     # 응답 구성
-    is_locked = getattr(result, "is_locked", False)
+    is_locked = result.get("is_locked", False)
     lock_info = None
 
     if is_locked:
         lock_info = {
-            "locked_by": getattr(result, "locked_by", "Unknown"),
-            "lock_type": getattr(result, "lock_type", "Unknown"),
-            "expires_at": getattr(result, "lock_expires_at", None),
+            "locked_by": result.get("locked_by", "Unknown"),
+            "lock_type": result.get("lock_type", "Unknown"),
+            "expires_at": result.get("lock_expires_at", None),
         }
 
     return DashboardDetailResponse(
@@ -209,7 +203,7 @@ async def assign_driver(
     return BaseResponse(
         success=True,
         message="배차가 완료되었습니다",
-        data={"updated_dashboards": [item.model_dump() for item in result]},
+        data={"updated_dashboards": result},
     )
 
 
@@ -266,3 +260,18 @@ async def search_dashboards_by_order_no(
             "is_admin": is_admin,
         },
     )
+
+
+@router.patch("/{dashboard_id}/remarks/{remark_id}", response_model=BaseResponse)
+@error_handler("메모 업데이트")
+async def update_remark(
+    dashboard_id: int,
+    remark_id: int,
+    remark_update: RemarkUpdate,
+    service: DashboardService = Depends(get_dashboard_service),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """메모 업데이트 API (비관적 락 적용)"""
+    log_info(f"메모 업데이트 요청: 메모 ID {remark_id}")
+    result = service.update_remark(remark_id, remark_update, current_user.user_id)
+    return result

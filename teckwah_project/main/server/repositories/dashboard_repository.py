@@ -6,17 +6,26 @@ from typing import List, Dict, Any, Optional, Tuple
 import pytz
 
 from main.server.models.dashboard_model import Dashboard
+from main.server.models.dashboard_lock_model import DashboardLock
+from main.server.models.dashboard_remark_model import DashboardRemark
 from main.server.models.postal_code_model import PostalCode, PostalCodeDetail
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.datetime_helper import KST, get_kst_now, localize_to_kst
+from main.server.utils.exceptions import PessimisticLockException
 
 
 class DashboardRepository:
-    """대시보드 저장소 구현"""
+    """통합된 대시보드 저장소 구현 - 대시보드, 락, 메모 관련 기능 통합"""
 
     def __init__(self, db: Session):
         self.db = db
+        # 설정 정보는 main.server.config.settings에서 가져오지만,
+        # 필요한 락 타임아웃 값만 직접 설정 (간소화)
+        self.lock_timeout = 300  # 5분 고정
 
+    #
+    # [대시보드 기본 기능 영역]
+    #
     def get_dashboard_list_by_date(
         self, start_date: datetime, end_date: datetime
     ) -> List[Dashboard]:
@@ -198,38 +207,275 @@ class DashboardRepository:
             log_error(e, "주문번호 검색 실패", {"order_no": order_no})
             return []
 
-    def acquire_lock_for_update(self, dashboard_id: int) -> Optional[Dashboard]:
-        """대시보드 행 락 획득 (FOR UPDATE)"""
+    #
+    # [대시보드 락 관련 기능 영역] - dashboard_lock_repository.py에서 통합
+    #
+    def acquire_lock(
+        self, dashboard_id: int, user_id: str, lock_type: str
+    ) -> Optional[DashboardLock]:
+        """락 획득 시도"""
         try:
-            log_info(f"대시보드 행 락 획득: ID={dashboard_id}")
+            # 기존 락 정보 조회
+            existing_lock = self.get_lock_info(dashboard_id)
 
-            # WITH FOR UPDATE 구문으로 행 락 획득
-            dashboard = (
-                self.db.query(Dashboard)
-                .filter(Dashboard.dashboard_id == dashboard_id)
-                .with_for_update()
+            # 이미 락이 있는 경우 처리
+            if existing_lock:
+                # 만료된 락인 경우 자동 해제 후 새로 획득
+                if existing_lock.is_expired:
+                    self.db.delete(existing_lock)
+                    self.db.flush()
+                    log_info(
+                        f"만료된 락 자동 해제: dashboard_id={dashboard_id}, user_id={existing_lock.locked_by}"
+                    )
+                # 같은 사용자의 락인 경우 갱신
+                elif existing_lock.locked_by == user_id:
+                    existing_lock.lock_type = lock_type
+                    existing_lock.expires_at = datetime.utcnow() + timedelta(
+                        seconds=self.lock_timeout
+                    )
+                    self.db.flush()
+                    log_info(
+                        f"기존 락 갱신: dashboard_id={dashboard_id}, user_id={user_id}"
+                    )
+                    return existing_lock
+                # 다른 사용자의 락인 경우 충돌 예외
+                else:
+                    log_info(
+                        f"락 충돌: dashboard_id={dashboard_id}, requested_by={user_id}, locked_by={existing_lock.locked_by}"
+                    )
+                    raise PessimisticLockException(
+                        detail="다른 사용자가 작업 중입니다",
+                        locked_by=existing_lock.locked_by,
+                        lock_type=existing_lock.lock_type,
+                        dashboard_id=dashboard_id,
+                        expires_at=existing_lock.expires_at,
+                    )
+
+            # 새 락 생성
+            lock = DashboardLock(
+                dashboard_id=dashboard_id,
+                locked_by=user_id,
+                locked_at=datetime.utcnow(),
+                lock_type=lock_type,
+                expires_at=datetime.utcnow() + timedelta(seconds=self.lock_timeout),
+                lock_timeout=self.lock_timeout,
+            )
+
+            self.db.add(lock)
+            self.db.flush()
+            log_info(
+                f"새 락 획득: dashboard_id={dashboard_id}, user_id={user_id}, type={lock_type}"
+            )
+            return lock
+
+        except PessimisticLockException:
+            # 락 충돌 예외는 그대로 전파
+            raise
+        except Exception as e:
+            log_error(
+                e, "락 획득 실패", {"dashboard_id": dashboard_id, "user_id": user_id}
+            )
+            self.db.rollback()
+            return None
+
+    def acquire_locks_for_multiple_dashboards(
+        self, dashboard_ids: List[int], user_id: str, lock_type: str
+    ) -> List[int]:
+        """여러 대시보드에 대한 락 획득 시도"""
+        try:
+            log_info(
+                f"여러 락 획득 시도: dashboard_ids={dashboard_ids}, user_id={user_id}"
+            )
+
+            # 여러 락을 한 번에 처리하기 위한 트랜잭션 블록
+            acquired_ids = []
+
+            # 각 대시보드마다 락 획득 시도
+            for dashboard_id in dashboard_ids:
+                try:
+                    lock = self.acquire_lock(dashboard_id, user_id, lock_type)
+                    if lock:
+                        acquired_ids.append(dashboard_id)
+                except PessimisticLockException as e:
+                    # 락 충돌 시 이미 획득한 락들 해제
+                    for acquired_id in acquired_ids:
+                        self.release_lock(acquired_id, user_id)
+
+                    # 빈 목록 반환 (모두 실패)
+                    log_info(
+                        f"여러 락 획득 실패: 충돌={dashboard_id}, user_id={user_id}"
+                    )
+                    return []
+
+            log_info(f"여러 락 획득 성공: 개수={len(acquired_ids)}, user_id={user_id}")
+            return acquired_ids
+
+        except Exception as e:
+            log_error(
+                e,
+                "여러 락 획득 실패",
+                {"dashboard_ids": dashboard_ids, "user_id": user_id},
+            )
+            # 이미 획득한 락들 해제
+            for acquired_id in acquired_ids:
+                try:
+                    self.release_lock(acquired_id, user_id)
+                except:
+                    pass
+            return []
+
+    def release_lock(self, dashboard_id: int, user_id: str) -> bool:
+        """락 해제"""
+        try:
+            log_info(f"락 해제 시도: dashboard_id={dashboard_id}, user_id={user_id}")
+
+            # 락 정보 조회
+            lock = self.get_lock_info(dashboard_id)
+
+            # 락이 없으면 성공으로 간주 (멱등성)
+            if not lock:
+                log_info(f"해제할 락 없음: dashboard_id={dashboard_id}")
+                return True
+
+            # 본인의 락이 아니면 실패
+            if lock.locked_by != user_id:
+                log_info(
+                    f"락 해제 권한 없음: dashboard_id={dashboard_id}, requested_by={user_id}, locked_by={lock.locked_by}"
+                )
+                return False
+
+            # 락 삭제
+            self.db.delete(lock)
+            self.db.flush()
+            log_info(f"락 해제 성공: dashboard_id={dashboard_id}, user_id={user_id}")
+            return True
+
+        except Exception as e:
+            log_error(
+                e, "락 해제 실패", {"dashboard_id": dashboard_id, "user_id": user_id}
+            )
+            self.db.rollback()
+            return False
+
+    def get_lock_info(self, dashboard_id: int) -> Optional[DashboardLock]:
+        """락 정보 조회"""
+        try:
+            lock = (
+                self.db.query(DashboardLock)
+                .filter(DashboardLock.dashboard_id == dashboard_id)
                 .first()
             )
 
-            return dashboard
+            return lock
         except Exception as e:
-            log_error(e, "행 락 획득 실패", {"id": dashboard_id})
+            log_error(e, "락 정보 조회 실패", {"dashboard_id": dashboard_id})
             return None
 
-    def acquire_locks_for_update(self, dashboard_ids: List[int]) -> List[Dashboard]:
-        """여러 대시보드에 대한 행 락 획득 (FOR UPDATE)"""
+    #
+    # [대시보드 메모 관련 기능 영역] - dashboard_remark_repository.py에서 통합
+    #
+    def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[DashboardRemark]:
+        """대시보드 ID별 메모 목록 조회 (최신순)"""
         try:
-            log_info(f"여러 대시보드 행 락 획득: IDs={dashboard_ids}")
-
-            # WITH FOR UPDATE 구문으로 여러 행 락 획득
-            dashboards = (
-                self.db.query(Dashboard)
-                .filter(Dashboard.dashboard_id.in_(dashboard_ids))
-                .with_for_update()
+            remarks = (
+                self.db.query(DashboardRemark)
+                .filter(DashboardRemark.dashboard_id == dashboard_id)
+                .order_by(desc(DashboardRemark.created_at))
                 .all()
             )
-
-            return dashboards
+            return remarks
         except Exception as e:
-            log_error(e, "여러 행 락 획득 실패", {"ids": dashboard_ids})
+            log_error(e, "메모 목록 조회 실패", {"dashboard_id": dashboard_id})
             return []
+
+    def get_remark_by_id(self, remark_id: int) -> Optional[DashboardRemark]:
+        """메모 ID로 메모 조회"""
+        try:
+            remark = (
+                self.db.query(DashboardRemark)
+                .filter(DashboardRemark.remark_id == remark_id)
+                .first()
+            )
+            return remark
+        except Exception as e:
+            log_error(e, "메모 조회 실패", {"remark_id": remark_id})
+            return None
+
+    def create_empty_remark(
+        self, dashboard_id: int, user_id: str
+    ) -> Optional[DashboardRemark]:
+        """
+        빈 메모 생성 (대시보드 생성 시 자동 호출용)
+        - 내용이 null인 초기 메모 생성
+        """
+        try:
+            # 1. 대시보드 존재 확인
+            dashboard = (
+                self.db.query(Dashboard)
+                .filter(Dashboard.dashboard_id == dashboard_id)
+                .first()
+            )
+            if not dashboard:
+                log_error(
+                    None,
+                    "메모 생성 실패: 대시보드 없음",
+                    {"dashboard_id": dashboard_id},
+                )
+                return None
+
+            # 2. 빈 메모 생성
+            now = get_kst_now()
+            remark = DashboardRemark(
+                dashboard_id=dashboard_id,
+                content=None,  # 빈 내용 (NULL)
+                created_at=now,
+                created_by=user_id,
+                formatted_content="",  # 접두사 제거
+            )
+
+            self.db.add(remark)
+            self.db.flush()
+            self.db.refresh(remark)
+
+            log_info(
+                f"빈 메모 생성 완료: ID={remark.remark_id}, 대시보드 ID={dashboard_id}"
+            )
+            return remark
+
+        except Exception as e:
+            log_error(e, "빈 메모 생성 실패", {"dashboard_id": dashboard_id})
+            self.db.rollback()
+            return None
+
+    def update_remark(
+        self, remark_id: int, content: str, user_id: str
+    ) -> Optional[DashboardRemark]:
+        """
+        메모 업데이트
+        """
+        try:
+            # 1. 기존 메모 조회
+            remark = self.get_remark_by_id(remark_id)
+
+            if not remark:
+                log_error(
+                    None, "메모 업데이트 실패: 메모 없음", {"remark_id": remark_id}
+                )
+                return None
+
+            # 2. 메모 내용 및 포맷팅된 내용 업데이트
+            remark.content = content
+            remark.formatted_content = content
+
+            # 3. 변경 사항 저장
+            self.db.flush()
+
+            log_info(
+                f"메모 업데이트 완료: ID={remark.remark_id}, 대시보드 ID={remark.dashboard_id}"
+            )
+            return remark
+
+        except Exception as e:
+            log_error(e, "메모 업데이트 실패", {"remark_id": remark_id})
+            self.db.rollback()
+            return None

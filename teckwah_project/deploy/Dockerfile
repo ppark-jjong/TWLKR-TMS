@@ -26,9 +26,6 @@ COPY main/supervisord.conf /etc/supervisor/conf.d/app.conf
 # 환경 변수 설정
 COPY deploy/.env.local /app/.env
 
-# Python 패키지 구조 생성 (누락된 __init__.py 파일 추가)
-# RUN touch /app/main/__init__.py
-# RUN touch /app/main/server/__init__.py
 
 # 정적 파일 및 디렉토리 확인
 RUN mkdir -p /app/main/dash/assets

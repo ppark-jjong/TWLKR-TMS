@@ -9,42 +9,37 @@ from main.server.config.database import get_db
 from main.server.config.settings import get_settings
 from main.server.schemas.auth_schema import TokenData
 from main.server.utils.logger import log_info, log_error, set_request_id
-from main.server.models.dashboard_model import Dashboard
-from main.server.schemas.dashboard_schema import StatusUpdate
 from main.server.repositories.dashboard_repository import DashboardRepository
-from main.server.repositories.dashboard_lock_repository import DashboardLockRepository
-from main.server.repositories.dashboard_remark_repository import DashboardRemarkRepository
 from main.server.utils.lock_manager import LockManager
 
 settings = get_settings()
 
 
-def get_repositories(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """모든 저장소 인스턴스 반환"""
-    return {
-        "dashboard": DashboardRepository(db),
-        "remark": DashboardRemarkRepository(db),
-        "lock": DashboardLockRepository(db),
-    }
+def get_dashboard_repository(db: Session = Depends(get_db)) -> DashboardRepository:
+    """통합 대시보드 레포지토리 의존성 주입"""
+    return DashboardRepository(db)
 
 
-def get_lock_manager(repos: Dict[str, Any] = Depends(get_repositories)) -> LockManager:
+def get_lock_manager(
+    repository: DashboardRepository = Depends(get_dashboard_repository),
+) -> LockManager:
     """LockManager 의존성 주입"""
-    return LockManager(repos["lock"])
+    return LockManager(repository)
+
 
 async def get_current_user(
     authorization: str = Header(None, alias="Authorization"),
     request: Request = None,
 ) -> TokenData:
     """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환"""
-    # 미들웨어에서 이미 요청 ID를 설정했으므로 여기서는 불필요
-    # if request:
-    #     set_request_id()
-
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"success": False, "message": "인증이 필요합니다"},
+            detail={
+                "success": False,
+                "message": "인증이 필요합니다",
+                "error_code": "UNAUTHORIZED",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -59,8 +54,12 @@ async def get_current_user(
         exp = payload.get("exp")
         if not exp or datetime.utcnow().timestamp() > exp:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, 
-                detail={"success": False, "message": "인증이 만료되었습니다"}
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "success": False,
+                    "message": "인증이 만료되었습니다",
+                    "error_code": "TOKEN_EXPIRED",
+                },
             )
 
         return TokenData(
@@ -71,16 +70,25 @@ async def get_current_user(
 
     except JWTError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail={"success": False, "message": "인증에 실패했습니다"}
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "success": False,
+                "message": "인증에 실패했습니다",
+                "error_code": "INVALID_TOKEN",
+            },
         )
+
 
 async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
     """관리자 권한 체크"""
     if current_user.role != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"success": False, "message": "권한이 없습니다"}
+            detail={
+                "success": False,
+                "message": "권한이 없습니다",
+                "error_code": "FORBIDDEN",
+            },
         )
     return current_user
 
