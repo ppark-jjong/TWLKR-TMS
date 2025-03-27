@@ -1,3 +1,5 @@
+-- teckwah_project/deploy/init-db.sql
+
 -- 1. 데이터베이스 생성 및 사용
 CREATE DATABASE IF NOT EXISTS delivery_system
   DEFAULT CHARACTER SET utf8mb4
@@ -51,9 +53,9 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (버전 필드 제거)
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 
 CREATE TABLE IF NOT EXISTS dashboard (
-dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(15) NOT NULL,
   type ENUM('DELIVERY', 'RETURN') NOT NULL,
   status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING',
@@ -76,32 +78,38 @@ dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
+  created_by VARCHAR(50) NULL,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
-  INDEX idx_create_time (create_time), -- 최적화: 생성 시간 기준 조회 성능 향상
+  INDEX idx_create_time (create_time),
   INDEX idx_status (status),
   INDEX idx_department (department),
-  INDEX idx_order_no (order_no) -- 최적화: 주문번호 기준 검색 성능 향상
+  INDEX idx_order_no (order_no),
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 7. 대시보드 메모 테이블 생성 (버전 필드 제거)
+-- 7. 대시보드 메모 테이블 생성 
 CREATE TABLE IF NOT EXISTS dashboard_remark (
   remark_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   dashboard_id INT NOT NULL,
   content TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by VARCHAR(50) NOT NULL,
-  formatted_content TEXT NULL, 
+  formatted_content TEXT NULL,
+  last_modified_at DATETIME NULL COMMENT '최종 수정 시간',
+  last_modified_by VARCHAR(50) NULL COMMENT '최종 수정자 ID',
+  is_admin_only TINYINT(1) NOT NULL DEFAULT 0 COMMENT '관리자 전용 메모 여부',
   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
   INDEX idx_dashboard_id (dashboard_id),
-  INDEX idx_created_at (created_at)
+  INDEX idx_created_at (created_at),
+  INDEX idx_created_by (created_by),
+  INDEX idx_last_modified_by (last_modified_by)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 8. 비관적 락을 관리하기 위한 테이블 생성 (개선)
+-- 8. 비관적 락을 관리하기 위한 테이블 생성 (유지)
 CREATE TABLE IF NOT EXISTS dashboard_lock (
   dashboard_id INT NOT NULL PRIMARY KEY,
   locked_by VARCHAR(50) NOT NULL,
@@ -168,8 +176,6 @@ BEGIN
     SET NEW.distance = 0;
     SET NEW.duration_time = 0;
   END IF;
-  
-  -- 버전 필드 제거로 초기 버전 설정 로직 삭제
 END//
 
 DELIMITER ;

@@ -13,8 +13,7 @@ from main.server.schemas.dashboard_schema import (
     DriverAssignment,
     AdminDashboardListResponse,
     DashboardDetailResponse,
-    FieldsUpdate,
-    RemarkUpdate,
+    DashboardUpdate
 )
 from main.server.schemas.common_schema import BaseResponse, DateRangeInfo
 from main.server.services.dashboard_service import DashboardService
@@ -155,8 +154,10 @@ async def update_fields(
 ):
     """필드 업데이트 API (비관적 락 적용)"""
     log_info(f"필드 업데이트 요청: {dashboard_id}")
+    is_admin = current_user.role == "ADMIN"
+    
     result = service.update_dashboard_fields(
-        dashboard_id, fields_update, current_user.user_id
+        dashboard_id, fields_update, current_user.user_id, is_admin=is_admin
     )
 
     return DashboardDetailResponse(
@@ -175,11 +176,13 @@ async def update_status(
     """상태 업데이트 API (비관적 락 적용)"""
     log_info(f"상태 업데이트 요청: {dashboard_id} -> {status_update.status}")
 
+    is_admin = current_user.role == "ADMIN" or status_update.is_admin
+    
     result = service.update_status(
         dashboard_id,
         status_update.status,
         current_user.user_id,
-        is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
+        is_admin=is_admin,
     )
 
     status_text = STATUS_TEXT_MAP.get(status_update.status, status_update.status)
@@ -201,8 +204,9 @@ async def assign_driver(
 ):
     """배차 처리 API (비관적 락 적용)"""
     log_info(f"배차 처리 요청: {assignment.model_dump()}")
-
-    result = service.assign_driver(assignment, current_user.user_id)
+    is_admin = current_user.role == "ADMIN"
+    
+    result = service.assign_driver(assignment, current_user.user_id, is_admin=is_admin)
 
     return BaseResponse(
         success=True,
@@ -265,17 +269,3 @@ async def search_dashboards_by_order_no(
         },
     )
 
-
-@router.patch("/{dashboard_id}/remarks/{remark_id}", response_model=BaseResponse)
-@error_handler("메모 업데이트")
-async def update_remark(
-    dashboard_id: int,
-    remark_id: int,
-    remark_update: RemarkUpdate,
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
-):
-    """메모 업데이트 API (비관적 락 적용)"""
-    log_info(f"메모 업데이트 요청: 메모 ID {remark_id}")
-    result = service.update_remark(remark_id, remark_update, current_user.user_id)
-    return result
