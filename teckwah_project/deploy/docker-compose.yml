@@ -1,3 +1,4 @@
+# deploy/docker-compose.yml
 services:
   app:
     build:
@@ -6,6 +7,10 @@ services:
     ports:
       - '8000:8000' # FastAPI
       - '3000:3000' # Dash
+    environment:
+      - API_BASE_URL=http://0.0.0.0:8000
+      - LOG_LEVEL=WARNING
+      - DEBUG=True
     env_file:
       - .env.local
     networks:

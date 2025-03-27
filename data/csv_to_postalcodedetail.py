@@ -103,7 +103,7 @@ def import_csv_to_postal_code_detail(file_path):
 
 if __name__ == "__main__":
     # 삽입할 CSV 파일 경로 (하나의 파일에 모든 웨어하우스 데이터가 포함되어야 함)
-    file_path = "backend/app/data/postal_code_detail.csv"
+    file_path = "./postal_code_detail.csv"
     if os.path.exists(file_path):
         print(f"{file_path} -> postal_code_detail 테이블에 데이터 삽입 중...")
         import_csv_to_postal_code_detail(file_path)

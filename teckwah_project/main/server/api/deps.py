@@ -11,6 +11,13 @@ from main.server.schemas.auth_schema import TokenData
 from main.server.utils.logger import log_info, log_error, set_request_id
 from main.server.repositories.dashboard_repository import DashboardRepository
 from main.server.utils.lock_manager import LockManager
+from main.server.api import (
+    auth_router,
+    dashboard_router,
+    visualization_router,
+    dashboard_lock_router,
+    download_router,
+)
 
 settings = get_settings()
 

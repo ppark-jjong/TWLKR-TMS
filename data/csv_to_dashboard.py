@@ -32,7 +32,7 @@ def get_mysql_connection():
 
 def import_dashboard_data():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_file = os.path.join(current_dir, "..", "data", "dashboard.csv")
+    csv_file = os.path.join(current_dir, ".", "dashboard.csv")
 
     try:
         df = pd.read_csv(csv_file, encoding="utf-8", low_memory=False)

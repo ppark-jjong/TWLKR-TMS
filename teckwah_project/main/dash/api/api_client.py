@@ -5,22 +5,25 @@ import logging
 import os
 from typing import Dict, Any, Optional, List, Tuple, Union
 
-# API 기본 URL 설정 - 환경 변수 또는 기본값 사용
-BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")  # 환경 변수 사용
-API_TIMEOUT = int(os.environ.get("API_TIMEOUT", "10"))  # 타임아웃 (초)
+# 중앙 설정 모듈 불러오기
+from main.server.config.settings import get_settings
+
+settings = get_settings()
 
 # 로깅 설정
 logger = logging.getLogger(__name__)
 
+# 설정에서 API URL 및 타임아웃 가져오기
+BASE_URL = settings.API_BASE_URL
+API_TIMEOUT = settings.API_TIMEOUT
 
 class ApiClient:
     """백엔드 API 통신 클라이언트"""
 
     def __init__(self):
-        # 환경 변수에서 BASE_URL 가져오기 (기본값: http://localhost:8000)
-        self.BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
-        # 환경 변수에서 타임아웃 가져오기 (기본값: 5초)
-        self.TIMEOUT = int(os.environ.get("API_TIMEOUT", "5"))
+        # 설정에서 값 가져오기
+        self.BASE_URL = settings.API_BASE_URL
+        self.TIMEOUT = settings.API_TIMEOUT
 
         logger.info(
             f"API 클라이언트 초기화: BASE_URL={self.BASE_URL}, TIMEOUT={self.TIMEOUT}초"

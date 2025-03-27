@@ -184,14 +184,3 @@ BEGIN
   SELECT ROW_COUNT() AS cleaned_locks;
 END //
 DELIMITER ;
-
--- 대신 아래와 같이 저장 프로시저만 남기고 이벤트는 제거
-DELIMITER //
-CREATE PROCEDURE cleanup_expired_locks()
-BEGIN
-  DELETE FROM dashboard_lock
-  WHERE expires_at < NOW();
-  
-  SELECT ROW_COUNT() AS cleaned_locks;
-END //
-DELIMITER ;
