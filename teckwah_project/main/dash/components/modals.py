@@ -284,6 +284,27 @@ def create_detail_modal(dashboard_data=None, is_locked=False, lock_info=None):
                                                                         ],
                                                                         className="mb-2",
                                                                     ),
+                                                                    dbc.Row(
+                                                                        [
+                                                                            dbc.Col(
+                                                                                html.Strong(
+                                                                                    "작성자:"
+                                                                                ),
+                                                                                width=4,
+                                                                            ),
+                                                                            dbc.Col(
+                                                                                html.Span(
+                                                                                    dashboard_data.get(
+                                                                                        "created_by",
+                                                                                        "-"
+                                                                                    ),
+                                                                                    style={"fontSize": "0.9em"}
+                                                                                ),
+                                                                                width=8,
+                                                                            ),
+                                                                        ],
+                                                                        className="mb-2",
+                                                                    ),
                                                                 ]
                                                             ),
                                                         ],
@@ -775,39 +796,38 @@ def create_detail_modal(dashboard_data=None, is_locked=False, lock_info=None):
                                             dbc.Row(
                                                 [
                                                     dbc.Col(
-                                                        [
-                                                            # 검증 버튼
-                                                            dbc.Button(
-                                                                "검증",
-                                                                id="validate-fields-button",
-                                                                color="secondary",
-                                                                outline=True,
-                                                                size="sm",
-                                                                disabled=not is_editable,
-                                                                className="me-2",
-                                                            ),
-                                                            # 메모 저장 버튼
-                                                            dbc.Button(
-                                                                "메모 저장",
-                                                                id="save-remark-button",
-                                                                color="info",
-                                                                outline=True,
-                                                                disabled=not is_editable,
-                                                                className="me-2",
-                                                            ),
-                                                            # 필드 저장 버튼
-                                                            dbc.Button(
-                                                                "필드 저장",
-                                                                id="save-fields-button",
-                                                                color="primary",
-                                                                disabled=True,  # 초기에는 비활성화 (유효성 검증 후 활성화)
-                                                                className="me-2",
-                                                            ),
-                                                        ],
-                                                        width=12,
-                                                        className="text-end",
-                                                    )
-                                                ]
+                                                        dbc.Button(
+                                                            "유효성 검증",
+                                                            id="validate-fields-button",
+                                                            color="primary",
+                                                            outline=True,
+                                                            className="me-2 mb-2",
+                                                            disabled=is_locked,
+                                                        ),
+                                                        width="auto",
+                                                    ),
+                                                    dbc.Col(
+                                                        dbc.Button(
+                                                            "저장",
+                                                            id="save-fields-button",
+                                                            color="success",
+                                                            className="mb-2",
+                                                            # 초기에는 비활성화 (유효성 검증 후 활성화)
+                                                            disabled=True,
+                                                        ),
+                                                        width="auto",
+                                                    ),
+                                                    # 관리자 전용 알림
+                                                    dbc.Col(
+                                                        html.Small(
+                                                            "※ 관리자만 대시보드를 수정할 수 있습니다",
+                                                            className="text-muted",
+                                                            style={"lineHeight": "38px"},
+                                                        ),
+                                                        width="auto",
+                                                    ),
+                                                ],
+                                                className="d-flex justify-content-end mt-3",
                                             ),
                                         ]
                                     )
@@ -842,7 +862,7 @@ def create_assign_modal():
                 [
                     dbc.Form(
                         [
-                            dbc.FormGroup(
+                            html.Div(
                                 [
                                     dbc.Label("기사명", html_for="driver-name-input"),
                                     dbc.Input(
@@ -851,9 +871,9 @@ def create_assign_modal():
                                         placeholder="기사명을 입력하세요",
                                         className="mb-3",
                                     ),
-                                ]
+                                ], className="mb-3"
                             ),
-                            dbc.FormGroup(
+                            html.Div(
                                 [
                                     dbc.Label(
                                         "연락처", html_for="driver-contact-input"
@@ -864,7 +884,7 @@ def create_assign_modal():
                                         placeholder="연락처를 입력하세요",
                                         className="mb-3",
                                     ),
-                                ]
+                                ], className="mb-3"
                             ),
                             html.Div(id="selected-orders-info", className="mb-3"),
                         ]
@@ -932,7 +952,7 @@ def create_new_dashboard_modal():
                                 [
                                     dbc.Col(
                                         [
-                                            dbc.FormGroup(
+                                            html.Div(
                                                 [
                                                     dbc.Label(
                                                         "주문번호",
@@ -944,14 +964,14 @@ def create_new_dashboard_modal():
                                                         placeholder="주문번호를 입력하세요",
                                                         className="mb-3",
                                                     ),
-                                                ]
+                                                ], className="mb-3"
                                             )
                                         ],
                                         md=6,
                                     ),
                                     dbc.Col(
                                         [
-                                            dbc.FormGroup(
+                                            html.Div(
                                                 [
                                                     dbc.Label(
                                                         "종류",
@@ -973,7 +993,7 @@ def create_new_dashboard_modal():
                                                         clearable=False,
                                                         className="mb-3",
                                                     ),
-                                                ]
+                                                ], className="mb-3"
                                             )
                                         ],
                                         md=6,
@@ -984,7 +1004,7 @@ def create_new_dashboard_modal():
                                 [
                                     dbc.Col(
                                         [
-                                            dbc.FormGroup(
+                                            html.Div(
                                                 [
                                                     dbc.Label(
                                                         "창고",
@@ -1014,14 +1034,14 @@ def create_new_dashboard_modal():
                                                         clearable=False,
                                                         className="mb-3",
                                                     ),
-                                                ]
+                                                ], className="mb-3"
                                             )
                                         ],
                                         md=6,
                                     ),
                                     dbc.Col(
                                         [
-                                            dbc.FormGroup(
+                                            html.Div(
                                                 [
                                                     dbc.Label(
                                                         "SLA", html_for="new-sla-input"
@@ -1033,14 +1053,14 @@ def create_new_dashboard_modal():
                                                         value="당일배송",
                                                         className="mb-3",
                                                     ),
-                                                ]
+                                                ], className="mb-3"
                                             )
                                         ],
                                         md=6,
                                     ),
                                 ]
                             ),
-                            dbc.FormGroup(
+                            html.Div(
                                 [
                                     dbc.Label("ETA", html_for="new-eta-input"),
                                     dbc.Input(
@@ -1048,13 +1068,13 @@ def create_new_dashboard_modal():
                                         id="new-eta-input",
                                         className="mb-3",
                                     ),
-                                ]
+                                ], className="mb-3"
                             ),
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
-                                            dbc.FormGroup(
+                                            html.Div(
                                                 [
                                                     dbc.Label(
                                                         "고객명",
@@ -1066,14 +1086,14 @@ def create_new_dashboard_modal():
                                                         placeholder="고객명을 입력하세요",
                                                         className="mb-3",
                                                     ),
-                                                ]
+                                                ], className="mb-3"
                                             )
                                         ],
                                         md=6,
                                     ),
                                     dbc.Col(
                                         [
-                                            dbc.FormGroup(
+                                            html.Div(
                                                 [
                                                     dbc.Label(
                                                         "연락처",
@@ -1085,14 +1105,14 @@ def create_new_dashboard_modal():
                                                         placeholder="연락처를 입력하세요",
                                                         className="mb-3",
                                                     ),
-                                                ]
+                                                ], className="mb-3"
                                             )
                                         ],
                                         md=6,
                                     ),
                                 ]
                             ),
-                            dbc.FormGroup(
+                            html.Div(
                                 [
                                     dbc.Label(
                                         "우편번호", html_for="new-postal-code-input"
@@ -1103,9 +1123,9 @@ def create_new_dashboard_modal():
                                         placeholder="우편번호를 입력하세요",
                                         className="mb-3",
                                     ),
-                                ]
+                                ], className="mb-3"
                             ),
-                            dbc.FormGroup(
+                            html.Div(
                                 [
                                     dbc.Label("주소", html_for="new-address-input"),
                                     dbc.Textarea(
@@ -1114,7 +1134,7 @@ def create_new_dashboard_modal():
                                         style={"height": "100px"},
                                         className="mb-3",
                                     ),
-                                ]
+                                ], className="mb-3"
                             ),
                         ]
                     )

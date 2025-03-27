@@ -97,7 +97,7 @@ dbc.Alert("관리자 권한이 필요합니다.", color="danger"),
         prevent_initial_call=True,
     )
     def show_alert(app_state):
-        """알림 메시지 표시"""
+        """알림 메시지 표시 - 개선된 사용자 피드백 제공"""
         if not app_state or not isinstance(app_state, dict):
             raise PreventUpdate
 
@@ -109,14 +109,55 @@ dbc.Alert("관리자 권한이 필요합니다.", color="danger"),
         # 알림 속성 추출
         message = alert_data.get("message", "")
         color = alert_data.get("color", "primary")
-        duration = alert_data.get("duration", 4000)
+        duration = alert_data.get("duration", 5000)  # 더 길게 표시
+        icon = None
 
         # 내용이 없으면 무시
         if not message:
             raise PreventUpdate
+        
+        # 메시지 타입에 따른 아이콘 설정
+        if color == "success":
+            icon = html.I(className="fas fa-check-circle me-2")
+        elif color == "danger":
+            icon = html.I(className="fas fa-exclamation-circle me-2")
+        elif color == "warning":
+            icon = html.I(className="fas fa-exclamation-triangle me-2")
+        elif color == "info":
+            icon = html.I(className="fas fa-info-circle me-2")
+        else:
+            icon = html.I(className="fas fa-bell me-2")
+        
+        # 알림 내용 구성
+        alert_content = [
+            html.Div(
+                [
+                    icon, 
+                    html.Span(message, style={"verticalAlign": "middle"}),
+                ],
+                className="d-flex align-items-center"
+            )
+        ]
 
-        # 알림 컴포넌트 생성
-        return create_alert(message, color, True, duration)
+        # 알림 컴포넌트 생성 - 향상된 스타일 적용
+        return dbc.Alert(
+            alert_content,
+            color=color,
+            dismissable=True,
+            duration=duration,
+            is_open=True,
+            className="shadow-lg border-start border-5 border-" + color,
+            style={
+                "position": "fixed", 
+                "top": "20px", 
+                "right": "20px", 
+                "zIndex": 9999,
+                "minWidth": "300px",
+                "maxWidth": "500px",
+                "fontSize": "16px",
+                "opacity": 0.95,
+            },
+        )
 
     # 앱 상태 초기화 콜백 단순화
     @app.callback(

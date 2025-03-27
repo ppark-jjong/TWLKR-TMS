@@ -49,7 +49,7 @@ class Dashboard(Base):
     contact = Column(String(20), nullable=True)
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    created_by = Column(String(50), nullable=True)  # 추가: 대시보드 생성자
+    created_by = Column(String(50), nullable=True)
 
     # 관계 설정
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)

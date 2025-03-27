@@ -41,15 +41,25 @@ def register_callbacks(app: Dash):
 
     @app.callback(
         [
-            Output("delivery-status-pie-chart", "figure", allow_duplicate=True),
-            Output("department-status-bar-chart", "figure", allow_duplicate=True),
-            Output("total-delivery-count", "children", allow_duplicate=True),
-            Output("waiting-delivery-count", "children", allow_duplicate=True),
-            Output("completed-delivery-count", "children", allow_duplicate=True),
-            Output("viz-loading-spinner", "style", allow_duplicate=True),
-            Output("app-state-store", "data", allow_duplicate=True),
+            # 배송 상태 차트 출력
+            Output("delivery-status-pie-chart", "figure"),
+            Output("department-status-bar-chart", "figure"),
+            Output("total-delivery-count", "children"),
+            Output("waiting-delivery-count", "children"),
+            Output("completed-delivery-count", "children"),
+            
+            # 시간별 주문 차트 출력
+            Output("hourly-orders-line-chart", "figure"),
+            Output("department-hourly-heatmap", "figure"),
+            Output("total-orders-count", "children"),
+            Output("avg-orders-count", "children"),
+            Output("peak-hour", "children"),
+            
+            # 공통 출력
+            Output("viz-loading-spinner", "style"),
+            Output("app-state-store", "data"),
         ],
-        [Input("viz-refresh-button", "n_clicks")],  # 명시적 버튼 클릭으로 변경
+        [Input("viz-refresh-button", "n_clicks")],  # 명시적 버튼 클릭
         [
             State("viz-date-picker-range", "start_date"),
             State("viz-date-picker-range", "end_date"),
@@ -59,370 +69,41 @@ def register_callbacks(app: Dash):
         ],
         prevent_initial_call=True,
     )
-    def update_delivery_status_charts(
+    def update_visualization_charts(
         refresh_clicks, start_date, end_date, chart_type, auth_data, app_state
     ):
-        """배송 현황 차트 업데이트 (명시적 버튼 클릭으로 수정)"""
+        """통합된 시각화 차트 업데이트 함수"""
         if not refresh_clicks:
             raise PreventUpdate
-
-        # 차트 타입이 배송 현황이 아닌 경우 무시
-        if chart_type != "delivery_status":
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-            )
 
         # 인증 확인
         if not is_token_valid(auth_data):
             return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-            )
-
-        # 날짜 확인
-        if not start_date or not end_date:
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
-                {
-                    **app_state,
-                    "alert": {
-                        "message": "조회 기간을 선택해주세요.",
-                        "color": "warning",
-                    },
-                },
-            )
-
-        # 액세스 토큰
-        access_token = auth_data.get("access_token", "")
-
-        # 로딩 표시
-        loading_style = {"display": "block"}
-
-        try:
-            # API 호출로 데이터 로드
-            response = ApiClient.get_delivery_status(start_date, end_date, access_token)
-
-            # 로딩 숨김
-            loading_style = {"display": "none"}
-
-            if not response.get("success", False):
-                # API 오류
-                return (
-                    no_update,
-                    no_update,
-                    no_update,
-                    no_update,
-                    no_update,
-                    loading_style,
-                    {
-                        **app_state,
-                        "alert": {
-                            "message": response.get(
-                                "message", "데이터 로드에 실패했습니다."
-                            ),
-                            "color": "danger",
-                        },
-                    },
-                )
-
-            # 데이터 추출
-            data = response.get("data", {})
-
-            # 총 건수
-            total_count = data.get("total_count", 0)
-
-            # 부서별 데이터
-            department_data = data.get("department_breakdown", {})
-
-            # 전체 상태별 카운트
-            status_counts = {
-                "WAITING": 0,
-                "IN_PROGRESS": 0,
-                "COMPLETE": 0,
-                "ISSUE": 0,
-                "CANCEL": 0,
-            }
-
-            department_status_data = []
-
-            # 부서별 데이터 처리
-            for dept, dept_data in department_data.items():
-                dept_total = dept_data.get("total", 0)
-                status_breakdown = dept_data.get("status_breakdown", [])
-
-                for status_info in status_breakdown:
-                    status = status_info.get("status", "")
-                    count = status_info.get("count", 0)
-                    percentage = status_info.get("percentage", 0)
-
-                    # 전체 카운트에 더하기
-                    if status in status_counts:
-                        status_counts[status] += count
-
-                    # 부서별 상태 데이터 추가
-                    department_status_data.append(
-                        {
-                            "department": dept,
-                            "status": status,
-                            "count": count,
-                            "percentage": percentage,
-                        }
-                    )
-
-            # 파이 차트 데이터 준비
-            status_labels = {
-                "WAITING": "대기",
-                "IN_PROGRESS": "진행 중",
-                "COMPLETE": "완료",
-                "ISSUE": "이슈",
-                "CANCEL": "취소",
-            }
-
-            status_colors = {
-                "WAITING": "#ffebee",
-                "IN_PROGRESS": "#fff8e1",
-                "COMPLETE": "#e8f5e9",
-                "ISSUE": "#ede7f6",
-                "CANCEL": "#eceff1",
-            }
-
-            # 파이 차트 생성
-            pie_data = []
-            pie_labels = []
-            pie_colors = []
-
-            for status, count in status_counts.items():
-                if count > 0:
-                    pie_data.append(count)
-                    pie_labels.append(status_labels.get(status, status))
-                    pie_colors.append(status_colors.get(status, "#e0e0e0"))
-
-            pie_fig = go.Figure(
-                data=[
-                    go.Pie(
-                        labels=pie_labels,
-                        values=pie_data,
-                        hole=0.3,
-                        marker_colors=pie_colors,
-                        textinfo="value+percent",
-                        textposition="inside",
-                        insidetextorientation="radial",
-                    )
-                ]
-            )
-
-            pie_fig.update_layout(
-                margin=dict(l=20, r=20, t=30, b=20),
-                showlegend=True,
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
-                ),
-            )
-
-            # 부서별 바 차트 생성
-            if department_status_data:
-                df = pd.DataFrame(department_status_data)
-
-                # 상태 순서 설정
-                status_order = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-                df["status"] = pd.Categorical(
-                    df["status"], categories=status_order, ordered=True
-                )
-                df = df.sort_values(["department", "status"])
-
-                # 각 상태를 한글로 변환
-                df["status_label"] = df["status"].map(status_labels)
-
-                bar_fig = px.bar(
-                    df,
-                    x="department",
-                    y="count",
-                    color="status_label",
-                    color_discrete_map={
-                        status_labels[s]: status_colors[s] for s in status_order
-                    },
-                    barmode="stack",
-                    text="count",
-                    labels={
-                        "department": "부서",
-                        "count": "건수",
-                        "status_label": "상태",
-                    },
-                )
-
-                bar_fig.update_layout(
-                    margin=dict(l=20, r=20, t=30, b=20),
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="center",
-                        x=0.5,
-                    ),
-                )
-
-                bar_fig.update_traces(textposition="inside", texttemplate="%{y}")
-            else:
-                # 데이터 없음 표시
-                bar_fig = go.Figure()
-                bar_fig.add_annotation(
-                    text="데이터가 없습니다",
-                    xref="paper",
-                    yref="paper",
-                    x=0.5,
-                    y=0.5,
-                    showarrow=False,
-                    font=dict(size=20),
-                )
-
-            # 통계 카드 데이터
-            total = f"{total_count:,}"
-            waiting = f"{status_counts.get('WAITING', 0):,}"
-            completed = f"{status_counts.get('COMPLETE', 0):,}"
-
-            return pie_fig, bar_fig, total, waiting, completed, loading_style, app_state
-
-        except requests.ConnectionError as e:
-            logger.error(f"연결 오류: {str(e)}")
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
-                {
-                    **app_state,
-                    "alert": {
-                        "message": "서버 연결에 실패했습니다. 네트워크 연결을 확인하세요.",
-                        "color": "danger",
-                    },
-                },
-            )
-        except requests.Timeout as e:
-            logger.error(f"타임아웃 오류: {str(e)}")
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
-                {
-                    **app_state,
-                    "alert": {
-                        "message": f"서버 응답 시간이 초과되었습니다({settings.API_TIMEOUT}초). 다시 시도해주세요.",
-                        "color": "danger",
-                    },
-                },
-            )
-        except Exception as e:
-            logger.error(f"배송 현황 데이터 로드 오류: {str(e)}", exc_info=True)
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
-                {
-                    **app_state,
-                    "alert": {
-                        "message": "데이터 처리 중 오류가 발생했습니다.",
-                        "color": "danger",
-                    },
-                },
-            )
-
-    @app.callback(
-        [
-            Output("hourly-orders-line-chart", "figure", allow_duplicate=True),
-            Output("department-hourly-heatmap", "figure", allow_duplicate=True),
-            Output("total-orders-count", "children", allow_duplicate=True),
-            Output("avg-orders-count", "children", allow_duplicate=True),
-            Output("peak-hour", "children", allow_duplicate=True),
-            Output("viz-loading-spinner", "style", allow_duplicate=True),
-            Output("app-state-store", "data", allow_duplicate=True),
-        ],
-        [Input("viz-refresh-button", "n_clicks")],  # 명시적 버튼 클릭으로 변경
-        [
-            State("viz-date-picker-range", "start_date"),
-            State("viz-date-picker-range", "end_date"),
-            State("chart-type-selector", "value"),
-            State("auth-store", "data"),
-            State("app-state-store", "data")
-        ],
-        prevent_initial_call=True,
-    )
-    def update_hourly_orders_charts(
-        refresh_clicks, start_date, end_date, chart_type, auth_data, app_state
-    ):
-        """시간별 주문 차트 업데이트 (명시적 버튼 클릭으로 수정)"""
-        if not refresh_clicks:
-            raise PreventUpdate
-
-        # 차트 타입이 시간별 주문이 아닌 경우 무시
-        if chart_type != "hourly_orders":
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-            )
-
-        # 인증 확인
-        if not is_token_valid(auth_data):
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
+                no_update, no_update, no_update, no_update, no_update,  # 배송 상태 차트
+                no_update, no_update, no_update, no_update, no_update,  # 시간별 주문 차트
+                {"display": "none"},  # 로딩 스피너
                 {
                     **app_state,
                     "alert": {
                         "message": "로그인이 필요합니다",
                         "color": "warning",
                     },
-                },
+                },  # 앱 상태
             )
 
         # 날짜 확인
         if not start_date or not end_date:
             return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
+                no_update, no_update, no_update, no_update, no_update,  # 배송 상태 차트
+                no_update, no_update, no_update, no_update, no_update,  # 시간별 주문 차트
+                {"display": "none"},  # 로딩 스피너
                 {
                     **app_state,
                     "alert": {
                         "message": "조회 기간을 선택해주세요",
                         "color": "warning",
                     },
-                },
+                },  # 앱 상태
             )
 
         # 액세스 토큰
@@ -431,117 +112,335 @@ def register_callbacks(app: Dash):
         # 로딩 표시
         loading_style = {"display": "block"}
 
+        # 배송 상태 차트를 위한 기본값
+        delivery_status_pie_chart = no_update
+        department_status_bar_chart = no_update
+        total_delivery_count = no_update
+        waiting_delivery_count = no_update
+        completed_delivery_count = no_update
+
+        # 시간별 주문 차트를 위한 기본값
+        hourly_orders_line_chart = no_update
+        department_hourly_heatmap = no_update
+        total_orders_count = no_update
+        avg_orders_count = no_update
+        peak_hour = no_update
+
         try:
-            # API 호출로 데이터 로드
-            response = ApiClient.get_hourly_orders(start_date, end_date, access_token)
-
-            # 로딩 숨김
-            loading_style = {"display": "none"}
-
-            if not response.get("success", False):
-                # API 오류
-                return (
-                    no_update,
-                    no_update,
-                    no_update,
-                    no_update,
-                    no_update,
-                    loading_style,
-                    {
+            # 차트 타입에 따라 다른 API 호출
+            if chart_type == "delivery_status":
+                # 배송 현황 차트 데이터 로드
+                response = ApiClient.get_delivery_status(start_date, end_date, access_token)
+                
+                if response.get("success", False):
+                    # 데이터 추출
+                    data = response.get("data", {})
+                    
+                    # 총 건수
+                    total_count = data.get("total_count", 0)
+                    total_delivery_count = f"{total_count:,}건"
+                    
+                    # 부서별 데이터
+                    department_data = data.get("department_breakdown", {})
+                    
+                    # 상태별 카운트 초기화
+                    status_counts = {
+                        "WAITING": 0,
+                        "IN_PROGRESS": 0,
+                        "COMPLETE": 0,
+                        "ISSUE": 0, 
+                        "CANCEL": 0,
+                    }
+                    
+                    department_status_data = []
+                    
+                    # 부서별 데이터 처리
+                    for dept, dept_data in department_data.items():
+                        dept_total = dept_data.get("total", 0)
+                        status_breakdown = dept_data.get("status_breakdown", [])
+                        
+                        for status_info in status_breakdown:
+                            status = status_info.get("status", "")
+                            count = status_info.get("count", 0)
+                            percentage = status_info.get("percentage", 0)
+                            
+                            # 전체 카운트에 더하기
+                            if status in status_counts:
+                                status_counts[status] += count
+                            
+                            # 부서별 상태 데이터 추가
+                            department_status_data.append({
+                                "department": dept,
+                                "status": status,
+                                "count": count,
+                                "percentage": percentage,
+                            })
+                    
+                    # 파이 차트 데이터 준비
+                    status_labels = {
+                        "WAITING": "대기",
+                        "IN_PROGRESS": "진행 중",
+                        "COMPLETE": "완료",
+                        "ISSUE": "이슈",
+                        "CANCEL": "취소",
+                    }
+                    
+                    status_colors = {
+                        "WAITING": "#FFC107",  # 노란색
+                        "IN_PROGRESS": "#2196F3",  # 파란색
+                        "COMPLETE": "#4CAF50",  # 녹색
+                        "ISSUE": "#F44336",  # 빨간색
+                        "CANCEL": "#9E9E9E",  # 회색
+                    }
+                    
+                    # 파이 차트 준비
+                    pie_values = []
+                    pie_labels = []
+                    pie_colors = []
+                    
+                    for status, count in status_counts.items():
+                        if count > 0:
+                            pie_values.append(count)
+                            pie_labels.append(status_labels.get(status, status))
+                            pie_colors.append(status_colors.get(status, "#ccc"))
+                    
+                    # 파이 차트 생성
+                    delivery_status_pie_chart = go.Figure(
+                        data=[
+                            go.Pie(
+                                values=pie_values,
+                                labels=pie_labels,
+                                marker=dict(colors=pie_colors),
+                                textinfo="percent+label",
+                                hoverinfo="label+value",
+                                hovertemplate="%{label}: %{value}건<br>(%{percent})<extra></extra>",
+                            )
+                        ]
+                    )
+                    
+                    # 차트 레이아웃 설정
+                    delivery_status_pie_chart.update_layout(
+                        title="배송 상태별 현황",
+                        margin=dict(l=20, r=20, t=40, b=0),
+                        height=300,
+                    )
+                    
+                    # 부서별 상태 막대 차트 준비
+                    dept_df = pd.DataFrame(department_status_data)
+                    
+                    if not dept_df.empty:
+                        # 데이터프레임 처리
+                        # 상태를 범주형으로 변환하고 원하는 순서로 정렬
+                        status_order = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
+                        dept_df["status"] = pd.Categorical(
+                            dept_df["status"], categories=status_order, ordered=True
+                        )
+                        
+                        # 상태별 색상 매핑
+                        dept_df["color"] = dept_df["status"].map(status_colors)
+                        
+                        # 상태 라벨 매핑
+                        dept_df["status_label"] = dept_df["status"].map(status_labels)
+                        
+                        # 부서별 막대 차트 생성
+                        department_status_bar_chart = go.Figure()
+                        
+                        for status, color in status_colors.items():
+                            if status in dept_df["status"].values:
+                                filtered_df = dept_df[dept_df["status"] == status]
+                                department_status_bar_chart.add_trace(
+                                    go.Bar(
+                                        x=filtered_df["department"],
+                                        y=filtered_df["count"],
+                                        name=status_labels.get(status, status),
+                                        marker_color=color,
+                                        hovertemplate="%{x}: %{y}건<extra></extra>",
+                                    )
+                                )
+                        
+                        # 차트 레이아웃 설정
+                        department_status_bar_chart.update_layout(
+                            title="부서별 배송 상태",
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+                            barmode="stack",
+                            height=300,
+                            margin=dict(l=20, r=20, t=60, b=0),
+                        )
+                    
+                    # 대기 중인 건 수
+                    waiting_count = status_counts.get("WAITING", 0)
+                    waiting_delivery_count = f"{waiting_count:,}건"
+                    
+                    # 완료된 건 수
+                    complete_count = status_counts.get("COMPLETE", 0)
+                    completed_delivery_count = f"{complete_count:,}건"
+                    
+                else:
+                    # API 오류 시 알림 설정 및 로딩 숨김
+                    loading_style = {"display": "none"}
+                    app_state = {
                         **app_state,
                         "alert": {
-                            "message": response.get(
-                                "message", "데이터 로드에 실패했습니다."
-                            ),
+                            "message": response.get("message", "데이터 로드에 실패했습니다."),
                             "color": "danger",
                         },
-                    },
-                )
+                    }
 
-            # 데이터 추출
-            data = response.get("data", {})
+            elif chart_type == "hourly_orders":
+                # 시간별 주문 차트 데이터 로드
+                response = ApiClient.get_hourly_orders(start_date, end_date, access_token)
+                
+                if response.get("success", False):
+                    # 데이터 추출
+                    data = response.get("data", {})
+                    
+                    # 시간대별 접수량 차트 개선
+                    hourly_data = data.get("hourly_data", {})
+                    hourly_counts = hourly_data.get("hourly_counts", [])
+                    
+                    # 차트에 맞는 형식으로 변환
+                    hours = []
+                    counts = []
+                    for item in hourly_counts:
+                        hour = item.get("hour", 0)
+                        count = item.get("count", 0)
+                        hours.append(hour)
+                        counts.append(count)
+                    
+                    # 시간대별 접수량 차트 개선
+                    hourly_orders_line_chart = go.Figure()
+                    
+                    # 시간대별 라인 차트 데이터
+                    hourly_orders_line_chart.add_trace(
+                        go.Scatter(
+                            x=hours,
+                            y=counts,
+                            mode="lines+markers",
+                            name="시간대별 접수량",
+                            line=dict(width=3, color="#3f51b5"),  # 두꺼운 선과 선명한 색상
+                            marker=dict(size=10, color="#3f51b5", line=dict(width=2, color="white")),
+                            hovertemplate="%{x}시: %{y}건<extra></extra>",
+                        )
+                    )
+                    
+                    # 차트 레이아웃 설정
+                    hourly_orders_line_chart.update_layout(
+                        title="시간대별 접수량",
+                        xaxis=dict(
+                            title="시간",
+                            tickmode="array",
+                            tickvals=list(range(24)),
+                            ticktext=[f"{h}시" for h in range(24)],
+                        ),
+                        yaxis=dict(title="접수량"),
+                        height=300,
+                        margin=dict(l=20, r=20, t=40, b=0),
+                    )
+                    
+                    # 부서별 시간대 접수량 히트맵
+                    dept_hours = hourly_data.get("department_hourly", {})
+                    
+                    # 히트맵 개선
+                    # 색상 스케일을 더 선명하게 조정
+                    colorscale = [
+                        [0, "#f7fbff"],
+                        [0.2, "#d0e1f2"],
+                        [0.4, "#94c4df"],
+                        [0.6, "#4a98c9"],
+                        [0.8, "#1764ab"],
+                        [1, "#08306b"],
+                    ]
+                    
+                    department_hourly_heatmap = go.Figure()
+                    
+                    # 각 부서별 히트맵 데이터 생성
+                    if dept_hours:
+                        # 모든 부서의 데이터를 하나의 2D 배열로 구성
+                        z_data = []
+                        y_labels = []
+                        
+                        for dept, hours in dept_hours.items():
+                            hour_counts = []
+                            for hour in range(24):
+                                hour_count = next((item["count"] for item in hours if item["hour"] == hour), 0)
+                                hour_counts.append(hour_count)
+                            
+                            z_data.append(hour_counts)
+                            y_labels.append(dept)
+                        
+                        department_hourly_heatmap.add_trace(
+                            go.Heatmap(
+                                z=z_data,
+                                x=[f"{i}시" for i in range(24)],
+                                y=y_labels,
+                                colorscale=colorscale,
+                                hovertemplate="부서: %{y}<br>시간: %{x}<br>접수량: %{z}건<extra></extra>",
+                                colorbar=dict(
+                                    title=dict(text="접수량", font=dict(size=14)),
+                                    tickfont=dict(size=12),
+                                ),
+                            )
+                        )
+                        
+                        # 히트맵 레이아웃 설정
+                        department_hourly_heatmap.update_layout(
+                            title="부서별 시간대 접수량",
+                            height=400,
+                            margin=dict(l=20, r=20, t=40, b=0),
+                        )
+                    
+                    # 요약 정보
+                    summary = data.get("summary", {})
+                    
+                    # 총 주문 건수
+                    total_count = summary.get("total_count", 0)
+                    total_orders_count = f"{total_count:,}건"
+                    
+                    # 시간당 평균 건수
+                    avg_count = summary.get("average_per_hour", 0)
+                    avg_orders_count = f"{avg_count:.1f}건"
+                    
+                    # 피크 시간대
+                    peak_hour_data = summary.get("peak_hour", {})
+                    peak_hour_val = peak_hour_data.get("hour", "-")
+                    peak_hour_count = peak_hour_data.get("count", 0)
+                    peak_hour = f"{peak_hour_val}시 ({peak_hour_count}건)"
+                    
+                else:
+                    # API 오류 시 알림 설정 및 로딩 숨김
+                    loading_style = {"display": "none"}
+                    app_state = {
+                        **app_state,
+                        "alert": {
+                            "message": response.get("message", "데이터 로드에 실패했습니다."),
+                            "color": "danger",
+                        },
+                    }
             
-            # 여기에 시간별 주문 차트 생성 로직 추가...
-            # 예시로 빈 차트만 생성
-            line_fig = go.Figure()
-            heatmap_fig = go.Figure()
+            # 로딩 숨김
+            loading_style = {"display": "none"}
             
-            # 통계 데이터
-            total_orders = "0"
-            avg_orders = "0"
-            peak_hour = "--"
-            
-            # 알림 메시지
-            alert = create_alert_data(
-                message="데이터를 성공적으로 로드했습니다.",
-                color="success",
-            )
-            
-            updated_app_state = {**app_state, "alert": alert}
-
             return (
-                line_fig,
-                heatmap_fig,
-                total_orders,
-                avg_orders,
-                peak_hour,
-                loading_style,
-                updated_app_state,
+                delivery_status_pie_chart, department_status_bar_chart, total_delivery_count, 
+                waiting_delivery_count, completed_delivery_count,
+                hourly_orders_line_chart, department_hourly_heatmap, total_orders_count, 
+                avg_orders_count, peak_hour,
+                loading_style, app_state,
             )
-
-        except requests.ConnectionError as e:
-            # 연결 오류 처리
-            logger.error(f"API 서버 연결 오류: {str(e)}")
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
-                {
-                    **app_state,
-                    "alert": {
-                        "message": "API 서버에 연결할 수 없습니다. 네트워크 연결을 확인하세요.",
-                        "color": "danger",
-                    },
-                },
-            )
-
-        except requests.Timeout as e:
-            # 타임아웃 오류 처리
-            logger.error(f"API 요청 타임아웃: {str(e)}")
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
-                {
-                    **app_state,
-                    "alert": {
-                        "message": f"API 서버 응답이 지연되고 있습니다({settings.API_TIMEOUT}초). 잠시 후 다시 시도해주세요.",
-                        "color": "warning",
-                    },
-                },
-            )
-
+            
         except Exception as e:
-            # 기타 오류 처리
-            logger.error(f"시간별 주문 데이터 처리 중 오류 발생: {str(e)}")
+            # 예외 처리
+            logger.error(f"시각화 데이터 로드 오류: {str(e)}", exc_info=True)
+            
             return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                {"display": "none"},
+                no_update, no_update, no_update, no_update, no_update,  # 배송 상태 차트
+                no_update, no_update, no_update, no_update, no_update,  # 시간별 주문 차트
+                {"display": "none"},  # 로딩 스피너
                 {
                     **app_state,
                     "alert": {
-                        "message": f"데이터 처리 중 오류가 발생했습니다: {str(e)}",
+                        "message": "데이터 처리 중 오류가 발생했습니다.",
                         "color": "danger",
                     },
-                },
+                },  # 앱 상태
             )

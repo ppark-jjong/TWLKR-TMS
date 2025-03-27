@@ -51,6 +51,7 @@ def register_callbacks(app: Dash):
         [
             Input("refresh-button", "n_clicks"),
             Input("apply-filter-button", "n_clicks"),
+            Input("reload-data-trigger", "data"),  # 중앙 집중식 데이터 갱신 트리거 추가
         ],
         [
             State("date-picker-range", "start_date"),
@@ -67,6 +68,7 @@ def register_callbacks(app: Dash):
     def load_dashboard_data(
         refresh_clicks,
         filter_clicks,
+        reload_trigger,  # 새 입력 파라미터 추가
         start_date,
         end_date,
         auth_data,
@@ -162,6 +164,18 @@ def register_callbacks(app: Dash):
                     "d-none" if filtered_data else "d-block",
                     updated_app_state,
                 )
+
+            # 필터 정보가 이미 있으면 적용
+            if app_state and "filters" in app_state:
+                filters = app_state["filters"]
+                if filters and filters != {"type": "ALL", "department": "ALL", "warehouse": "ALL"}:
+                    filtered_data = filter_table_data(formatted_data, filters)
+                    return (
+                        filtered_data,
+                        "d-none",
+                        "d-none" if filtered_data else "d-block",
+                        app_state,
+                    )
 
             # 앱 상태에 필터 초기화
             updated_app_state = {
@@ -349,67 +363,173 @@ def register_callbacks(app: Dash):
 
     @app.callback(
         [Output("app-state-store", "data", allow_duplicate=True)],
-        [Input("save-remark-button", "n_clicks")],
+        [Input("save-fields-button", "n_clicks")],
         [
-            State("remark-textarea", "value"),
-            State("remark-id-input", "value"),
             State("dashboard-id-input", "value"),
+            State("eta-input", "value"),
+            State("customer-input", "value"),
+            State("contact-input", "value"),
+            State("postal-code-input", "value"),
+            State("address-input", "value"),
+            State("remark-textarea", "value"),
             State("auth-store", "data"),
+            State("user-info-store", "data"),
             State("app-state-store", "data"),
         ],
         prevent_initial_call=True,
     )
-    def save_remark(
-        n_clicks, remark_content, remark_id, dashboard_id, auth_data, app_state
+    def update_dashboard_integrated(
+        n_clicks,
+        dashboard_id,
+        eta,
+        customer,
+        contact,
+        postal_code,
+        address,
+        remark_content,
+        auth_data,
+        user_info,
+        app_state,
     ):
-        """메모 저장"""
-        if not n_clicks or not remark_id or not dashboard_id:
+        """대시보드 통합 업데이트 (필드 + 메모) - 관리자 전용"""
+        if not n_clicks or not dashboard_id:
             raise PreventUpdate
 
+        # 관리자 권한 확인
+        if not is_admin_user(user_info):
+            return [{
+                **app_state,
+                "alert": create_alert_data("관리자만 대시보드를 수정할 수 있습니다.", "danger"),
+            }]
+
+        # 필수 필드 확인
+        if not eta or not customer or not postal_code or not address:
+            return [{
+                **app_state,
+                "alert": create_alert_data("필수 필드를 입력해주세요.", "warning"),
+            }]
+
+        # 인증 확인
+        access_token = auth_data.get("access_token")
         if not is_token_valid(auth_data):
-            raise PreventUpdate
+            return [{
+                **app_state,
+                "alert": create_alert_data("로그인이 필요합니다.", "warning"),
+            }]
 
-        # 액세스 토큰
-        access_token = auth_data.get("access_token", "")
+        # 날짜 형식 검증
+        try:
+            eta_datetime = datetime.fromisoformat(eta)
+        except:
+            return [{
+                **app_state,
+                "alert": create_alert_data("ETA의 날짜 형식이 올바르지 않습니다.", "warning"),
+            }]
+
+        # 업데이트 데이터 준비
+        update_data = {
+            "eta": eta,
+            "customer": customer,
+            "contact": contact,
+            "postal_code": postal_code,
+            "address": address,
+        }
+        
+        # 메모가 있는 경우 추가
+        if remark_content is not None:  # 빈 문자열도 포함
+            update_data["remark_content"] = remark_content
 
         try:
-            # API 호출로 메모 업데이트
-            response = ApiClient.update_remark(
-                dashboard_id, remark_id, remark_content, access_token
-            )
-
-            if not response.get("success", False):
-                return [
-                    {
-                        **app_state,
-                        "alert": {
-                            "message": response.get(
-                                "message", "메모 저장에 실패했습니다."
-                            ),
-                            "color": "danger",
-                        },
-                    }
-                ]
-
-            return [
-                {
+            # 락 획득 시도
+            lock_response = ApiClient.acquire_lock(dashboard_id, "UPDATE", access_token)
+            if not lock_response.get("success", False):
+                return [{
                     **app_state,
-                    "alert": {"message": "메모가 저장되었습니다.", "color": "success"},
-                }
-            ]
+                    "alert": create_alert_data(
+                        lock_response.get("message", "대시보드를 수정할 수 없습니다."),
+                        "warning"
+                    ),
+                }]
+            
+            # 통합 업데이트 API 호출
+            response = ApiClient.update_dashboard(
+                dashboard_id, update_data, access_token
+            )
+            
+            # 락 해제 (성공 여부와 무관하게)
+            ApiClient.release_lock(dashboard_id, access_token)
+
+            if response.get("success", False):
+                return [{
+                    **app_state,
+                    "alert": create_alert_data("대시보드가 성공적으로 업데이트되었습니다.", "success"),
+                    "modals": {
+                        **app_state.get("modals", {}),
+                        "detail": False,  # 모달 닫기
+                    },
+                    "reload_data": True,  # 데이터 리로드 플래그
+                }]
+            else:
+                # 에러 메시지 처리
+                error_msg = create_user_friendly_error(response)
+                return [{
+                    **app_state,
+                    "alert": create_alert_data(error_msg, "danger"),
+                }]
 
         except Exception as e:
-            logger.error(f"메모 저장 오류: {str(e)}")
-            return [
-                {
-                    **app_state,
-                    "alert": {
-                        "message": "메모 저장 중 오류가 발생했습니다.",
-                        "color": "danger",
-                    },
-                }
-            ]
+            logger.error(f"대시보드 통합 업데이트 오류: {str(e)}")
+            
+            # 예외 발생 시에도 락 해제 시도
+            try:
+                ApiClient.release_lock(dashboard_id, access_token)
+            except:
+                pass
+            
+            return [{
+                **app_state,
+                "alert": create_alert_data("대시보드 업데이트 중 오류가 발생했습니다.", "danger"),
+            }]
 
+    # 중앙 집중식 데이터 리로드 트리거 콜백 추가
+    @app.callback(
+        Output("reload-data-trigger", "data"),
+        [
+            Input("detail-modal", "is_open"),
+            Input("assign-modal", "is_open"),
+            Input("delete-confirm-modal", "is_open")
+        ],
+        [
+            State("reload-data-trigger", "data"),
+            State("app-state-store", "data")
+        ],
+    )
+    def trigger_data_reload(detail_open, assign_open, delete_open, current_trigger, app_state):
+        """모달이 닫힐 때 데이터 리로드 트리거"""
+        ctx = callback_context
+        if not ctx.triggered:
+            raise PreventUpdate
+        
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        prop_value = ctx.triggered[0]["value"]
+        
+        # 모달이 닫힐 때만 리로드
+        if trigger_id == "detail-modal" and not prop_value:
+            # 모달이 닫히면서 데이터를 리로드
+            return {"time": time.time()}
+        
+        if trigger_id == "assign-modal" and not prop_value:
+            # 배차 모달이 닫히면서 데이터를 리로드
+            return {"time": time.time()}
+        
+        if trigger_id == "delete-confirm-modal" and not prop_value:
+            # 삭제 확인 모달이 닫히면서 데이터를 리로드
+            return {"time": time.time()}
+        
+        # 그 외 경우는 리로드 트리거 유지
+        return current_trigger or {"time": time.time() - 100}
+
+    # 상태 업데이트 콜백
     @app.callback(
         [Output("app-state-store", "data", allow_duplicate=True)],
         [
@@ -523,6 +643,7 @@ def register_callbacks(app: Dash):
                         "message": f"{status_text_map.get(new_status, new_status)} 상태로 변경되었습니다.",
                         "color": "success",
                     },
+                    "reload_data": True,  # 데이터 리로드 플래그 추가
                 }
             ]
 
@@ -632,83 +753,354 @@ def register_callbacks(app: Dash):
 
         return results
 
+    # app_state의 reload_data 플래그를 리로드 트리거와 연결하는 콜백 추가
     @app.callback(
-        [Output("app-state-store", "data", allow_duplicate=True)],
-        [Input("save-fields-button", "n_clicks")],
+        Output("reload-data-trigger", "data", allow_duplicate=True),
+        [Input("app-state-store", "data")],
+        [State("reload-data-trigger", "data")],
+        prevent_initial_call=True,
+    )
+    def refresh_data_on_app_state_change(app_state, current_trigger):
+        """앱 상태 변경 시 데이터 리로드"""
+        if app_state and app_state.get("reload_data", False):
+            # reload_data 플래그가 True이면 트리거 업데이트
+            return {"time": time.time()}
+        
+        # 그 외의 경우 트리거 유지
+        return current_trigger or {"time": time.time() - 100}
+
+    # 배차 모달 토글 콜백
+    @app.callback(
         [
-            State("dashboard-id-input", "value"),
-            State("eta-input", "value"),
-            State("customer-input", "value"),
-            State("contact-input", "value"),
-            State("postal-code-input", "value"),
-            State("address-input", "value"),
-            State("auth-store", "data"),
+            Output("assign-modal", "is_open", allow_duplicate=True),
+            Output("assign-modal", "children", allow_duplicate=True),
+            Output("app-state-store", "data", allow_duplicate=True),
+        ],
+        [Input("assign-button", "n_clicks"), Input("close-assign-modal-button", "n_clicks")],
+        [
+            State("dashboard-table", "selected_rows"),
+            State("dashboard-table", "data"),
+            State("assign-modal", "is_open"),
             State("app-state-store", "data"),
         ],
         prevent_initial_call=True,
     )
-    def save_fields(
-        n_clicks,
-        dashboard_id,
-        eta,
-        customer,
-        contact,
-        postal_code,
-        address,
-        auth_data,
-        app_state,
+    def toggle_assign_modal(
+        assign_clicks, close_clicks, selected_rows, table_data, is_open, app_state
     ):
-        """필드 저장"""
-        if not n_clicks or not dashboard_id:
+        """배차 모달 토글"""
+        ctx = callback_context
+        if not ctx.triggered:
             raise PreventUpdate
+
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        # 닫기 버튼 클릭
+        if trigger_id == "close-assign-modal-button":
+            updated_modals = {
+                **app_state.get("modals", {}),
+                "assign": {"is_open": False, "dashboard_ids": []},
+            }
+            return False, no_update, {**app_state, "modals": updated_modals}
+
+        # 배차 버튼 클릭
+        if trigger_id == "assign-button":
+            if not selected_rows or not table_data:
+                raise PreventUpdate
+
+            # 선택된 행 데이터 추출
+            selected_data = [table_data[i] for i in selected_rows if i < len(table_data)]
+            if not selected_data:
+                raise PreventUpdate
+
+            # 모든 선택된 행이 '대기' 상태인지 확인
+            if not all(row.get("status") == "대기" for row in selected_data):
+                return (
+                    False,
+                    no_update,
+                    {
+                        **app_state,
+                        "alert": {
+                            "message": "대기 상태의 주문만 배차할 수 있습니다.",
+                            "color": "warning",
+                        },
+                    },
+                )
+
+            # 선택된 ID 목록
+            dashboard_ids = [row.get("dashboard_id") for row in selected_data]
+
+            # 모달 내용 생성
+            assign_modal = create_assign_modal()
+
+            # 앱 상태 업데이트
+            updated_modals = {
+                **app_state.get("modals", {}),
+                "assign": {"is_open": True, "dashboard_ids": dashboard_ids},
+            }
+
+            return True, assign_modal, {**app_state, "modals": updated_modals}
+
+        return no_update, no_update, no_update
+
+    # 배차 실행 콜백
+    @app.callback(
+        [Output("app-state-store", "data", allow_duplicate=True)],
+        [Input("confirm-assign-button", "n_clicks")],
+        [
+            State("driver-name-input", "value"),
+            State("driver-contact-input", "value"),
+            State("app-state-store", "data"),
+            State("auth-store", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def perform_assign(n_clicks, driver_name, driver_contact, app_state, auth_data):
+        """배차 실행"""
+        if not n_clicks:
+            raise PreventUpdate
+
+        # 배차 정보 확인
+        if not driver_name:
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "기사명을 입력해주세요.", "color": "warning"},
+                }
+            ]
 
         # 인증 확인
         if not is_token_valid(auth_data):
-            alert = create_alert_data(
-                message=create_user_friendly_error("session_expired"), color="warning"
-            )
-            return [{**app_state, "alert": alert}]
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "로그인이 필요합니다.", "color": "warning"},
+                }
+            ]
+
+        # 대시보드 ID 목록 추출
+        modals = app_state.get("modals", {})
+        assign_data = modals.get("assign", {})
+        dashboard_ids = assign_data.get("dashboard_ids", [])
+
+        if not dashboard_ids:
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "배차할 항목이 없습니다.", "color": "warning"},
+                }
+            ]
 
         # 액세스 토큰
         access_token = auth_data.get("access_token", "")
 
-        # 필드 데이터
-        fields_data = {
-            "eta": eta,
-            "customer_name": customer,
-            "contact": contact,
-            "postal_code": postal_code,
-            "address": address,
-        }
-
         try:
-            # API 호출로 필드 저장
-            response = ApiClient.update_dashboard_fields(
-                dashboard_id, fields_data, access_token
+            # API 호출로 배차 처리
+            response = ApiClient.assign_driver(
+                dashboard_ids, driver_name, driver_contact, access_token
             )
 
             if not response.get("success", False):
-                alert = create_alert_data(
-                    message=response.get("message", "필드 저장에 실패했습니다."),
-                    color="danger",
-                )
-                return [{**app_state, "alert": alert}]
+                return [
+                    {
+                        **app_state,
+                        "alert": {
+                            "message": response.get("message", "배차에 실패했습니다."),
+                            "color": "danger",
+                        },
+                    }
+                ]
 
-            # 성공 알림
-            alert = create_alert_data(
-                message="필드가 성공적으로 저장되었습니다.", color="success"
-            )
+            # 모달 닫기 및 결과 표시
+            updated_modals = {
+                **app_state.get("modals", {}),
+                "assign": {"is_open": False, "dashboard_ids": []},
+            }
 
-            # 모달 업데이트 (상세정보 갱신)
-            updated_state = {**app_state, "alert": alert, "reload_data": True}
-
-            return [updated_state]
+            return [
+                {
+                    **app_state,
+                    "alert": {
+                        "message": f"{len(dashboard_ids)}건의 배차가 완료되었습니다.",
+                        "color": "success",
+                    },
+                    "modals": updated_modals,
+                    "reload_data": True,  # 데이터 리로드 플래그
+                }
+            ]
 
         except Exception as e:
-            logger.error(f"필드 저장 오류: {str(e)}")
+            logger.error(f"배차 처리 오류: {str(e)}")
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "배차 중 오류가 발생했습니다.", "color": "danger"},
+                }
+            ]
 
-            alert = create_alert_data(
-                message="필드 저장 중 오류가 발생했습니다.", color="danger"
-            )
+    # 삭제 확인 모달 토글 콜백
+    @app.callback(
+        [
+            Output("delete-confirm-modal", "is_open", allow_duplicate=True),
+            Output("delete-confirm-modal", "children", allow_duplicate=True),
+            Output("app-state-store", "data", allow_duplicate=True),
+        ],
+        [Input("delete-button", "n_clicks"), Input("close-delete-modal-button", "n_clicks")],
+        [
+            State("dashboard-table", "selected_rows"),
+            State("dashboard-table", "data"),
+            State("delete-confirm-modal", "is_open"),
+            State("app-state-store", "data"),
+            State("user-info-store", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def toggle_delete_modal(
+        delete_clicks, close_clicks, selected_rows, table_data, is_open, app_state, user_info
+    ):
+        """삭제 확인 모달 토글"""
+        ctx = callback_context
+        if not ctx.triggered:
+            raise PreventUpdate
 
-            return [{**app_state, "alert": alert}]
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        # 닫기 버튼 클릭
+        if trigger_id == "close-delete-modal-button":
+            updated_modals = {
+                **app_state.get("modals", {}),
+                "delete": {"is_open": False, "dashboard_ids": []},
+            }
+            return False, no_update, {**app_state, "modals": updated_modals}
+
+        # 삭제 버튼 클릭
+        if trigger_id == "delete-button":
+            if not selected_rows or not table_data:
+                raise PreventUpdate
+
+            # 관리자 권한 확인
+            if not is_admin_user(user_info):
+                return (
+                    False,
+                    no_update,
+                    {
+                        **app_state,
+                        "alert": {
+                            "message": "삭제 권한이 없습니다.",
+                            "color": "danger",
+                        },
+                    },
+                )
+
+            # 선택된 행 데이터 추출
+            selected_data = [table_data[i] for i in selected_rows if i < len(table_data)]
+            if not selected_data:
+                raise PreventUpdate
+
+            # 선택된 ID 목록
+            dashboard_ids = [row.get("dashboard_id") for row in selected_data]
+
+            # 모달 내용 생성
+            delete_modal = create_delete_confirm_modal()
+
+            # 앱 상태 업데이트
+            updated_modals = {
+                **app_state.get("modals", {}),
+                "delete": {"is_open": True, "dashboard_ids": dashboard_ids},
+            }
+
+            return True, delete_modal, {**app_state, "modals": updated_modals}
+
+        return no_update, no_update, no_update
+
+    # 삭제 실행 콜백
+    @app.callback(
+        [Output("app-state-store", "data", allow_duplicate=True)],
+        [Input("confirm-delete-button", "n_clicks")],
+        [
+            State("app-state-store", "data"),
+            State("auth-store", "data"),
+            State("user-info-store", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def perform_delete(n_clicks, app_state, auth_data, user_info):
+        """삭제 실행"""
+        if not n_clicks:
+            raise PreventUpdate
+
+        # 관리자 권한 확인
+        if not is_admin_user(user_info):
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "삭제 권한이 없습니다.", "color": "danger"},
+                }
+            ]
+
+        # 인증 확인
+        if not is_token_valid(auth_data):
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "로그인이 필요합니다.", "color": "warning"},
+                }
+            ]
+
+        # 대시보드 ID 목록 추출
+        modals = app_state.get("modals", {})
+        delete_data = modals.get("delete", {})
+        dashboard_ids = delete_data.get("dashboard_ids", [])
+
+        if not dashboard_ids:
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "삭제할 항목이 없습니다.", "color": "warning"},
+                }
+            ]
+
+        # 액세스 토큰
+        access_token = auth_data.get("access_token", "")
+
+        try:
+            # API 호출로 삭제 처리
+            response = ApiClient.delete_dashboards(dashboard_ids, access_token)
+
+            if not response.get("success", False):
+                return [
+                    {
+                        **app_state,
+                        "alert": {
+                            "message": response.get("message", "삭제에 실패했습니다."),
+                            "color": "danger",
+                        },
+                    }
+                ]
+
+            # 모달 닫기 및 결과 표시
+            updated_modals = {
+                **app_state.get("modals", {}),
+                "delete": {"is_open": False, "dashboard_ids": []},
+            }
+
+            return [
+                {
+                    **app_state,
+                    "alert": {
+                        "message": f"{len(dashboard_ids)}건의 항목이 삭제되었습니다.",
+                        "color": "success",
+                    },
+                    "modals": updated_modals,
+                    "reload_data": True,  # 데이터 리로드 플래그
+                }
+            ]
+
+        except Exception as e:
+            logger.error(f"삭제 처리 오류: {str(e)}")
+            return [
+                {
+                    **app_state,
+                    "alert": {"message": "삭제 중 오류가 발생했습니다.", "color": "danger"},
+                }
+            ]

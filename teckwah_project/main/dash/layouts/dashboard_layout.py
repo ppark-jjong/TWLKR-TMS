@@ -5,19 +5,25 @@ import datetime
 
 
 def create_dashboard_layout():
-    """대시보드/배차 페이지 레이아웃 생성"""
+    """대시보드/배차 페이지 레이아웃 생성 - 1920x1080 해상도 최적화"""
     today = datetime.date.today()
     default_start_date = (today - datetime.timedelta(days=7)).strftime("%Y-%m-%d")
     default_end_date = today.strftime("%Y-%m-%d")
 
     return dbc.Container(
         [
-            # 헤더 영역
+            # 스토어 컴포넌트
+            dcc.Store(id="app-state-store", storage_type="session"),
+            dcc.Store(id="auth-store", storage_type="session"),
+            dcc.Store(id="user-info-store", storage_type="session"),
+            dcc.Store(id="reload-data-trigger", data={"time": datetime.datetime.now().timestamp()}),
+            
+            # 헤더 영역 - 1920x1080에 최적화된 크기와 간격
             dbc.Row(
                 [
                     dbc.Col(
                         [
-                            html.H2("배송 관제 대시보드", className="mb-3"),
+                            html.H2("배송 관제 대시보드", className="mb-3 mt-3"),
                             html.P(
                                 "배송 주문 관리 및 배차 처리를 위한 대시보드입니다.",
                                 className="text-muted",
@@ -34,7 +40,7 @@ def create_dashboard_layout():
                                     dbc.Col(
                                         [
                                             dbc.Label(
-                                                "조회 기간 (ETA 기준)", className="mr-2"
+                                                "조회 기간 (ETA 기준)", className="fw-bold"
                                             ),
                                             html.Div(
                                                 [
@@ -43,7 +49,7 @@ def create_dashboard_layout():
                                                         start_date=default_start_date,
                                                         end_date=default_end_date,
                                                         display_format="YYYY-MM-DD",
-                                                        className="w-100",
+                                                        className="w-100 shadow-sm",
                                                     )
                                                 ],
                                                 className="d-flex",
@@ -55,19 +61,21 @@ def create_dashboard_layout():
                                     dbc.Col(
                                         [
                                             dbc.Label(
-                                                "주문번호 검색", className="mr-2"
+                                                "주문번호 검색", className="fw-bold"
                                             ),
                                             dbc.InputGroup(
                                                 [
                                                     dbc.Input(
                                                         id="order-search-input",
                                                         placeholder="주문번호 입력",
+                                                        className="shadow-sm",
                                                     ),
                                                     dbc.InputGroupAddon(
                                                         dbc.Button(
-                                                            "검색",
+                                                            [html.I(className="fas fa-search me-1"), "검색"],
                                                             id="order-search-button",
                                                             color="primary",
+                                                            className="shadow-sm",
                                                         ),
                                                         addon_type="append",
                                                     ),
@@ -77,15 +85,16 @@ def create_dashboard_layout():
                                         md=6,
                                     ),
                                 ],
-                                className="mb-3",
+                                className="mb-3 mt-3",
                             )
                         ],
                         lg=6,
                     ),
                 ],
-                className="mb-4",
+                className="mb-3 pb-2 border-bottom",
             ),
-            # 액션 버튼 영역
+            
+            # 액션 버튼 영역 - 더 눈에 띄는 디자인
             dbc.Row(
                 [
                     dbc.Col(
@@ -93,28 +102,33 @@ def create_dashboard_layout():
                             dbc.ButtonGroup(
                                 [
                                     dbc.Button(
-                                        "신규 등록",
+                                        [html.I(className="fas fa-plus-circle me-1"), "신규 등록"],
                                         id="new-dashboard-button",
                                         color="success",
-                                        className="mr-2",
+                                        className="me-2 shadow-sm",
+                                        size="md",
                                     ),
                                     dbc.Button(
-                                        "배차",
+                                        [html.I(className="fas fa-truck me-1"), "배차"],
                                         id="assign-button",
                                         color="primary",
-                                        className="mr-2",
+                                        className="me-2 shadow-sm",
+                                        size="md",
                                     ),
                                     dbc.Button(
-                                        "삭제",
+                                        [html.I(className="fas fa-trash-alt me-1"), "삭제"],
                                         id="delete-button",
                                         color="danger",
-                                        className="mr-2",
+                                        className="me-2 shadow-sm",
+                                        size="md",
                                         disabled=True,
                                     ),
                                     dbc.Button(
-                                        "새로고침",
+                                        [html.I(className="fas fa-sync-alt me-1"), "새로고침"],
                                         id="refresh-button",
                                         color="secondary",
+                                        className="shadow-sm",
+                                        size="md",
                                     ),
                                 ]
                             )
@@ -123,7 +137,8 @@ def create_dashboard_layout():
                 ],
                 className="mb-3",
             ),
-            # 필터 영역
+            
+            # 필터 영역 - 개선된 디자인
             dbc.Row(
                 [
                     dbc.Col(
@@ -137,7 +152,7 @@ def create_dashboard_layout():
                                                     # 종류 필터
                                                     dbc.Col(
                                                         [
-                                                            dbc.Label("종류"),
+                                                            dbc.Label("종류", className="fw-bold"),
                                                             dcc.Dropdown(
                                                                 id="type-filter",
                                                                 options=[
@@ -156,14 +171,15 @@ def create_dashboard_layout():
                                                                 ],
                                                                 value="ALL",
                                                                 clearable=False,
+                                                                className="shadow-sm",
                                                             ),
                                                         ],
-                                                        md=3,
+                                                        md=4,
                                                     ),
                                                     # 부서 필터
                                                     dbc.Col(
                                                         [
-                                                            dbc.Label("부서"),
+                                                            dbc.Label("부서", className="fw-bold"),
                                                             dcc.Dropdown(
                                                                 id="department-filter",
                                                                 options=[
@@ -186,14 +202,15 @@ def create_dashboard_layout():
                                                                 ],
                                                                 value="ALL",
                                                                 clearable=False,
+                                                                className="shadow-sm",
                                                             ),
                                                         ],
-                                                        md=3,
+                                                        md=4,
                                                     ),
                                                     # 창고 필터
                                                     dbc.Col(
                                                         [
-                                                            dbc.Label("출발 허브"),
+                                                            dbc.Label("출발 허브", className="fw-bold"),
                                                             dcc.Dropdown(
                                                                 id="warehouse-filter",
                                                                 options=[
@@ -220,81 +237,102 @@ def create_dashboard_layout():
                                                                 ],
                                                                 value="ALL",
                                                                 clearable=False,
+                                                                className="shadow-sm",
                                                             ),
                                                         ],
                                                         md=3,
                                                     ),
-                                                    # 필터 버튼
+                                                    # 필터 적용 버튼
                                                     dbc.Col(
                                                         [
                                                             html.Div(
-                                                                [
-                                                                    dbc.Button(
-                                                                        "필터 적용",
-                                                                        id="apply-filter-button",
-                                                                        color="primary",
-                                                                        className="mr-2",
-                                                                    ),
-                                                                    dbc.Button(
-                                                                        "초기화",
-                                                                        id="reset-filter-button",
-                                                                        color="secondary",
-                                                                    ),
-                                                                ],
-                                                                className="d-flex align-items-end h-100",
+                                                                dbc.Button(
+                                                                    [html.I(className="fas fa-filter me-1"), "필터 적용"],
+                                                                    id="apply-filter-button",
+                                                                    color="primary",
+                                                                    outline=True,
+                                                                    className="mt-4 w-100 shadow-sm",
+                                                                ),
                                                             )
                                                         ],
-                                                        md=3,
+                                                        md=1,
                                                     ),
-                                                ]
-                                            )
+                                                ],
+                                            ),
                                         ]
-                                    )
-                                ]
+                                    ),
+                                ],
+                                className="mb-4 shadow-sm",
                             )
                         ]
                     )
-                ],
-                className="mb-4",
+                ]
             ),
-            # 테이블 영역
+            
+            # 테이블 영역 - 시각적으로 개선된 디자인
             dbc.Row(
                 [
                     dbc.Col(
                         [
+                            # 로딩 표시
+                            html.Div(
+                                dbc.Spinner(color="primary", type="grow"),
+                                id="table-loading-container",
+                                className="d-none text-center my-5",
+                            ),
+                            
+                            # 데이터 없음 표시
+                            html.Div(
+                                [
+                                    html.Div(
+                                        [
+                                            html.I(className="fas fa-search fa-3x text-muted mb-3"),
+                                            html.H5("데이터가 없습니다", className="text-muted"),
+                                            html.P(
+                                                "조회 기간을 변경하거나 필터를 조정해보세요.",
+                                                className="small text-muted",
+                                            ),
+                                        ],
+                                        className="text-center py-5"
+                                    )
+                                ],
+                                id="empty-data-container",
+                                className="d-none border rounded my-3 py-5",
+                            ),
+                            
+                            # 대시보드 테이블 - 1920x1080에 최적화된 크기
                             dash_table.DataTable(
                                 id="dashboard-table",
                                 columns=[
-                                    {
-                                        "name": "",
-                                        "id": "select",
-                                        "selectable": True,
-                                        "presentation": "checkbox",
-                                    },
-                                    {"name": "No.", "id": "dashboard_id"},
+                                    {"name": "", "id": "checkbox", "selectable": True},
                                     {"name": "주문번호", "id": "order_no"},
                                     {"name": "종류", "id": "type"},
                                     {"name": "상태", "id": "status"},
                                     {"name": "부서", "id": "department"},
                                     {"name": "창고", "id": "warehouse"},
                                     {"name": "ETA", "id": "eta"},
-                                    {"name": "생성시간", "id": "create_time"},
                                     {"name": "고객명", "id": "customer"},
                                     {"name": "지역", "id": "region"},
-                                    {"name": "배송담당자", "id": "driver_name"},
+                                    {"name": "기사명", "id": "driver_name"},
                                 ],
-                                page_size=50,
-                                style_table={"overflowX": "auto"},
+                                data=[],
+                                style_table={
+                                    "overflowX": "auto",
+                                    "height": "calc(100vh - 380px)",  # 적절한 높이 설정 (1080p 화면에 맞춤)
+                                    "minHeight": "550px",
+                                },
                                 style_cell={
-                                    "textAlign": "left",
-                                    "padding": "10px",
-                                    "whiteSpace": "normal",
-                                    "height": "auto",
+                                    "fontSize": "14px",
+                                    "fontFamily": "Noto Sans KR, sans-serif",
+                                    "padding": "12px",
                                 },
                                 style_header={
-                                    "backgroundColor": "white",
+                                    "backgroundColor": "#f8f9fa",
                                     "fontWeight": "bold",
                                     "textAlign": "center",
+                                    "fontSize": "14px",
+                                    "padding": "12px 8px",
+                                    "height": "54px",
                                 },
                                 style_data_conditional=[
                                     {

@@ -96,7 +96,6 @@ class DashboardResponse(DashboardBase):
     customer: str
     region: Optional[str] = None
     sla: str
-    created_by: Optional[str] = None  # 추가: 대시보드 생성자
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,7 +121,7 @@ class DashboardDetail(DashboardResponse):
     locked_by: Optional[str] = None
     lock_type: Optional[str] = None
     lock_expires_at: Optional[str] = None
-    created_by: Optional[str] = None  # 추가: 대시보드 생성자
+
 
 # 목록 데이터
 class DashboardListData(BaseModel):
@@ -151,19 +150,6 @@ class AdminDashboardListResponse(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
 
-
-# 통합된 필드 업데이트 스키마
-class DashboardUpdate(BaseModel):
-    """대시보드 통합 업데이트 요청 스키마 (필드와 메모 통합)"""
-    # 대시보드 필드
-    eta: Optional[datetime] = None
-    customer: Optional[str] = None
-    contact: Optional[str] = None
-    address: Optional[str] = None
-    postal_code: Optional[str] = None
-    
-    # 메모 내용
-    remark_content: Optional[str] = Field(None, max_length=2000, description="메모 내용")
 
 # 상세 응답 - 락 정보 포함
 class DashboardDetailResponse(BaseModel):
@@ -218,3 +204,25 @@ class DriverAssignment(BaseModel):
     dashboard_ids: List[int]
     driver_name: str
     driver_contact: str
+
+
+class DashboardUpdate(BaseModel):
+    """대시보드 통합 업데이트 스키마"""
+    eta: Optional[datetime] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    customer: Optional[str] = None
+    contact: Optional[str] = None
+    remark_content: Optional[str] = None  # 메모 내용
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "eta": "2023-03-15T14:30:00",
+                "postal_code": "12345",
+                "address": "서울시 강남구 역삼동 123-45",
+                "customer": "홍길동",
+                "contact": "010-1234-5678",
+                "remark_content": "고객 부재시 경비실에 맡겨주세요."
+            }
+        }

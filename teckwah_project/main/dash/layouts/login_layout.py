@@ -20,7 +20,7 @@ def create_login_layout():
                             html.H4("로그인", className="card-title text-center mb-4"),
                             
                             # 사용자 ID 입력
-                            dbc.FormGroup([
+                            html.Div([
                                 dbc.Label("사용자 ID", html_for="user_id"),
                                 dbc.Input(
                                     type="text",
@@ -28,10 +28,10 @@ def create_login_layout():
                                     placeholder="사용자 ID를 입력하세요",
                                     className="mb-3"
                                 ),
-                            ]),
+                            ], className="mb-3"),
                             
                             # 비밀번호 입력
-                            dbc.FormGroup([
+                            html.Div([
                                 dbc.Label("비밀번호", html_for="password"),
                                 dbc.Input(
                                     type="password",
@@ -39,7 +39,7 @@ def create_login_layout():
                                     placeholder="비밀번호를 입력하세요",
                                     className="mb-4"
                                 ),
-                            ]),
+                            ], className="mb-3"),
                             
                             # 로그인 버튼
                             dbc.Button(

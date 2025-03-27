@@ -73,9 +73,9 @@ class ApiClient:
     @staticmethod
     def login(user_id: str, password: str) -> Dict[str, Any]:
         """로그인 API 호출"""
-        url = f"{BASE_URL}/api/v1/auth/login"
+        url = f"{BASE_URL}/auth/login"
         headers = {"Content-Type": "application/json"}
-        data = {"username": user_id, "password": password}
+        data = {"user_id": user_id, "password": password}
 
         try:
             response = requests.post(url, json=data, headers=headers, timeout=API_TIMEOUT)
@@ -128,7 +128,7 @@ class ApiClient:
     @staticmethod
     def get_dashboard_list(start_date: str, end_date: str, access_token: str) -> Dict[str, Any]:
         """대시보드 목록 조회 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/list"
+        url = f"{BASE_URL}/dashboard/list"
         headers = ApiClient._get_headers(access_token)
         data = {"start_date": start_date, "end_date": end_date}
 
@@ -142,7 +142,7 @@ class ApiClient:
     @staticmethod
     def get_dashboard_detail(dashboard_id: int, access_token: str) -> Dict[str, Any]:
         """대시보드 상세 조회 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/{dashboard_id}"
+        url = f"{BASE_URL}/dashboard/{dashboard_id}"
         headers = ApiClient._get_headers(access_token)
 
         try:
@@ -157,7 +157,7 @@ class ApiClient:
         dashboard_id: int, status: str, is_admin: bool, access_token: str
     ) -> Dict[str, Any]:
         """대시보드 상태 업데이트 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/{dashboard_id}/status"
+        url = f"{BASE_URL}/dashboard/{dashboard_id}/status"
         headers = ApiClient._get_headers(access_token)
         data = {"status": status, "is_admin": is_admin}
 
@@ -173,7 +173,7 @@ class ApiClient:
         dashboard_id: int, fields_data: Dict[str, Any], access_token: str
     ) -> Dict[str, Any]:
         """대시보드 필드 업데이트 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/{dashboard_id}/fields"
+        url = f"{BASE_URL}/dashboard/{dashboard_id}/fields"
         headers = ApiClient._get_headers(access_token)
 
         try:
@@ -188,7 +188,7 @@ class ApiClient:
         dashboard_id: int, remark_id: int, content: str, access_token: str
     ) -> Dict[str, Any]:
         """메모 업데이트 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/{dashboard_id}/remark/{remark_id}"
+        url = f"{BASE_URL}/dashboard/{dashboard_id}/remark/{remark_id}"
         headers = ApiClient._get_headers(access_token)
         data = {"content": content}
 
@@ -202,7 +202,7 @@ class ApiClient:
     @staticmethod
     def acquire_lock(dashboard_id: int, lock_type: str, access_token: str) -> Dict[str, Any]:
         """락 획득 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/{dashboard_id}/lock"
+        url = f"{BASE_URL}/dashboard/{dashboard_id}/lock"
         headers = ApiClient._get_headers(access_token)
         data = {"lock_type": lock_type, "timeout": settings.LOCK_TIMEOUT_SECONDS}  # 환경 설정에서 가져옴
 
@@ -216,7 +216,7 @@ class ApiClient:
     @staticmethod
     def release_lock(dashboard_id: int, access_token: str) -> Dict[str, Any]:
         """락 해제 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/{dashboard_id}/lock"
+        url = f"{BASE_URL}/dashboard/{dashboard_id}/lock"
         headers = ApiClient._get_headers(access_token)
 
         try:
@@ -229,7 +229,7 @@ class ApiClient:
     @staticmethod
     def search_by_order_no(order_no: str, access_token: str) -> Dict[str, Any]:
         """주문번호로 검색 API 호출"""
-        url = f"{BASE_URL}/api/v1/dashboard/search"
+        url = f"{BASE_URL}/dashboard/search"
         headers = ApiClient._get_headers(access_token)
         data = {"order_no": order_no}
 
@@ -243,7 +243,7 @@ class ApiClient:
     @staticmethod
     def get_delivery_status(start_date: str, end_date: str, access_token: str) -> Dict[str, Any]:
         """배송 현황 조회 API 호출"""
-        url = f"{BASE_URL}/api/v1/visualization/delivery-status"
+        url = f"{BASE_URL}/visualization/delivery-status"
         headers = ApiClient._get_headers(access_token)
         params = {"start_date": start_date, "end_date": end_date}
 
@@ -255,9 +255,25 @@ class ApiClient:
             return {"success": False, "message": "서버 연결에 실패했습니다"}
 
     @staticmethod
+    def get_hourly_orders(start_date: str, end_date: str, access_token: str) -> Dict[str, Any]:
+        """시간별 주문 조회 API 호출"""
+        url = f"{BASE_URL}/visualization/hourly-orders"
+        headers = ApiClient._get_headers(access_token)
+        params = {"start_date": start_date, "end_date": end_date}
+
+        try:
+            response = requests.get(
+                url, params=params, headers=headers, timeout=API_TIMEOUT
+            )
+            return ApiClient._handle_response(response)
+        except requests.RequestException as e:
+            logger.error(f"시간별 주문 조회 API 호출 오류: {str(e)}")
+            return {"success": False, "message": "서버 연결에 실패했습니다"}
+
+    @staticmethod
     def get_download_date_range(access_token: str) -> Dict[str, Any]:
         """다운로드 가능 날짜 범위 조회 API 호출"""
-        url = f"{BASE_URL}/api/v1/download/date-range"
+        url = f"{BASE_URL}/download/date-range"
         headers = ApiClient._get_headers(access_token)
 
         try:
@@ -269,18 +285,73 @@ class ApiClient:
 
     @staticmethod
     def download_excel(start_date: str, end_date: str, access_token: str) -> bytes:
-        """Excel 다운로드 API 호출"""
-        url = f"{BASE_URL}/api/v1/download/excel"
+        """엑셀 다운로드 API 호출"""
+        url = f"{BASE_URL}/download/excel"
         headers = ApiClient._get_headers(access_token)
         params = {"start_date": start_date, "end_date": end_date}
 
         try:
-            response = requests.get(url, params=params, headers=headers, timeout=API_TIMEOUT * 2)  # 다운로드는 시간이 더 필요할 수 있음
-            if response.status_code == 200:
+            response = requests.get(
+                url, params=params, headers=headers, timeout=API_TIMEOUT * 2
+            )
+            if response.ok:
                 return response.content
             else:
-                logger.error(f"Excel 다운로드 실패: {response.status_code}")
-                return None
+                logger.error(
+                    f"엑셀 다운로드 API 오류: 상태 코드 {response.status_code}"
+                )
+                return b""
         except requests.RequestException as e:
-            logger.error(f"Excel 다운로드 API 호출 오류: {str(e)}")
-            return None
+            logger.error(f"엑셀 다운로드 API 호출 오류: {str(e)}")
+            return b""
+
+    @staticmethod
+    def update_dashboard(
+        dashboard_id: int, update_data: Dict[str, Any], access_token: str
+    ) -> Dict[str, Any]:
+        """대시보드 업데이트 API 호출"""
+        url = f"{BASE_URL}/dashboard/{dashboard_id}"
+        headers = ApiClient._get_headers(access_token)
+
+        try:
+            response = requests.put(
+                url, json=update_data, headers=headers, timeout=API_TIMEOUT
+            )
+            return ApiClient._handle_response(response)
+        except requests.RequestException as e:
+            logger.error(f"대시보드 업데이트 API 호출 오류: {str(e)}")
+            return {"success": False, "message": "서버 연결에 실패했습니다"}
+
+    @staticmethod
+    def delete_dashboards(dashboard_ids: list, access_token: str) -> Dict[str, Any]:
+        """대시보드 삭제 API 호출"""
+        url = f"{BASE_URL}/dashboard/delete"
+        headers = ApiClient._get_headers(access_token)
+        data = {"dashboard_ids": dashboard_ids}
+
+        try:
+            response = requests.post(url, json=data, headers=headers, timeout=API_TIMEOUT)
+            return ApiClient._handle_response(response)
+        except requests.RequestException as e:
+            logger.error(f"대시보드 삭제 API 호출 오류: {str(e)}")
+            return {"success": False, "message": "서버 연결에 실패했습니다"}
+
+    @staticmethod
+    def assign_driver(
+        dashboard_ids: list, driver_name: str, driver_contact: str, access_token: str
+    ) -> Dict[str, Any]:
+        """기사 배정 API 호출"""
+        url = f"{BASE_URL}/dashboard/assign"
+        headers = ApiClient._get_headers(access_token)
+        data = {
+            "dashboard_ids": dashboard_ids,
+            "driver_name": driver_name,
+            "driver_contact": driver_contact,
+        }
+
+        try:
+            response = requests.post(url, json=data, headers=headers, timeout=API_TIMEOUT)
+            return ApiClient._handle_response(response)
+        except requests.RequestException as e:
+            logger.error(f"기사 배정 API 호출 오류: {str(e)}")
+            return {"success": False, "message": "서버 연결에 실패했습니다"}

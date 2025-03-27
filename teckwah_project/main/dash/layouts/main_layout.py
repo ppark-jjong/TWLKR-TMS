@@ -8,8 +8,8 @@ from main.dash.layouts.download_layout import create_download_layout
 from main.dash.components.navbar import create_navbar
 
 
-def create_layout(app):
-    """전체 레이아웃 생성"""
+def create_main_layout():
+    """메인 레이아웃 생성"""
     return html.Div(
         [
             # URL 라우팅을 위한 위치 저장소
