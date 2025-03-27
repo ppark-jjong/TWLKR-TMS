@@ -5,13 +5,18 @@ from datetime import datetime, timedelta
 
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.exceptions import PessimisticLockException
+from main.server.repositories.lock_repository import LockRepository
+from main.server.config.settings import get_settings
 
+settings = get_settings()
 
 class LockManager:
     """락 관리자: 비관적 락(Pessimistic Lock) 획득 및 해제 관리"""
 
-    def __init__(self, repository):
-        self.repository = repository
+    def __init__(self, repository, db=None):
+        self.dashboard_repository = repository
+        self.db = getattr(repository, "db", None) if db is None else db
+        self.lock_repository = LockRepository(self.db)
 
     @contextmanager
     def acquire_lock(self, dashboard_id: int, user_id: str, lock_type: str):
@@ -21,12 +26,12 @@ class LockManager:
 
         try:
             # 락 획득 시도
-            lock = self.repository.acquire_lock(dashboard_id, user_id, lock_type)
+            lock = self.lock_repository.acquire_lock(dashboard_id, user_id, lock_type)
             acquired = True if lock else False
 
             if not acquired:
                 # 락 획득 실패
-                lock_info = self.repository.get_lock_info(dashboard_id)
+                lock_info = self.lock_repository.get_lock_info(dashboard_id)
                 error_msg = f"다른 사용자가 작업 중입니다 (dashboard_id={dashboard_id})"
 
                 if lock_info:
@@ -48,7 +53,7 @@ class LockManager:
             # 컨텍스트 종료 시 락 자동 해제 (획득했을 경우에만)
             if lock and acquired:
                 try:
-                    self.repository.release_lock(dashboard_id, user_id)
+                    self.lock_repository.release_lock(dashboard_id, user_id)
                 except Exception as e:
                     log_error(e, f"락 자동 해제 실패: dashboard_id={dashboard_id}")
 
@@ -64,14 +69,14 @@ class LockManager:
         acquired_ids = []
         try:
             # 일괄 락 획득 시도
-            acquired_ids = self.repository.acquire_locks_for_multiple_dashboards(
+            acquired_ids = self.lock_repository.acquire_locks_for_multiple_dashboards(
                 dashboard_ids, user_id, lock_type
             )
 
             if len(acquired_ids) != len(dashboard_ids):
                 # 일부만 획득 - 모두 실패로 간주하고 이미 획득한 락 해제
                 for id in acquired_ids:
-                    self.repository.release_lock(id, user_id)
+                    self.lock_repository.release_lock(id, user_id)
 
                 # 실패 메시지 생성
                 raise PessimisticLockException(
@@ -91,14 +96,14 @@ class LockManager:
             # 컨텍스트 종료 시 모든 락 자동 해제
             for id in acquired_ids:
                 try:
-                    self.repository.release_lock(id, user_id)
+                    self.lock_repository.release_lock(id, user_id)
                 except Exception as e:
                     log_error(e, f"다중 락 해제 실패: dashboard_id={id}")
 
     def get_lock_status(self, dashboard_id: int) -> Dict[str, Any]:
         """대시보드의 락 상태 정보 조회"""
         try:
-            lock_info = self.repository.get_lock_info(dashboard_id)
+            lock_info = self.lock_repository.get_lock_info(dashboard_id)
 
             if not lock_info:
                 return {"is_locked": False, "dashboard_id": dashboard_id}

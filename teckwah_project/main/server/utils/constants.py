@@ -88,6 +88,28 @@ MESSAGES = {
         "INVALID_POSTAL": "올바른 우편번호 형식이 아닙니다",
         "FUTURE_ETA": "ETA는 현재 시간 이후여야 합니다",
     },
+    # 오류 응답 관련 메시지 추가
+    "ERROR": {
+        "SERVER": "서버 내부 오류가 발생했습니다",
+        "NOT_FOUND": "요청한 리소스를 찾을 수 없습니다",
+        "UNAUTHORIZED": "인증되지 않은 접근입니다",
+        "FORBIDDEN": "권한이 없습니다",
+        "BAD_REQUEST": "잘못된 요청입니다",
+        "LOCKED": "다른 사용자가 작업 중입니다",
+        "VALIDATION": "입력 데이터가 유효하지 않습니다",
+        "DB_ERROR": "데이터베이스 오류가 발생했습니다",
+        "DB_CONNECTION": "데이터베이스 연결 오류가 발생했습니다"
+    },
+    # 락 관련 메시지 추가
+    "LOCK": {
+        "ACQUIRE_SUCCESS": "락을 획득했습니다",
+        "ACQUIRE_ERROR": "락 획득에 실패했습니다",
+        "RELEASE_SUCCESS": "락을 해제했습니다",
+        "RELEASE_ERROR": "락 해제에 실패했습니다",
+        "EXPIRED": "락이 만료되었습니다",
+        "CONFLICT": "다른 사용자({user})가 현재 작업 중입니다",
+        "PERMISSION": "락을 해제할 권한이 없습니다"
+    }
 }
 
 

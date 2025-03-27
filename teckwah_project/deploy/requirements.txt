@@ -4,9 +4,8 @@ fastapi==0.109.0
 pydantic==2.5.3
 pydantic-settings==2.1.0
 sqlalchemy==2.0.25
-pymysql==1.1.0
+# 중복 커넥터 제거하고 mysqlclient만 유지
 mysqlclient==2.2.1
-mysql-connector-python==8.0.33
 python-jose==3.3.0
 passlib==1.7.4
 python-multipart==0.0.6

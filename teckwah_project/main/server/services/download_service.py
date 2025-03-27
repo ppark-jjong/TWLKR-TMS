@@ -10,6 +10,7 @@ from main.server.models.dashboard_model import Dashboard
 from main.server.repositories.download_repository import DownloadRepository
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.datetime_helper import format_datetime
+from main.server.utils.constants import MESSAGES, TYPE_TEXT_MAP, STATUS_TEXT_MAP
 
 
 class DownloadService:
@@ -31,7 +32,7 @@ class DownloadService:
                 log_info("다운로드할 데이터가 없습니다")
                 return {
                     "success": False, 
-                    "message": "다운로드할 데이터가 없습니다",
+                    "message": MESSAGES["DATA"]["EMPTY"],
                     "file_data": None,
                     "file_name": None
                 }
@@ -50,7 +51,7 @@ class DownloadService:
             log_error(e, "다운로드용 데이터 준비 실패")
             return {
                 "success": False,
-                "message": f"데이터 준비 중 오류 발생: {str(e)}",
+                "message": MESSAGES["ERROR"]["SERVER"],
                 "file_data": None,
                 "file_name": None
             }
@@ -102,24 +103,12 @@ class DownloadService:
                     remarks = sorted(dashboard.remarks, key=lambda r: r.created_at, reverse=True)
                     remarks_text = " | ".join([r.content for r in remarks if r.content])
                 
-                # 유형 매핑
-                type_map = {"DELIVERY": "배송", "RETURN": "회수"}
-                
-                # 상태 매핑
-                status_map = {
-                    "WAITING": "대기", 
-                    "IN_PROGRESS": "진행중", 
-                    "COMPLETE": "완료", 
-                    "ISSUE": "이슈",
-                    "CANCEL": "취소"
-                }
-                
                 # 데이터 행 추가
                 row_data = [
                     row_idx - 1,  # 번호
                     dashboard.order_no,  # 주문번호
-                    type_map.get(dashboard.type, dashboard.type),  # 유형
-                    status_map.get(dashboard.status, dashboard.status),  # 상태
+                    TYPE_TEXT_MAP.get(dashboard.type, dashboard.type),  # 유형
+                    STATUS_TEXT_MAP.get(dashboard.status, dashboard.status),  # 상태
                     dashboard.department,  # 부서
                     dashboard.warehouse,  # 창고
                     dashboard.sla,  # SLA

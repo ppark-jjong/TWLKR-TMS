@@ -8,8 +8,26 @@ from dash import html, no_update
 import dash_bootstrap_components as dbc
 import requests
 import traceback
+from main.server.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
+
+# 오류 타입 및 메시지 상수 정의
+ERROR_MESSAGES = {
+    "login_failed": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 시도해주세요.",
+    "session_expired": "로그인 세션이 만료되었습니다. 다시 로그인해주세요.",
+    "permission_denied": "이 작업을 수행할 권한이 없습니다.",
+    "validation_error": "입력 데이터에 문제가 있습니다: {field} {message}",
+    "lock_error": "다른 사용자가 현재 이 항목을 편집 중입니다. 잠시 후 다시 시도해주세요.",
+    "connection_error": "서버 연결에 문제가 발생했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.",
+    "timeout_error": f"서버 응답 시간이 초과되었습니다({settings.API_TIMEOUT}초). 네트워크 상태를 확인하고 다시 시도해주세요.",
+    "not_found": "요청한 데이터를 찾을 수 없습니다.",
+    "server_error": "서버 오류가 발생했습니다. 관리자에게 문의하세요.",
+    "data_error": "데이터 처리 중 오류가 발생했습니다. 입력 값을 확인하세요.",
+    "api_error": "API 오류: {message}",
+    "network_error": "네트워크 연결 오류가 발생했습니다. 인터넷 연결을 확인하세요.",
+}
 
 
 def create_alert_data(
@@ -41,22 +59,16 @@ def create_user_friendly_error(error_type: str, context: Dict[str, Any] = None) 
     if context is None:
         context = {}
 
-    error_messages = {
-        "login_failed": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 시도해주세요.",
-        "session_expired": "로그인 세션이 만료되었습니다. 다시 로그인해주세요.",
-        "permission_denied": "이 작업을 수행할 권한이 없습니다.",
-        "validation_error": f"입력 데이터에 문제가 있습니다: {context.get('field', '')} {context.get('message', '')}",
-        "lock_error": "다른 사용자가 현재 이 항목을 편집 중입니다. 잠시 후 다시 시도해주세요.",
-        "connection_error": "서버 연결에 문제가 발생했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.",
-        "timeout_error": "서버 응답 시간이 초과되었습니다. 네트워크 상태를 확인하고 다시 시도해주세요.",
-        "not_found": "요청한 데이터를 찾을 수 없습니다.",
-        "server_error": "서버 오류가 발생했습니다. 관리자에게 문의하세요.",
-        "data_error": "데이터 처리 중 오류가 발생했습니다. 입력 값을 확인하세요.",
-        "api_error": f"API 오류: {context.get('message', '알 수 없는 오류')}",
-        "network_error": "네트워크 연결 오류가 발생했습니다. 인터넷 연결을 확인하세요.",
-    }
+    if error_type not in ERROR_MESSAGES:
+        return f"오류가 발생했습니다: {error_type}"
 
-    return error_messages.get(error_type, f"오류가 발생했습니다: {error_type}")
+    error_template = ERROR_MESSAGES[error_type]
+    
+    try:
+        return error_template.format(**context)
+    except KeyError:
+        # 포맷 키가 없는 경우 그대로 반환
+        return error_template
 
 
 def create_validation_feedback(is_valid: bool, message: str = "") -> Dict[str, Any]:
@@ -257,7 +269,7 @@ def create_error_response(
 
 
 def handle_network_error(e: Exception, app_state: Dict[str, Any]) -> List[Any]:
-    """네트워크 오류 처리 유틸리티 함수
+    """네트워크 오류 처리 유틸리티 함수 (개선됨)
 
     Args:
         e: 발생한 예외
@@ -267,18 +279,21 @@ def handle_network_error(e: Exception, app_state: Dict[str, Any]) -> List[Any]:
         List: no_update 값들과 업데이트된 app_state
     """
     error_type = "network_error"
+    message = ERROR_MESSAGES["network_error"]
+    
     if isinstance(e, requests.Timeout):
         error_type = "timeout_error"
+        message = ERROR_MESSAGES["timeout_error"]
     elif isinstance(e, requests.ConnectionError):
         error_type = "connection_error"
+        message = ERROR_MESSAGES["connection_error"]
 
-    logger.error(f"네트워크 오류: {str(e)}")
-    message = create_user_friendly_error(error_type)
+    logger.error(f"네트워크 오류 ({error_type}): {str(e)}")
     return create_error_response(app_state, message)
 
 
 def handle_callback_error(func: Callable) -> Callable:
-    """콜백 함수 예외 처리 데코레이터
+    """콜백 함수 예외 처리 데코레이터 (개선됨)
 
     Args:
         func: 콜백 함수

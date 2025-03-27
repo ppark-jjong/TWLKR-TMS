@@ -10,28 +10,31 @@ from main.server.config.settings import get_settings
 from main.server.schemas.auth_schema import TokenData
 from main.server.utils.logger import log_info, log_error, set_request_id
 from main.server.repositories.dashboard_repository import DashboardRepository
+from main.server.repositories.lock_repository import LockRepository
 from main.server.utils.lock_manager import LockManager
-from main.server.api import (
-    auth_router,
-    dashboard_router,
-    visualization_router,
-    dashboard_lock_router,
-    download_router,
-)
+from main.server.utils.datetime_helper import get_kst_now
+from main.server.utils.constants import MESSAGES
+
 
 settings = get_settings()
 
 
 def get_dashboard_repository(db: Session = Depends(get_db)) -> DashboardRepository:
-    """통합 대시보드 레포지토리 의존성 주입"""
+    """대시보드 레포지토리 의존성 주입"""
     return DashboardRepository(db)
 
 
+def get_lock_repository(db: Session = Depends(get_db)) -> LockRepository:
+    """락 레포지토리 의존성 주입"""
+    return LockRepository(db)
+
+
 def get_lock_manager(
-    repository: DashboardRepository = Depends(get_dashboard_repository),
+    dashboard_repository: DashboardRepository = Depends(get_dashboard_repository),
+    db: Session = Depends(get_db),
 ) -> LockManager:
     """LockManager 의존성 주입"""
-    return LockManager(repository)
+    return LockManager(dashboard_repository, db)
 
 
 async def get_current_user(
@@ -44,7 +47,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
                 "success": False,
-                "message": "인증이 필요합니다",
+                "message": MESSAGES["ERROR"]["UNAUTHORIZED"],
                 "error_code": "UNAUTHORIZED",
             },
             headers={"WWW-Authenticate": "Bearer"},
@@ -57,9 +60,9 @@ async def get_current_user(
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
 
-        # 토큰 만료 검증
+        # 토큰 만료 검증 (KST 시간 사용)
         exp = payload.get("exp")
-        if not exp or datetime.utcnow().timestamp() > exp:
+        if not exp or get_kst_now().timestamp() > exp:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -80,7 +83,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
                 "success": False,
-                "message": "인증에 실패했습니다",
+                "message": MESSAGES["ERROR"]["UNAUTHORIZED"],
                 "error_code": "INVALID_TOKEN",
             },
         )
@@ -93,7 +96,7 @@ async def check_admin_access(current_user: TokenData = Depends(get_current_user)
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "success": False,
-                "message": "권한이 없습니다",
+                "message": MESSAGES["ERROR"]["FORBIDDEN"],
                 "error_code": "FORBIDDEN",
             },
         )

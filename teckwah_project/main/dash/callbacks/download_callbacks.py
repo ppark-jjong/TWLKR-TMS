@@ -3,15 +3,16 @@ from dash import Dash, Output, Input, State, callback_context, no_update, dcc
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import logging
-import io
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from main.dash.api.api_client import ApiClient
 from main.dash.utils.auth_helper import is_token_valid, is_admin_user
+from main.dash.utils.callback_helpers import create_alert_data
+from main.server.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
-
+settings = get_settings()
 
 def register_callbacks(app: Dash):
     """다운로드 관련 콜백 등록"""
@@ -46,13 +47,13 @@ def register_callbacks(app: Dash):
 
     @app.callback(
         [Output("download-date-range-info", "children", allow_duplicate=True)],
-        [Input("url", "pathname")],
+        [Input("download-excel-button", "n_clicks")],  # 명시적 액션으로 변경
         [State("auth-store", "data")],
         prevent_initial_call=True,
     )
-    def load_download_date_range(pathname, auth_data):
-        """다운로드 가능 날짜 범위 로드"""
-        if pathname != "/download":
+    def load_download_date_range(n_clicks, auth_data):
+        """다운로드 가능 날짜 범위 로드 (명시적 액션으로 수정)"""
+        if not n_clicks:
             raise PreventUpdate
 
         if not is_token_valid(auth_data):

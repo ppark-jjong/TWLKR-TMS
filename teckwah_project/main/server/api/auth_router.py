@@ -14,6 +14,8 @@ from main.server.config.settings import get_settings
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.auth import create_token
 from main.server.utils.api_decorators import error_handler
+from main.server.utils.datetime_helper import get_kst_now
+from main.server.utils.constants import MESSAGES
 
 router = APIRouter()
 settings = get_settings()
@@ -31,9 +33,9 @@ async def login(
     login_data: UserLogin, auth_service: AuthService = Depends(get_auth_service)
 ):
     """로그인 API"""
-    log_info(f"로그인 요청 데이터: {login_data.dict()}")
+    log_info(f"로그인 요청: user_id={login_data.user_id}")
     login_response = auth_service.authenticate_user(login_data)
-    log_info(f"로그인 성공 응답: user_id={login_data.user_id}")
+    log_info(f"로그인 성공: user_id={login_data.user_id}")
     return login_response
 
 
@@ -44,7 +46,7 @@ async def check_session(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"success": False, "message": "인증이 필요합니다"}
+            detail={"success": False, "message": MESSAGES["ERROR"]["UNAUTHORIZED"]}
         )
 
     token = authorization.split(" ")[1]
@@ -55,8 +57,11 @@ async def check_session(authorization: str = Header(None)):
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
 
-        # 유효성 검사
-        if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp", 0)):
+        # 유효성 검사 (KST 시간 기준)
+        now = get_kst_now().timestamp()
+        token_exp = payload.get("exp", 0)
+        
+        if now > token_exp:
             raise HTTPException(
                 status_code=401, 
                 detail={"success": False, "message": "인증이 만료되었습니다"}
@@ -76,7 +81,7 @@ async def check_session(authorization: str = Header(None)):
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail={"success": False, "message": "인증에 실패했습니다"}
+            detail={"success": False, "message": MESSAGES["ERROR"]["UNAUTHORIZED"]}
         )
 
 
@@ -90,7 +95,7 @@ async def refresh_token(
     if not refresh_data.refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"success": False, "message": "인증이 필요합니다"}
+            detail={"success": False, "message": MESSAGES["ERROR"]["UNAUTHORIZED"]}
         )
 
     token_data = auth_service.refresh_token(refresh_data.refresh_token)

@@ -1,8 +1,10 @@
 # teckwah_project/main/server/utils/exceptions.py
+from main.server.utils.constants import MESSAGES
+
 class BaseApiException(Exception):
     """API 예외의 기본 클래스"""
 
-    def __init__(self, detail: str = "서버 오류가 발생했습니다"):
+    def __init__(self, detail: str = MESSAGES["ERROR"]["SERVER"]):
         self.detail = detail
         super().__init__(self.detail)
 
@@ -11,7 +13,7 @@ class ValidationException(BaseApiException):
     """데이터 검증 실패 예외"""
 
     def __init__(
-        self, detail: str = "입력 데이터가 유효하지 않습니다", error_fields=None
+        self, detail: str = MESSAGES["ERROR"]["VALIDATION"], error_fields=None
     ):
         self.error_fields = error_fields or {}
         super().__init__(detail)
@@ -20,14 +22,14 @@ class ValidationException(BaseApiException):
 class NotFoundException(BaseApiException):
     """리소스를 찾을 수 없음 예외"""
 
-    def __init__(self, detail: str = "요청한 리소스를 찾을 수 없습니다"):
+    def __init__(self, detail: str = MESSAGES["ERROR"]["NOT_FOUND"]):
         super().__init__(detail)
 
 
 class PessimisticLockException(BaseApiException):
     """비관적 락 획득 실패 예외"""
 
-    def __init__(self, detail: str = "다른 사용자가 동시에 수정 중입니다", **kwargs):
+    def __init__(self, detail: str = MESSAGES["ERROR"]["LOCKED"], **kwargs):
         self.__dict__.update(kwargs)
         super().__init__(detail)
 
@@ -35,7 +37,7 @@ class PessimisticLockException(BaseApiException):
 class UnauthorizedException(BaseApiException):
     """인증되지 않은 접근 예외"""
 
-    def __init__(self, detail: str = "인증되지 않은 접근입니다"):
+    def __init__(self, detail: str = MESSAGES["ERROR"]["UNAUTHORIZED"]):
         super().__init__(detail)
 
 

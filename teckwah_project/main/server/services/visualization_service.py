@@ -6,6 +6,7 @@ import pandas as pd
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.datetime_helper import get_kst_now, localize_to_kst
 from main.server.repositories.visualization_repository import VisualizationRepository
+from main.server.utils.constants import MESSAGES
 
 class VisualizationService:
     """시각화 서비스"""
@@ -25,7 +26,7 @@ class VisualizationService:
             # 1. 원시 데이터 조회
             raw_data = self.repository.get_raw_delivery_data(start_time, end_time)
             if not raw_data:
-                log_info("조회된 데이터가 없습니다")
+                log_info(MESSAGES["DATA"]["EMPTY"])
                 return self._create_empty_delivery_status()
 
             # 2. DataFrame 변환
@@ -97,7 +98,7 @@ class VisualizationService:
             # 1. 원시 데이터 조회
             raw_data = self.repository.get_raw_hourly_data(start_time, end_time)
             if not raw_data:
-                log_info("조회된 데이터가 없습니다")
+                log_info(MESSAGES["DATA"]["EMPTY"])
                 return self._create_empty_hourly_orders()
 
             # 2. DataFrame 변환

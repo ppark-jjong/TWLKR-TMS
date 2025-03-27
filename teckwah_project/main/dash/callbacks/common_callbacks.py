@@ -1,5 +1,5 @@
 # teckwah_project/main/dash/callbacks/common_callbacks.py
-from dash import Dash, Output, Input, State, callback_context, no_update
+from dash import Dash, Output, Input, State, callback_context, no_update, html
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import logging
@@ -75,7 +75,7 @@ def register_callbacks(app: Dash):
             # 관리자만 접근 가능
             if not is_admin_user(user_info):
                 return (
-                    dbc.Alert("관리자 권한이 필요합니다.", color="danger"),
+dbc.Alert("관리자 권한이 필요합니다.", color="danger"),
                     create_navbar(user_info),
                     no_update,
                     "/dashboard",
@@ -118,14 +118,15 @@ def register_callbacks(app: Dash):
         # 알림 컴포넌트 생성
         return create_alert(message, color, True, duration)
 
+    # 앱 상태 초기화 콜백 단순화
     @app.callback(
         Output("app-state-store", "data", allow_duplicate=True),
-        [Input("url", "search")],  # dummy input, 실제로 사용하지 않음
+        [Input("url", "search")],
         [State("app-state-store", "data")],
         prevent_initial_call=True,
     )
     def init_app_state(_, current_state):
-        """앱 상태 초기화"""
+        """앱 상태 초기화 (단순화)"""
         # 이미 초기화되어 있으면 업데이트 방지
         if current_state is not None:
             raise PreventUpdate
@@ -144,13 +145,14 @@ def register_callbacks(app: Dash):
 
         return app_state
 
+    # 모달 컴포넌트 렌더링 콜백 (필요시에만 갱신)
     @app.callback(
         Output("modals-container", "children", allow_duplicate=True),
         [Input("app-state-store", "data")],
         prevent_initial_call=True,
     )
     def render_modals(app_state):
-        """모달 컴포넌트 렌더링"""
+        """모달 컴포넌트 렌더링 (상태 변경 시에만)"""
         if not app_state or "modals" not in app_state:
             raise PreventUpdate
 

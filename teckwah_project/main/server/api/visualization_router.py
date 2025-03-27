@@ -17,6 +17,7 @@ from main.server.schemas.visualization_schema import (
     VisualizationDateRangeResponse,
 )
 from main.server.utils.api_decorators import error_handler
+from main.server.utils.constants import MESSAGES
 
 router = APIRouter()
 
@@ -53,9 +54,9 @@ async def get_delivery_status(
     oldest_date, latest_date = service.get_date_range()
 
     message_text = (
-        "조회된 데이터가 없습니다"
+        MESSAGES["DATA"]["EMPTY"]
         if data["total_count"] == 0
-        else "데이터를 조회했습니다"
+        else MESSAGES["DATA"]["SUCCESS"]
     )
 
     return DeliveryStatusResponse(
@@ -98,9 +99,9 @@ async def get_hourly_orders(
     log_info(f"시간대별 접수량 데이터 구조: {data.keys()}")
 
     message_text = (
-        "조회된 데이터가 없습니다"
+        MESSAGES["DATA"]["EMPTY"]
         if data["total_count"] == 0
-        else "데이터를 조회했습니다"
+        else MESSAGES["DATA"]["SUCCESS"]
     )
 
     return HourlyOrdersResponse(

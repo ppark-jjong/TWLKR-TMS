@@ -5,8 +5,10 @@ import logging
 from typing import Dict, Any, Optional, Tuple, List
 import datetime
 from main.dash.api.api_client import ApiClient
+from main.server.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 class LockHelper:
     """비관적 락 관리 유틸리티 클래스"""

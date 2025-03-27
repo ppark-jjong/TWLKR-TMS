@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 def register_callbacks(app: Dash):
     """대시보드 관련 콜백 등록"""
 
+    # 데이터 로드 콜백 개선 - 명시적 액션 기반으로 수정
     @app.callback(
         [
             Output("dashboard-table", "data", allow_duplicate=True),
@@ -48,12 +49,12 @@ def register_callbacks(app: Dash):
             Output("app-state-store", "data", allow_duplicate=True),
         ],
         [
-            Input("date-picker-range", "start_date"),
-            Input("date-picker-range", "end_date"),
             Input("refresh-button", "n_clicks"),
             Input("apply-filter-button", "n_clicks"),
         ],
         [
+            State("date-picker-range", "start_date"),
+            State("date-picker-range", "end_date"),
             State("auth-store", "data"),
             State("dashboard-table", "data"),
             State("type-filter", "value"),
@@ -64,10 +65,10 @@ def register_callbacks(app: Dash):
         prevent_initial_call=True,
     )
     def load_dashboard_data(
-        start_date,
-        end_date,
         refresh_clicks,
         filter_clicks,
+        start_date,
+        end_date,
         auth_data,
         current_data,
         type_filter,
@@ -75,7 +76,7 @@ def register_callbacks(app: Dash):
         warehouse_filter,
         app_state,
     ):
-        """대시보드 데이터 로드 및 필터링"""
+        """대시보드 데이터 로드 및 필터링 (명시적 액션 기반)"""
         ctx = callback_context
         if not ctx.triggered:
             raise PreventUpdate
@@ -544,6 +545,7 @@ def register_callbacks(app: Dash):
                 }
             ]
 
+    # 필드 유효성 검증 콜백 통합 - 명시적 검증 버튼에 의해서만 동작
     @app.callback(
         [
             Output("eta-input", "valid", allow_duplicate=True),
@@ -561,30 +563,34 @@ def register_callbacks(app: Dash):
             Output("address-input", "valid", allow_duplicate=True),
             Output("address-input", "invalid", allow_duplicate=True),
             Output("address-feedback", "children", allow_duplicate=True),
+            Output("save-fields-button", "disabled", allow_duplicate=True),
         ],
+        [Input("validate-fields-button", "n_clicks")],
         [
-            Input("eta-input", "value"),
-            Input("customer-input", "value"),
-            Input("contact-input", "value"),
-            Input("postal-code-input", "value"),
-            Input("address-input", "value"),
-            Input("validate-fields-button", "n_clicks"),
+            State("eta-input", "value"),
+            State("customer-input", "value"),
+            State("contact-input", "value"),
+            State("postal-code-input", "value"),
+            State("address-input", "value"),
         ],
         prevent_initial_call=True,
     )
-    def validate_fields(eta, customer, contact, postal_code, address, validate_clicks):
-        """필드 유효성 검증"""
-        ctx = callback_context
-        if not ctx.triggered:
+    def validate_fields(
+        validate_clicks, eta, customer, contact, postal_code, address
+    ):
+        """필드 유효성 검증 (통합된 명시적 검증)"""
+        if not validate_clicks:
             raise PreventUpdate
 
         # 유효성 검증 결과 초기화
         results = []
+        all_valid = True
 
         # ETA 검증
         eta_valid, eta_message = validate_datetime_format(eta)
         if not eta_valid:
             results.extend([False, True, eta_message])
+            all_valid = False
         else:
             results.extend([True, False, ""])
 
@@ -592,6 +598,7 @@ def register_callbacks(app: Dash):
         customer_valid, customer_message = validate_required(customer)
         if not customer_valid:
             results.extend([False, True, customer_message])
+            all_valid = False
         else:
             results.extend([True, False, ""])
 
@@ -599,6 +606,7 @@ def register_callbacks(app: Dash):
         contact_valid, contact_message = validate_phone(contact)
         if not contact_valid:
             results.extend([False, True, contact_message])
+            all_valid = False
         else:
             results.extend([True, False, ""])
 
@@ -608,30 +616,25 @@ def register_callbacks(app: Dash):
         if postal_code and not postal_code.isdigit():
             postal_valid = False
             postal_message = "숫자만 입력 가능합니다."
+            all_valid = False
         results.extend([postal_valid, not postal_valid, postal_message])
 
         # 주소 검증
         address_valid, address_message = validate_required(address)
         if not address_valid:
             results.extend([False, True, address_message])
+            all_valid = False
         else:
             results.extend([True, False, ""])
+
+        # 저장 버튼 활성화 여부
+        results.append(not all_valid)
 
         return results
 
     @app.callback(
-        [
-            Output("app-state-store", "data", allow_duplicate=True),
-            Output("save-fields-button", "disabled", allow_duplicate=True),
-        ],
-        [
-            Input("save-fields-button", "n_clicks"),
-            Input("eta-input", "valid"),
-            Input("customer-input", "valid"),
-            Input("contact-input", "valid"),
-            Input("postal-code-input", "valid"),
-            Input("address-input", "valid"),
-        ],
+        [Output("app-state-store", "data", allow_duplicate=True)],
+        [Input("save-fields-button", "n_clicks")],
         [
             State("dashboard-id-input", "value"),
             State("eta-input", "value"),
@@ -646,11 +649,6 @@ def register_callbacks(app: Dash):
     )
     def save_fields(
         n_clicks,
-        eta_valid,
-        customer_valid,
-        contact_valid,
-        postal_valid,
-        address_valid,
         dashboard_id,
         eta,
         customer,
@@ -661,24 +659,6 @@ def register_callbacks(app: Dash):
         app_state,
     ):
         """필드 저장"""
-        ctx = callback_context
-        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-
-        # 유효성 검증 입력이 변경되었을 때 버튼 활성화/비활성화 상태 업데이트
-        if trigger_id != "save-fields-button":
-            # 모든 필드가 유효한지 확인
-            all_valid = all(
-                [
-                    eta_valid is True,
-                    customer_valid is True,
-                    contact_valid is True,
-                    postal_valid is True,
-                    address_valid is True,
-                ]
-            )
-            return no_update, not all_valid
-
-        # 저장 버튼 클릭 처리
         if not n_clicks or not dashboard_id:
             raise PreventUpdate
 
@@ -687,25 +667,7 @@ def register_callbacks(app: Dash):
             alert = create_alert_data(
                 message=create_user_friendly_error("session_expired"), color="warning"
             )
-            return {**app_state, "alert": alert}, True
-
-        # 모든 필드가 유효한지 다시 확인
-        all_valid = all(
-            [
-                eta_valid is True,
-                customer_valid is True,
-                contact_valid is True,
-                postal_valid is True,
-                address_valid is True,
-            ]
-        )
-
-        if not all_valid:
-            alert = create_alert_data(
-                message="입력 데이터에 오류가 있습니다. 수정 후 다시 시도하세요.",
-                color="danger",
-            )
-            return {**app_state, "alert": alert}, True
+            return [{**app_state, "alert": alert}]
 
         # 액세스 토큰
         access_token = auth_data.get("access_token", "")
@@ -730,7 +692,7 @@ def register_callbacks(app: Dash):
                     message=response.get("message", "필드 저장에 실패했습니다."),
                     color="danger",
                 )
-                return {**app_state, "alert": alert}, True
+                return [{**app_state, "alert": alert}]
 
             # 성공 알림
             alert = create_alert_data(
@@ -740,7 +702,7 @@ def register_callbacks(app: Dash):
             # 모달 업데이트 (상세정보 갱신)
             updated_state = {**app_state, "alert": alert, "reload_data": True}
 
-            return updated_state, True
+            return [updated_state]
 
         except Exception as e:
             logger.error(f"필드 저장 오류: {str(e)}")
@@ -749,4 +711,4 @@ def register_callbacks(app: Dash):
                 message="필드 저장 중 오류가 발생했습니다.", color="danger"
             )
 
-            return {**app_state, "alert": alert}, True
+            return [{**app_state, "alert": alert}]

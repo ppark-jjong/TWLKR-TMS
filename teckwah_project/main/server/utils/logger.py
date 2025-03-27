@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from typing import Any, Optional, Dict, Union
 from contextvars import ContextVar
+from main.server.utils.datetime_helper import get_kst_now
 
 logger = logging.getLogger("delivery-system")
 
@@ -51,17 +52,19 @@ def log_debug(message: str, data: Optional[Any] = None) -> None:
 
 def _log(log_func, message: str, data: Optional[Any] = None) -> None:
     """내부 로깅 함수 - 공통 로깅 로직"""
+    now = get_kst_now()
     log_entry = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": now.isoformat(),
         "message": message,
         "request_id": get_request_id(),
     }
 
     if data:
         try:
-            log_entry["data"] = (
-                data if isinstance(data, (dict, list, tuple, set)) else str(data)
-            )
+            if isinstance(data, (dict, list, tuple, set)):
+                log_entry["data"] = data
+            else:
+                log_entry["data"] = str(data)
         except Exception:
             log_entry["data"] = "데이터 직렬화 실패"
 

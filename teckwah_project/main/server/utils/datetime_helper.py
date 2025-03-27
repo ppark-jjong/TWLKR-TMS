@@ -11,6 +11,11 @@ def get_kst_now():
     return datetime.now(KST)
 
 
+def get_kst_utcnow():
+    """UTC 시간을 KST로 변환하여 반환 (auth_service와의 호환성용)"""
+    return datetime.utcnow().replace(tzinfo=pytz.UTC).astimezone(KST)
+
+
 def localize_to_kst(dt):
     """datetime 객체에 KST 시간대 정보 추가"""
     if dt is None:

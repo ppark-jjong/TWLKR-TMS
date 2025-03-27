@@ -20,9 +20,11 @@ from main.server.utils.exceptions import (
     InvalidStatusTransitionException,
 )
 from main.server.utils.transaction import transactional
-from main.server.utils.constants import STATUS_TRANSITIONS
+from main.server.utils.constants import STATUS_TRANSITIONS, MESSAGES
 from main.server.utils.lock_manager import LockManager
+from main.server.config.settings import get_settings
 
+settings = get_settings()
 
 class DashboardService:
     """대시보드 서비스"""
@@ -52,14 +54,14 @@ class DashboardService:
         """대시보드 상세 정보 조회 (락 상태 포함)"""
         dashboard = self.repository.get_dashboard_detail(dashboard_id)
         if not dashboard:
-            raise NotFoundException(f"대시보드를 찾을 수 없습니다: ID={dashboard_id}")
+            raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
         # 메모 조회
         remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
 
-        # 락 상태 확인
-        lock_info = self.repository.get_lock_info(dashboard_id)
-        is_locked = lock_info is not None and not lock_info.is_expired
+        # 락 상태 확인 (LockManager 사용)
+        lock_status = self.lock_manager.get_lock_status(dashboard_id)
+        is_locked = lock_status.get("is_locked", False)
 
         # 상세 정보 구성
         result = self._prepare_dashboard_detail(dashboard, remarks)
@@ -67,9 +69,9 @@ class DashboardService:
         # 락 정보 추가
         if is_locked:
             result["is_locked"] = True
-            result["locked_by"] = lock_info.locked_by
-            result["lock_type"] = lock_info.lock_type
-            result["lock_expires_at"] = lock_info.expires_at.isoformat()
+            result["locked_by"] = lock_status.get("locked_by")
+            result["lock_type"] = lock_status.get("lock_type")
+            result["lock_expires_at"] = lock_status.get("expires_at")
         else:
             result["is_locked"] = False
 
@@ -94,7 +96,7 @@ class DashboardService:
             dashboard = self.repository.create_dashboard(dashboard_dict)
             if not dashboard:
                 log_error(None, "대시보드 생성 실패")
-                raise Exception("대시보드 생성에 실패했습니다")
+                raise Exception(MESSAGES["DASHBOARD"]["CREATE_ERROR"])
 
             # 4. 빈 메모 자동 생성
             if user_id:
@@ -122,6 +124,7 @@ class DashboardService:
             return 0
         return self.repository.delete_dashboards(dashboard_ids)
 
+    @transactional
     def search_dashboards_by_order_no(self, order_no: str) -> List[Dict[str, Any]]:
         """주문번호로 대시보드 검색"""
         dashboards = self.repository.search_dashboards_by_order_no(order_no)
@@ -172,7 +175,7 @@ class DashboardService:
             # 2. 필드 업데이트 데이터 준비
             update_data = fields_update.model_dump(exclude_unset=True)
             if not update_data:
-                raise ValidationException("업데이트할 데이터가 없습니다")
+                raise ValidationException(MESSAGES["VALIDATION"]["REQUIRED"].format(field="업데이트 데이터"))
 
             # 3. 우편번호 변경 시 관련 정보도 함께 업데이트
             if "postal_code" in update_data:
@@ -212,7 +215,7 @@ class DashboardService:
                 dashboard_id, update_data
             )
             if not dashboard:
-                raise NotFoundException("대시보드를 찾을 수 없습니다")
+                raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
             # 5. 상세 정보 반환 (메모 포함)
             remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
@@ -232,7 +235,7 @@ class DashboardService:
             # 2. 대시보드 조회
             dashboard = self.repository.get_dashboard_detail(dashboard_id)
             if not dashboard:
-                raise NotFoundException("대시보드를 찾을 수 없습니다")
+                raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
             # 3. 상태 변경 유효성 검증
             current_status = dashboard.status
@@ -304,7 +307,7 @@ class DashboardService:
         # 1. 메모 조회
         remark = self.repository.get_remark_by_id(remark_id)
         if not remark:
-            raise NotFoundException("메모를 찾을 수 없습니다")
+            raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
         # 작성자 확인
         if remark.created_by != user_id:
@@ -321,6 +324,7 @@ class DashboardService:
             # 4. 응답 구성
             return self._build_remark_response(updated_remark)
 
+    @transactional
     def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[Dict[str, Any]]:
         """대시보드별 메모 목록 조회 (최신순)"""
         remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)

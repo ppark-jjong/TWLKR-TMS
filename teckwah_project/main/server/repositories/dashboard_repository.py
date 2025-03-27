@@ -15,13 +15,10 @@ from main.server.utils.exceptions import PessimisticLockException
 
 
 class DashboardRepository:
-    """통합된 대시보드 저장소 구현 - 대시보드, 락, 메모 관련 기능 통합"""
+    """통합된 대시보드 저장소 구현 - 대시보드, 메모 관련 기능 통합"""
 
     def __init__(self, db: Session):
         self.db = db
-        # 설정 정보는 main.server.config.settings에서 가져오지만,
-        # 필요한 락 타임아웃 값만 직접 설정 (간소화)
-        self.lock_timeout = 300  # 5분 고정
 
     #
     # [대시보드 기본 기능 영역]
@@ -206,157 +203,8 @@ class DashboardRepository:
         except Exception as e:
             log_error(e, "주문번호 검색 실패", {"order_no": order_no})
             return []
-
-    #
-    # [대시보드 락 관련 기능 영역] - dashboard_lock_repository.py에서 통합
-    #
-    def acquire_lock(
-        self, dashboard_id: int, user_id: str, lock_type: str
-    ) -> Optional[DashboardLock]:
-        """락 획득 시도"""
-        try:
-            # 기존 락 정보 조회
-            existing_lock = self.get_lock_info(dashboard_id)
-
-            # 이미 락이 있는 경우 처리
-            if existing_lock:
-                # 만료된 락인 경우 자동 해제 후 새로 획득
-                if existing_lock.is_expired:
-                    self.db.delete(existing_lock)
-                    self.db.flush()
-                    log_info(
-                        f"만료된 락 자동 해제: dashboard_id={dashboard_id}, user_id={existing_lock.locked_by}"
-                    )
-                # 같은 사용자의 락인 경우 갱신
-                elif existing_lock.locked_by == user_id:
-                    existing_lock.lock_type = lock_type
-                    existing_lock.expires_at = datetime.utcnow() + timedelta(
-                        seconds=self.lock_timeout
-                    )
-                    self.db.flush()
-                    log_info(
-                        f"기존 락 갱신: dashboard_id={dashboard_id}, user_id={user_id}"
-                    )
-                    return existing_lock
-                # 다른 사용자의 락인 경우 충돌 예외
-                else:
-                    log_info(
-                        f"락 충돌: dashboard_id={dashboard_id}, requested_by={user_id}, locked_by={existing_lock.locked_by}"
-                    )
-                    raise PessimisticLockException(
-                        detail="다른 사용자가 작업 중입니다",
-                        locked_by=existing_lock.locked_by,
-                        lock_type=existing_lock.lock_type,
-                        dashboard_id=dashboard_id,
-                        expires_at=existing_lock.expires_at,
-                    )
-
-            # 새 락 생성
-            lock = DashboardLock(
-                dashboard_id=dashboard_id,
-                locked_by=user_id,
-                locked_at=datetime.utcnow(),
-                lock_type=lock_type,
-                expires_at=datetime.utcnow() + timedelta(seconds=self.lock_timeout),
-                lock_timeout=self.lock_timeout,
-            )
-
-            self.db.add(lock)
-            self.db.flush()
-            log_info(
-                f"새 락 획득: dashboard_id={dashboard_id}, user_id={user_id}, type={lock_type}"
-            )
-            return lock
-
-        except PessimisticLockException:
-            # 락 충돌 예외는 그대로 전파
-            raise
-        except Exception as e:
-            log_error(
-                e, "락 획득 실패", {"dashboard_id": dashboard_id, "user_id": user_id}
-            )
-            self.db.rollback()
-            return None
-
-    def acquire_locks_for_multiple_dashboards(
-        self, dashboard_ids: List[int], user_id: str, lock_type: str
-    ) -> List[int]:
-        """여러 대시보드에 대한 락 획득 시도"""
-        try:
-            log_info(
-                f"여러 락 획득 시도: dashboard_ids={dashboard_ids}, user_id={user_id}"
-            )
-
-            # 여러 락을 한 번에 처리하기 위한 트랜잭션 블록
-            acquired_ids = []
-
-            # 각 대시보드마다 락 획득 시도
-            for dashboard_id in dashboard_ids:
-                try:
-                    lock = self.acquire_lock(dashboard_id, user_id, lock_type)
-                    if lock:
-                        acquired_ids.append(dashboard_id)
-                except PessimisticLockException as e:
-                    # 락 충돌 시 이미 획득한 락들 해제
-                    for acquired_id in acquired_ids:
-                        self.release_lock(acquired_id, user_id)
-
-                    # 빈 목록 반환 (모두 실패)
-                    log_info(
-                        f"여러 락 획득 실패: 충돌={dashboard_id}, user_id={user_id}"
-                    )
-                    return []
-
-            log_info(f"여러 락 획득 성공: 개수={len(acquired_ids)}, user_id={user_id}")
-            return acquired_ids
-
-        except Exception as e:
-            log_error(
-                e,
-                "여러 락 획득 실패",
-                {"dashboard_ids": dashboard_ids, "user_id": user_id},
-            )
-            # 이미 획득한 락들 해제
-            for acquired_id in acquired_ids:
-                try:
-                    self.release_lock(acquired_id, user_id)
-                except:
-                    pass
-            return []
-
-    def release_lock(self, dashboard_id: int, user_id: str) -> bool:
-        """락 해제"""
-        try:
-            log_info(f"락 해제 시도: dashboard_id={dashboard_id}, user_id={user_id}")
-
-            # 락 정보 조회
-            lock = self.get_lock_info(dashboard_id)
-
-            # 락이 없으면 성공으로 간주 (멱등성)
-            if not lock:
-                log_info(f"해제할 락 없음: dashboard_id={dashboard_id}")
-                return True
-
-            # 본인의 락이 아니면 실패
-            if lock.locked_by != user_id:
-                log_info(
-                    f"락 해제 권한 없음: dashboard_id={dashboard_id}, requested_by={user_id}, locked_by={lock.locked_by}"
-                )
-                return False
-
-            # 락 삭제
-            self.db.delete(lock)
-            self.db.flush()
-            log_info(f"락 해제 성공: dashboard_id={dashboard_id}, user_id={user_id}")
-            return True
-
-        except Exception as e:
-            log_error(
-                e, "락 해제 실패", {"dashboard_id": dashboard_id, "user_id": user_id}
-            )
-            self.db.rollback()
-            return False
-
+            
+    # 락 관련 메서드는 유지하되 LockManager에 위임하는 방식으로 변경
     def get_lock_info(self, dashboard_id: int) -> Optional[DashboardLock]:
         """락 정보 조회"""
         try:
@@ -370,10 +218,8 @@ class DashboardRepository:
         except Exception as e:
             log_error(e, "락 정보 조회 실패", {"dashboard_id": dashboard_id})
             return None
-
-    #
-    # [대시보드 메모 관련 기능 영역] - dashboard_remark_repository.py에서 통합
-    #
+            
+    # 메모 관련 기능은 그대로 유지
     def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[DashboardRemark]:
         """대시보드 ID별 메모 목록 조회 (최신순)"""
         try:

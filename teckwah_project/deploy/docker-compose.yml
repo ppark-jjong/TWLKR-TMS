@@ -11,6 +11,7 @@ services:
       - API_BASE_URL=http://0.0.0.0:8000
       - LOG_LEVEL=WARNING
       - DEBUG=True
+      - MYSQL_HOST=host.docker.internal # 로컬 호스트의 MySQL 접속
     env_file:
       - .env.local
     networks:

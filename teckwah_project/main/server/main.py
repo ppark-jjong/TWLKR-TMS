@@ -18,14 +18,16 @@ from main.server.api import (
 )
 from main.server.config.settings import get_settings
 from main.server.utils.logger import log_info, log_error, set_request_id
-from main.server.config.database import get_db, SessionLocal
+from main.server.utils.datetime_helper import get_kst_now
+from main.server.utils.constants import MESSAGES
 
 settings = get_settings()
 
+# 로깅 설정 간소화
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # 파일 핸들러 제거
+    handlers=[logging.StreamHandler()],
 )
 
 logger = logging.getLogger("delivery-system")
@@ -35,7 +37,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_PREFIX}/openapi.json",
 )
 
-# CORS 설정
+# CORS 설정 - 모든 오리진 허용 (개발 환경 기준)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -45,7 +47,7 @@ app.add_middleware(
 )
 
 
-# 글로벌 예외 핸들러 추가
+# 글로벌 예외 핸들러 통합
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """HTTP 예외에 대한 표준 응답 형식 적용"""
@@ -61,7 +63,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
     # message 필드가 없으면 기본 메시지 추가
     if "message" not in error_detail:
-        error_detail["message"] = "요청을 처리할 수 없습니다"
+        error_detail["message"] = MESSAGES["ERROR"]["SERVER"]
 
     return JSONResponse(status_code=exc.status_code, content=error_detail)
 
@@ -73,7 +75,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 
     return JSONResponse(
         status_code=500,
-        content={"success": False, "message": "서버 내부 오류가 발생했습니다"},
+        content={"success": False, "message": MESSAGES["ERROR"]["SERVER"]},
     )
 
 
@@ -84,11 +86,12 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     request_id = set_request_id()
     request.state.request_id = request_id
 
-    # 요청 시작 시간
+    # 요청 시작 시간 (KST 기준)
     start_time = time.time()
+    start_time_kst = get_kst_now()
 
     # 요청 경로 및 메서드 로깅
-    log_info(f"요청 시작: {request.method} {request.url.path}")
+    log_info(f"요청 시작: {request.method} {request.url.path} [{start_time_kst.isoformat()}]")
 
     try:
         # 다음 미들웨어 또는 엔드포인트 호출
@@ -96,9 +99,10 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
 
         # 처리 시간 계산 및 로깅
         process_time = time.time() - start_time
-        log_info(f"요청 완료: {request.method} {request.url.path}")
+        end_time_kst = get_kst_now()
+        log_info(f"요청 완료: {request.method} {request.url.path} [{end_time_kst.isoformat()}] (처리시간: {process_time:.3f}초)")
 
-        # 응답 헤더에 처리 시간 추가 (선택사항)
+        # 응답 헤더에 처리 시간 추가
         response.headers["X-Process-Time"] = str(process_time)
         response.headers["X-Request-ID"] = request_id
 
@@ -106,7 +110,7 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     except Exception as e:
         # 예외 발생 시 로깅
         process_time = time.time() - start_time
-        log_error(e, f"요청 처리 오류: {request.method} {request.url.path}")
+        log_error(e, f"요청 처리 오류: {request.method} {request.url.path} (처리시간: {process_time:.3f}초)")
         raise
 
 
@@ -124,12 +128,10 @@ app.include_router(download_router.router, prefix="/download", tags=["다운로�
 async def startup_event():
     """애플리케이션 시작 시 실행되는 이벤트 핸들러"""
     # 환경 설정 로깅
-    log_info("애플리케이션 시작")
+    log_info(f"애플리케이션 시작 - {settings.PROJECT_NAME} (환경: {'개발' if settings.DEBUG else '운영'})")
 
     # 로그 디렉토리 확인 및 생성
     os.makedirs("logs", exist_ok=True)
-
-    logger.info(f"서버 시작: {settings.PROJECT_NAME}")
 
 
 @app.on_event("shutdown")

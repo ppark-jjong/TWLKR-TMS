@@ -9,13 +9,14 @@ import pandas as pd
 from typing import Dict, Any, List, Optional
 import requests
 
-from main.dash.api.api_client import ApiClient, api_client
+from main.dash.api.api_client import ApiClient
 from main.dash.utils.auth_helper import is_token_valid
 from main.dash.utils.format_helper import create_color_scale
-from main.dash.utils.callback_helpers import handle_network_error, create_error_response
+from main.dash.utils.callback_helpers import handle_network_error, create_error_response, create_alert_data
+from main.server.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
-
+settings = get_settings()
 
 def register_callbacks(app: Dash):
     """시각화 관련 콜백 등록"""
@@ -48,21 +49,21 @@ def register_callbacks(app: Dash):
             Output("viz-loading-spinner", "style", allow_duplicate=True),
             Output("app-state-store", "data", allow_duplicate=True),
         ],
+        [Input("viz-refresh-button", "n_clicks")],  # 명시적 버튼 클릭으로 변경
         [
-            Input("viz-date-picker-range", "start_date"),
-            Input("viz-date-picker-range", "end_date"),
-            Input("viz-refresh-button", "n_clicks"),
-            Input("chart-type-selector", "value"),
+            State("viz-date-picker-range", "start_date"),
+            State("viz-date-picker-range", "end_date"),
+            State("chart-type-selector", "value"),
+            State("auth-store", "data"),
+            State("app-state-store", "data")
         ],
-        [State("auth-store", "data"), State("app-state-store", "data")],
         prevent_initial_call=True,
     )
     def update_delivery_status_charts(
-        start_date, end_date, refresh_clicks, chart_type, auth_data, app_state
+        refresh_clicks, start_date, end_date, chart_type, auth_data, app_state
     ):
-        """배송 현황 차트 업데이트"""
-        ctx = callback_context
-        if not ctx.triggered:
+        """배송 현황 차트 업데이트 (명시적 버튼 클릭으로 수정)"""
+        if not refresh_clicks:
             raise PreventUpdate
 
         # 차트 타입이 배송 현황이 아닌 경우 무시
@@ -326,7 +327,7 @@ def register_callbacks(app: Dash):
                 {
                     **app_state,
                     "alert": {
-                        "message": "서버 응답 시간이 초과되었습니다. 다시 시도해주세요.",
+                        "message": f"서버 응답 시간이 초과되었습니다({settings.API_TIMEOUT}초). 다시 시도해주세요.",
                         "color": "danger",
                     },
                 },
@@ -352,33 +353,48 @@ def register_callbacks(app: Dash):
     @app.callback(
         [
             Output("hourly-orders-line-chart", "figure", allow_duplicate=True),
-            Output("hourly-orders-heatmap", "figure", allow_duplicate=True),
+            Output("department-hourly-heatmap", "figure", allow_duplicate=True),
+            Output("total-orders-count", "children", allow_duplicate=True),
+            Output("avg-orders-count", "children", allow_duplicate=True),
+            Output("peak-hour", "children", allow_duplicate=True),
             Output("viz-loading-spinner", "style", allow_duplicate=True),
             Output("app-state-store", "data", allow_duplicate=True),
         ],
+        [Input("viz-refresh-button", "n_clicks")],  # 명시적 버튼 클릭으로 변경
         [
-            Input("viz-date-picker-single", "date"),
-            Input("viz-refresh-button", "n_clicks"),
-            Input("chart-type-selector", "value"),
+            State("viz-date-picker-range", "start_date"),
+            State("viz-date-picker-range", "end_date"),
+            State("chart-type-selector", "value"),
+            State("auth-store", "data"),
+            State("app-state-store", "data")
         ],
-        [State("auth-store", "data"), State("app-state-store", "data")],
         prevent_initial_call=True,
     )
     def update_hourly_orders_charts(
-        selected_date, refresh_clicks, chart_type, auth_data, app_state
+        refresh_clicks, start_date, end_date, chart_type, auth_data, app_state
     ):
-        """시간별 주문 차트 업데이트"""
-        ctx = callback_context
-        if not ctx.triggered:
+        """시간별 주문 차트 업데이트 (명시적 버튼 클릭으로 수정)"""
+        if not refresh_clicks:
             raise PreventUpdate
 
         # 차트 타입이 시간별 주문이 아닌 경우 무시
         if chart_type != "hourly_orders":
-            return no_update, no_update, no_update, no_update
+            return (
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+            )
 
         # 인증 확인
         if not is_token_valid(auth_data):
             return (
+                no_update,
+                no_update,
+                no_update,
                 no_update,
                 no_update,
                 {"display": "none"},
@@ -392,15 +408,18 @@ def register_callbacks(app: Dash):
             )
 
         # 날짜 확인
-        if not selected_date:
+        if not start_date or not end_date:
             return (
+                no_update,
+                no_update,
+                no_update,
                 no_update,
                 no_update,
                 {"display": "none"},
                 {
                     **app_state,
                     "alert": {
-                        "message": "날짜를 선택해주세요",
+                        "message": "조회 기간을 선택해주세요",
                         "color": "warning",
                     },
                 },
@@ -414,49 +433,69 @@ def register_callbacks(app: Dash):
 
         try:
             # API 호출로 데이터 로드
-            success, response = api_client.fetch_hourly_orders(selected_date)
+            response = ApiClient.get_hourly_orders(start_date, end_date, access_token)
 
             # 로딩 숨김
             loading_style = {"display": "none"}
 
-            if not success:
-                # 네트워크 오류 또는 API 오류
-                error_message = "데이터 로드에 실패했습니다"
-
-                # 연결 오류인 경우 더 자세한 메시지 제공
-                if "연결 실패" in str(response):
-                    error_message = "API 서버에 연결할 수 없습니다. 네트워크 연결을 확인하거나 서버가 실행 중인지 확인하세요."
-                # 타임아웃 오류인 경우
-                elif "타임아웃" in str(response):
-                    error_message = (
-                        "API 서버 응답이 너무 느립니다. 잠시 후 다시 시도해주세요."
-                    )
-                # 기타 API 오류
-                else:
-                    error_message = str(response)
-
-                logger.error(f"시간별 주문 데이터 로드 실패: {error_message}")
-
+            if not response.get("success", False):
+                # API 오류
                 return (
+                    no_update,
+                    no_update,
+                    no_update,
                     no_update,
                     no_update,
                     loading_style,
                     {
                         **app_state,
                         "alert": {
-                            "message": error_message,
+                            "message": response.get(
+                                "message", "데이터 로드에 실패했습니다."
+                            ),
                             "color": "danger",
                         },
                     },
                 )
 
-            # 데이터 추출 및 차트 생성 로직
-            # ...
+            # 데이터 추출
+            data = response.get("data", {})
+            
+            # 여기에 시간별 주문 차트 생성 로직 추가...
+            # 예시로 빈 차트만 생성
+            line_fig = go.Figure()
+            heatmap_fig = go.Figure()
+            
+            # 통계 데이터
+            total_orders = "0"
+            avg_orders = "0"
+            peak_hour = "--"
+            
+            # 알림 메시지
+            alert = create_alert_data(
+                message="데이터를 성공적으로 로드했습니다.",
+                color="success",
+            )
+            
+            updated_app_state = {**app_state, "alert": alert}
+
+            return (
+                line_fig,
+                heatmap_fig,
+                total_orders,
+                avg_orders,
+                peak_hour,
+                loading_style,
+                updated_app_state,
+            )
 
         except requests.ConnectionError as e:
             # 연결 오류 처리
             logger.error(f"API 서버 연결 오류: {str(e)}")
             return (
+                no_update,
+                no_update,
+                no_update,
                 no_update,
                 no_update,
                 {"display": "none"},
@@ -475,11 +514,14 @@ def register_callbacks(app: Dash):
             return (
                 no_update,
                 no_update,
+                no_update,
+                no_update,
+                no_update,
                 {"display": "none"},
                 {
                     **app_state,
                     "alert": {
-                        "message": "API 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.",
+                        "message": f"API 서버 응답이 지연되고 있습니다({settings.API_TIMEOUT}초). 잠시 후 다시 시도해주세요.",
                         "color": "warning",
                     },
                 },
@@ -489,6 +531,9 @@ def register_callbacks(app: Dash):
             # 기타 오류 처리
             logger.error(f"시간별 주문 데이터 처리 중 오류 발생: {str(e)}")
             return (
+                no_update,
+                no_update,
+                no_update,
                 no_update,
                 no_update,
                 {"display": "none"},

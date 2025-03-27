@@ -7,6 +7,8 @@ from main.server.utils.logger import log_info, log_error
 from main.server.config.settings import get_settings
 from main.server.utils.transaction import transactional
 from main.server.utils.exceptions import UnauthorizedException, NotFoundException
+from main.server.utils.datetime_helper import get_kst_now, get_kst_utcnow
+from main.server.utils.constants import MESSAGES
 
 settings = get_settings()
 
@@ -22,12 +24,12 @@ class AuthService:
         user = self.repository.get_user_by_id(login_data.user_id)
         if not user:
             log_error(None, "로그인 실패: 사용자 없음")
-            raise Exception("로그인에 실패했습니다")
+            raise UnauthorizedException(MESSAGES["ERROR"]["UNAUTHORIZED"])
 
         # 비밀번호 검증 (user_password 필드 사용)
         if not verify_password(login_data.password, user.user_password):
             log_error(None, "로그인 실패: 비밀번호 불일치")
-            raise Exception("로그인에 실패했습니다")
+            raise UnauthorizedException(MESSAGES["ERROR"]["UNAUTHORIZED"])
 
         # 토큰 생성
         access_token = create_token(
@@ -45,12 +47,11 @@ class AuthService:
             is_refresh_token=True,
         )
 
-        # 리프레시 토큰 저장
+        # 리프레시 토큰 저장 - KST 시간 사용
         self.repository.store_refresh_token(
             user_id=user.user_id,
             refresh_token=refresh_token,
-            expires_at=datetime.utcnow()
-            + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            expires_at=get_kst_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
 
         log_info(f"로그인 성공: {user.user_id}")
@@ -76,12 +77,12 @@ class AuthService:
         # 리프레시 토큰 유효성 검증
         token_entry = self.repository.get_valid_refresh_token(refresh_token)
         if not token_entry:
-            raise Exception("인증에 실패했습니다")
+            raise UnauthorizedException(MESSAGES["ERROR"]["UNAUTHORIZED"])
 
         # 사용자 정보 조회
         user = self.repository.get_user_by_id(token_entry.user_id)
         if not user:
-            raise Exception("사용자 정보를 찾을 수 없습니다")
+            raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
         # 새 액세스 토큰 생성
         access_token = create_token(
@@ -100,12 +101,11 @@ class AuthService:
             is_refresh_token=True,
         )
 
-        # 리프레시 토큰 업데이트
+        # 리프레시 토큰 업데이트 - KST 시간 사용
         self.repository.store_refresh_token(
             user_id=user.user_id,
             refresh_token=new_refresh_token,
-            expires_at=datetime.utcnow()
-            + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            expires_at=get_kst_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
 
         log_info(f"토큰 갱신 성공: {user.user_id}")

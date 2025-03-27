@@ -50,10 +50,8 @@ class Dashboard(Base):
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
 
-    # Relationships
+    # 관계 설정
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)
-
-    # 새로운 관계 추가
     remarks = relationship(
         "DashboardRemark", back_populates="dashboard", cascade="all, delete-orphan"
     )

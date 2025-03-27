@@ -1,5 +1,5 @@
 # teckwah_project/main/dash/callbacks/auth_callbacks.py
-from dash import Dash, Output, Input, State, callback_context, no_update
+from dash import Dash, Output, Input, State, callback_context, no_update, html
 from dash.exceptions import PreventUpdate
 import logging
 import json
@@ -137,21 +137,21 @@ def register_callbacks(app: Dash):
         # 스토리지 데이터 삭제 및 로그인 페이지로 리다이렉트
         return True, True, "/", updated_app_state
 
+    # 명시적 인증 체크 콜백으로 수정 - 자동 트리거 제거
     @app.callback(
         [
             Output("auth-store", "data", allow_duplicate=True),
             Output("url", "pathname", allow_duplicate=True),
             Output("app-state-store", "data", allow_duplicate=True),
         ],
-        [Input("url", "pathname")],
-        [State("auth-store", "data"), State("app-state-store", "data")],
+        [Input("check-session-button", "n_clicks")],  # 명시적 버튼 클릭으로 변경
+        [State("auth-store", "data"), State("app-state-store", "data"), State("url", "pathname")],
         prevent_initial_call=True,
     )
-    def check_auth_status(pathname, auth_data, app_state):
-        """인증 상태 확인"""
-        # 로그인 페이지는 인증 검증 제외
-        if pathname == "/" or pathname is None:
-            return no_update, no_update, no_update
+    def check_auth_status(n_clicks, auth_data, app_state, pathname):
+        """인증 상태 확인 (명시적 확인 버튼으로 수정)"""
+        if not n_clicks:
+            raise PreventUpdate
 
         # 인증 정보가 없는 경우
         if not is_token_valid(auth_data):
@@ -169,6 +169,7 @@ def register_callbacks(app: Dash):
 
             return None, "/", updated_app_state
 
+        # 인증 정보가 있는 경우 현재 위치 유지
         return no_update, no_update, no_update
 
     @app.callback(

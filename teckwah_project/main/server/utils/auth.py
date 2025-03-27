@@ -4,6 +4,7 @@ from typing import Dict, Optional
 from jose import jwt
 from main.server.config.settings import get_settings
 from main.server.utils.logger import log_error
+from main.server.utils.datetime_helper import get_kst_now
 import bcrypt
 
 settings = get_settings()
@@ -16,12 +17,12 @@ def create_token(
     expires_delta: timedelta,
     is_refresh_token: bool = False,
 ) -> str:
-    """JWT 토큰 생성"""
+    """JWT 토큰 생성 - KST 기준 시간 사용"""
     try:
-        expire = datetime.utcnow() + expires_delta
+        expire = get_kst_now() + expires_delta
         payload = {
             "sub": user_id,
-            "exp": expire,
+            "exp": int(expire.timestamp()),  # timestamp로 변환
             "department": department,
             "role": role,
             "type": "refresh" if is_refresh_token else "access",

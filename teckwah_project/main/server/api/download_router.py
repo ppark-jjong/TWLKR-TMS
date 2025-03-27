@@ -14,6 +14,7 @@ from main.server.schemas.auth_schema import TokenData
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.datetime_helper import get_date_range
 from main.server.utils.api_decorators import error_handler
+from main.server.utils.constants import MESSAGES
 
 router = APIRouter()
 
@@ -45,7 +46,7 @@ async def download_dashboard_excel(
         if not result["success"] or not result["file_data"]:
             return DownloadResponse(
                 success=False,
-                message=result["message"] or "다운로드할 데이터가 없습니다",
+                message=result["message"] or MESSAGES["DATA"]["EMPTY"],
                 file_name=None,
                 total_count=0
             )
@@ -67,7 +68,7 @@ async def download_dashboard_excel(
         raise Exception("날짜 형식이 올바르지 않습니다")
     except Exception as e:
         log_error(e, "Excel 다운로드 실패")
-        raise Exception("다운로드 중 오류가 발생했습니다")
+        raise Exception(MESSAGES["ERROR"]["SERVER"])
 
 
 @router.get("/date-range", response_model=DownloadDateRangeResponse)

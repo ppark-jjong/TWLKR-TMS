@@ -10,6 +10,7 @@ Base = declarative_base()
 
 settings = get_settings()
 
+# MySQL 호스트 환경변수 사용 개선
 SQLALCHEMY_DATABASE_URL = (
     f"mysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:"
     f"{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}?charset={settings.MYSQL_CHARSET}"

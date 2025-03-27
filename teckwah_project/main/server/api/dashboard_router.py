@@ -26,6 +26,7 @@ from main.server.repositories.dashboard_repository import DashboardRepository
 from main.server.utils.datetime_helper import get_date_range
 from main.server.utils.api_decorators import error_handler
 from main.server.utils.lock_manager import LockManager
+from main.server.utils.constants import MESSAGES, STATUS_TEXT_MAP
 
 router = APIRouter()
 
@@ -69,7 +70,7 @@ async def get_dashboard_list(
     oldest_date, latest_date = service.get_date_range()
 
     # 응답 데이터 구성
-    message_text = "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
+    message_text = MESSAGES["DATA"]["EMPTY"] if not items else MESSAGES["DATA"]["SUCCESS"]
 
     # 사용자의 권한 정보 추가
     is_admin = current_user.role == "ADMIN"
@@ -106,7 +107,7 @@ async def create_dashboard(
 
     return DashboardDetailResponse(
         success=True,
-        message="대시보드가 생성되었습니다",
+        message=MESSAGES["DASHBOARD"]["CREATE_SUCCESS"],
         data=result,
     )
 
@@ -181,9 +182,12 @@ async def update_status(
         is_admin=(current_user.role == "ADMIN" or status_update.is_admin),
     )
 
+    status_text = STATUS_TEXT_MAP.get(status_update.status, status_update.status)
+    message = MESSAGES["DASHBOARD"]["STATUS_UPDATE_SUCCESS"].format(status=status_text)
+
     return DashboardDetailResponse(
         success=True,
-        message=f"{status_update.status} 상태로 변경되었습니다",
+        message=message,
         data=result,
     )
 
@@ -202,7 +206,7 @@ async def assign_driver(
 
     return BaseResponse(
         success=True,
-        message="배차가 완료되었습니다",
+        message=MESSAGES["DASHBOARD"]["ASSIGN_SUCCESS"],
         data={"updated_dashboards": result},
     )
 
@@ -242,7 +246,7 @@ async def search_dashboards_by_order_no(
     oldest_date, latest_date = service.get_date_range()
 
     # 응답 데이터 구성
-    message_text = "조회된 데이터가 없습니다" if not items else "데이터를 조회했습니다"
+    message_text = MESSAGES["DATA"]["EMPTY"] if not items else MESSAGES["DATA"]["SUCCESS"]
 
     # 사용자의 권한 정보 추가
     is_admin = current_user.role == "ADMIN"
