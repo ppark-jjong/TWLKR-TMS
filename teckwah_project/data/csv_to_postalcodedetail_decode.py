@@ -92,7 +92,7 @@ def import_csv_to_postal_code_detail_debug(file_path):
 
 
 if __name__ == "__main__":
-    file_path = "backend/app/data/postal_code_detail.csv"
+    file_path = "./postal_code_detail.csv"
     if os.path.exists(file_path):
         print(f"{file_path} -> postal_code_detail 테이블에 (디버그 모드) 삽입 중...")
         import_csv_to_postal_code_detail_debug(file_path)
