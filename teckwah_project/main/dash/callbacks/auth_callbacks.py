@@ -14,23 +14,26 @@ from main.dash.utils.auth_helper import (
     refresh_token,
     check_session,
 )
-from main.dash.utils.callback_helpers import create_alert_data
+from main.dash.utils.state_manager import update_app_state, create_alert_data
 
 logger = logging.getLogger(__name__)
 
+def register_auth_callbacks(app: Dash):
+    """인증 관련 콜백 통합 등록"""
 
-def register_callbacks(app: Dash):
-    """인증 관련 콜백 등록"""
-
+    # 폼 제출과 로그인 버튼 클릭을 통합한 로그인 콜백
     @app.callback(
         [
-            Output("auth-store", "data", allow_duplicate=True),
-            Output("user-info-store", "data", allow_duplicate=True),
+            Output("auth-store", "data"),
+            Output("user-info-store", "data"),
             Output("login-message", "children"),
-            Output("url", "pathname", allow_duplicate=True),
+            Output("url", "pathname"),
             Output("app-state-store", "data", allow_duplicate=True),
         ],
-        [Input("login-button", "n_clicks")],
+        [
+            Input("login-button", "n_clicks"),
+            Input("login-form", "n_submit"),
+        ],
         [
             State("user_id", "value"),
             State("password", "value"),
@@ -38,12 +41,17 @@ def register_callbacks(app: Dash):
         ],
         prevent_initial_call=True,
     )
-    def login(n_clicks, user_id, password, app_state):
-        """로그인 처리 콜백"""
-        if not n_clicks:
+    def login(n_clicks, n_submit, user_id, password, app_state):
+        """통합 로그인 처리 - 버튼 클릭 또는 폼 제출로 트리거"""
+        ctx = callback_context
+        
+        # 트리거 확인
+        if not ctx.triggered:
             raise PreventUpdate
-
+            
+        # 입력값 검증
         if not user_id or not password:
+            logger.warning("로그인 실패: 사용자 ID 또는 비밀번호 누락")
             return (
                 no_update,
                 no_update,
@@ -53,14 +61,16 @@ def register_callbacks(app: Dash):
             )
 
         # API 호출하여 로그인
+        logger.info(f"로그인 시도: {user_id}")
         response = ApiClient.login(user_id, password)
 
         if not response.get("success", False):
-            logger.warning(f"로그인 실패: {response.get('message', '알 수 없는 오류')}")
+            error_message = response.get("message", "로그인에 실패했습니다")
+            logger.warning(f"로그인 실패: {error_message}")
             return (
                 no_update,
                 no_update,
-                response.get("message", "로그인에 실패했습니다"),
+                error_message,
                 no_update,
                 no_update,
             )
@@ -94,17 +104,16 @@ def register_callbacks(app: Dash):
         )
 
         # 앱 상태 업데이트 (알림 추가)
-        if app_state is None:
-            app_state = {}
-        updated_app_state = {**app_state, "alert": alert}
+        updated_app_state = update_app_state(app_state or {}, {"alert": alert})
 
         # 대시보드 페이지로 리다이렉트
         return auth_data, user_info, no_update, "/dashboard", updated_app_state
 
+    # 로그아웃 콜백
     @app.callback(
         [
-            Output("auth-store", "clear_data", allow_duplicate=True),
-            Output("user-info-store", "clear_data", allow_duplicate=True),
+            Output("auth-store", "clear_data"),
+            Output("user-info-store", "clear_data"),
             Output("url", "pathname", allow_duplicate=True),
             Output("app-state-store", "data", allow_duplicate=True),
         ],
@@ -118,11 +127,14 @@ def register_callbacks(app: Dash):
             raise PreventUpdate
 
         # 리프레시 토큰으로 로그아웃 API 호출
-        refresh_token = auth_data.get("refresh_token", "")
+        refresh_token_value = auth_data.get("refresh_token", "")
         access_token = auth_data.get("access_token", "")
 
-        if refresh_token:
-            ApiClient.logout(refresh_token, access_token)
+        if refresh_token_value:
+            try:
+                ApiClient.logout(refresh_token_value, access_token)
+            except Exception as e:
+                logger.error(f"로그아웃 API 호출 오류: {str(e)}")
 
         logger.info("로그아웃 처리 완료")
 
@@ -130,48 +142,41 @@ def register_callbacks(app: Dash):
         alert = create_alert_data(message="로그아웃 되었습니다.", color="primary")
 
         # 앱 상태 업데이트 (알림 추가)
-        if app_state is None:
-            app_state = {}
-        updated_app_state = {**app_state, "alert": alert}
+        updated_app_state = update_app_state(app_state or {}, {"alert": alert})
 
         # 스토리지 데이터 삭제 및 로그인 페이지로 리다이렉트
         return True, True, "/", updated_app_state
 
-    # 명시적 인증 체크 콜백으로 수정 - 자동 트리거 제거
+    # 인증 상태 자동 리다이렉트 콜백
     @app.callback(
-        [
-            Output("auth-store", "data", allow_duplicate=True),
-            Output("url", "pathname", allow_duplicate=True),
-            Output("app-state-store", "data", allow_duplicate=True),
-        ],
-        [Input("check-session-button", "n_clicks")],  # 명시적 버튼 클릭으로 변경
-        [State("auth-store", "data"), State("app-state-store", "data"), State("url", "pathname")],
+        Output("url", "pathname", allow_duplicate=True),
+        [Input("auth-store", "data")],
+        [State("url", "pathname")],
         prevent_initial_call=True,
     )
-    def check_auth_status(n_clicks, auth_data, app_state, pathname):
-        """인증 상태 확인 (명시적 확인 버튼으로 수정)"""
-        if not n_clicks:
+    def auto_redirect_based_on_auth(auth_data, pathname):
+        """인증 상태에 따른 자동 리다이렉트"""
+        # 패스명이 없거나 인증 데이터가 없으면 처리 불필요
+        if pathname is None:
             raise PreventUpdate
-
-        # 인증 정보가 없는 경우
-        if not is_token_valid(auth_data):
-            logger.warning("인증 정보 없음, 로그인 페이지로 리다이렉트")
-
-            # 알림 메시지
-            alert = create_alert_data(
-                message="인증이 필요합니다. 로그인해주세요.", color="warning"
-            )
-
-            # 앱 상태 업데이트 (알림 추가)
-            if app_state is None:
-                app_state = {}
-            updated_app_state = {**app_state, "alert": alert}
-
-            return None, "/", updated_app_state
-
-        # 인증 정보가 있는 경우 현재 위치 유지
-        return no_update, no_update, no_update
-
+            
+        # 이미 로그인 페이지인 경우 인증 여부 확인
+        if pathname == "/":
+            # 인증된 상태면 대시보드로 리다이렉트
+            if is_token_valid(auth_data):
+                logger.info("이미 인증된 사용자가 로그인 페이지 접근, 대시보드로 리다이렉트")
+                return "/dashboard"
+            return no_update
+        
+        # 대시보드 또는 다른 페이지에 접근하려는 경우 인증 확인
+        else:
+            # 인증되지 않은 상태면 로그인 페이지로 리다이렉트
+            if not is_token_valid(auth_data):
+                logger.warning("인증되지 않은 상태로 페이지 접근, 로그인 페이지로 리다이렉트")
+                return "/"
+            return no_update
+            
+    # 토큰 갱신 콜백 - 명시적 버튼 클릭 시에만 동작
     @app.callback(
         [
             Output("auth-store", "data", allow_duplicate=True),
@@ -197,10 +202,7 @@ def register_callbacks(app: Dash):
             )
 
             # 앱 상태 업데이트 (알림 추가)
-            if app_state is None:
-                app_state = {}
-            updated_app_state = {**app_state, "alert": alert}
-
+            updated_app_state = update_app_state(app_state or {}, {"alert": alert})
             return no_update, updated_app_state
 
         # 갱신 성공
@@ -213,21 +215,19 @@ def register_callbacks(app: Dash):
         )
 
         # 앱 상태 업데이트 (알림 추가)
-        if app_state is None:
-            app_state = {}
-        updated_app_state = {**app_state, "alert": alert}
+        updated_app_state = update_app_state(app_state or {}, {"alert": alert})
 
         return new_auth_data, updated_app_state
 
-    # 인증 만료 확인 콜백 - 사용자에게 경고 표시
+    # 세션 확인 콜백 - 명시적 버튼 클릭 시에만 동작
     @app.callback(
-        Output("session-expiry-alert", "children", allow_duplicate=True),
+        Output("session-expiry-alert", "children"),
         [Input("check-session-button", "n_clicks")],
         [State("auth-store", "data")],
         prevent_initial_call=True,
     )
     def check_session_expiry(n_clicks, auth_data):
-        """세션 만료 확인"""
+        """세션 만료 확인 및 경고 표시"""
         if not n_clicks or not auth_data:
             raise PreventUpdate
 

@@ -57,27 +57,23 @@ def create_dashboard_layout():
                                         ],
                                         md=6,
                                     ),
-                                    # 주문번호 검색 필드
+                                    # 검색 버튼
                                     dbc.Col(
                                         [
-                                            dbc.Label(
-                                                "주문번호 검색", className="fw-bold"
-                                            ),
+                                            dbc.Label("주문번호 검색", className="fw-bold"),
                                             dbc.InputGroup(
                                                 [
                                                     dbc.Input(
                                                         id="order-search-input",
                                                         placeholder="주문번호 입력",
+                                                        type="text",
                                                         className="shadow-sm",
                                                     ),
-                                                    dbc.InputGroupAddon(
-                                                        dbc.Button(
-                                                            [html.I(className="fas fa-search me-1"), "검색"],
-                                                            id="order-search-button",
-                                                            color="primary",
-                                                            className="shadow-sm",
-                                                        ),
-                                                        addon_type="append",
+                                                    dbc.Button(
+                                                        html.I(className="fas fa-search"),
+                                                        id="search-button",
+                                                        color="primary",
+                                                        className="shadow-sm",
                                                     ),
                                                 ]
                                             ),
@@ -85,8 +81,16 @@ def create_dashboard_layout():
                                         md=6,
                                     ),
                                 ],
-                                className="mb-3 mt-3",
-                            )
+                                className="mt-3",
+                            ),
+                            # 새로고침 버튼
+                            dbc.Button(
+                                [html.I(className="fas fa-sync-alt me-2"), "데이터 새로고침"],
+                                id="refresh-data-button",
+                                color="primary",
+                                className="mt-2 float-end shadow-sm",
+                                size="md",
+                            ),
                         ],
                         lg=6,
                     ),
@@ -122,13 +126,6 @@ def create_dashboard_layout():
                                         className="me-2 shadow-sm",
                                         size="md",
                                         disabled=True,
-                                    ),
-                                    dbc.Button(
-                                        [html.I(className="fas fa-sync-alt me-1"), "새로고침"],
-                                        id="refresh-button",
-                                        color="secondary",
-                                        className="shadow-sm",
-                                        size="md",
                                     ),
                                 ]
                             )

@@ -23,12 +23,17 @@ from main.server.utils.constants import MESSAGES
 
 settings = get_settings()
 
-# 로깅 설정 간소화
+# 로깅 설정 간소화 - 중복 출력 방지
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )
+
+# 다른 로거 레벨 조정
+logging.getLogger("uvicorn").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
 
 logger = logging.getLogger("delivery-system")
 
@@ -86,32 +91,29 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     request_id = set_request_id()
     request.state.request_id = request_id
 
-    # 요청 시작 시간 (KST 기준)
+    # 측정 시작
     start_time = time.time()
-    start_time_kst = get_kst_now()
-
-    # 요청 경로 및 메서드 로깅
-    log_info(f"요청 시작: {request.method} {request.url.path} [{start_time_kst.isoformat()}]")
-
-    try:
-        # 다음 미들웨어 또는 엔드포인트 호출
-        response = await call_next(request)
-
-        # 처리 시간 계산 및 로깅
-        process_time = time.time() - start_time
+    
+    # 미들웨어 또는 엔드포인트 호출
+    response = await call_next(request)
+    
+    # 처리 시간 계산
+    process_time = time.time() - start_time
+    
+    # 중요 API 또는 오류 상황에서만 로깅
+    if (
+        response.status_code >= 400 or 
+        "/auth/" in request.url.path or
+        process_time > 1.0  # 1초 이상 걸린 요청만 로깅
+    ):
         end_time_kst = get_kst_now()
-        log_info(f"요청 완료: {request.method} {request.url.path} [{end_time_kst.isoformat()}] (처리시간: {process_time:.3f}초)")
-
-        # 응답 헤더에 처리 시간 추가
-        response.headers["X-Process-Time"] = str(process_time)
-        response.headers["X-Request-ID"] = request_id
-
-        return response
-    except Exception as e:
-        # 예외 발생 시 로깅
-        process_time = time.time() - start_time
-        log_error(e, f"요청 처리 오류: {request.method} {request.url.path} (처리시간: {process_time:.3f}초)")
-        raise
+        log_info(f"API 요청: {request.method} {request.url.path} - 상태: {response.status_code} (처리시간: {process_time:.3f}초)")
+    
+    # 응답 헤더에 처리 시간 추가
+    response.headers["X-Process-Time"] = str(process_time)
+    response.headers["X-Request-ID"] = request_id
+    
+    return response
 
 
 # API 라우터 등록

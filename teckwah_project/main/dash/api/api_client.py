@@ -87,7 +87,7 @@ class ApiClient:
     @staticmethod
     def logout(refresh_token: str, access_token: str) -> Dict[str, Any]:
         """로그아웃 API 호출"""
-        url = f"{BASE_URL}/api/v1/auth/logout"
+        url = f"{BASE_URL}/auth/logout"
         headers = ApiClient._get_headers(access_token)
         data = {"refresh_token": refresh_token}
 
@@ -101,7 +101,7 @@ class ApiClient:
     @staticmethod
     def refresh_token(refresh_token: str) -> Dict[str, Any]:
         """토큰 갱신 API 호출"""
-        url = f"{BASE_URL}/api/v1/auth/refresh"
+        url = f"{BASE_URL}/auth/refresh"
         headers = {"Content-Type": "application/json"}
         data = {"refresh_token": refresh_token}
 
@@ -115,7 +115,7 @@ class ApiClient:
     @staticmethod
     def check_session(access_token: str) -> Dict[str, Any]:
         """세션 확인 API 호출"""
-        url = f"{BASE_URL}/api/v1/auth/check-session"
+        url = f"{BASE_URL}/auth/check-session"
         headers = ApiClient._get_headers(access_token)
 
         try:

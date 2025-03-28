@@ -10,18 +10,27 @@ from main.server.config.settings import get_settings
 # 설정 모듈에서 설정 가져오기
 settings = get_settings()
 
-# 로깅 설정
+# 로깅 설정 간소화
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger(__name__)
 
-# API URL 로깅
-logger.info(f"백엔드 API URL 설정: {settings.API_BASE_URL}")
+# 로거 설정 조정
+logger = logging.getLogger(__name__)
+# Flask/Werkzeug 로거 조정
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
+# Dash 관련 로거 조정
+logging.getLogger("dash").setLevel(logging.WARNING)
+logging.getLogger("dash.dash").setLevel(logging.WARNING)
+logging.getLogger("dash.callback_registry").setLevel(logging.ERROR)
+
+# 중요 정보만 로깅
+logger.info(f"Dash 앱 초기화 (API URL: {settings.API_BASE_URL}, 포트: {settings.DASH_PORT})")
 
 # Flask 서버 생성
 server = Flask(__name__)
+server.logger.setLevel(logging.WARNING)  # Flask 로거 레벨 조정
 
 # 오류 핸들러 설정
 @server.errorhandler(500)
@@ -59,13 +68,7 @@ def create_app(server):
     app.layout = create_main_layout()
     register_all_callbacks(app)
     
-    logger.info("Dash 앱이 초기화되었습니다.")
     return app
-
-# 시작 메시지
-logger.info("Dash 애플리케이션이 시작되었습니다.")
-logger.info(f"포트: {settings.DASH_PORT}")
-logger.info(f"디버그 모드: {settings.DEBUG}")
 
 # 앱 생성
 app = create_app(server)
@@ -79,4 +82,4 @@ else:
     # Supervisord에서 실행 시
     port = settings.DASH_PORT
     debug = False  # 프로덕션에서는 디버그 모드 비활성화
-    app.run_server(host="0.0.0.0", port=port, debug=debug)
+    app.run_server(host="0.0.0.0", port=port, debug=debug, dev_tools_silence_routes_logging=True)

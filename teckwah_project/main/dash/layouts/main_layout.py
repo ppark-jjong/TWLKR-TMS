@@ -22,6 +22,12 @@ def create_main_layout():
             dcc.Store(id="dashboard-data-store", storage_type="memory"),
             # 앱 전역 상태 저장
             dcc.Store(id="app-state-store", storage_type="memory"),
+            # 데이터 리로드 트리거 저장
+            dcc.Store(id="reload-data-trigger", storage_type="memory"),
+            # 시각화 새로고침 트리거 저장
+            dcc.Store(id="viz-refresh-trigger", storage_type="memory"),
+            # 로그인 폼 제출 트리거
+            dcc.Store(id="login-trigger", storage_type="memory"),
             # 알림 메시지를 위한 컨테이너
             html.Div(
                 id="alert-container",
@@ -36,7 +42,14 @@ def create_main_layout():
             ),
             # 네비게이션 바 (로그인 상태에 따라 표시)
             html.Div(id="navbar-container"),
+            # 모달 컴포넌트를 위한 컨테이너
+            html.Div(id="modals-container"),
             # 페이지 컨텐츠가 로드될 컨테이너
             html.Div(id="page-content", className="container-fluid py-4"),
+            # 숨겨진 버튼들 - 세션 및 인증 확인용
+            html.Div([
+                html.Button(id="check-session-button", style={"display": "none"}),
+                html.Button(id="refresh-token-button", style={"display": "none"}),
+            ], style={"display": "none"}),
         ]
     )

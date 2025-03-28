@@ -8,6 +8,7 @@ import json
 import pandas as pd
 from typing import Dict, Any, List, Optional
 import requests
+from datetime import datetime, timedelta
 
 from main.dash.api.api_client import ApiClient
 from main.dash.utils.auth_helper import is_token_valid
@@ -20,6 +21,39 @@ settings = get_settings()
 
 def register_callbacks(app: Dash):
     """시각화 관련 콜백 등록"""
+
+    # 페이지 로드 시 기본 날짜 설정 및 데이터 자동 조회
+    @app.callback(
+        [
+            Output("viz-date-picker-range", "start_date"),
+            Output("viz-date-picker-range", "end_date"),
+            Output("viz-refresh-trigger", "data"),
+        ],
+        [Input("url", "pathname")],
+        [State("auth-store", "data")],
+        prevent_initial_call=True,
+    )
+    def set_default_viz_date_and_load_data(pathname, auth_data):
+        """시각화 페이지 로드 시 기본 날짜 설정 및 데이터 자동 조회"""
+        # 시각화 페이지로 이동한 경우에만 실행
+        if pathname != "/visualization":
+            raise PreventUpdate
+            
+        # 인증 확인
+        if not is_token_valid(auth_data):
+            raise PreventUpdate
+            
+        # 기본 날짜 설정 (최근 7일)
+        today = datetime.now().date()
+        start_date = (today - timedelta(days=7)).isoformat()
+        end_date = today.isoformat()
+        
+        # 데이터 로드 트리거
+        trigger_value = {"timestamp": datetime.now().timestamp()}
+        
+        logger.info(f"시각화 페이지 로드: 기본 날짜({start_date} ~ {end_date})로 데이터 자동 조회 설정")
+        
+        return start_date, end_date, trigger_value
 
     @app.callback(
         [
@@ -59,10 +93,13 @@ def register_callbacks(app: Dash):
             Output("viz-loading-spinner", "style"),
             Output("app-state-store", "data"),
         ],
-        [Input("viz-refresh-button", "n_clicks")],  # 명시적 버튼 클릭
         [
-            State("viz-date-picker-range", "start_date"),
-            State("viz-date-picker-range", "end_date"),
+            Input("viz-refresh-button", "n_clicks"),  # 명시적 버튼 클릭
+            Input("viz-refresh-trigger", "data"),     # 자동 조회 트리거
+            Input("viz-date-picker-range", "start_date"),  # 날짜 변경 시 자동 조회
+            Input("viz-date-picker-range", "end_date"),    # 날짜 변경 시 자동 조회
+        ],
+        [
             State("chart-type-selector", "value"),
             State("auth-store", "data"),
             State("app-state-store", "data")
@@ -70,11 +107,15 @@ def register_callbacks(app: Dash):
         prevent_initial_call=True,
     )
     def update_visualization_charts(
-        refresh_clicks, start_date, end_date, chart_type, auth_data, app_state
+        refresh_clicks, refresh_trigger, start_date, end_date, chart_type, auth_data, app_state
     ):
-        """통합된 시각화 차트 업데이트 함수"""
-        if not refresh_clicks:
+        """통합된 시각화 차트 업데이트 함수 - 자동 조회 포함"""
+        ctx = callback_context
+        if not ctx.triggered:
             raise PreventUpdate
+
+        # 로딩 표시
+        loading_style = {"display": "block"}
 
         # 인증 확인
         if not is_token_valid(auth_data):
@@ -108,9 +149,6 @@ def register_callbacks(app: Dash):
 
         # 액세스 토큰
         access_token = auth_data.get("access_token", "")
-
-        # 로딩 표시
-        loading_style = {"display": "block"}
 
         # 배송 상태 차트를 위한 기본값
         delivery_status_pie_chart = no_update
@@ -197,32 +235,48 @@ def register_callbacks(app: Dash):
                     pie_values = []
                     pie_labels = []
                     pie_colors = []
+                    pie_text = []
                     
                     for status, count in status_counts.items():
                         if count > 0:
                             pie_values.append(count)
                             pie_labels.append(status_labels.get(status, status))
                             pie_colors.append(status_colors.get(status, "#ccc"))
+                            pie_text.append(f"{count:,}건")
                     
-                    # 파이 차트 생성
+                    # 파이 차트 생성 - 개선된 시각화
                     delivery_status_pie_chart = go.Figure(
                         data=[
                             go.Pie(
                                 values=pie_values,
                                 labels=pie_labels,
                                 marker=dict(colors=pie_colors),
-                                textinfo="percent+label",
-                                hoverinfo="label+value",
-                                hovertemplate="%{label}: %{value}건<br>(%{percent})<extra></extra>",
+                                textinfo="label+percent",
+                                hoverinfo="label+value+percent",
+                                hovertemplate="<b>%{label}</b><br>%{value:,}건<br>(%{percent})<extra></extra>",
+                                textfont=dict(size=14),
+                                insidetextorientation='radial',
+                                pull=[0.03] * len(pie_values),  # 조각을 약간 분리하여 가시성 향상
                             )
                         ]
                     )
                     
                     # 차트 레이아웃 설정
                     delivery_status_pie_chart.update_layout(
-                        title="배송 상태별 현황",
-                        margin=dict(l=20, r=20, t=40, b=0),
-                        height=300,
+                        title=dict(
+                            text="배송 상태별 현황",
+                            font=dict(size=18)
+                        ),
+                        margin=dict(l=20, r=20, t=50, b=20),
+                        height=400,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=-0.2,
+                            xanchor="center",
+                            x=0.5,
+                            font=dict(size=12)
+                        ),
                     )
                     
                     # 부서별 상태 막대 차트 준비
@@ -242,7 +296,7 @@ def register_callbacks(app: Dash):
                         # 상태 라벨 매핑
                         dept_df["status_label"] = dept_df["status"].map(status_labels)
                         
-                        # 부서별 막대 차트 생성
+                        # 부서별 막대 차트 생성 - 개선된 시각화
                         department_status_bar_chart = go.Figure()
                         
                         for status, color in status_colors.items():
@@ -254,17 +308,43 @@ def register_callbacks(app: Dash):
                                         y=filtered_df["count"],
                                         name=status_labels.get(status, status),
                                         marker_color=color,
-                                        hovertemplate="%{x}: %{y}건<extra></extra>",
+                                        hovertemplate="<b>%{x}</b><br>%{y:,}건<extra></extra>",
+                                        text=filtered_df["count"].apply(lambda x: f"{x:,}건"),
+                                        textposition="auto",
                                     )
                                 )
                         
                         # 차트 레이아웃 설정
                         department_status_bar_chart.update_layout(
-                            title="부서별 배송 상태",
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+                            title=dict(
+                                text="부서별 배송 상태",
+                                font=dict(size=18)
+                            ),
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="center",
+                                x=0.5,
+                                font=dict(size=12)
+                            ),
                             barmode="stack",
-                            height=300,
-                            margin=dict(l=20, r=20, t=60, b=0),
+                            height=400,
+                            margin=dict(l=20, r=20, t=50, b=20),
+                            xaxis=dict(
+                                title=dict(
+                                    text="부서",
+                                    font=dict(size=14)
+                                ),
+                                tickfont=dict(size=12)
+                            ),
+                            yaxis=dict(
+                                title=dict(
+                                    text="건수",
+                                    font=dict(size=14)
+                                ),
+                                tickfont=dict(size=12)
+                            ),
                         )
                     
                     # 대기 중인 건 수
@@ -307,40 +387,69 @@ def register_callbacks(app: Dash):
                         hours.append(hour)
                         counts.append(count)
                     
-                    # 시간대별 접수량 차트 개선
+                    # 시간대별 접수량 차트 개선 - 더 명확한 시각화
                     hourly_orders_line_chart = go.Figure()
+                    
+                    # 영역 차트 추가 (라인 아래 부분)
+                    hourly_orders_line_chart.add_trace(
+                        go.Scatter(
+                            x=hours,
+                            y=counts,
+                            mode="none",
+                            fill="tozeroy",
+                            fillcolor="rgba(63, 81, 181, 0.2)",
+                            name="시간대별 접수량",
+                            hoverinfo="skip",
+                        )
+                    )
                     
                     # 시간대별 라인 차트 데이터
                     hourly_orders_line_chart.add_trace(
                         go.Scatter(
                             x=hours,
                             y=counts,
-                            mode="lines+markers",
+                            mode="lines+markers+text",
                             name="시간대별 접수량",
                             line=dict(width=3, color="#3f51b5"),  # 두꺼운 선과 선명한 색상
-                            marker=dict(size=10, color="#3f51b5", line=dict(width=2, color="white")),
-                            hovertemplate="%{x}시: %{y}건<extra></extra>",
+                            marker=dict(size=8, color="#3f51b5", line=dict(width=2, color="white")),
+                            hovertemplate="<b>%{x}시</b><br>%{y:,}건<extra></extra>",
+                            text=[f"{c:,}" if i % 3 == 0 and c > 0 else "" for i, c in enumerate(counts)],
+                            textposition="top center",
                         )
                     )
                     
                     # 차트 레이아웃 설정
                     hourly_orders_line_chart.update_layout(
-                        title="시간대별 접수량",
+                        title=dict(
+                            text="시간대별 접수량",
+                            font=dict(size=18)
+                        ),
                         xaxis=dict(
-                            title="시간",
+                            title=dict(
+                                text="시간",
+                                font=dict(size=14)
+                            ),
                             tickmode="array",
                             tickvals=list(range(24)),
                             ticktext=[f"{h}시" for h in range(24)],
+                            tickfont=dict(size=12)
                         ),
-                        yaxis=dict(title="접수량"),
-                        height=300,
-                        margin=dict(l=20, r=20, t=40, b=0),
+                        yaxis=dict(
+                            title=dict(
+                                text="접수량",
+                                font=dict(size=14)
+                            ),
+                            tickfont=dict(size=12)
+                        ),
+                        height=400,
+                        margin=dict(l=20, r=20, t=50, b=20),
+                        showlegend=False,
                     )
                     
                     # 부서별 시간대 접수량 히트맵
                     dept_hours = hourly_data.get("department_hourly", {})
                     
-                    # 히트맵 개선
+                    # 히트맵 개선 - 더 선명한 시각화
                     # 색상 스케일을 더 선명하게 조정
                     colorscale = [
                         [0, "#f7fbff"],
@@ -374,19 +483,37 @@ def register_callbacks(app: Dash):
                                 x=[f"{i}시" for i in range(24)],
                                 y=y_labels,
                                 colorscale=colorscale,
-                                hovertemplate="부서: %{y}<br>시간: %{x}<br>접수량: %{z}건<extra></extra>",
+                                hovertemplate="<b>%{y}</b><br>%{x}: <b>%{z:,}건</b><extra></extra>",
                                 colorbar=dict(
                                     title=dict(text="접수량", font=dict(size=14)),
                                     tickfont=dict(size=12),
                                 ),
+                                showscale=True,
                             )
                         )
                         
                         # 히트맵 레이아웃 설정
                         department_hourly_heatmap.update_layout(
-                            title="부서별 시간대 접수량",
+                            title=dict(
+                                text="부서별 시간대 접수량",
+                                font=dict(size=18)
+                            ),
                             height=400,
-                            margin=dict(l=20, r=20, t=40, b=0),
+                            margin=dict(l=20, r=20, t=50, b=20),
+                            xaxis=dict(
+                                title=dict(
+                                    text="시간",
+                                    font=dict(size=14)
+                                ),
+                                tickfont=dict(size=12)
+                            ),
+                            yaxis=dict(
+                                title=dict(
+                                    text="부서",
+                                    font=dict(size=14)
+                                ),
+                                tickfont=dict(size=12)
+                            ),
                         )
                     
                     # 요약 정보
@@ -404,7 +531,7 @@ def register_callbacks(app: Dash):
                     peak_hour_data = summary.get("peak_hour", {})
                     peak_hour_val = peak_hour_data.get("hour", "-")
                     peak_hour_count = peak_hour_data.get("count", 0)
-                    peak_hour = f"{peak_hour_val}시 ({peak_hour_count}건)"
+                    peak_hour = f"{peak_hour_val}시 ({peak_hour_count:,}건)"
                     
                 else:
                     # API 오류 시 알림 설정 및 로딩 숨김

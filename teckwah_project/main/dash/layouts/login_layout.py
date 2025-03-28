@@ -19,35 +19,42 @@ def create_login_layout():
                         dbc.CardBody([
                             html.H4("로그인", className="card-title text-center mb-4"),
                             
-                            # 사용자 ID 입력
-                            html.Div([
-                                dbc.Label("사용자 ID", html_for="user_id"),
-                                dbc.Input(
-                                    type="text",
-                                    id="user_id",
-                                    placeholder="사용자 ID를 입력하세요",
-                                    className="mb-3"
+                            # Form 태그 추가 - Enter 키 대응
+                            html.Form([
+                                # 사용자 ID 입력
+                                html.Div([
+                                    dbc.Label("사용자 ID", html_for="user_id"),
+                                    dbc.Input(
+                                        type="text",
+                                        id="user_id",
+                                        placeholder="사용자 ID를 입력하세요",
+                                        className="mb-3"
+                                    ),
+                                ], className="mb-3"),
+                                
+                                # 비밀번호 입력
+                                html.Div([
+                                    dbc.Label("비밀번호", html_for="password"),
+                                    dbc.Input(
+                                        type="password",
+                                        id="password",
+                                        placeholder="비밀번호를 입력하세요",
+                                        className="mb-4"
+                                    ),
+                                ], className="mb-3"),
+                                
+                                # 로그인 버튼
+                                dbc.Button(
+                                    "로그인",
+                                    id="login-button",
+                                    color="primary",
+                                    className="w-100 mb-3",
+                                    type="submit"
                                 ),
-                            ], className="mb-3"),
-                            
-                            # 비밀번호 입력
-                            html.Div([
-                                dbc.Label("비밀번호", html_for="password"),
-                                dbc.Input(
-                                    type="password",
-                                    id="password",
-                                    placeholder="비밀번호를 입력하세요",
-                                    className="mb-4"
-                                ),
-                            ], className="mb-3"),
-                            
-                            # 로그인 버튼
-                            dbc.Button(
-                                "로그인",
-                                id="login-button",
-                                color="primary",
-                                className="w-100 mb-3"
-                            ),
+                                
+                                # 숨겨진 div - Enter 키 이벤트 트리거용
+                                html.Div(id="login-trigger", style={"display": "none"}),
+                            ], id="login-form"),
                             
                             # 로그인 상태/오류 메시지 영역
                             html.Div(id="login-message", className="text-center text-danger")

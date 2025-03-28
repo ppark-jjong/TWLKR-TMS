@@ -1,5 +1,5 @@
 # teckwah_project/main/dash/callbacks/download_callbacks.py
-from dash import Dash, Output, Input, State, callback_context, no_update, dcc
+from dash import Dash, Output, Input, State, callback_context, no_update, dcc, html
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import logging
@@ -17,57 +17,62 @@ settings = get_settings()
 def register_callbacks(app: Dash):
     """다운로드 관련 콜백 등록"""
 
+    # 페이지 로드 시 관리자 권한 확인 및 날짜 범위 자동 조회
     @app.callback(
-        [Output("admin-check-container", "children", allow_duplicate=True)],
+        [
+            Output("admin-check-container", "children"),
+            Output("download-date-range-info", "children")
+        ],
         [Input("url", "pathname")],
-        [State("user-info-store", "data")],
+        [State("auth-store", "data"), State("user-info-store", "data")],
         prevent_initial_call=True,
     )
-    def check_admin_access(pathname, user_info):
-        """관리자 권한 확인"""
+    def check_admin_and_load_date_range(pathname, auth_data, user_info):
+        """페이지 로드 시 관리자 권한 확인 및 날짜 범위 자동 조회"""
         if pathname != "/download":
             raise PreventUpdate
 
         # 관리자 여부 확인
         is_admin = is_admin_user(user_info)
-
+        
+        # 관리자가 아닌 경우 접근 불가 메시지
         if not is_admin:
-            return [
-                dbc.Alert(
-                    [
-                        html.I(className="fas fa-exclamation-triangle me-2"),
-                        "관리자 권한이 필요합니다. 일반 사용자는 이 기능을 사용할 수 없습니다.",
-                    ],
-                    color="danger",
-                    className="my-3",
-                )
-            ]
-
-        return [html.Div()]
-
-    @app.callback(
-        [Output("download-date-range-info", "children", allow_duplicate=True)],
-        [Input("download-excel-button", "n_clicks")],  # 명시적 액션으로 변경
-        [State("auth-store", "data")],
-        prevent_initial_call=True,
-    )
-    def load_download_date_range(n_clicks, auth_data):
-        """다운로드 가능 날짜 범위 로드 (명시적 액션으로 수정)"""
-        if not n_clicks:
-            raise PreventUpdate
-
+            admin_message = dbc.Alert(
+                [
+                    html.I(className="fas fa-exclamation-triangle me-2"),
+                    html.H5("관리자 권한 필요", className="alert-heading mb-1"),
+                    html.P("일반 사용자는 데이터 다운로드 기능을 사용할 수 없습니다.", className="mb-0")
+                ],
+                color="danger",
+                className="my-3",
+            )
+            return [admin_message, ""]
+        
+        # 관리자일 경우 환영 메시지
+        admin_message = dbc.Alert(
+            [
+                html.I(className="fas fa-check-circle me-2"),
+                html.H5("관리자 권한 확인됨", className="alert-heading mb-1"),
+                html.P("데이터 다운로드 기능을 사용할 수 있습니다.", className="mb-0")
+            ],
+            color="success",
+            className="my-3",
+            dismissable=True,
+        )
+        
+        # 인증 확인
         if not is_token_valid(auth_data):
-            raise PreventUpdate
-
-        # 액세스 토큰
+            return [admin_message, "인증이 필요합니다."]
+            
+        # 날짜 범위 자동 조회
         access_token = auth_data.get("access_token", "")
-
+        
         try:
             # API 호출로 날짜 범위 조회
             response = ApiClient.get_download_date_range(access_token)
 
             if not response.get("success", False):
-                return ["날짜 범위 정보를 불러올 수 없습니다."]
+                return [admin_message, "날짜 범위 정보를 불러올 수 없습니다."]
 
             # 날짜 범위 추출
             date_range = response.get("date_range", {})
@@ -75,19 +80,19 @@ def register_callbacks(app: Dash):
             latest_date = date_range.get("latest_date", "")
 
             if oldest_date and latest_date:
-                return [f"다운로드 가능 기간: {oldest_date} ~ {latest_date}"]
+                return [admin_message, f"조회 가능 기간: {oldest_date} ~ {latest_date} (최대 3개월)"]
             else:
-                return ["다운로드 가능 기간 정보가 없습니다."]
+                return [admin_message, "다운로드 가능한 데이터가 없습니다."]
 
         except Exception as e:
             logger.error(f"다운로드 날짜 범위 조회 오류: {str(e)}")
-            return ["날짜 범위 정보를 불러올 수 없습니다."]
+            return [admin_message, "날짜 범위 정보를 불러올 수 없습니다."]
 
     @app.callback(
         [
-            Output("download-excel", "data", allow_duplicate=True),
-            Output("download-loading-spinner", "style", allow_duplicate=True),
-            Output("app-state-store", "data", allow_duplicate=True),
+            Output("download-excel", "data"),
+            Output("download-loading-spinner", "style"),
+            Output("app-state-store", "data"),
         ],
         [Input("download-excel-button", "n_clicks")],
         [
@@ -99,7 +104,7 @@ def register_callbacks(app: Dash):
         prevent_initial_call=True,
     )
     def download_excel_file(n_clicks, start_date, end_date, auth_data, app_state):
-        """Excel 파일 다운로드"""
+        """Excel 파일 다운로드 - 향상된 피드백"""
         if not n_clicks:
             raise PreventUpdate
 
@@ -110,6 +115,18 @@ def register_callbacks(app: Dash):
                 {
                     **app_state,
                     "alert": {"message": "인증이 필요합니다.", "color": "danger"},
+                },
+            )
+            
+        # 관리자 권한 확인
+        user_info = app_state.get("user_info", {})
+        if not is_admin_user(user_info):
+            return (
+                no_update,
+                {"display": "none"},
+                {
+                    **app_state,
+                    "alert": {"message": "관리자 권한이 필요합니다.", "color": "danger"},
                 },
             )
 
@@ -147,7 +164,7 @@ def register_callbacks(app: Dash):
                     {
                         **app_state,
                         "alert": {
-                            "message": "다운로드에 실패했습니다.",
+                            "message": "다운로드에 실패했습니다. 다시 시도해주세요.",
                             "color": "danger",
                         },
                     },
@@ -157,7 +174,7 @@ def register_callbacks(app: Dash):
             start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
             end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
 
-            file_name = f"대시보드_데이터_{start_date_obj.strftime('%Y%m%d')}_{end_date_obj.strftime('%Y%m%d')}.xlsx"
+            file_name = f"배송관제_데이터_{start_date_obj.strftime('%Y%m%d')}_{end_date_obj.strftime('%Y%m%d')}.xlsx"
 
             # 다운로드 데이터 반환
             return (
@@ -171,9 +188,9 @@ def register_callbacks(app: Dash):
                 {
                     **app_state,
                     "alert": {
-                        "message": "데이터 다운로드가 시작되었습니다.",
+                        "message": f"{start_date} ~ {end_date} 기간의 데이터 다운로드가 시작되었습니다.",
                         "color": "success",
-                        "duration": 2000,
+                        "duration": 5000,
                     },
                 },
             )
@@ -186,7 +203,7 @@ def register_callbacks(app: Dash):
                 {
                     **app_state,
                     "alert": {
-                        "message": "다운로드 중 오류가 발생했습니다.",
+                        "message": "다운로드 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
                         "color": "danger",
                     },
                 },
