@@ -70,6 +70,18 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     # message 필드가 없으면 기본 메시지 추가
     if "message" not in error_detail:
         error_detail["message"] = MESSAGES["ERROR"]["SERVER"]
+    
+    # error_code 필드가 없으면 기본 오류 코드 추가
+    if "error_code" not in error_detail:
+        # 상태 코드별 기본 오류 코드 설정
+        status_code_to_error = {
+            401: "UNAUTHORIZED",
+            403: "FORBIDDEN",
+            404: "NOT_FOUND",
+            422: "VALIDATION_ERROR",
+            423: "RESOURCE_LOCKED",
+        }
+        error_detail["error_code"] = status_code_to_error.get(exc.status_code, "SERVER_ERROR")
 
     return JSONResponse(status_code=exc.status_code, content=error_detail)
 
@@ -81,7 +93,11 @@ async def general_exception_handler(request: Request, exc: Exception):
 
     return JSONResponse(
         status_code=500,
-        content={"success": False, "message": MESSAGES["ERROR"]["SERVER"]},
+        content={
+            "success": False, 
+            "message": MESSAGES["ERROR"]["SERVER"],
+            "error_code": "SERVER_ERROR"
+        },
     )
 
 
@@ -101,13 +117,12 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     # 처리 시간 계산
     process_time = time.time() - start_time
     
-    # 중요 API 또는 오류 상황에서만 로깅
+    # 최소한의 로그만 남기도록 수정 - 오류와 인증 관련, 느린 요청만 로깅
     if (
         response.status_code >= 400 or 
         "/auth/" in request.url.path or
-        process_time > 1.0  # 1초 이상 걸린 요청만 로깅
+        process_time > 1.5  # 1.5초 이상 걸린 요청만 로깅
     ):
-        end_time_kst = get_kst_now()
         log_info(f"API 요청: {request.method} {request.url.path} - 상태: {response.status_code} (처리시간: {process_time:.3f}초)")
     
     # 응답 헤더에 처리 시간 추가

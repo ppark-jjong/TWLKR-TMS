@@ -1,4 +1,6 @@
 # teckwah_project/main/server/utils/exceptions.py
+from fastapi import HTTPException, status
+from typing import Any, Dict, List, Optional, Union
 from main.server.utils.constants import MESSAGES
 
 class BaseApiException(Exception):
@@ -9,29 +11,78 @@ class BaseApiException(Exception):
         super().__init__(self.detail)
 
 
-class ValidationException(BaseApiException):
-    """데이터 검증 실패 예외"""
+class ValidationException(HTTPException):
+    """데이터 유효성 검증 예외"""
 
     def __init__(
-        self, detail: str = MESSAGES["ERROR"]["VALIDATION"], error_fields=None
+        self,
+        detail: Union[str, Dict[str, Any]] = "입력 데이터가 유효하지 않습니다",
     ):
-        self.error_fields = error_fields or {}
-        super().__init__(detail)
+        # detail이 문자열인 경우 딕셔너리로 변환
+        if isinstance(detail, str):
+            detail = {
+                "success": False,
+                "message": detail,
+                "error_code": "VALIDATION_ERROR"
+            }
+            
+        # error_code가 없으면 기본값 추가
+        if isinstance(detail, dict) and "error_code" not in detail:
+            detail["error_code"] = "VALIDATION_ERROR"
+            
+        super().__init__(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
 
 
-class NotFoundException(BaseApiException):
-    """리소스를 찾을 수 없음 예외"""
+class NotFoundException(HTTPException):
+    """리소스를 찾을 수 없는 예외"""
 
-    def __init__(self, detail: str = MESSAGES["ERROR"]["NOT_FOUND"]):
-        super().__init__(detail)
+    def __init__(
+        self,
+        detail: Union[str, Dict[str, Any]] = "요청한 리소스를 찾을 수 없습니다",
+    ):
+        # detail이 문자열인 경우 딕셔너리로 변환
+        if isinstance(detail, str):
+            detail = {
+                "success": False,
+                "message": detail,
+                "error_code": "NOT_FOUND"
+            }
+            
+        # error_code가 없으면 기본값 추가
+        if isinstance(detail, dict) and "error_code" not in detail:
+            detail["error_code"] = "NOT_FOUND"
+            
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
 
-class PessimisticLockException(BaseApiException):
-    """비관적 락 획득 실패 예외"""
+class PessimisticLockException(HTTPException):
+    """비관적 락 관련 예외"""
 
-    def __init__(self, detail: str = MESSAGES["ERROR"]["LOCKED"], **kwargs):
-        self.__dict__.update(kwargs)
-        super().__init__(detail)
+    def __init__(
+        self,
+        detail: Union[str, Dict[str, Any]] = "리소스가 잠겨 있습니다",
+        dashboard_id: Optional[int] = None,
+        dashboard_ids: Optional[List[int]] = None,
+    ):
+        # detail이 문자열인 경우 딕셔너리로 변환
+        if isinstance(detail, str):
+            detail = {
+                "success": False,
+                "message": detail,
+                "error_code": "RESOURCE_LOCKED"
+            }
+            
+            # dashboard_id 또는 dashboard_ids가 있으면 추가
+            if dashboard_id:
+                detail["dashboard_id"] = dashboard_id
+            if dashboard_ids:
+                detail["dashboard_ids"] = dashboard_ids
+        
+        # error_code가 없으면 기본값 추가
+        if isinstance(detail, dict) and "error_code" not in detail:
+            detail["error_code"] = "RESOURCE_LOCKED"
+            
+        super().__init__(status_code=status.HTTP_423_LOCKED, detail=detail)
 
 
 class UnauthorizedException(BaseApiException):
@@ -41,14 +92,33 @@ class UnauthorizedException(BaseApiException):
         super().__init__(detail)
 
 
-class InvalidStatusTransitionException(ValidationException):
-    """상태 전이 규칙 위반 예외"""
+class InvalidStatusTransitionException(HTTPException):
+    """상태 전이 유효성 검증 예외"""
 
-    def __init__(self, current_status: str, new_status: str):
-        super().__init__(
-            detail=f"'{current_status}' 상태에서 '{new_status}' 상태로 변경할 수 없습니다",
-            error_fields={"current_status": current_status, "new_status": new_status},
-        )
+    def __init__(
+        self,
+        detail: Union[str, Dict[str, Any]] = "유효하지 않은 상태 전이입니다",
+        current_status: Optional[str] = None,
+        target_status: Optional[str] = None,
+    ):
+        # detail이 문자열인 경우 딕셔너리로 변환
+        if isinstance(detail, str):
+            detail = {
+                "success": False,
+                "message": detail,
+                "error_code": "INVALID_STATUS_TRANSITION"
+            }
+            
+            # 상태 정보가 있으면 추가
+            if current_status and target_status:
+                detail["current_status"] = current_status
+                detail["target_status"] = target_status
+                
+        # error_code가 없으면 기본값 추가
+        if isinstance(detail, dict) and "error_code" not in detail:
+            detail["error_code"] = "INVALID_STATUS_TRANSITION"
+            
+        super().__init__(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
 
 
 class DashboardStatusLockedException(ValidationException):
