@@ -219,109 +219,47 @@ class DashboardRepository:
             log_error(e, "락 정보 조회 실패", {"dashboard_id": dashboard_id})
             return None
             
-    # 메모 관련 기능은 그대로 유지
-    def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[DashboardRemark]:
-        """대시보드 ID별 메모 목록 조회 (최신순)"""
-        try:
-            remarks = (
-                self.db.query(DashboardRemark)
-                .filter(DashboardRemark.dashboard_id == dashboard_id)
-                .order_by(desc(DashboardRemark.created_at))
-                .all()
-            )
-            return remarks
-        except Exception as e:
-            log_error(e, "메모 목록 조회 실패", {"dashboard_id": dashboard_id})
-            return []
+    # 메모 관련 메서드 수정 - 이전 메서드는 제거하거나 주석 처리
+    # def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[DashboardRemark]:
+    #     """대시보드 ID로 메모 목록 조회 (최신순)"""
+    #     ...
 
-    def get_remark_by_id(self, remark_id: int) -> Optional[DashboardRemark]:
-        """메모 ID로 메모 조회"""
-        try:
-            remark = (
-                self.db.query(DashboardRemark)
-                .filter(DashboardRemark.remark_id == remark_id)
-                .first()
-            )
-            return remark
-        except Exception as e:
-            log_error(e, "메모 조회 실패", {"remark_id": remark_id})
-            return None
+    # def get_remark_by_id(self, remark_id: int) -> Optional[DashboardRemark]:
+    #     """메모 단일 조회"""
+    #     ...
 
-    def create_empty_remark(
-        self, dashboard_id: int, user_id: str
-    ) -> Optional[DashboardRemark]:
-        """
-        빈 메모 생성 (대시보드 생성 시 자동 호출용)
-        - 내용이 null인 초기 메모 생성
+    # def create_remark(self, dashboard_id: int, content: str, user_id: str) -> Optional[DashboardRemark]:
+    #     """메모 생성 (내용이 있는 경우)"""
+    #     ...
+
+    # def create_empty_remark(self, dashboard_id: int, user_id: str) -> Optional[DashboardRemark]:
+    #     """빈 메모 생성 (대시보드 생성 시)"""
+    #     ...
+
+    # def update_remark(self, remark_id: int, content: str, user_id: str) -> Optional[DashboardRemark]:
+    #     """메모 업데이트"""
+    #     ...
+
+    def create_remark(self, dashboard_id: int, content: str, user_id: str) -> bool:
+        """대시보드에 메모 추가 (통합된 방식)
+        
+        대시보드 테이블의 remark 필드에 직접 메모를 저장합니다.
         """
         try:
-            # 1. 대시보드 존재 확인
-            dashboard = (
+            log_info(f"메모 추가: dashboard_id={dashboard_id}, user_id={user_id}")
+            now = get_kst_now()
+            
+            result = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
-                .first()
+                .update({
+                    "remark": content,
+                    "remark_updated_at": now,
+                    "remark_updated_by": user_id
+                })
             )
-            if not dashboard:
-                log_error(
-                    None,
-                    "메모 생성 실패: 대시보드 없음",
-                    {"dashboard_id": dashboard_id},
-                )
-                return None
-
-            # 2. 빈 메모 생성
-            now = get_kst_now()
-            remark = DashboardRemark(
-                dashboard_id=dashboard_id,
-                content=None,  # 빈 내용 (NULL)
-                created_at=now,
-                created_by=user_id,
-                formatted_content="",  # 접두사 제거
-            )
-
-            self.db.add(remark)
-            self.db.flush()
-            self.db.refresh(remark)
-
-            log_info(
-                f"빈 메모 생성 완료: ID={remark.remark_id}, 대시보드 ID={dashboard_id}"
-            )
-            return remark
-
+            
+            return result > 0
         except Exception as e:
-            log_error(e, "빈 메모 생성 실패", {"dashboard_id": dashboard_id})
-            self.db.rollback()
-            return None
-
-    def update_remark(
-        self, remark_id: int, content: str, user_id: str
-    ) -> Optional[DashboardRemark]:
-        """
-        메모 업데이트
-        """
-        try:
-            # 1. 기존 메모 조회
-            remark = self.get_remark_by_id(remark_id)
-
-            if not remark:
-                log_error(
-                    None, "메모 업데이트 실패: 메모 없음", {"remark_id": remark_id}
-                )
-                return None
-
-            # 2. 메모 내용 및 포맷팅된 내용 업데이트
-            remark.content = content
-            remark.formatted_content = content
-
-            # 3. 변경 사항 저장
-            self.db.flush()
-
-            log_info(
-                f"메모 업데이트 완료: ID={remark.remark_id}, 대시보드 ID={remark.dashboard_id}"
-            )
-            return remark
-
-        except Exception as e:
-            log_error(e, "메모 업데이트 실패", {"remark_id": remark_id})
-            self.db.rollback()
-            return None
+            log_error(e, "메모 추가 실패", {"dashboard_id": dashboard_id})
+            return False

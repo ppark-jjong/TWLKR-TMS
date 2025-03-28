@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
+import time
 
 from main.server.utils.logger import log_info, log_error
 from main.server.utils.exceptions import PessimisticLockException
@@ -17,6 +18,9 @@ class LockManager:
         self.dashboard_repository = repository
         self.db = getattr(repository, "db", None) if db is None else db
         self.lock_repository = LockRepository(self.db)
+        # 락 해제 재시도 설정
+        self.release_retry_count = 3
+        self.release_retry_delay = 0.5  # 0.5초
 
     @contextmanager
     def acquire_lock(self, dashboard_id: int, user_id: str, lock_type: str):
@@ -52,10 +56,29 @@ class LockManager:
         finally:
             # 컨텍스트 종료 시 락 자동 해제 (획득했을 경우에만)
             if lock and acquired:
-                try:
-                    self.lock_repository.release_lock(dashboard_id, user_id)
-                except Exception as e:
-                    log_error(e, f"락 자동 해제 실패: dashboard_id={dashboard_id}")
+                release_success = self._release_lock_with_retry(dashboard_id, user_id)
+                if not release_success:
+                    log_error(None, f"락 자동 해제 최종 실패: dashboard_id={dashboard_id}, 수동 확인 필요")
+
+    def _release_lock_with_retry(self, dashboard_id: int, user_id: str) -> bool:
+        """락 해제 시도 및 실패 시 재시도"""
+        for attempt in range(self.release_retry_count):
+            try:
+                result = self.lock_repository.release_lock(dashboard_id, user_id)
+                if result:
+                    if attempt > 0:
+                        log_info(f"락 해제 재시도 성공 (시도 {attempt+1}): dashboard_id={dashboard_id}")
+                    return True
+                else:
+                    log_error(None, f"락 해제 실패 (시도 {attempt+1}): dashboard_id={dashboard_id}")
+            except Exception as e:
+                log_error(e, f"락 해제 중 오류 (시도 {attempt+1}): dashboard_id={dashboard_id}")
+                
+            # 마지막 시도가 아니면 잠시 대기 후 재시도
+            if attempt < self.release_retry_count - 1:
+                time.sleep(self.release_retry_delay)
+        
+        return False
 
     @contextmanager
     def acquire_multiple_locks(
@@ -76,7 +99,7 @@ class LockManager:
             if len(acquired_ids) != len(dashboard_ids):
                 # 일부만 획득 - 모두 실패로 간주하고 이미 획득한 락 해제
                 for id in acquired_ids:
-                    self.lock_repository.release_lock(id, user_id)
+                    self._release_lock_with_retry(id, user_id)
 
                 # 실패 메시지 생성
                 raise PessimisticLockException(
@@ -95,10 +118,7 @@ class LockManager:
         finally:
             # 컨텍스트 종료 시 모든 락 자동 해제
             for id in acquired_ids:
-                try:
-                    self.lock_repository.release_lock(id, user_id)
-                except Exception as e:
-                    log_error(e, f"다중 락 해제 실패: dashboard_id={id}")
+                self._release_lock_with_retry(id, user_id)
 
     def get_lock_status(self, dashboard_id: int) -> Dict[str, Any]:
         """대시보드의 락 상태 정보 조회"""

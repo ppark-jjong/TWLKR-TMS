@@ -25,14 +25,18 @@ def get_download_service(db: Session = Depends(get_db)) -> DownloadService:
     return DownloadService(repository)
 
 
-@router.post("/excel", response_model=DownloadResponse)
+@router.post("/excel")  # response_model 제거
 @error_handler("대시보드 데이터 Excel 다운로드")
 async def download_dashboard_excel(
     download_request: DownloadRequest,
     service: DownloadService = Depends(get_download_service),
     current_user: TokenData = Depends(get_current_user),
 ):
-    """대시보드 데이터 Excel 다운로드 API"""
+    """대시보드 데이터 Excel 다운로드 API
+    
+    참고: 이 API는 StreamingResponse를 반환하여 파일 다운로드를 제공합니다.
+    실패 시에는 DownloadResponse 형식의 JSON 응답을 반환합니다.
+    """
     log_info(f"Excel 다운로드 요청: {download_request.start_date} ~ {download_request.end_date}")
     
     try:

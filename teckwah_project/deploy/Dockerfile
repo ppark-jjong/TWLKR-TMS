@@ -21,17 +21,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY main/ /app/main/
 
 # supervisord 설정 복사
-COPY main/supervisord.conf /etc/supervisor/conf.d/app.conf
+COPY deploy/supervisord.conf /etc/supervisor/conf.d/app.conf
 
 # 환경 변수 설정
 COPY deploy/.env.local /app/.env
 
-
-# 정적 파일 및 디렉토리 확인
-RUN mkdir -p /app/main/dash/assets
-
-# 권한 설정
-RUN chmod -R 755 /app
+# 필요한 디렉토리 생성 및 권한 설정
+RUN mkdir -p /app/main/dash_app/assets && \
+    mkdir -p /var/log && \
+    touch /var/log/fastapi.err.log /var/log/fastapi.out.log && \
+    touch /var/log/dash.err.log /var/log/dash.out.log && \
+    chmod -R 755 /app && \
+    chmod 777 /var/log/fastapi.err.log /var/log/fastapi.out.log && \
+    chmod 777 /var/log/dash.err.log /var/log/dash.out.log
 
 # Python 패키지 경로 설정 (상위 디렉토리도 포함)
 ENV PYTHONPATH=/app

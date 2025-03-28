@@ -57,15 +57,12 @@ class DashboardService:
         if not dashboard:
             raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
-        # 메모 조회
-        remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
-
         # 락 상태 확인 (LockManager 사용)
         lock_status = self.lock_manager.get_lock_status(dashboard_id)
         is_locked = lock_status.get("is_locked", False)
 
         # 상세 정보 구성
-        result = self._prepare_dashboard_detail(dashboard, remarks)
+        result = self._prepare_dashboard_detail(dashboard)
 
         # 락 정보 추가
         if is_locked:
@@ -105,18 +102,18 @@ class DashboardService:
         if user_id:
             dashboard_dict["created_by"] = user_id
         
+        # 메모 내용이 있으면 메모 관련 필드 설정
+        now = get_kst_now()
+        if hasattr(dashboard_data, 'remark') and dashboard_data.remark:
+            dashboard_dict["remark"] = dashboard_data.remark
+            dashboard_dict["remark_updated_at"] = now
+            dashboard_dict["remark_updated_by"] = user_id
+        
         # 4. 대시보드 생성
         dashboard = self.repository.create_dashboard(dashboard_dict)
         
-        # 5. 초기 메모 생성 (입력된 경우)
-        remark_content = dashboard_data.remark
-        if remark_content and user_id:
-            self.repository.create_remark(dashboard.dashboard_id, remark_content, user_id)
-        
-        # 6. 생성된 대시보드 정보 반환
-        # 메모 조회
-        remarks = self.repository.get_remarks_by_dashboard_id(dashboard.dashboard_id)
-        return self._prepare_dashboard_detail(dashboard, remarks)
+        # 5. 반환 데이터 준비
+        return self._prepare_dashboard_detail(dashboard)
 
     @transactional
     def delete_dashboards(self, dashboard_ids: List[int]) -> int:
@@ -135,25 +132,19 @@ class DashboardService:
         """대시보드 상세 정보 준비"""
         dashboard_dict = self._convert_to_dict(dashboard)
         
-        # 메모 정보 추가
-        if remarks is None:
-            remarks = self.repository.get_remarks_by_dashboard_id(dashboard.dashboard_id)
-        
-        remarks_list = []
-        for remark in remarks:
-            remarks_list.append({
-                "remark_id": remark.remark_id,
-                "content": remark.content or "",
-                "created_at": remark.created_at.strftime("%Y-%m-%d %H:%M:%S") if remark.created_at else None,
-                "created_by": remark.created_by,
-                "formatted_content": remark.formatted_content or remark.content or "",
-            })
+        # 메모 정보 추가 - 대시보드 remark 필드 사용
+        if hasattr(dashboard, 'remark') and dashboard.remark:
+            # remark 정보를 포맷팅하여 추가
+            dashboard_dict["formatted_remark"] = dashboard.remark
+            dashboard_dict["remark_updated_at"] = dashboard.remark_updated_at.strftime("%Y-%m-%d %H:%M:%S") if dashboard.remark_updated_at else None
+            dashboard_dict["remark_updated_by"] = dashboard.remark_updated_by
+        else:
+            dashboard_dict["formatted_remark"] = ""
+            dashboard_dict["remark_updated_at"] = None
+            dashboard_dict["remark_updated_by"] = None
         
         # 작성자 정보 추가
         dashboard_dict["created_by"] = dashboard.created_by if hasattr(dashboard, "created_by") else None
-        
-        # 상세 정보에 메모 추가
-        dashboard_dict["remarks"] = remarks_list
         
         return dashboard_dict
 
@@ -231,9 +222,8 @@ class DashboardService:
             if not dashboard:
                 raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
 
-            # 5. 상세 정보 반환 (메모 포함)
-            remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
-            return self._prepare_dashboard_detail(dashboard, remarks)
+            # 5. 상세 정보 반환
+            return self._prepare_dashboard_detail(dashboard)
 
     @transactional
     def update_status(
@@ -284,8 +274,7 @@ class DashboardService:
             )
 
             # 6. 상세 정보 반환
-            remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
-            return self._prepare_dashboard_detail(dashboard, remarks)
+            return self._prepare_dashboard_detail(dashboard)
 
     @transactional
     def assign_driver(
@@ -314,58 +303,10 @@ class DashboardService:
             return result
 
     @transactional
-    def update_remark(
-        self, remark_id: int, remark_update: RemarkUpdate, user_id: str
-    ) -> Dict[str, Any]:
-        """메모 업데이트 (비관적 락 사용)"""
-        # 1. 메모 조회
-        remark = self.repository.get_remark_by_id(remark_id)
-        if not remark:
-            raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
-
-        # 작성자 확인
-        if remark.created_by != user_id:
-            raise ValidationException("메모 수정 권한이 없습니다")
-
-        # 2. 락 획득
-        with self.lock_manager.acquire_lock(remark.dashboard_id, user_id, "REMARK"):
-            # 3. 메모 업데이트
-            content = remark_update.content
-            updated_remark = self.repository.update_remark(remark_id, content, user_id)
-            if not updated_remark:
-                raise Exception("메모 업데이트에 실패했습니다")
-
-            # 4. 응답 구성
-            return self._build_remark_response(updated_remark)
-
-    @transactional
-    def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[Dict[str, Any]]:
-        """대시보드별 메모 목록 조회 (최신순)"""
-        remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
-        return [self._build_remark_response(remark) for remark in remarks]
-
-    def _build_remark_response(self, remark) -> Dict[str, Any]:
-        """메모 응답 객체 구성"""
-        return {
-            "success": True,
-            "message": "메모가 처리되었습니다",
-            "data": {
-                "remark_id": remark.remark_id,
-                "dashboard_id": remark.dashboard_id,
-                "content": remark.content or "",
-                "created_at": (
-                    remark.created_at.isoformat() if remark.created_at else None
-                ),
-                "created_by": remark.created_by,
-                "formatted_content": remark.content or "",
-            },
-        }
-
-    @transactional
     def update_dashboard(
         self, dashboard_id: int, dashboard_update: DashboardUpdate, user_id: str
     ) -> Dict[str, Any]:
-        """대시보드 통합 업데이트 (필드 + 메모)
+        """대시보드 통합 업데이트 (모든 필드 + 메모)
         
         관리자만 가능한 통합 업데이트 메서드입니다.
         """
@@ -376,34 +317,52 @@ class DashboardService:
         
         # 2. 락 획득
         with self.lock_manager.acquire_lock(dashboard_id, user_id, "UPDATE"):
-            # 3. 업데이트할 필드만 추출
+            # 3. 업데이트할 필드 추출
             update_data = {}
-            if dashboard_update.eta is not None:
-                update_data["eta"] = dashboard_update.eta
-            if dashboard_update.postal_code is not None:
-                update_data["postal_code"] = dashboard_update.postal_code
-            if dashboard_update.address is not None:
-                update_data["address"] = dashboard_update.address
-            if dashboard_update.customer is not None:
-                update_data["customer"] = dashboard_update.customer
-            if dashboard_update.contact is not None:
-                update_data["contact"] = dashboard_update.contact
+            for field, value in dashboard_update.model_dump(exclude_unset=True).items():
+                if value is not None:
+                    update_data[field] = value
             
-            # 필드 업데이트가 있는 경우
+            # remark 필드가 업데이트되는 경우 관련 메타데이터도 업데이트
+            if "remark" in update_data:
+                update_data["remark_updated_at"] = get_kst_now()
+                update_data["remark_updated_by"] = user_id
+            
+            # 우편번호 변경 시 관련 정보도 함께 업데이트
+            if "postal_code" in update_data:
+                postal_code = update_data["postal_code"]
+                postal_info = (
+                    self.db.query(PostalCode)
+                    .filter(PostalCode.postal_code == postal_code)
+                    .first()
+                )
+
+                if postal_info:
+                    update_data["city"] = postal_info.city
+                    update_data["county"] = postal_info.county
+                    update_data["district"] = postal_info.district
+
+                    # 창고 정보가 있으면 거리, 소요시간 정보도 업데이트
+                    warehouse = update_data.get("warehouse") or dashboard.warehouse
+                    if warehouse:
+                        detail_info = (
+                            self.db.query(PostalCodeDetail)
+                            .filter(
+                                PostalCodeDetail.postal_code == postal_code,
+                                PostalCodeDetail.warehouse == warehouse,
+                            )
+                            .first()
+                        )
+
+                        if detail_info:
+                            update_data["distance"] = detail_info.distance
+                            update_data["duration_time"] = detail_info.duration_time
+            
+            # 데이터 업데이트 실행
             if update_data:
                 dashboard = self.repository.update_dashboard_fields(
                     dashboard_id, update_data
                 )
             
-            # 4. 메모 업데이트가 있는 경우
-            if dashboard_update.remark_content is not None:
-                # 새 메모 생성
-                self.repository.create_remark(
-                    dashboard_id, 
-                    dashboard_update.remark_content, 
-                    user_id
-                )
-            
-            # 5. 상세 정보 반환
-            remarks = self.repository.get_remarks_by_dashboard_id(dashboard_id)
-            return self._prepare_dashboard_detail(dashboard, remarks)
+            # 4. 상세 정보 반환
+            return self._prepare_dashboard_detail(dashboard)

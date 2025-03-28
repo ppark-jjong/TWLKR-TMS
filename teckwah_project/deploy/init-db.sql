@@ -51,9 +51,9 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (버전 필드 제거)
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (메모 필드 통합)
 CREATE TABLE IF NOT EXISTS dashboard (
-dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(15) NOT NULL,
   type ENUM('DELIVERY', 'RETURN') NOT NULL,
   status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING',
@@ -76,6 +76,11 @@ dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
+  created_by VARCHAR(50) NULL,
+  -- 메모 관련 필드 추가
+  remark TEXT NULL,
+  remark_updated_at DATETIME NULL,
+  remark_updated_by VARCHAR(50) NULL,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_create_time (create_time), -- 최적화: 생성 시간 기준 조회 성능 향상
@@ -86,27 +91,27 @@ dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 7. 대시보드 메모 테이블 생성 (버전 필드 제거)
-CREATE TABLE IF NOT EXISTS dashboard_remark (
-  remark_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  dashboard_id INT NOT NULL,
-  content TEXT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_by VARCHAR(50) NOT NULL,
-  formatted_content TEXT NULL, 
-  FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
-  INDEX idx_dashboard_id (dashboard_id),
-  INDEX idx_created_at (created_at)
-) ENGINE=InnoDB
-  DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
+-- 7. 대시보드 메모 테이블 제거 (메모 정보를 dashboard 테이블로 통합)
+-- CREATE TABLE IF NOT EXISTS dashboard_remark (
+--   remark_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+--   dashboard_id INT NOT NULL,
+--   content TEXT NULL,
+--   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   created_by VARCHAR(50) NOT NULL,
+--   formatted_content TEXT NULL, 
+--   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
+--   INDEX idx_dashboard_id (dashboard_id),
+--   INDEX idx_created_at (created_at)
+-- ) ENGINE=InnoDB
+--   DEFAULT CHARSET=utf8mb4
+--   COLLATE=utf8mb4_unicode_ci;
 
 -- 8. 비관적 락을 관리하기 위한 테이블 생성 (개선)
 CREATE TABLE IF NOT EXISTS dashboard_lock (
   dashboard_id INT NOT NULL PRIMARY KEY,
   locked_by VARCHAR(50) NOT NULL,
   locked_at DATETIME NOT NULL,
-  lock_type ENUM('EDIT', 'STATUS', 'ASSIGN', 'REMARK') NOT NULL,
+  lock_type ENUM('EDIT', 'STATUS', 'ASSIGN', 'REMARK', 'UPDATE') NOT NULL,
   expires_at DATETIME NOT NULL,
   lock_timeout INT NOT NULL DEFAULT 300, -- 락 타임아웃(초), 기본값 5분
   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,

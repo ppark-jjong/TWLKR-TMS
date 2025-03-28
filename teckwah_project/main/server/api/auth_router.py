@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 
-from main.server.schemas.auth_schema import UserLogin, LoginResponse, Token, RefreshTokenRequest
+from main.server.schemas.auth_schema import UserLogin, LoginResponse, Token, RefreshTokenRequest, ApiResponse
 from main.server.services.auth_service import AuthService
 from main.server.repositories.auth_repository import AuthRepository
 from main.server.config.database import get_db
@@ -39,7 +39,7 @@ async def login(
     return login_response
 
 
-@router.get("/check-session")
+@router.get("/check-session", response_model=ApiResponse)
 @error_handler("세션 유효성 검증")
 async def check_session(authorization: str = Header(None)):
     """세션 유효성 검증 API"""
@@ -85,7 +85,7 @@ async def check_session(authorization: str = Header(None)):
         )
 
 
-@router.post("/refresh")
+@router.post("/refresh", response_model=ApiResponse)
 @error_handler("토큰 갱신")
 async def refresh_token(
     refresh_data: RefreshTokenRequest,
@@ -109,7 +109,7 @@ async def refresh_token(
     }
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=ApiResponse)
 @error_handler("로그아웃")
 async def logout(
     refresh_data: RefreshTokenRequest,

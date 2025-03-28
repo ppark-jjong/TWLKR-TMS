@@ -51,6 +51,11 @@ class Dashboard(Base):
     driver_contact = Column(String(50), nullable=True)
     created_by = Column(String(50), nullable=True)
 
+    # 메모 관련 필드 추가
+    remark = Column(Text, nullable=True)  # 메모 내용
+    remark_updated_at = Column(DateTime, nullable=True)  # 메모 업데이트 시간
+    remark_updated_by = Column(String(50), nullable=True)  # 메모 업데이트한 사용자
+
     # 관계 설정
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)
     remarks = relationship(

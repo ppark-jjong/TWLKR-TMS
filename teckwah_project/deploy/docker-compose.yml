@@ -9,13 +9,19 @@ services:
       - '3000:3000' # Dash
     environment:
       - API_BASE_URL=http://0.0.0.0:8000
-      - LOG_LEVEL=WARNING
+      - LOG_LEVEL=INFO
       - DEBUG=True
-      - MYSQL_HOST=host.docker.internal # 로컬 호스트의 MySQL 접속
+      - MYSQL_HOST=host.docker.internal
+      - PYTHONUNBUFFERED=1
     env_file:
       - .env.local
     networks:
       - app_network
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ../main:/app/main
+    restart: unless-stopped
 
 networks:
   app_network:

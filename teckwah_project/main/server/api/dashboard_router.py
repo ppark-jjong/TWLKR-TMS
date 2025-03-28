@@ -267,21 +267,6 @@ async def search_dashboards_by_order_no(
     )
 
 
-@router.patch("/{dashboard_id}/remarks/{remark_id}", response_model=BaseResponse)
-@error_handler("메모 업데이트")
-async def update_remark(
-    dashboard_id: int,
-    remark_id: int,
-    remark_update: RemarkUpdate,
-    service: DashboardService = Depends(get_dashboard_service),
-    current_user: TokenData = Depends(get_current_user),
-):
-    """메모 업데이트 API (비관적 락 적용)"""
-    log_info(f"메모 업데이트 요청: 메모 ID {remark_id}")
-    result = service.update_remark(remark_id, remark_update, current_user.user_id)
-    return result
-
-
 @router.patch("/{dashboard_id}", response_model=DashboardDetailResponse)
 @error_handler("대시보드 통합 업데이트")
 async def update_dashboard(
@@ -292,7 +277,8 @@ async def update_dashboard(
 ):
     """대시보드 통합 업데이트 API (관리자 전용)
     
-    대시보드 필드와 메모를 한번에 업데이트합니다.
+    대시보드의 모든 필드(주문번호, 타입, 창고, ETA, SLA, 우편번호, 주소, 고객명, 연락처)와 
+    메모를 한번에 업데이트합니다.
     """
     log_info(f"대시보드 통합 업데이트 요청: {dashboard_id}")
     

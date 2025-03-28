@@ -20,6 +20,7 @@ from main.server.config.settings import get_settings
 from main.server.utils.logger import log_info, log_error, set_request_id
 from main.server.utils.datetime_helper import get_kst_now
 from main.server.utils.constants import MESSAGES
+from main.server.background.cleanup_tasks import cleanup_manager  # 새로 추가
 
 settings = get_settings()
 
@@ -134,9 +135,15 @@ async def startup_event():
 
     # 로그 디렉토리 확인 및 생성
     os.makedirs("logs", exist_ok=True)
+    
+    # 배경 작업 시작 - 만료된 락 자동 정리
+    await cleanup_manager.start_cleanup_tasks()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """애플리케이션 종료 시 실행되는 이벤트 핸들러"""
+    # 배경 작업 중지
+    cleanup_manager.stop_cleanup_tasks()
+    
     log_info("애플리케이션 종료")

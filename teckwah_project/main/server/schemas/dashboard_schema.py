@@ -112,11 +112,18 @@ class DashboardDetail(DashboardResponse):
     duration_time: Optional[int] = None
     customer: str
     contact: Optional[str] = None
-    remarks: List[RemarkResponse] = Field(default_factory=list)
     city: Optional[str] = None
     county: Optional[str] = None
     district: Optional[str] = None
     sla: str
+    
+    # 메모 필드 추가
+    remark: Optional[str] = None
+    formatted_remark: Optional[str] = None
+    remark_updated_at: Optional[str] = None
+    remark_updated_by: Optional[str] = None
+    
+    # 락 관련 필드
     is_locked: bool = False
     locked_by: Optional[str] = None
     lock_type: Optional[str] = None
@@ -208,21 +215,30 @@ class DriverAssignment(BaseModel):
 
 class DashboardUpdate(BaseModel):
     """대시보드 통합 업데이트 스키마"""
+    order_no: Optional[str] = None
+    type: Optional[DeliveryType] = None
+    warehouse: Optional[Warehouse] = None
     eta: Optional[datetime] = None
+    sla: Optional[str] = None
     postal_code: Optional[str] = None
     address: Optional[str] = None
     customer: Optional[str] = None
     contact: Optional[str] = None
-    remark_content: Optional[str] = None  # 메모 내용
+    remark: Optional[str] = None  # 메모 필드
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
+                "order_no": "ORD12345",
+                "type": "DELIVERY",
+                "warehouse": "SEOUL",
                 "eta": "2023-03-15T14:30:00",
+                "sla": "당일배송",
                 "postal_code": "12345",
                 "address": "서울시 강남구 역삼동 123-45",
                 "customer": "홍길동",
                 "contact": "010-1234-5678",
-                "remark_content": "고객 부재시 경비실에 맡겨주세요."
+                "remark": "고객 부재시 경비실에 맡겨주세요."
             }
         }
+    )

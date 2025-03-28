@@ -180,3 +180,34 @@ class LockRepository:
                 except:
                     pass
             return []
+            
+    def cleanup_expired_locks(self) -> int:
+        """만료된 락 자동 정리
+        
+        Returns:
+            int: 정리된 락 개수
+        """
+        try:
+            log_info("만료된 락 자동 정리 수행")
+            
+            # 방법 1: 직접 SQL 쿼리 실행
+            # result = self.db.execute(text("CALL cleanup_expired_locks()")).first()
+            # cleaned_count = result[0] if result else 0
+            
+            # 방법 2: SQLAlchemy ORM 사용
+            now = get_kst_now()
+            result = self.db.query(DashboardLock).filter(
+                DashboardLock.expires_at < now
+            ).delete(synchronize_session=False)
+            
+            self.db.commit()
+            
+            if result > 0:
+                log_info(f"만료된 락 정리 완료: {result}건")
+            
+            return result
+            
+        except Exception as e:
+            log_error(e, "만료된 락 정리 실패")
+            self.db.rollback()
+            return 0
