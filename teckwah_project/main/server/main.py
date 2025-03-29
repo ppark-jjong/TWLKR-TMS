@@ -1,164 +1,115 @@
 # teckwah_project/main/server/main.py
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+import asyncio
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-import os
-import logging
-import time
-from typing import Callable
+from datetime import datetime
 
-from main.server.api import (
-    auth_router,
-    dashboard_router,
-    visualization_router,
-    dashboard_lock_router,
-    download_router,
-)
 from main.server.config.settings import get_settings
-from main.server.utils.logger import log_info, log_error, set_request_id
-from main.server.utils.datetime_helper import get_kst_now
-from main.server.utils.constants import MESSAGES
-from main.server.background.cleanup_tasks import cleanup_manager  # 새로 추가
+from main.server.config.database import get_db, SessionLocal
+from main.server.utils.logger import set_request_id, log_info
+from main.server.models.dashboard_lock_model import DashboardLock
+
+# API 라우터 가져오기
+from main.server.api.auth_router import router as auth_router
+from main.server.api.dashboard_router import router as dashboard_router
+from main.server.api.dashboard_simple_router import router as dashboard_simple_router
+from main.server.api.dashboard_lock_router import router as dashboard_lock_router
+from main.server.api.visualization_router import router as visualization_router
+from main.server.api.download_router import router as download_router
 
 settings = get_settings()
 
-# 로깅 설정 간소화 - 중복 출력 방지
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
-
-# 다른 로거 레벨 조정
-logging.getLogger("uvicorn").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
-
-logger = logging.getLogger("delivery-system")
-
+# FastAPI 애플리케이션 생성
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_PREFIX}/openapi.json",
+    title="배송 실시간 관제 시스템",
+    description="배송 주문을 실시간으로 관리하는 API",
+    version="1.0.0",
+    openapi_url="/api/openapi.json",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
 )
 
-# CORS 설정 - 모든 오리진 허용 (개발 환경 기준)
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 실제 환경에서는 구체적인 출처로 제한
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# 글로벌 예외 핸들러 통합
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """HTTP 예외에 대한 표준 응답 형식 적용"""
-    error_detail = exc.detail
-
-    # error_detail이 딕셔너리가 아닌 경우 변환
-    if not isinstance(error_detail, dict):
-        error_detail = {"success": False, "message": str(error_detail)}
-
-    # success 필드가 없으면 추가
-    if "success" not in error_detail:
-        error_detail["success"] = False
-
-    # message 필드가 없으면 기본 메시지 추가
-    if "message" not in error_detail:
-        error_detail["message"] = MESSAGES["ERROR"]["SERVER"]
-    
-    # error_code 필드가 없으면 기본 오류 코드 추가
-    if "error_code" not in error_detail:
-        # 상태 코드별 기본 오류 코드 설정
-        status_code_to_error = {
-            401: "UNAUTHORIZED",
-            403: "FORBIDDEN",
-            404: "NOT_FOUND",
-            422: "VALIDATION_ERROR",
-            423: "RESOURCE_LOCKED",
-        }
-        error_detail["error_code"] = status_code_to_error.get(exc.status_code, "SERVER_ERROR")
-
-    return JSONResponse(status_code=exc.status_code, content=error_detail)
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """모든 처리되지 않은 예외에 대한 표준 응답 형식 적용"""
-    log_error(exc, f"처리되지 않은 예외: {str(exc)}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False, 
-            "message": MESSAGES["ERROR"]["SERVER"],
-            "error_code": "SERVER_ERROR"
-        },
-    )
-
-
-# 요청 처리 시간 로깅 미들웨어
+# 요청 ID 미들웨어
 @app.middleware("http")
-async def log_requests(request: Request, call_next: Callable) -> Response:
-    # 요청별 고유 ID 생성 및 설정
+async def request_middleware(request: Request, call_next):
+    # 요청 ID 생성 및 설정
     request_id = set_request_id()
     request.state.request_id = request_id
 
-    # 측정 시작
-    start_time = time.time()
-    
-    # 미들웨어 또는 엔드포인트 호출
+    # 요청 처리 및 응답 반환
     response = await call_next(request)
-    
-    # 처리 시간 계산
-    process_time = time.time() - start_time
-    
-    # 최소한의 로그만 남기도록 수정 - 오류와 인증 관련, 느린 요청만 로깅
-    if (
-        response.status_code >= 400 or 
-        "/auth/" in request.url.path or
-        process_time > 1.5  # 1.5초 이상 걸린 요청만 로깅
-    ):
-        log_info(f"API 요청: {request.method} {request.url.path} - 상태: {response.status_code} (처리시간: {process_time:.3f}초)")
-    
-    # 응답 헤더에 처리 시간 추가
-    response.headers["X-Process-Time"] = str(process_time)
     response.headers["X-Request-ID"] = request_id
-    
+
     return response
 
 
-# API 라우터 등록
-app.include_router(auth_router.router, prefix="/auth", tags=["인증"])
-app.include_router(dashboard_router.router, prefix="/dashboard", tags=["대시보드"])
-app.include_router(
-    visualization_router.router, prefix="/visualization", tags=["시각화"]
-)
-app.include_router(dashboard_lock_router.router, prefix="/dashboard", tags=["락 관리"])
-app.include_router(download_router.router, prefix="/download", tags=["다운로드"])
+# 라우터 등록
+app.include_router(auth_router, prefix="/api/auth", tags=["인증"])
+app.include_router(dashboard_router, prefix="/api", tags=["대시보드"])
+app.include_router(dashboard_simple_router, prefix="/api", tags=["대시보드 (간소화)"])
+app.include_router(dashboard_lock_router, prefix="/api/dashboard", tags=["대시보드 락"])
+app.include_router(visualization_router, prefix="/api/visualization", tags=["시각화"])
+app.include_router(download_router, prefix="/api/download", tags=["다운로드"])
 
 
+# 헬스체크 엔드포인트
+@app.get("/api/health", tags=["시스템"])
+async def health_check():
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+# 백그라운드 작업 - 만료된 락 정리
+async def cleanup_expired_locks():
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                # 현재 시간 기준 만료된 락 정리
+                now = datetime.now()
+                result = (
+                    db.query(DashboardLock)
+                    .filter(DashboardLock.expires_at < now)
+                    .delete(synchronize_session=False)
+                )
+
+                if result > 0:
+                    log_info(f"만료된 락 정리 완료: {result}건")
+
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                log_info(f"락 정리 중 오류 발생: {str(e)}")
+            finally:
+                db.close()
+        except Exception as e:
+            log_info(f"락 정리 작업 자체 오류: {str(e)}")
+
+        # 설정된 간격으로 대기
+        await asyncio.sleep(settings.LOCK_CLEANUP_INTERVAL_MINUTES * 60)
+
+
+# 시작 이벤트 핸들러
 @app.on_event("startup")
 async def startup_event():
-    """애플리케이션 시작 시 실행되는 이벤트 핸들러"""
-    # 환경 설정 로깅
-    log_info(f"애플리케이션 시작 - {settings.PROJECT_NAME} (환경: {'개발' if settings.DEBUG else '운영'})")
-
-    # 로그 디렉토리 확인 및 생성
-    os.makedirs("logs", exist_ok=True)
-    
-    # 배경 작업 시작 - 만료된 락 자동 정리
-    await cleanup_manager.start_cleanup_tasks()
+    # 백그라운드 작업 시작
+    asyncio.create_task(cleanup_expired_locks())
+    log_info("애플리케이션이 시작되었습니다")
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """애플리케이션 종료 시 실행되는 이벤트 핸들러"""
-    # 배경 작업 중지
-    cleanup_manager.stop_cleanup_tasks()
-    
-    log_info("애플리케이션 종료")
+# 애플리케이션이 실행 중일 때만 실행
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app", host="0.0.0.0", port=settings.API_PORT, reload=settings.DEBUG
+    )

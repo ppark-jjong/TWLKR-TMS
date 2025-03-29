@@ -7,10 +7,9 @@ import pytz
 
 from main.server.models.dashboard_model import Dashboard
 from main.server.models.dashboard_lock_model import DashboardLock
-from main.server.models.dashboard_remark_model import DashboardRemark
 from main.server.models.postal_code_model import PostalCode, PostalCodeDetail
 from main.server.utils.logger import log_info, log_error
-from main.server.utils.datetime_helper import KST, get_kst_now, localize_to_kst
+from main.server.utils.datetime import KST, get_kst_now, localize_to_kst
 from main.server.utils.exceptions import PessimisticLockException
 
 
@@ -203,7 +202,7 @@ class DashboardRepository:
         except Exception as e:
             log_error(e, "주문번호 검색 실패", {"order_no": order_no})
             return []
-            
+
     # 락 관련 메서드는 유지하되 LockManager에 위임하는 방식으로 변경
     def get_lock_info(self, dashboard_id: int) -> Optional[DashboardLock]:
         """락 정보 조회"""
@@ -218,7 +217,7 @@ class DashboardRepository:
         except Exception as e:
             log_error(e, "락 정보 조회 실패", {"dashboard_id": dashboard_id})
             return None
-            
+
     # 메모 관련 메서드 수정 - 이전 메서드는 제거하거나 주석 처리
     # def get_remarks_by_dashboard_id(self, dashboard_id: int) -> List[DashboardRemark]:
     #     """대시보드 ID로 메모 목록 조회 (최신순)"""
@@ -242,23 +241,25 @@ class DashboardRepository:
 
     def create_remark(self, dashboard_id: int, content: str, user_id: str) -> bool:
         """대시보드에 메모 추가 (통합된 방식)
-        
+
         대시보드 테이블의 remark 필드에 직접 메모를 저장합니다.
         """
         try:
             log_info(f"메모 추가: dashboard_id={dashboard_id}, user_id={user_id}")
             now = get_kst_now()
-            
+
             result = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
-                .update({
-                    "remark": content,
-                    "remark_updated_at": now,
-                    "remark_updated_by": user_id
-                })
+                .update(
+                    {
+                        "remark": content,
+                        "remark_updated_at": now,
+                        "remark_updated_by": user_id,
+                    }
+                )
             )
-            
+
             return result > 0
         except Exception as e:
             log_error(e, "메모 추가 실패", {"dashboard_id": dashboard_id})

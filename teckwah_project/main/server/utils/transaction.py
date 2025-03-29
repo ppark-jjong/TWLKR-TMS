@@ -6,7 +6,7 @@ from typing import Generator, Callable, TypeVar, Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from main.server.utils.logger import log_info, log_error
-from main.server.utils.datetime_helper import get_kst_now
+from main.server.utils.datetime import get_kst_now
 
 T = TypeVar("T")
 

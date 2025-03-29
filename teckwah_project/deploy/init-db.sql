@@ -76,35 +76,16 @@ CREATE TABLE IF NOT EXISTS dashboard (
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
-  created_by VARCHAR(50) NULL,
-  -- 메모 관련 필드 추가
+  updated_by VARCHAR(50) NULL, -- 생성, 수정 시 해당 내용 user_id로 update
   remark TEXT NULL,
-  remark_updated_at DATETIME NULL,
-  remark_updated_by VARCHAR(50) NULL,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
-  INDEX idx_create_time (create_time), -- 최적화: 생성 시간 기준 조회 성능 향상
   INDEX idx_status (status),
   INDEX idx_department (department),
   INDEX idx_order_no (order_no) -- 최적화: 주문번호 기준 검색 성능 향상
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
-
--- 7. 대시보드 메모 테이블 제거 (메모 정보를 dashboard 테이블로 통합)
--- CREATE TABLE IF NOT EXISTS dashboard_remark (
---   remark_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
---   dashboard_id INT NOT NULL,
---   content TEXT NULL,
---   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
---   created_by VARCHAR(50) NOT NULL,
---   formatted_content TEXT NULL, 
---   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
---   INDEX idx_dashboard_id (dashboard_id),
---   INDEX idx_created_at (created_at)
--- ) ENGINE=InnoDB
---   DEFAULT CHARSET=utf8mb4
---   COLLATE=utf8mb4_unicode_ci;
 
 -- 8. 비관적 락을 관리하기 위한 테이블 생성 (개선)
 CREATE TABLE IF NOT EXISTS dashboard_lock (
@@ -174,7 +155,6 @@ BEGIN
     SET NEW.duration_time = 0;
   END IF;
   
-  -- 버전 필드 제거로 초기 버전 설정 로직 삭제
 END//
 
 DELIMITER ;

@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
-from main.server.utils.datetime_helper import get_kst_now
+from main.server.utils.datetime import get_kst_now
 
 from main.server.models.user_model import User
 from main.server.models.refresh_token_model import RefreshToken
@@ -69,7 +69,7 @@ class AuthRepository:
 
             # KST 현재 시간 기준으로 만료 여부 확인
             now = get_kst_now()
-            
+
             token_entry = (
                 self.db.query(RefreshToken)
                 .filter(
@@ -110,7 +110,7 @@ class AuthRepository:
         """만료된 리프레시 토큰 정리"""
         try:
             log_info("만료된 리프레시 토큰 정리")
-            
+
             # KST 현재 시간 기준으로 만료 토큰 정리
             now = get_kst_now()
 

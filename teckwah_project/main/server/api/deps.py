@@ -6,14 +6,16 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from main.server.config.database import get_db
-from main.server.config.settings import get_settings
+from main.server.config.settings import get_settings, Settings
 from main.server.schemas.auth_schema import TokenData
 from main.server.utils.logger import log_info, log_error, set_request_id
 from main.server.repositories.dashboard_repository import DashboardRepository
 from main.server.repositories.lock_repository import LockRepository
 from main.server.utils.lock_manager import LockManager
-from main.server.utils.datetime_helper import get_kst_now
+from main.server.utils.datetime import get_kst_now
 from main.server.utils.constants import MESSAGES
+from main.server.utils.datetime import get_kst_now as get_kst_now_helper
+from main.server.utils.auth import get_token_data_from_header, verify_admin_role
 
 
 settings = get_settings()
@@ -37,12 +39,31 @@ def get_lock_manager(
     return LockManager(dashboard_repository, db)
 
 
+def get_request_id():
+    """요청 ID 생성"""
+    import uuid
+
+    return str(uuid.uuid4())
+
+
+def get_settings_dependency():
+    """설정 의존성"""
+    return settings
+
+
 async def get_current_user(
     authorization: str = Header(None, alias="Authorization"),
     request: Request = None,
 ) -> TokenData:
-    """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환"""
-    if not authorization or not authorization.startswith("Bearer "):
+    """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환
+
+    모든 인증이 필요한 API 엔드포인트에서 사용되는 의존성 함수입니다.
+    """
+    try:
+        return get_token_data_from_header(authorization)
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -53,54 +74,10 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = authorization.split(" ")[1]
-
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-
-        # 토큰 만료 검증 (KST 시간 사용)
-        exp = payload.get("exp")
-        if not exp or get_kst_now().timestamp() > exp:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail={
-                    "success": False,
-                    "message": "인증이 만료되었습니다",
-                    "error_code": "TOKEN_EXPIRED",
-                },
-            )
-
-        return TokenData(
-            user_id=payload.get("sub"),
-            department=payload.get("department"),
-            role=payload.get("role"),
-        )
-
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "success": False,
-                "message": MESSAGES["ERROR"]["UNAUTHORIZED"],
-                "error_code": "INVALID_TOKEN",
-            },
-        )
-
 
 async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
     """관리자 권한 체크"""
-    if current_user.role != "ADMIN":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "success": False,
-                "message": MESSAGES["ERROR"]["FORBIDDEN"],
-                "error_code": "FORBIDDEN",
-            },
-        )
-    return current_user
+    return await verify_admin_role(current_user)
 
 
 async def get_transaction_db():

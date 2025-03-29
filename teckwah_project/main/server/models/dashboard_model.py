@@ -49,18 +49,14 @@ class Dashboard(Base):
     contact = Column(String(20), nullable=True)
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    created_by = Column(String(50), nullable=True)
-
-    # 메모 관련 필드 추가
+    updated_by = Column(String(50), nullable=True)  # 업데이트한 사용자 ID
     remark = Column(Text, nullable=True)  # 메모 내용
-    remark_updated_at = Column(DateTime, nullable=True)  # 메모 업데이트 시간
-    remark_updated_by = Column(String(50), nullable=True)  # 메모 업데이트한 사용자
 
     # 관계 설정
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)
-    remarks = relationship(
-        "DashboardRemark", back_populates="dashboard", cascade="all, delete-orphan"
-    )
     locks = relationship(
         "DashboardLock", back_populates="dashboard", cascade="all, delete-orphan"
     )
+
+    def __repr__(self):
+        return f"<Dashboard(id={self.dashboard_id}, order_no={self.order_no})>"

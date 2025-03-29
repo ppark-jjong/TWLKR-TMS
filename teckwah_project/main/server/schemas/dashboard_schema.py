@@ -2,43 +2,16 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from main.server.schemas.common_schema import BaseResponse, DateRangeInfo
 from enum import Enum
+from main.server.schemas.common_schema import ApiResponse
 
 
-# 배송 타입 정의
+# 열거형 정의
 class DeliveryType(str, Enum):
     DELIVERY = "DELIVERY"
     RETURN = "RETURN"
 
 
-class RemarkResponse(BaseModel):
-    """대시보드 메모 응답 스키마"""
-
-    remark_id: int
-    dashboard_id: int
-    content: str
-    created_at: datetime
-    created_by: str
-    formatted_content: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class RemarkCreate(BaseModel):
-    """메모 생성 요청 스키마"""
-
-    dashboard_id: int
-    content: str = Field(max_length=2000, description="메모 내용")
-
-
-class RemarkUpdate(BaseModel):
-    """메모 업데이트 요청 스키마"""
-
-    content: str = Field(max_length=2000, description="변경할 메모 내용")
-
-
-# 배송 상태 정의
 class DeliveryStatus(str, Enum):
     WAITING = "WAITING"
     IN_PROGRESS = "IN_PROGRESS"
@@ -47,14 +20,12 @@ class DeliveryStatus(str, Enum):
     CANCEL = "CANCEL"
 
 
-# 부서 정의
 class Department(str, Enum):
     CS = "CS"
     HES = "HES"
     LENOVO = "LENOVO"
 
 
-# 창고 정의
 class Warehouse(str, Enum):
     SEOUL = "SEOUL"
     BUSAN = "BUSAN"
@@ -62,130 +33,38 @@ class Warehouse(str, Enum):
     DAEJEON = "DAEJEON"
 
 
-# 기본 대시보드 필드
-class DashboardBase(BaseModel):
-    """대시보드 기본 필드 스키마"""
-
-    type: DeliveryType
-    warehouse: Warehouse
-    order_no: str
-    eta: datetime
-
-
-# 생성 요청
-class DashboardCreate(DashboardBase):
+# 입력 스키마 (생성 및 업데이트)
+class DashboardCreate(BaseModel):
     """대시보드 생성 요청 스키마"""
 
-    sla: str
-    postal_code: str
-    address: str
-    customer: str
-    contact: Optional[str] = None
-
-
-# 기본 응답
-class DashboardResponse(DashboardBase):
-    """대시보드 기본 응답 스키마"""
-
-    dashboard_id: int
+    order_no: str = Field(..., min_length=1, max_length=15)
+    type: DeliveryType
     department: Department
-    status: DeliveryStatus
-    driver_name: Optional[str] = None
-    create_time: datetime
-    depart_time: Optional[datetime] = None
-    customer: str
-    region: Optional[str] = None
-    sla: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 상세 응답 (기본 응답 확장)
-class DashboardDetail(DashboardResponse):
-    """대시보드 상세 응답 스키마"""
-
-    driver_contact: Optional[str] = None
-    complete_time: Optional[datetime] = None
-    address: str
-    postal_code: str
-    distance: Optional[int] = None
-    duration_time: Optional[int] = None
-    customer: str
-    contact: Optional[str] = None
-    city: Optional[str] = None
-    county: Optional[str] = None
-    district: Optional[str] = None
-    sla: str
-    
-    # 메모 필드 추가
-    remark: Optional[str] = None
-    formatted_remark: Optional[str] = None
-    remark_updated_at: Optional[str] = None
-    remark_updated_by: Optional[str] = None
-    
-    # 락 관련 필드
-    is_locked: bool = False
-    locked_by: Optional[str] = None
-    lock_type: Optional[str] = None
-    lock_expires_at: Optional[str] = None
+    warehouse: Warehouse
+    sla: str = Field(..., min_length=1, max_length=10)
+    eta: datetime
+    postal_code: str = Field(..., min_length=5, max_length=5)
+    address: str = Field(..., min_length=1, max_length=500)
+    customer: str = Field(..., min_length=1, max_length=150)
+    contact: Optional[str] = Field(None, min_length=1, max_length=20)
+    remark: Optional[str] = Field(None, max_length=1000)
 
 
-# 목록 데이터
-class DashboardListData(BaseModel):
-    """대시보드 목록 데이터 스키마"""
+class DashboardUpdate(BaseModel):
+    """대시보드 업데이트 요청 스키마"""
 
-    items: List[DashboardResponse]
-    date_range: Dict[str, str]
-    user_role: Optional[str] = None
-    is_admin: Optional[bool] = False
-
-
-# 목록 응답
-class DashboardListResponse(BaseModel):
-    """대시보드 목록 응답 스키마"""
-
-    success: bool = True
-    message: str
-    data: Optional[Dict[str, Any]] = None
+    order_no: Optional[str] = Field(None, min_length=1, max_length=15)
+    type: Optional[DeliveryType] = None
+    warehouse: Optional[Warehouse] = None
+    eta: Optional[datetime] = None
+    sla: Optional[str] = Field(None, min_length=1, max_length=10)
+    postal_code: Optional[str] = Field(None, min_length=5, max_length=5)
+    address: Optional[str] = Field(None, min_length=1, max_length=500)
+    customer: Optional[str] = Field(None, min_length=1, max_length=150)
+    contact: Optional[str] = Field(None, min_length=1, max_length=20)
+    remark: Optional[str] = Field(None, max_length=1000)
 
 
-# 관리자 목록 응답
-class AdminDashboardListResponse(BaseModel):
-    """관리자용 대시보드 목록 응답 스키마"""
-
-    success: bool = True
-    message: str
-    data: Optional[Dict[str, Any]] = None
-
-
-# 상세 응답 - 락 정보 포함
-class DashboardDetailResponse(BaseModel):
-    """대시보드 상세 응답 스키마"""
-
-    success: bool = True
-    message: str
-    data: Optional[DashboardDetail] = None
-    postal_code_error: bool = False
-    is_locked: bool = False
-    lock_info: Optional[Dict[str, Any]] = None
-
-
-# 락 관련 스키마
-class LockRequest(BaseModel):
-    """락 요청 스키마"""
-
-    lock_type: str
-
-
-class LockResponse(BaseModel):
-    """락 응답 스키마"""
-
-    success: bool = True
-    message: str
-    data: Optional[Dict[str, Any]] = None
-
-
-# 상태 변경
 class StatusUpdate(BaseModel):
     """상태 업데이트 요청 스키마"""
 
@@ -193,18 +72,6 @@ class StatusUpdate(BaseModel):
     is_admin: bool = False
 
 
-# 필드 업데이트
-class FieldsUpdate(BaseModel):
-    """필드 업데이트 요청 스키마"""
-
-    eta: Optional[datetime] = None
-    customer: Optional[str] = None
-    contact: Optional[str] = None
-    address: Optional[str] = None
-    postal_code: Optional[str] = None
-
-
-# 배차 처리
 class DriverAssignment(BaseModel):
     """배차 처리 요청 스키마"""
 
@@ -213,32 +80,75 @@ class DriverAssignment(BaseModel):
     driver_contact: str
 
 
-class DashboardUpdate(BaseModel):
-    """대시보드 통합 업데이트 스키마"""
-    order_no: Optional[str] = None
-    type: Optional[DeliveryType] = None
-    warehouse: Optional[Warehouse] = None
-    eta: Optional[datetime] = None
-    sla: Optional[str] = None
-    postal_code: Optional[str] = None
-    address: Optional[str] = None
-    customer: Optional[str] = None
+# 응답 스키마
+class DashboardListItem(BaseModel):
+    """대시보드 목록 항목 스키마"""
+
+    dashboard_id: int
+    order_no: str
+    type: DeliveryType
+    status: DeliveryStatus
+    department: Department
+    warehouse: Warehouse
+    eta: datetime
+    create_time: datetime
+    depart_time: Optional[datetime] = None
+    complete_time: Optional[datetime] = None
+    customer: str
+    region: Optional[str] = None
+    driver_name: Optional[str] = None
+    sla: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DashboardDetail(BaseModel):
+    """대시보드 상세 정보 스키마"""
+
+    dashboard_id: int
+    order_no: str
+    type: DeliveryType
+    status: DeliveryStatus
+    department: Department
+    warehouse: Warehouse
+    sla: str
+    eta: datetime
+    create_time: datetime
+    depart_time: Optional[datetime] = None
+    complete_time: Optional[datetime] = None
+    postal_code: str
+    city: Optional[str] = None
+    county: Optional[str] = None
+    district: Optional[str] = None
+    region: Optional[str] = None
+    distance: Optional[int] = None
+    duration_time: Optional[int] = None
+    address: str
+    customer: str
     contact: Optional[str] = None
-    remark: Optional[str] = None  # 메모 필드
-    
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "order_no": "ORD12345",
-                "type": "DELIVERY",
-                "warehouse": "SEOUL",
-                "eta": "2023-03-15T14:30:00",
-                "sla": "당일배송",
-                "postal_code": "12345",
-                "address": "서울시 강남구 역삼동 123-45",
-                "customer": "홍길동",
-                "contact": "010-1234-5678",
-                "remark": "고객 부재시 경비실에 맡겨주세요."
-            }
-        }
-    )
+    driver_name: Optional[str] = None
+    driver_contact: Optional[str] = None
+    remark: Optional[str] = None
+    updated_by: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# 락 관련 스키마
+class LockRequest(BaseModel):
+    """락 요청 스키마"""
+
+    lock_type: str = Field(..., description="락 유형 (EDIT, STATUS, ASSIGN)")
+
+
+# API 응답 스키마
+class DashboardListResponse(ApiResponse[List[DashboardListItem]]):
+    """대시보드 목록 응답 스키마"""
+
+    pass
+
+
+class DashboardDetailResponse(ApiResponse[DashboardDetail]):
+    """대시보드 상세 정보 응답 스키마"""
+
+    pass

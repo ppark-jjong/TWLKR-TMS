@@ -5,11 +5,12 @@ from typing import List, Optional
 
 from main.server.models.dashboard_lock_model import DashboardLock
 from main.server.utils.logger import log_info, log_error
-from main.server.utils.datetime_helper import get_kst_now
-from main.server.utils.exceptions import PessimisticLockException
+from main.server.utils.datetime import get_kst_now
+from main.server.utils.error import LockConflictException
 from main.server.config.settings import get_settings
 
 settings = get_settings()
+
 
 class LockRepository:
     """락 관련 기능을 전담하는 저장소"""
@@ -52,12 +53,8 @@ class LockRepository:
                     log_info(
                         f"락 충돌: dashboard_id={dashboard_id}, requested_by={user_id}, locked_by={existing_lock.locked_by}"
                     )
-                    raise PessimisticLockException(
-                        detail="다른 사용자가 작업 중입니다",
-                        locked_by=existing_lock.locked_by,
-                        lock_type=existing_lock.lock_type,
-                        dashboard_id=dashboard_id,
-                        expires_at=existing_lock.expires_at,
+                    raise LockConflictException(
+                        detail="다른 사용자가 작업 중입니다", error_code="LOCK_CONFLICT"
                     )
 
             # 새 락 생성
@@ -78,7 +75,7 @@ class LockRepository:
             )
             return lock
 
-        except PessimisticLockException:
+        except LockConflictException:
             # 락 충돌 예외는 그대로 전파
             raise
         except Exception as e:
@@ -153,7 +150,7 @@ class LockRepository:
                     lock = self.acquire_lock(dashboard_id, user_id, lock_type)
                     if lock:
                         acquired_ids.append(dashboard_id)
-                except PessimisticLockException as e:
+                except LockConflictException as e:
                     # 락 충돌 시 이미 획득한 락들 해제
                     for acquired_id in acquired_ids:
                         self.release_lock(acquired_id, user_id)
@@ -180,33 +177,35 @@ class LockRepository:
                 except:
                     pass
             return []
-            
+
     def cleanup_expired_locks(self) -> int:
         """만료된 락 자동 정리
-        
+
         Returns:
             int: 정리된 락 개수
         """
         try:
             log_info("만료된 락 자동 정리 수행")
-            
+
             # 방법 1: 직접 SQL 쿼리 실행
             # result = self.db.execute(text("CALL cleanup_expired_locks()")).first()
             # cleaned_count = result[0] if result else 0
-            
+
             # 방법 2: SQLAlchemy ORM 사용
             now = get_kst_now()
-            result = self.db.query(DashboardLock).filter(
-                DashboardLock.expires_at < now
-            ).delete(synchronize_session=False)
-            
+            result = (
+                self.db.query(DashboardLock)
+                .filter(DashboardLock.expires_at < now)
+                .delete(synchronize_session=False)
+            )
+
             self.db.commit()
-            
+
             if result > 0:
                 log_info(f"만료된 락 정리 완료: {result}건")
-            
+
             return result
-            
+
         except Exception as e:
             log_error(e, "만료된 락 정리 실패")
             self.db.rollback()

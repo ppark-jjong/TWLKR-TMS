@@ -132,9 +132,6 @@
 - driver_name: 기사명 (문자열, 선택적)
 - driver_contact: 기사연락처 (문자열, 선택적)
 - remark: 메모 내용 (문자열)
-- remark_updated_at: 메모 수정 시간 (ISO 8601)
-- remark_updated_by: 메모 수정자 (문자열)
-- created_by: 작성자 ID (문자열)
 
 ### 2. 락 객체 구조
 - lock_id: 락 ID (정수)

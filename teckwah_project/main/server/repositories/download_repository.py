@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 
 from main.server.models.dashboard_model import Dashboard
 from main.server.utils.logger import log_info, log_error
-from main.server.utils.datetime_helper import localize_to_kst, get_kst_now
+from main.server.utils.datetime import localize_to_kst, get_kst_now
 
 
 class DownloadRepository:
@@ -20,7 +20,7 @@ class DownloadRepository:
         """create_time 기준으로 날짜 범위 내 대시보드 데이터 조회 (다운로드용)"""
         try:
             log_info(f"다운로드용 대시보드 데이터 조회: {start_time} ~ {end_time}")
-            
+
             # 다운로드에 필요한 모든 관련 데이터를 함께 로드 (eager loading)
             query = (
                 self.db.query(Dashboard)
@@ -29,7 +29,7 @@ class DownloadRepository:
                 .filter(Dashboard.create_time.between(start_time, end_time))
                 .order_by(Dashboard.create_time)
             )
-            
+
             result = query.all()
             log_info(f"다운로드용 데이터 조회 결과: {len(result)}건")
             return result
@@ -41,9 +41,10 @@ class DownloadRepository:
         """다운로드 가능한 날짜 범위 조회 (create_time 기준)"""
         try:
             log_info("다운로드 가능 날짜 범위 조회")
-            
+
             # 가장 빠른 날짜와 가장 늦은 날짜 조회
             from sqlalchemy import func
+
             result = self.db.query(
                 func.min(Dashboard.create_time).label("oldest_date"),
                 func.max(Dashboard.create_time).label("latest_date"),
