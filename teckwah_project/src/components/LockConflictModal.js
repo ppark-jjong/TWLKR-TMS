@@ -1,20 +1,23 @@
-// src/components/LockConflictModal.js
-import React from 'react';
-import { Modal, Button, Alert } from 'antd';
+// src/components/LockConflictModal.js 수정
+import React from "react";
+import { Modal, Button, Alert } from "antd";
 
 const LockConflictModal = ({
   visible,
   lockInfo,
   onRetry,
   onCancel,
-  confirmLoading = false
+  confirmLoading = false,
 }) => {
   const renderLockInfo = () => {
     if (!lockInfo) return null;
-    
+
     const { locked_by, expires_at } = lockInfo;
-    const expiryTime = expires_at ? new Date(expires_at).toLocaleTimeString() : '알 수 없음';
-    
+    // KST 시간대를 고려한 시간 표시 추가
+    const expiryTime = expires_at
+      ? new Date(expires_at).toLocaleTimeString("ko-KR")
+      : "알 수 없음";
+
     return (
       <Alert
         type="warning"
@@ -23,7 +26,7 @@ const LockConflictModal = ({
           <div>
             <p>다른 사용자({locked_by})가 현재 작업 중입니다.</p>
             <p>락 만료 시간: {expiryTime}</p>
-            <p>재시도하거나 작업을 취소해주세요.</p>
+            <p>잠시 후 재시도하거나 작업을 취소해주세요.</p>
           </div>
         }
         showIcon
@@ -34,7 +37,7 @@ const LockConflictModal = ({
   return (
     <Modal
       title="작업 충돌"
-      visible={visible}
+      open={visible}
       footer={[
         <Button key="cancel" onClick={onCancel}>
           작업 취소
@@ -46,7 +49,7 @@ const LockConflictModal = ({
           onClick={onRetry}
         >
           재시도
-        </Button>
+        </Button>,
       ]}
       closable={false}
       maskClosable={false}

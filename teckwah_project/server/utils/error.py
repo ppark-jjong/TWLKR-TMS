@@ -105,6 +105,34 @@ class LockConflictException(BaseException):
         )
 
 
+class InvalidStatusTransitionException(BaseException):
+    """상태 변경 불가 예외"""
+
+    def __init__(
+        self,
+        detail: str = "유효하지 않은 상태 변경입니다",
+        error_code: str = "INVALID_STATUS_TRANSITION",
+    ):
+        super().__init__(
+            detail=detail,
+            error_code=error_code,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class PessimisticLockException(BaseException):
+    """비관적 락 획득 실패 예외"""
+
+    def __init__(
+        self,
+        detail: str = "락 획득에 실패했습니다",
+        error_code: str = "LOCK_ACQUISITION_FAILED",
+    ):
+        super().__init__(
+            detail=detail, error_code=error_code, status_code=status.HTTP_409_CONFLICT
+        )
+
+
 def format_error_response(error: BaseException) -> Dict[str, Any]:
     """표준화된 에러 응답 생성"""
     return {

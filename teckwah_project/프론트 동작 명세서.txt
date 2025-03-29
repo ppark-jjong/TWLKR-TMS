@@ -1,0 +1,23 @@
+AdminPage와 DashboardPage 통합
+복사// pages/AdminPage.js 수정 사항
+1. DashboardPage에서 다음 기능 통합:
+   - 상세 조회 기능
+   - 상태 변경 기능
+   - 배차 기능
+2. 테이블 컬럼에 액션 추가
+3. 관련 모달 및 드로어 컴포넌트 추가
+상태 변경 로직 개선
+복사// handleStatusSubmit 함수 개선 (각 페이지에 적용)
+1. isAdmin() 함수로 현재 사용자 권한 확인
+2. API 호출 시 권한에 맞게 is_admin 값 설정
+3. 권한별 UI 옵션 차별화
+CreateDashboard 부서 선택 추가
+복사// components/CreateDashboardModal.js 수정
+1. 부서 선택 Form.Item 추가
+2. 기본값 설정 (현재 사용자 부서)
+3. 전체 부서 목록 제공
+비관적 락 검증
+복사// 각 편집 기능에서 락 적용 검증
+1. 상태 변경: STATUS 락 확인
+2. 배차 처리: ASSIGN 락 확인
+3. 상세 정보 수정: 락 적용 여부 확인 	
