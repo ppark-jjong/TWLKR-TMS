@@ -28,6 +28,3 @@ dash-html-components==2.0.0
 dash-table==5.0.0
 plotly==5.18.0
 requests==2.31.0
-
-# 유틸리티 및 감시
-supervisor==4.2.5
