@@ -28,7 +28,7 @@
 ### 2.2 기술 스택
 
 - **백엔드**: FastAPI 0.109.0, SQLAlchemy 2.0.25, Pydantic 2.5.3  
-- **프론트엔드**: Dash 2.14.1, Dash Bootstrap Components 1.5.0  
+- **프론트엔드**: React 18.x, React Query, Axios, Material-UI(MUI) 5.x
 - **데이터베이스**: MySQL 8.0, 최근 1개월 데이터 유지 정책  
 - **배포 환경**: Docker 컨테이너, Supervisord로 관리  
 
@@ -71,8 +71,10 @@
 
 ### 4.3 배포 고려사항
 
-- **FastAPI + Dash**를 하나의 Docker 컨테이너로 묶어 배포합니다.  
-- Supervisord를 이용해 프로세스를 관리하고, 환경 변수로 설정값을 주입합니다.  
+- **FastAPI + react**를 하나의 Docker 컨테이너로 묶어 배포합니다.  
+- Dockerfile로 간단하게 빌드 및 배포 구성
+- 환경 변수로 필수 설정값만 관리
+- 정적 파일은 nginx로 단순 서빙
 - 헬스 체크와 관련된 과도한 로깅은 지양(한 번만 선언)합니다.
 
 ---
