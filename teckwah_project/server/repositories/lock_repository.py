@@ -187,10 +187,6 @@ class LockRepository:
         try:
             log_info("만료된 락 자동 정리 수행")
 
-            # 방법 1: 직접 SQL 쿼리 실행
-            # result = self.db.execute(text("CALL cleanup_expired_locks()")).first()
-            # cleaned_count = result[0] if result else 0
-
             # 방법 2: SQLAlchemy ORM 사용
             now = get_kst_now()
             result = (

@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   duration_time INT NULL,
   address TEXT NOT NULL,
   customer VARCHAR(150) NOT NULL,
-  contact VARCHAR(20) NULL, 
+  contact VARCHAR(20) NOT NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
   updated_by VARCHAR(50) NULL, -- 생성, 수정 시 해당 내용 user_id로 update
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS dashboard_lock (
   dashboard_id INT NOT NULL PRIMARY KEY,
   locked_by VARCHAR(50) NOT NULL,
   locked_at DATETIME NOT NULL,
-  lock_type ENUM('EDIT', 'STATUS', 'ASSIGN', 'REMARK', 'UPDATE') NOT NULL,
+  lock_type ENUM('EDIT', 'STATUS', 'ASSIGN') NOT NULL,
   expires_at DATETIME NOT NULL,
   lock_timeout INT NOT NULL DEFAULT 300, -- 락 타임아웃(초), 기본값 5분
   FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,

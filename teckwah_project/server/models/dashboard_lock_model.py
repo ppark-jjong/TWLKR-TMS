@@ -19,7 +19,7 @@ class DashboardLock(Base):
     )
     locked_by = Column(String(50), nullable=False)  # 락을 획득한 사용자 ID
     locked_at = Column(DateTime, nullable=False)  # KST 기준 저장
-    lock_type = Column(Enum("EDIT", "STATUS", "ASSIGN", "REMARK"), nullable=False)
+    lock_type = Column(Enum("EDIT", "STATUS", "ASSIGN"), nullable=False)  # REMARK 제거
     expires_at = Column(DateTime, nullable=False, index=True)  # 락 만료 시간
     lock_timeout = Column(
         Integer, nullable=False, default=settings.LOCK_TIMEOUT_SECONDS

@@ -1,4 +1,5 @@
-# teckwah_project/server/api/dashboard_router.py
+# server/api/dashboard_router.py - 통합된 메모 처리 구현
+
 from fastapi import APIRouter, Depends, Body, Query, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Dict, Any, Optional
@@ -25,8 +26,6 @@ from server.utils.error import (
     error_handler,
     NotFoundException,
     ValidationException,
-    InvalidStatusTransitionException,
-    PessimisticLockException,
     LockConflictException,
 )
 from server.utils.datetime import get_date_range, get_kst_now
@@ -152,6 +151,9 @@ async def create_dashboard(
     if "remark" in dashboard_dict and dashboard_dict["remark"]:
         dashboard_dict["remark"] = sanitize_input(dashboard_dict["remark"])
 
+    # 생성 시간 설정
+    dashboard_dict["create_time"] = get_kst_now()
+
     # 대시보드 생성
     dashboard = Dashboard(**dashboard_dict)
     db.add(dashboard)
@@ -172,51 +174,42 @@ async def update_dashboard(
     update_data: DashboardUpdate,
     db: Session = Depends(get_db),
     current_user: TokenData = Depends(get_current_user),
+    lock_manager: LockManager = Depends(get_lock_manager),
 ):
-    """대시보드 정보 수정 API"""
+    """대시보드 정보 수정 API (메모 처리 통합)"""
 
-    # 락 확인
-    lock = (
-        db.query(DashboardLock)
-        .filter(DashboardLock.dashboard_id == dashboard_id)
-        .first()
-    )
-
-    if lock and not lock.is_expired and lock.locked_by != current_user.user_id:
-        raise LockConflictException("다른 사용자가 수정 중입니다")
-
-    dashboard = (
-        db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
-    )
-
-    if not dashboard:
-        raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
-
-    # 업데이트 데이터 적용
-    update_dict = update_data.model_dump(exclude_unset=True)
-    for key, value in update_dict.items():
-        if value is not None:
-            setattr(dashboard, key, value)
-
-    # 메모 업데이트
-    if "remark" in update_dict:
-        remark_data = format_remark(
-            sanitize_input(update_dict["remark"]), current_user.user_id
+    # 락 획득 (with 구문 사용)
+    with lock_manager.acquire_lock(dashboard_id, current_user.user_id, "EDIT"):
+        dashboard = (
+            db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
         )
-        for key, value in remark_data.items():
-            setattr(dashboard, key, value)
 
-    # 변경 시간 업데이트
-    dashboard.updated_at = get_kst_now()
+        if not dashboard:
+            raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
 
-    db.commit()
-    db.refresh(dashboard)
+        # 업데이트 데이터 적용
+        update_dict = update_data.model_dump(exclude_unset=True)
+        for key, value in update_dict.items():
+            if value is not None:
+                setattr(dashboard, key, value)
 
-    return DashboardDetailResponse(
-        success=True,
-        message="정보를 수정했습니다",
-        data=DashboardDetail.model_validate(dashboard),
-    )
+        # 메모 처리 - 통합된 방식
+        if "remark" in update_dict:
+            # 메모 내용 살균
+            sanitized_remark = sanitize_input(update_dict["remark"])
+            dashboard.remark = sanitized_remark
+
+        # 업데이트 정보 설정
+        dashboard.updated_by = current_user.user_id
+
+        db.commit()
+        db.refresh(dashboard)
+
+        return DashboardDetailResponse(
+            success=True,
+            message="정보를 수정했습니다",
+            data=DashboardDetail.model_validate(dashboard),
+        )
 
 
 @router.patch("/{dashboard_id}/status", response_model=DashboardDetailResponse)
@@ -226,47 +219,52 @@ async def update_dashboard_status(
     status_update: StatusUpdate,
     db: Session = Depends(get_db),
     current_user: TokenData = Depends(get_current_user),
+    lock_manager: LockManager = Depends(get_lock_manager),
 ):
     """대시보드 상태 변경 API"""
 
-    # 락 확인
-    lock = (
-        db.query(DashboardLock)
-        .filter(DashboardLock.dashboard_id == dashboard_id)
-        .first()
-    )
+    # 락 획득 (with 구문 사용)
+    with lock_manager.acquire_lock(dashboard_id, current_user.user_id, "STATUS"):
+        dashboard = (
+            db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
+        )
 
-    if lock and not lock.is_expired and lock.locked_by != current_user.user_id:
-        raise LockConflictException("다른 사용자가 수정 중입니다")
+        if not dashboard:
+            raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
 
-    dashboard = (
-        db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
-    )
+        # 상태 변경 유효성 검증 (관리자는 예외)
+        new_status = status_update.status
+        is_admin = status_update.is_admin or current_user.role == "ADMIN"
+        
+        if not is_admin:
+            current_status = dashboard.status
+            if current_status not in STATUS_TRANSITIONS:
+                raise ValidationException("잘못된 현재 상태입니다")
+                
+            if new_status not in STATUS_TRANSITIONS.get(current_status, []):
+                raise ValidationException(f"'{current_status}'에서 '{new_status}'로 상태를 변경할 수 없습니다")
 
-    if not dashboard:
-        raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
+        # 상태 변경
+        dashboard.status = new_status
 
-    # 상태 변경
-    dashboard.status = status_update.status
+        # 상태별 시간 업데이트
+        now = get_kst_now()
+        if new_status == "IN_PROGRESS" and not dashboard.depart_time:
+            dashboard.depart_time = now
+        elif (new_status == "COMPLETE" or new_status == "ISSUE") and not dashboard.complete_time:
+            dashboard.complete_time = now
 
-    # 상태별 시간 업데이트
-    now = get_kst_now()
-    if status_update.status == "IN_PROGRESS":
-        dashboard.depart_time = now
-    elif status_update.status == "COMPLETE":
-        dashboard.complete_time = now
+        # 업데이트 정보 설정
+        dashboard.updated_by = current_user.user_id
 
-    # 변경 시간 업데이트
-    dashboard.updated_at = now
+        db.commit()
+        db.refresh(dashboard)
 
-    db.commit()
-    db.refresh(dashboard)
-
-    return DashboardDetailResponse(
-        success=True,
-        message="상태를 변경했습니다",
-        data=DashboardDetail.model_validate(dashboard),
-    )
+        return DashboardDetailResponse(
+            success=True,
+            message="상태를 변경했습니다",
+            data=DashboardDetail.model_validate(dashboard),
+        )
 
 
 @router.post("/assign", response_model=ApiResponse[List[DashboardDetail]])
@@ -297,6 +295,7 @@ async def assign_driver(
                 {
                     "driver_name": driver_name,
                     "driver_contact": driver_contact,
+                    "updated_by": current_user.user_id,
                 },
                 synchronize_session=False,  # bulk update 최적화
             )
@@ -327,21 +326,28 @@ async def delete_dashboards(
     dashboard_ids: List[int] = Body(..., embed=True),
     db: Session = Depends(get_db),
     current_user: TokenData = Depends(check_admin_access),  # 관리자만 가능
+    lock_manager: LockManager = Depends(get_lock_manager),
 ):
     """대시보드 삭제 API - 관리자 전용"""
     if not dashboard_ids:
         raise ValidationException("삭제할 대시보드 ID가 없습니다")
 
-    # 삭제 실행
-    deleted_count = (
-        db.query(Dashboard)
-        .filter(Dashboard.dashboard_id.in_(dashboard_ids))
-        .delete(synchronize_session=False)  # bulk delete 최적화
-    )
+    # 다중 락 획득 (All-or-Nothing)
+    with lock_manager.acquire_multiple_locks(
+        dashboard_ids, current_user.user_id, "EDIT"
+    ):
+        # 삭제 실행
+        deleted_count = (
+            db.query(Dashboard)
+            .filter(Dashboard.dashboard_id.in_(dashboard_ids))
+            .delete(synchronize_session=False)  # bulk delete 최적화
+        )
 
-    return ApiResponse(
-        success=True,
-        message="선택한 항목이 삭제되었습니다",
-        data=None,
-        meta={"deleted_count": deleted_count},
-    )
+        db.commit()
+
+        return ApiResponse(
+            success=True,
+            message="선택한 항목이 삭제되었습니다",
+            data=None,
+            meta={"deleted_count": deleted_count},
+        )

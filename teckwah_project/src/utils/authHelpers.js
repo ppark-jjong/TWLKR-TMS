@@ -1,4 +1,5 @@
 // src/utils/authHelpers.js
+
 import jwt_decode from 'jwt-decode';
 import { login as apiLogin } from './api';
 
@@ -22,7 +23,7 @@ export const removeTokens = () => {
 export const getUserFromToken = () => {
   const token = getAccessToken();
   if (!token) return null;
-  
+
   try {
     const decoded = jwt_decode(token);
     return {
@@ -31,6 +32,7 @@ export const getUserFromToken = () => {
       user_role: decoded.role,
     };
   } catch (error) {
+    console.error('토큰 디코딩 오류:', error);
     return null;
   }
 };
@@ -39,48 +41,64 @@ export const getUserFromToken = () => {
 export const isAuthenticated = () => {
   const token = getAccessToken();
   if (!token) return { isAuth: false, userData: null };
-  
+
   try {
     const decoded = jwt_decode(token);
     const currentTime = Date.now() / 1000;
-    
+
     if (decoded.exp < currentTime) {
       return { isAuth: false, userData: null };
     }
-    
-    return { 
-      isAuth: true, 
+
+    return {
+      isAuth: true,
       userData: {
         user_id: decoded.sub,
         user_department: decoded.department,
-        user_role: decoded.role
-      }
+        user_role: decoded.role,
+      },
     };
   } catch (error) {
     return { isAuth: false, userData: null };
   }
 };
 
-// 관리자 권한 확인
+// 관리자 권한 확인 (수정 - 구현 완료)
 export const isAdmin = () => {
-  const user = getUserFromToken();
-  return user && user.user_role === 'ADMIN';
+  try {
+    const user = getUserFromToken();
+    return user && user.user_role === 'ADMIN';
+  } catch (error) {
+    console.error('isAdmin 체크 중 오류 발생:', error);
+    return false;
+  }
+};
+export const isUser = () => {
+  try {
+    const user = getUserFromToken();
+    return user && user.user_role === 'USER';
+  } catch (error) {
+    console.error('isUser 체크 중 오류 발생:', error);
+    return false;
+  }
 };
 
 // 리프레시 토큰으로 액세스 토큰 갱신
 export const refreshToken = async () => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
-  
+
   try {
-    const response = await apiLogin.post('/auth/refresh', { refresh_token: refreshToken });
-    
+    const response = await apiLogin.post('/auth/refresh', {
+      refresh_token: refreshToken,
+    });
+
     if (response.data && response.data.success) {
       const { access_token, refresh_token } = response.data.data;
       setTokens(access_token, refresh_token);
       return true;
     }
-    
+
     return false;
   } catch (error) {
     removeTokens();
@@ -92,16 +110,17 @@ export const refreshToken = async () => {
 export const loginUser = async (credentials) => {
   try {
     const response = await apiLogin(credentials);
-    
+
     if (response.data && response.data.success) {
       const { token, user } = response.data.data;
       setTokens(token.access_token, token.refresh_token);
       return { success: true, user };
     }
-    
+
     return { success: false, message: '로그인에 실패했습니다.' };
   } catch (error) {
-    const message = error.response?.data?.message || '로그인 중 오류가 발생했습니다.';
+    const message =
+      error.response?.data?.message || '로그인 중 오류가 발생했습니다.';
     return { success: false, message };
   }
 };

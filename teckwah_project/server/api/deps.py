@@ -1,4 +1,5 @@
-# teckwah_project/server/api/deps.py
+# server/api/deps.py - 필요한 함수 추가
+
 from typing import Optional, Dict, Any
 from fastapi import Depends, HTTPException, status, Request, Cookie, Header
 from jose import jwt, JWTError
@@ -16,7 +17,7 @@ from server.utils.datetime import get_kst_now
 from server.utils.constants import MESSAGES
 from server.utils.datetime import get_kst_now as get_kst_now_helper
 from server.utils.auth import get_token_data_from_header, verify_admin_role
-
+from server.services.dashboard_lock_service import DashboardLockService
 
 settings = get_settings()
 
@@ -37,6 +38,11 @@ def get_lock_manager(
 ) -> LockManager:
     """LockManager 의존성 주입"""
     return LockManager(dashboard_repository, db)
+
+
+def get_dashboard_lock_service(db: Session = Depends(get_db)) -> DashboardLockService:
+    """DashboardLockService 의존성 주입 함수"""
+    return DashboardLockService(db=db)
 
 
 def get_request_id():

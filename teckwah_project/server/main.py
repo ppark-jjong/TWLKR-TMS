@@ -12,7 +12,6 @@ from server.models.dashboard_lock_model import DashboardLock
 # API 라우터 가져오기
 from server.api.auth_router import router as auth_router
 from server.api.dashboard_router import router as dashboard_router
-from server.api.dashboard_simple_router import router as dashboard_simple_router
 from server.api.dashboard_lock_router import router as dashboard_lock_router
 from server.api.visualization_router import router as visualization_router
 from server.api.download_router import router as download_router
@@ -56,7 +55,6 @@ async def request_middleware(request: Request, call_next):
 # 라우터 등록
 app.include_router(auth_router, prefix="/api/auth", tags=["인증"])
 app.include_router(dashboard_router, prefix="/api", tags=["대시보드"])
-app.include_router(dashboard_simple_router, prefix="/api", tags=["대시보드 (간소화)"])
 app.include_router(dashboard_lock_router, prefix="/api/dashboard", tags=["대시보드 락"])
 app.include_router(visualization_router, prefix="/api/visualization", tags=["시각화"])
 app.include_router(download_router, prefix="/api/download", tags=["다운로드"])

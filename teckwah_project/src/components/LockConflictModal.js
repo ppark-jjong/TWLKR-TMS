@@ -1,7 +1,18 @@
-// src/components/LockConflictModal.js 수정
-import React from "react";
-import { Modal, Button, Alert } from "antd";
+// src/components/LockConflictModal.js
+import React from 'react';
+import { Modal, Button, Alert, Typography } from 'antd';
 
+const { Text } = Typography;
+
+/**
+ * 락 충돌 모달 컴포넌트
+ * @param {Object} props - 컴포넌트 속성
+ * @param {boolean} props.visible - 모달 표시 여부
+ * @param {Object} props.lockInfo - 락 정보
+ * @param {Function} props.onRetry - 재시도 핸들러
+ * @param {Function} props.onCancel - 취소 핸들러
+ * @param {boolean} props.confirmLoading - 확인 버튼 로딩 상태
+ */
 const LockConflictModal = ({
   visible,
   lockInfo,
@@ -13,10 +24,18 @@ const LockConflictModal = ({
     if (!lockInfo) return null;
 
     const { locked_by, expires_at } = lockInfo;
-    // KST 시간대를 고려한 시간 표시 추가
+
+    // 만료 시간 포맷팅
     const expiryTime = expires_at
-      ? new Date(expires_at).toLocaleTimeString("ko-KR")
-      : "알 수 없음";
+      ? new Date(expires_at).toLocaleTimeString('ko-KR')
+      : '알 수 없음';
+
+    // 남은 시간 계산
+    const now = new Date();
+    const expiryDate = expires_at ? new Date(expires_at) : null;
+    const waitMinutes = expiryDate
+      ? Math.max(0, Math.ceil((expiryDate - now) / 60000))
+      : '?';
 
     return (
       <Alert
@@ -24,9 +43,18 @@ const LockConflictModal = ({
         message="락 충돌 발생"
         description={
           <div>
-            <p>다른 사용자({locked_by})가 현재 작업 중입니다.</p>
-            <p>락 만료 시간: {expiryTime}</p>
-            <p>잠시 후 재시도하거나 작업을 취소해주세요.</p>
+            <p>
+              다른 사용자(<Text strong>{locked_by}</Text>)가 현재 작업 중입니다.
+            </p>
+            <p>
+              락 만료 시간: <Text strong>{expiryTime}</Text> (약 {waitMinutes}분
+              후)
+            </p>
+            <p>자동 재시도 없이 다음 선택지가 있습니다:</p>
+            <ul>
+              <li>작업을 취소하고 나중에 다시 시도</li>
+              <li>지금 수동으로 재시도 (다른 사용자의 작업이 완료된 경우)</li>
+            </ul>
           </div>
         }
         showIcon
@@ -36,8 +64,8 @@ const LockConflictModal = ({
 
   return (
     <Modal
-      title="작업 충돌"
       open={visible}
+      title="작업 충돌"
       footer={[
         <Button key="cancel" onClick={onCancel}>
           작업 취소
