@@ -6,7 +6,6 @@ from server.models.dashboard_model import Dashboard
 from server.models.postal_code_model import PostalCode, PostalCodeDetail
 from server.schemas.dashboard_schema import (
     StatusUpdate,
-    FieldsUpdate,
     DriverAssignment,
     DashboardUpdate,
 )
@@ -86,6 +85,9 @@ class DashboardService:
                             dashboard_data["distance"] = detail_info.distance
                             dashboard_data["duration_time"] = detail_info.duration_time
 
+            # update_at 필드를 명시적으로 설정
+            dashboard_data["update_at"] = get_kst_now()
+
             # 대시보드 생성
             dashboard = self.repository.create_dashboard(dashboard_data)
             if not dashboard:
@@ -101,8 +103,8 @@ class DashboardService:
     def get_dashboard_list(self, filters=None) -> List[Dict[str, Any]]:
         """대시보드 목록 조회 (필터링 가능)"""
         dashboards = self.repository.get_dashboard_list_by_date(
-            filters.get("start_date", get_kst_now()), 
-            filters.get("end_date", get_kst_now())
+            filters.get("start_date", get_kst_now()),
+            filters.get("end_date", get_kst_now()),
         )
         return [self._convert_to_dict(dashboard) for dashboard in dashboards]
 
@@ -140,13 +142,13 @@ class DashboardService:
         try:
             new_status = status_update.status
             is_admin = status_update.is_admin
-            
+
             # 행 단위 락을 적용한 대시보드 조회
             dashboard = self.repository.get_dashboard_with_lock(dashboard_id, user_id)
-            
+
             if not dashboard:
                 raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
-                
+
             # 상태 전이 유효성 검증 (관리자는 모든 상태 변경 가능)
             current_status = dashboard.status
             if not is_admin:
@@ -159,6 +161,7 @@ class DashboardService:
             dashboard.status = new_status
             dashboard.updated_by = user_id
             now = get_kst_now()
+            dashboard.update_at = now
 
             # 출발 시간 (IN_PROGRESS로 변경 시)
             if new_status == "IN_PROGRESS" and not dashboard.depart_time:
@@ -169,10 +172,10 @@ class DashboardService:
                 new_status == "COMPLETE" or new_status == "ISSUE"
             ) and not dashboard.complete_time:
                 dashboard.complete_time = now
-                
+
             # DB에 변경사항 반영
             self.db.flush()
-            
+
             return dashboard
         except Exception as e:
             log_error(f"대시보드 상태 업데이트 실패: {str(e)}")
@@ -186,21 +189,24 @@ class DashboardService:
         try:
             # 행 단위 락이 적용된 대시보드 조회
             dashboard = self.repository.get_dashboard_with_lock(dashboard_id, user_id)
-            
+
             if not dashboard:
-                raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
-            
+                raise NotFoundException(
+                    f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다"
+                )
+
             # 업데이트 필드 적용
             update_dict = fields_update.model_dump(exclude_unset=True)
             for key, value in update_dict.items():
                 setattr(dashboard, key, value)
-                
+
             # 업데이트 정보 갱신
             dashboard.updated_by = user_id
-            
+            dashboard.update_at = get_kst_now()
+
             # DB에 변경사항 반영
             self.db.flush()
-            
+
             # 업데이트된 대시보드 상세 정보 반환
             return dashboard
         except Exception as e:
@@ -209,29 +215,39 @@ class DashboardService:
 
     @transactional
     def assign_driver(
-        self, dashboard_ids: List[int], driver_assignment: DriverAssignment, user_id: str
+        self,
+        dashboard_ids: List[int],
+        driver_assignment: DriverAssignment,
+        user_id: str,
     ) -> List[Dashboard]:
         """여러 대시보드에 기사 배정 (행 수준 락 사용)"""
         try:
             updated_dashboards = []
+            now = get_kst_now()
+
             # 각 대시보드에 대해 락 획득 후 개별 업데이트
             for dashboard_id in dashboard_ids:
-                dashboard = self.repository.get_dashboard_with_lock(dashboard_id, user_id)
-                
+                dashboard = self.repository.get_dashboard_with_lock(
+                    dashboard_id, user_id
+                )
+
                 if not dashboard:
                     # 하나라도 실패하면 롤백
-                    raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
-                
+                    raise NotFoundException(
+                        f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다"
+                    )
+
                 # 기사 정보 업데이트
                 dashboard.driver_name = driver_assignment.driver_name
                 dashboard.driver_contact = driver_assignment.driver_contact
                 dashboard.updated_by = user_id
-                
+                dashboard.update_at = now
+
                 updated_dashboards.append(dashboard)
-            
+
             # 모든 대시보드 업데이트 적용
             self.db.flush()
-            
+
             # 업데이트된 대시보드 목록 반환
             return updated_dashboards
         except Exception as e:
@@ -250,32 +266,34 @@ class DashboardService:
                 raise ValidationException(
                     MESSAGES["VALIDATION"]["REQUIRED"].format(field="업데이트 데이터")
                 )
-            
+
             # 대시보드 락 획득
             dashboard = self.repository.get_dashboard_with_lock(dashboard_id, user_id)
             if not dashboard:
                 raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
-                
+
             # 상태 변경이 포함된 경우 유효성 검증
             if "status" in update_data:
                 new_status = update_data["status"]
                 current_status = dashboard.status
-                
+
                 # 관리자가 아닌 경우, 상태 전이 규칙 적용
                 if dashboard_update.is_admin is not True:
                     if new_status not in STATUS_TRANSITIONS.get(current_status, []):
                         raise ValidationException(
                             f"'{current_status}'에서 '{new_status}'로 상태를 변경할 수 없습니다"
                         )
-                        
+
                 # 상태별 시간 자동 업데이트
                 now = get_kst_now()
                 if new_status == "IN_PROGRESS" and not dashboard.depart_time:
                     update_data["depart_time"] = now
-                    
-                if (new_status == "COMPLETE" or new_status == "ISSUE") and not dashboard.complete_time:
+
+                if (
+                    new_status == "COMPLETE" or new_status == "ISSUE"
+                ) and not dashboard.complete_time:
                     update_data["complete_time"] = now
-            
+
             # 우편번호 변경 시 관련 정보 업데이트
             if "postal_code" in update_data:
                 postal_code = update_data["postal_code"]
@@ -288,7 +306,7 @@ class DashboardService:
                     update_data["city"] = postal_info.city
                     update_data["county"] = postal_info.county
                     update_data["district"] = postal_info.district
-                    
+
                     # 창고 정보 확인
                     warehouse = update_data.get("warehouse", dashboard.warehouse)
                     detail_info = (
@@ -302,14 +320,16 @@ class DashboardService:
                     if detail_info:
                         update_data["distance"] = detail_info.distance
                         update_data["duration_time"] = detail_info.duration_time
-            
+
             # 대시보드 업데이트
             for key, value in update_data.items():
                 setattr(dashboard, key, value)
-                
+
+            # 업데이트 정보 갱신
             dashboard.updated_by = user_id
+            dashboard.update_at = get_kst_now()
             self.db.flush()
-            
+
             return self._prepare_dashboard_detail(dashboard)
         except LockConflictException:
             # 락 충돌 예외 그대로 전파

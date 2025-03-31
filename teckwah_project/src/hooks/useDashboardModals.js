@@ -1,110 +1,84 @@
 // src/hooks/useDashboardModals.js
-import { useState } from 'react';
-import { Form } from 'antd';
-import dayjs from 'dayjs';
+import { useState } from "react";
+import { Form } from "antd";
+import dayjs from "dayjs";
 
 /**
- * 대시보드 모달 상태 관리 훅
- * @returns {Object} 모달 관련 상태 및 함수들
+ * 대시보드 관련 모달 상태 관리 훅
  */
 const useDashboardModals = () => {
+  // 폼 인스턴스
   const [statusForm] = Form.useForm();
   const [assignForm] = Form.useForm();
   const [detailForm] = Form.useForm();
 
+  // 모달 상태
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [assignModalVisible, setAssignModalVisible] = useState(false);
-  const [detailVisible, setDetailVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [currentDashboard, setCurrentDashboard] = useState(null);
 
-  /**
-   * 상태 변경 모달 열기
-   * @param {Object} dashboard - 대시보드 데이터
-   */
+  // 상태 변경 모달
   const openStatusModal = (dashboard) => {
     setCurrentDashboard(dashboard);
-    statusForm.setFieldsValue({
-      status: dashboard.status,
-    });
+    statusForm.setFieldsValue({ status: dashboard.status });
     setStatusModalVisible(true);
   };
 
-  /**
-   * 상태 변경 모달 닫기
-   */
   const closeStatusModal = () => {
     setStatusModalVisible(false);
     statusForm.resetFields();
   };
 
-  /**
-   * 배차 모달 열기
-   */
+  // 배차 모달
   const openAssignModal = () => {
+    assignForm.resetFields();
     setAssignModalVisible(true);
   };
 
-  /**
-   * 배차 모달 닫기
-   */
   const closeAssignModal = () => {
     setAssignModalVisible(false);
     assignForm.resetFields();
   };
 
-  /**
-   * 상세 정보 드로어 열기
-   * @param {Object} dashboard - 대시보드 데이터
-   */
-  const openDetailDrawer = (dashboard) => {
-    setCurrentDashboard(dashboard);
-    setDetailVisible(true);
+  // 상세 정보 모달
+  const openDetailModal = (dashboard) => {
+    if (!dashboard) return;
 
-    if (dashboard) {
-      detailForm.setFieldsValue({
-        ...dashboard,
-        eta: dashboard.eta ? dayjs(dashboard.eta) : null,
-        create_time: dashboard.create_time
-          ? dayjs(dashboard.create_time)
-          : null,
-        depart_time: dashboard.depart_time
-          ? dayjs(dashboard.depart_time)
-          : null,
-        complete_time: dashboard.complete_time
-          ? dayjs(dashboard.complete_time)
-          : null,
-      });
-    }
+    setCurrentDashboard(dashboard);
+    detailForm.resetFields();
+
+    // 날짜 필드를 dayjs 객체로 변환
+    const formValues = {
+      ...dashboard,
+      eta: dashboard.eta ? dayjs(dashboard.eta) : null,
+      updated_at: dashboard.updated_at ? dayjs(dashboard.updated_at) : null,
+    };
+
+    detailForm.setFieldsValue(formValues);
+    setDetailModalVisible(true);
   };
 
-  /**
-   * 상세 정보 드로어 닫기
-   */
-  const closeDetailDrawer = () => {
-    setDetailVisible(false);
+  const closeDetailModal = () => {
+    setDetailModalVisible(false);
     detailForm.resetFields();
   };
 
   return {
-    // 폼 인스턴스
     statusForm,
     assignForm,
     detailForm,
-
-    // 상태값
     statusModalVisible,
     assignModalVisible,
-    detailVisible,
+    detailModalVisible,
     currentDashboard,
-
-    // 핸들러 함수
     setCurrentDashboard,
     openStatusModal,
     closeStatusModal,
     openAssignModal,
     closeAssignModal,
-    openDetailDrawer,
-    closeDetailDrawer,
+    openDetailModal,
+    closeDetailModal,
   };
 };
 

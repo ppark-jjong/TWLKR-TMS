@@ -26,6 +26,7 @@ from server.utils.error import (
     NotFoundException,
     ValidationException,
     LockConflictException,
+    ForbiddenException,
 )
 from server.utils.datetime import get_date_range, get_kst_now
 from server.utils.transaction import transaction
@@ -57,15 +58,15 @@ async def get_dashboard_list(
     current_user: TokenData = Depends(get_current_user),
 ):
     """날짜 기준 대시보드 데이터 조회 API - CSR 필터링 지원"""
-    
+
     # 시작/종료 날짜 설정 - 미지정 시 오늘 날짜 사용
     start_date = start_date or get_kst_now().replace(hour=0, minute=0, second=0)
     end_date = end_date or get_kst_now().replace(hour=23, minute=59, second=59)
-    
+
     # 리포지토리를 통한 날짜 기준 데이터 조회
     repository = DashboardRepository(db)
     items = repository.get_dashboard_list_by_date(start_date, end_date)
-    
+
     # 응답 생성
     return DashboardListResponse(
         success=True,
@@ -93,7 +94,7 @@ async def get_dashboard_detail(
     # 락 정보 조회 (UI 표시용)
     repository = DashboardRepository(db)
     lock_info = repository.get_lock_info(dashboard_id)
-    
+
     # 락 메타데이터 생성
     is_locked = False
     lock_metadata = None
@@ -120,7 +121,7 @@ async def create_dashboard(
 
     # 데이터 정제
     dashboard_dict = dashboard_data.model_dump()
-    dashboard_dict["department"] = current_user.department
+    # 사용자 정보 설정 (생성자 = 업데이트한 사용자)
     dashboard_dict["updated_by"] = current_user.user_id
 
     # 메모 처리
@@ -154,18 +155,19 @@ async def update_dashboard(
 
     # 업데이트 데이터 준비
     update_dict = update_data.model_dump(exclude_unset=True)
-    
+
     # 메모 처리 - 통합된 방식
     if "remark" in update_dict:
         # 메모 내용 살균
         update_dict["remark"] = sanitize_input(update_dict["remark"])
-    
+
     # 서비스를 통해 트랜잭션 내에서 락 획득 및 업데이트
     with transaction(db):
+        # 수정 진행 (행 단위 락 사용)
         updated_dashboard = service.update_dashboard_fields(
             dashboard_id, update_data, current_user.user_id
         )
-    
+
     if not updated_dashboard:
         raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
 
@@ -186,17 +188,18 @@ async def update_dashboard_status(
     service: DashboardService = Depends(get_dashboard_service),
 ):
     """대시보드 상태 변경 API (행 수준 락 사용)"""
-    
+
     # 관리자 여부 확인
     is_admin = current_user.role == "ADMIN"
     status_update.is_admin = is_admin
-    
-    # 서비스를 통해 트랜잭션 내에서 락 획득 및 상태 업데이트
+
+    # 서비스를 통해 트랜잭션 내에서 락 획득 및 상태 업데이트 (updated_by 필드 업데이트)
     with transaction(db):
+        # 행 단위 락 적용 및 상태 업데이트
         updated_dashboard = service.update_dashboard_status(
             dashboard_id, status_update, current_user.user_id
         )
-    
+
     # 응답 메시지 생성
     status_text = STATUS_TEXT_MAP.get(status_update.status, status_update.status)
     message = f"상태를 '{status_text}'(으)로 변경했습니다"
@@ -218,20 +221,20 @@ async def assign_driver(
     service: DashboardService = Depends(get_dashboard_service),
 ):
     """배차 처리 API - 여러 대시보드에 기사 배정 (행 수준 락 사용)"""
-    
+
     # 유효성 검증
     if not dashboard_ids:
         raise ValidationException("배차할 대시보드를 선택해주세요")
-    
+
     if not assignment.driver_name and not assignment.driver_contact:
         raise ValidationException("기사명 또는 연락처를 입력해주세요")
-        
-    # 서비스를 통해 트랜잭션 내에서 락 획득 및 배차 처리
+
+    # 서비스를 통해 트랜잭션 내에서 락 획득 및 배차 처리 (updated_by 필드 업데이트)
     with transaction(db):
         updated_dashboards = service.assign_driver(
             dashboard_ids, assignment, current_user.user_id
         )
-    
+
     # 응답 메시지 생성
     count = len(updated_dashboards)
     message = f"{count}건의 배차 처리가 완료되었습니다"
@@ -239,7 +242,10 @@ async def assign_driver(
     return ApiResponse(
         success=True,
         message=message,
-        data=[DashboardDetail.model_validate(dashboard) for dashboard in updated_dashboards],
+        data=[
+            DashboardDetail.model_validate(dashboard)
+            for dashboard in updated_dashboards
+        ],
     )
 
 
@@ -252,15 +258,15 @@ async def delete_dashboards(
     service: DashboardService = Depends(get_dashboard_service),
 ):
     """대시보드 삭제 API (행 수준 락 사용)"""
-    
+
     # 유효성 검증
     if not dashboard_ids:
         raise ValidationException("삭제할 대시보드를 선택해주세요")
-    
+
     # 서비스를 통해 트랜잭션 내에서 락 획득 및 삭제 처리
     with transaction(db):
         deleted_count = service.delete_dashboards(dashboard_ids, current_user.user_id)
-    
+
     # 응답 메시지 생성
     message = f"{deleted_count}건의 대시보드를 삭제했습니다"
 

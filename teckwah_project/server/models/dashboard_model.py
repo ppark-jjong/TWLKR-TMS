@@ -50,9 +50,13 @@ class Dashboard(Base):
     contact = Column(String(20), nullable=True)
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    updated_by = Column(String(50), nullable=True)  # 업데이트한 사용자 ID
+    updated_by = Column(
+        String(50), nullable=True
+    )  # 업데이트한 사용자 ID (생성자 정보도 포함)
     remark = Column(Text, nullable=True)  # 메모 내용
-    update_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)  # 업데이트 시각
+    update_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )  # 업데이트 시각
 
     # 관계 설정
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)

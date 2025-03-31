@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 대시보드 정보를 저장할 dashboard 테이블 (불필요 필드 제거)
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 
 CREATE TABLE IF NOT EXISTS dashboard (
   dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(15) NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   driver_contact VARCHAR(50) NULL,
   updated_by VARCHAR(50) NULL,
   remark TEXT NULL,
-  update_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  update_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_department (department),

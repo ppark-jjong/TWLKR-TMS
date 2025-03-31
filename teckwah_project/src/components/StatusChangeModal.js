@@ -1,10 +1,11 @@
 // src/components/StatusChangeModal.js
-import React, { useMemo } from 'react';
-import { Modal, Form, Select } from 'antd';
+import React, { useMemo } from "react";
+import { Modal, Form, Select, Row, Col, Descriptions, Tag } from "antd";
 import {
   getAvailableStatusTransitions,
   getStatusText,
-} from '../utils/permissionUtils';
+  getStatusColor,
+} from "../utils/permissionUtils";
 
 const { Option } = Select;
 
@@ -25,7 +26,7 @@ const StatusChangeModal = ({
   onCancel,
   form,
   dashboard,
-  userRole = 'USER',
+  userRole = "USER",
   confirmLoading = false,
 }) => {
   // 현재 상태에 따라 선택 가능한 상태 옵션 계산
@@ -51,15 +52,48 @@ const StatusChangeModal = ({
       onOk={onOk}
       onCancel={onCancel}
       confirmLoading={confirmLoading}
+      width={600}
+      centered
     >
-      <Form form={form} layout="vertical">
-        <Form.Item
-          name="status"
-          label="상태"
-          rules={[{ required: true, message: '상태를 선택해주세요' }]}
+      {dashboard && (
+        <Descriptions
+          bordered
+          size="small"
+          column={2}
+          style={{ marginBottom: 20 }}
         >
-          <Select placeholder="상태 선택">{statusOptions}</Select>
-        </Form.Item>
+          <Descriptions.Item label="주문번호" span={1}>
+            {dashboard.order_no}
+          </Descriptions.Item>
+          <Descriptions.Item label="고객명" span={1}>
+            {dashboard.customer}
+          </Descriptions.Item>
+          <Descriptions.Item label="현재 상태" span={2}>
+            <Tag color={getStatusColor(dashboard.status)}>
+              {getStatusText(dashboard.status)}
+            </Tag>
+          </Descriptions.Item>
+        </Descriptions>
+      )}
+
+      <Form form={form} layout="vertical">
+        <Row>
+          <Col span={24}>
+            <Form.Item
+              name="status"
+              label="변경할 상태"
+              rules={[{ required: true, message: "상태를 선택해주세요" }]}
+            >
+              <Select
+                placeholder="상태 선택"
+                size="large"
+                style={{ width: "100%" }}
+              >
+                {statusOptions}
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
       </Form>
     </Modal>
   );

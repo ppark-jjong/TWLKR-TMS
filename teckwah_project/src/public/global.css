@@ -5,17 +5,20 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  background-color: #f5f5f5;
+  color: rgba(0, 0, 0, 0.85);
 }
 
+/* 헤더 및 사이드바 스타일 */
 .logo {
   height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: #000;
   font-size: 18px;
   font-weight: bold;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.02);
   margin-bottom: 16px;
   padding: 0 16px;
   overflow: hidden;
@@ -30,6 +33,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #000;
 }
 
 .ant-layout-sider-collapsed .logo {
@@ -51,8 +55,8 @@ body {
   bottom: 60px;
   width: 100%;
   padding: 16px;
-  color: rgba(255, 255, 255, 0.65);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(0, 0, 0, 0.65);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .user-dropdown {
@@ -70,7 +74,7 @@ body {
 }
 
 .user-name {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(0, 0, 0, 0.85);
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -78,7 +82,7 @@ body {
 }
 
 .user-dept {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(0, 0, 0, 0.45);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -90,30 +94,67 @@ body {
   bottom: 16px;
   width: 100%;
   text-align: center;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(0, 0, 0, 0.65);
   font-size: 18px;
   cursor: pointer;
   transition: color 0.3s;
 }
 
 .sidebar-trigger:hover {
-  color: #fff;
+  color: #1890ff;
 }
 
+/* 화이트 테마 사이드바 */
+.site-sidebar {
+  background-color: #fff;
+  box-shadow: 2px 0 8px 0 rgba(29, 35, 41, 0.05);
+}
+
+.site-sidebar .ant-menu-light {
+  border-right: 1px solid #f0f0f0;
+}
+
+.site-sidebar .ant-menu-item-selected {
+  background-color: #e6f7ff !important;
+}
+
+.site-sidebar .ant-menu-item:hover {
+  color: #1890ff;
+}
+
+.site-sidebar .ant-menu-item-selected .ant-menu-item-icon {
+  color: #1890ff;
+}
+
+/* 레이아웃 스타일 */
 .site-layout .ant-layout-header {
   background: #fff;
-  padding: 0;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  padding: 0 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  height: 64px;
+  line-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.ant-layout-content {
-  background: #f0f2f5;
+.content-wrapper {
+  background: #f5f5f5;
   padding: 24px;
   margin: 0;
+  min-height: calc(100vh - 64px);
+}
+
+/* 카드 및 테이블 스타일 */
+.ant-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
 }
 
 .ant-card-bordered {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f0f0f0;
 }
 
 .ant-table-wrapper {
@@ -121,7 +162,46 @@ body {
   border-radius: 2px;
 }
 
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 500;
+}
+
+/* 버튼 스타일 */
+.ant-btn {
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.015);
+}
+
+.ant-btn-primary {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+.ant-btn-primary:hover {
+  background-color: #40a9ff;
+  border-color: #40a9ff;
+}
+
+/* 폼 스타일 */
+.ant-form-item-label > label {
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 500;
+}
+
+.ant-input, 
+.ant-select-selector {
+  border-radius: 4px;
+}
+
 /* 상태 태그 스타일 */
+.ant-tag {
+  border-radius: 4px;
+  margin-right: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
 .ant-tag-blue {
   color: #1890ff;
   background: #e6f7ff;
@@ -150,4 +230,47 @@ body {
   color: #8c8c8c;
   background: #f5f5f5;
   border-color: #d9d9d9;
+}
+
+/* 모달 및 드로어 스타일 */
+.ant-modal-content,
+.ant-drawer-content {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ant-modal-header,
+.ant-drawer-header {
+  background-color: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-modal-title,
+.ant-drawer-title {
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 500;
+}
+
+/* 로딩 스피너 스타일 */
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.6);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+}
+
+/* 오류 시 메시지 스타일 */
+.error-message {
+  text-align: center;
+  padding: 16px;
+  background-color: #fff1f0;
+  border: 1px solid #ffa39e;
+  border-radius: 4px;
+  margin: 16px 0;
 }

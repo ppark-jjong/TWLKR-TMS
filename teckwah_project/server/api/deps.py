@@ -15,6 +15,7 @@ from server.utils.datetime import get_kst_now
 from server.utils.constants import MESSAGES
 from server.utils.datetime import get_kst_now as get_kst_now_helper
 from server.utils.auth import get_token_data_from_header, verify_admin_role
+from server.utils.error import ForbiddenException
 
 settings = get_settings()
 
@@ -63,6 +64,19 @@ async def get_current_user(
 async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
     """관리자 권한 체크"""
     return await verify_admin_role(current_user)
+
+
+async def get_user_is_admin(
+    current_user: TokenData = Depends(get_current_user),
+) -> bool:
+    """사용자의 관리자 권한 여부 확인
+
+    current_user의 role이 ADMIN인지 확인하고, 그렇지 않으면 ForbiddenException을 발생시킵니다.
+    handover_router.py 및 기타 관리자 권한이 필요한 라우터에서 사용됩니다.
+    """
+    if not current_user or current_user.role != "ADMIN":
+        raise ForbiddenException("관리자 권한이 필요합니다")
+    return True
 
 
 async def get_transaction_db():
