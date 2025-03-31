@@ -11,12 +11,10 @@ from server.config.database import get_db, SessionLocal
 from server.utils.logger import set_request_id, log_info
 from server.models.dashboard_lock_model import DashboardLock
 
-# API 라우터 가져오기
+# 라우터 가져오기
 from server.api.auth_router import router as auth_router
-from server.api.dashboard_router import router as dashboard_router
-from server.api.dashboard_lock_router import router as dashboard_lock_router
-from server.api.download_router import router as download_router
-from server.api.handover_router import router as handover_router  # 인수인계 라우터 추가
+from server.domains.dashboard_router import router as dashboard_router
+from server.api.handover_router import router as handover_router  # 인수인계 라우터
 
 settings = get_settings()
 
@@ -25,9 +23,9 @@ app = FastAPI(
     title="배송 실시간 관제 시스템",
     description="배송 주문을 실시간으로 관리하는 API",
     version="1.0.0",
-    openapi_url="/api/openapi.json",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # CORS 설정
@@ -54,11 +52,9 @@ async def request_middleware(request: Request, call_next):
     return response
 
 
-# 라우터 등록
-app.include_router(auth_router, prefix="/api/auth", tags=["인증"])
-app.include_router(dashboard_router, prefix="/api", tags=["대시보드"])
-app.include_router(dashboard_lock_router, prefix="/api/dashboard", tags=["대시보드 락"])
-app.include_router(download_router, prefix="/api/download", tags=["다운로드"])
+# 라우터 등록 
+app.include_router(auth_router, prefix="/auth", tags=["인증"])
+app.include_router(dashboard_router, prefix="/api", tags=["대시보드"])  # 도메인 기반 라우터 사용
 app.include_router(handover_router, tags=["인수인계"])  # 인수인계 라우터 추가 (prefix는 라우터에 정의됨)
 
 # 정적 파일 서빙 - 중요: 이 부분은 SPA 라우팅 처리보다 먼저 와야 함
@@ -76,7 +72,7 @@ async def serve_spa(full_path: str):
     return FileResponse("/app/server/static/index.html")
 
 # 헬스체크 엔드포인트
-@app.get("/api/health", tags=["시스템"])
+@app.get("/health", tags=["시스템"])
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 

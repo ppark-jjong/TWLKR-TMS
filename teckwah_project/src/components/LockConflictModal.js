@@ -1,89 +1,140 @@
 // src/components/LockConflictModal.js
 import React from 'react';
-import { Modal, Button, Alert, Typography } from 'antd';
+import {
+  Modal,
+  Button,
+  Space,
+  Alert,
+  Typography,
+  Descriptions,
+  Badge,
+} from 'antd';
+import {
+  LockOutlined,
+  ClockCircleOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 
-const { Text } = Typography;
+const { Title, Text } = Typography;
 
 /**
- * 락 충돌 모달 컴포넌트
- * @param {Object} props - 컴포넌트 속성
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Object} props.lockInfo - 락 정보
- * @param {Function} props.onRetry - 재시도 핸들러
- * @param {Function} props.onCancel - 취소 핸들러
- * @param {boolean} props.confirmLoading - 확인 버튼 로딩 상태
+ * 락 충돌 정보를 보여주는 개선된 모달 컴포넌트
+ *
+ * 사용자 경험 향상을 위해 더 명확한 정보와 시각적 피드백을 제공합니다.
  */
-const LockConflictModal = ({
-  visible,
-  lockInfo,
-  onRetry,
-  onCancel,
-  confirmLoading = false,
-}) => {
-  const renderLockInfo = () => {
-    if (!lockInfo) return null;
+const LockConflictModal = ({ visible, lockInfo, onCancel, onRetry }) => {
+  // 남은 시간 계산 및 포맷
+  const formatRemainingTime = (seconds) => {
+    if (!seconds) return '알 수 없음';
 
-    const { locked_by, expires_at } = lockInfo;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
 
-    // 만료 시간 포맷팅
-    const expiryTime = expires_at
-      ? new Date(expires_at).toLocaleTimeString('ko-KR')
-      : '알 수 없음';
+    if (minutes > 0) {
+      return `약 ${minutes}분 ${remainingSeconds}초`;
+    }
+    return `약 ${remainingSeconds}초`;
+  };
 
-    // 남은 시간 계산
-    const now = new Date();
-    const expiryDate = expires_at ? new Date(expires_at) : null;
-    const waitMinutes = expiryDate
-      ? Math.max(0, Math.ceil((expiryDate - now) / 60000))
-      : '?';
+  // 만료 시간 포맷
+  const formatExpiryTime = (isoString) => {
+    if (!isoString) return '알 수 없음';
 
-    return (
-      <Alert
-        type="warning"
-        message="락 충돌 발생"
-        description={
-          <div>
-            <p>
-              다른 사용자(<Text strong>{locked_by}</Text>)가 현재 작업 중입니다.
-            </p>
-            <p>
-              락 만료 시간: <Text strong>{expiryTime}</Text> (약 {waitMinutes}분
-              후)
-            </p>
-            <p>자동 재시도 없이 다음 선택지가 있습니다:</p>
-            <ul>
-              <li>작업을 취소하고 나중에 다시 시도</li>
-              <li>지금 수동으로 재시도 (다른 사용자의 작업이 완료된 경우)</li>
-            </ul>
-          </div>
-        }
-        showIcon
-      />
-    );
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('ko-KR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    } catch (error) {
+      return isoString;
+    }
+  };
+
+  // 락 타입에 따른 적절한 메시지 선택
+  const getLockTypeLabel = (type) => {
+    switch (type) {
+      case 'EDIT':
+        return '편집';
+      case 'STATUS':
+        return '상태 변경';
+      case 'ASSIGN':
+        return '배차 처리';
+      default:
+        return type;
+    }
   };
 
   return (
     <Modal
+      title={
+        <Space>
+          <LockOutlined style={{ color: '#faad14' }} />
+          <span>작업 충돌 알림</span>
+        </Space>
+      }
       open={visible}
-      title="작업 충돌"
       footer={[
-        <Button key="cancel" onClick={onCancel}>
-          작업 취소
+        <Button key="retry" type="primary" onClick={onRetry}>
+          다시 시도
         </Button>,
-        <Button
-          key="retry"
-          type="primary"
-          loading={confirmLoading}
-          onClick={onRetry}
-        >
-          재시도
+        <Button key="cancel" onClick={onCancel}>
+          취소
         </Button>,
       ]}
-      closable={false}
+      onCancel={onCancel}
+      width={500}
       maskClosable={false}
       centered
     >
-      {renderLockInfo()}
+      <Alert
+        message="다른 사용자가 현재 작업 중입니다"
+        description="선택한 항목에 대해 다른 사용자가 작업 중입니다. 잠시 후 다시 시도하거나 작업을 취소할 수 있습니다."
+        type="warning"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
+
+      <Descriptions
+        title="락 상세 정보"
+        bordered
+        column={1}
+        size="small"
+        style={{ marginBottom: 16 }}
+      >
+        <Descriptions.Item label="작업 사용자">
+          <Space>
+            <UserOutlined />
+            <Text strong>{lockInfo.locked_by || '알 수 없음'}</Text>
+          </Space>
+        </Descriptions.Item>
+        <Descriptions.Item label="작업 유형">
+          <Badge
+            status="processing"
+            text={getLockTypeLabel(lockInfo.lock_type)}
+          />
+        </Descriptions.Item>
+        <Descriptions.Item label="남은 시간">
+          <Space>
+            <ClockCircleOutlined />
+            <Text type="danger">
+              {formatRemainingTime(lockInfo.remaining_seconds)}
+            </Text>
+          </Space>
+        </Descriptions.Item>
+        <Descriptions.Item label="만료 예정 시각">
+          {formatExpiryTime(lockInfo.expires_at)}
+        </Descriptions.Item>
+      </Descriptions>
+
+      <div style={{ marginTop: 16, textAlign: 'center' }}>
+        <Text type="secondary">
+          다른 사용자의 작업이 완료되거나 락이 만료될 때까지 기다리거나,
+          <br />
+          지금 다시 시도할 수 있습니다.
+        </Text>
+      </div>
     </Modal>
   );
 };
