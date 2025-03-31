@@ -10,16 +10,28 @@ import {
   message,
   Popconfirm,
   Divider,
+  Space,
+  Typography,
+  Table,
+  Tabs,
+  Input,
+  Modal,
+  Select,
+  Radio,
 } from 'antd';
 import {
   DownloadOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
   ReloadOutlined,
+  UserAddOutlined,
+  UserOutlined,
+  LockOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import locale from 'antd/es/date-picker/locale/ko_KR';
 import dayjs from 'dayjs';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   downloadExcel,
   getDownloadDateRange,
@@ -27,6 +39,10 @@ import {
   getDashboardDetail,
   updateStatus,
   assignDriver,
+  fetchUsers,
+  createUser,
+  updateUser,
+  deleteUser,
 } from '../utils/api';
 import { isAdmin } from '../utils/authHelpers';
 
@@ -43,6 +59,7 @@ import AssignDriverModal from '../components/AssignDriverModal';
 import DashboardDetailDrawer from '../components/DashboardDetailDrawer';
 import LockConflictModal from '../components/LockConflictModal';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UserTable from '../components/UserTable';
 
 const { RangePicker } = DatePicker;
 
@@ -77,6 +94,7 @@ const AdminPage = () => {
     releaseMultipleLocks,
     cancelLock,
     retryLock,
+    setLockConflictInfo,
   } = useDashboardLock();
 
   const {

@@ -82,39 +82,19 @@ export const getLockInfoAsync = async (dashboardId, lockType) => {
  * @throws {Error} 락 획득 실패 시
  */
 export const acquireMultipleLocks = async (dashboardIds, lockType) => {
-  let acquiredIds = [];
-
   try {
-    // 모든 락 획득 시도
-    const lockPromises = dashboardIds.map((id) => acquireLock(id, lockType));
-    const responses = await Promise.all(lockPromises);
+    // 다중 락 API 사용
+    const response = await acquireLock(dashboardIds, lockType, true);
 
-    // 실패한 락이 있는지 확인
-    const hasFailure = responses.some((response) => !response.data.success);
-
-    if (hasFailure) {
-      // 실패 시 이미 획득한 락 해제 (수정 - 실패 항목 식별)
-      for (let i = 0; i < responses.length; i++) {
-        if (responses[i].data.success) {
-          acquiredIds.push(dashboardIds[i]);
-        }
-      }
-
-      // 획득한 락 모두 해제
-      await releaseMultipleLocks(acquiredIds, lockType);
-      throw new Error('일부 항목의 락 획득에 실패했습니다');
+    if (response.data.success) {
+      return response.data.data;
+    } else {
+      throw new Error(
+        response.data.message || '일부 항목의 락 획득에 실패했습니다'
+      );
     }
-
-    // 락 정보 반환
-    return responses.map((response) => response.data.data);
   } catch (error) {
     console.error('Multiple lock acquisition error:', error);
-
-    // 혹시 락이 남아있다면 해제 시도
-    if (acquiredIds.length > 0) {
-      await releaseMultipleLocks(acquiredIds, lockType);
-    }
-
     throw error;
   }
 };
@@ -127,15 +107,14 @@ export const acquireMultipleLocks = async (dashboardIds, lockType) => {
  */
 export const releaseMultipleLocks = async (dashboardIds, lockType) => {
   try {
-    // 파라미터 검증 추가 (수정)
+    // 파라미터 검증 추가
     if (!dashboardIds || !dashboardIds.length || !lockType) {
       return false;
     }
 
-    // 모든 락 해제 시도
-    const releasePromises = dashboardIds.map((id) => releaseLock(id, lockType));
-    await Promise.all(releasePromises);
-    return true;
+    // 다중 락 해제 API 사용
+    const response = await releaseLock(dashboardIds, lockType, true);
+    return response.data.success;
   } catch (error) {
     console.error('Multiple lock release error:', error);
     return false;

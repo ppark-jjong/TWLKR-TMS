@@ -79,37 +79,32 @@ const useDashboardLock = () => {
    * @param {Function} action - 락 획득 성공 시 실행할 함수
    */
   const handleAcquireMultipleLocks = async (dashboardIds, type, action) => {
+    if (!dashboardIds || dashboardIds.length === 0) {
+      message.warning('선택된 항목이 없습니다');
+      return false;
+    }
+
     try {
       setIsLockLoading(true);
       setLockType(type);
       setActionAfterLock(action);
 
-      // 다중 락 획득 시도 - 모든 선택 항목에 대해 동시에
-      const lockPromises = dashboardIds.map((id) => acquireLock(id, type));
-      const responses = await Promise.all(lockPromises);
+      // 백엔드 API를 통한 다중 락 획득 시도 (한 번의 호출로 원자성 보장)
+      const response = await acquireLock(dashboardIds, type, true); // 새 파라미터로 다중 락 요청임을 표시
 
-      // 실패한 락이 있는지 확인
-      const hasFailure = responses.some((response) => !response.data.success);
-
-      if (hasFailure) {
-        // 실패 시 이미 획득한 락을 모두 해제
-        const acquiredIds = [];
-        for (let i = 0; i < responses.length; i++) {
-          if (responses[i].data.success) {
-            acquiredIds.push(dashboardIds[i]);
-          } else if (responses[i].data.error_code === 'LOCK_CONFLICT') {
-            setLockConflictInfo(responses[i].data.data);
-          }
+      if (response.data.success) {
+        // 성공 시 액션 실행
+        if (action) await action();
+        return true;
+      } else {
+        // 실패 시 락 충돌 정보 표시
+        if (response.data.error_code === 'LOCK_CONFLICT') {
+          setLockConflictInfo(response.data.data);
+        } else {
+          message.error(response.data.message || '락 획득에 실패했습니다');
         }
-
-        // 획득한 락 모두 해제
-        await Promise.all(acquiredIds.map((id) => releaseLock(id, type)));
         return false;
       }
-
-      // 성공 시 액션 실행
-      if (action) action();
-      return true;
     } catch (error) {
       console.error('Multiple lock acquisition error:', error);
 
@@ -133,10 +128,11 @@ const useDashboardLock = () => {
     if (!dashboardIds || !dashboardIds.length || !type) return;
 
     try {
-      const releasePromises = dashboardIds.map((id) => releaseLock(id, type));
-      await Promise.all(releasePromises);
+      // 백엔드 API를 통한 다중 락 해제 (한 번의 호출로 원자성 보장)
+      await releaseLock(dashboardIds, type, true); // 새 파라미터로 다중 락 요청임을 표시
     } catch (error) {
       console.error('Multiple lock release error:', error);
+      // 락 해제 실패는 조용히 처리 (이미 해제된 경우도 있으므로)
     }
   };
 

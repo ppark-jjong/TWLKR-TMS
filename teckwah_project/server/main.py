@@ -2,6 +2,8 @@
 import asyncio
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from datetime import datetime
 
 from server.config.settings import get_settings
@@ -13,8 +15,8 @@ from server.models.dashboard_lock_model import DashboardLock
 from server.api.auth_router import router as auth_router
 from server.api.dashboard_router import router as dashboard_router
 from server.api.dashboard_lock_router import router as dashboard_lock_router
-from server.api.visualization_router import router as visualization_router
 from server.api.download_router import router as download_router
+from server.api.handover_router import router as handover_router  # 인수인계 라우터 추가
 
 settings = get_settings()
 
@@ -56,9 +58,22 @@ async def request_middleware(request: Request, call_next):
 app.include_router(auth_router, prefix="/api/auth", tags=["인증"])
 app.include_router(dashboard_router, prefix="/api", tags=["대시보드"])
 app.include_router(dashboard_lock_router, prefix="/api/dashboard", tags=["대시보드 락"])
-app.include_router(visualization_router, prefix="/api/visualization", tags=["시각화"])
 app.include_router(download_router, prefix="/api/download", tags=["다운로드"])
+app.include_router(handover_router, tags=["인수인계"])  # 인수인계 라우터 추가 (prefix는 라우터에 정의됨)
 
+# 정적 파일 서빙 - 중요: 이 부분은 SPA 라우팅 처리보다 먼저 와야 함
+app.mount("/static", StaticFiles(directory="/app/server/static"), name="static")
+
+# SPA 라우트 처리 (클라이언트 라우팅 지원)
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    # API 요청은 처리하지 않음
+    if full_path.startswith("api/") or full_path == "api":
+        return {"detail": "Not Found"}
+    
+    # 그 외 모든 경로는 index.html로 라우팅 (SPA 클라이언트 라우팅)
+    # 참고: static 파일은 위의 mount에서 처리되므로 여기서 별도 처리 필요 없음
+    return FileResponse("/app/server/static/index.html")
 
 # 헬스체크 엔드포인트
 @app.get("/api/health", tags=["시스템"])

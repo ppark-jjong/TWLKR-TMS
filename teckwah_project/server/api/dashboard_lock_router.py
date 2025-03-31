@@ -1,12 +1,12 @@
 # teckwah_project/main/server/api/dashboard_lock_router.py
-from fastapi import APIRouter, Depends, Response, status, HTTPException, Query
+from fastapi import APIRouter, Depends, Response, status, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
 from server.config.database import get_db
 from server.api.deps import get_current_user
 from server.schemas.auth_schema import TokenData
-from server.schemas.dashboard_schema import LockRequest
+from server.schemas.dashboard_schema import LockRequest, MultipleLockRequest
 from server.schemas.common_schema import ApiResponse, MetaBuilder
 from server.utils.error import (
     error_handler,
@@ -120,4 +120,71 @@ async def get_dashboard_lock(
         success=True,
         message="락 정보를 조회했습니다",
         data=lock_info,
+    )
+
+
+@router.post("/multiple/lock", response_model=ApiResponse[Dict[str, Any]])
+@error_handler("다중 대시보드 락")
+async def lock_multiple_dashboards(
+    lock_data: MultipleLockRequest,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+    dashboard_lock_service: DashboardLockService = Depends(get_dashboard_lock_service),
+):
+    """여러 대시보드에 대한 락 획득 API (원자적 작업)
+
+    하나라도 실패할 경우 모든 락 획득이 실패합니다.
+    """
+    # 락 타입 유효성 검사
+    if lock_data.lock_type not in ["EDIT", "STATUS", "ASSIGN"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"지원하지 않는 락 타입입니다: {lock_data.lock_type}",
+        )
+
+    # 다중 락 획득 시도
+    lock_result = dashboard_lock_service.acquire_multiple_locks(
+        dashboard_ids=lock_data.dashboard_ids,
+        lock_type=lock_data.lock_type,
+        user_id=current_user.user_id,
+    )
+
+    return ApiResponse[Dict[str, Any]](
+        success=lock_result["success"],
+        message=lock_result["message"],
+        data=lock_result.get("data"),
+        error_code=lock_result.get("error_code")
+    )
+
+
+@router.delete("/multiple/lock", response_model=ApiResponse[Dict[str, Any]])
+@error_handler("다중 대시보드 락 해제")
+async def release_multiple_dashboard_locks(
+    lock_data: MultipleLockRequest,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+    dashboard_lock_service: DashboardLockService = Depends(get_dashboard_lock_service),
+):
+    """여러 대시보드에 대한 락 해제 API
+
+    가능한 모든 락을 해제합니다.
+    """
+    # 락 타입 유효성 검사
+    if lock_data.lock_type not in ["EDIT", "STATUS", "ASSIGN"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"지원하지 않는 락 타입입니다: {lock_data.lock_type}",
+        )
+
+    # 다중 락 해제 시도
+    release_result = dashboard_lock_service.release_multiple_locks(
+        dashboard_ids=lock_data.dashboard_ids,
+        lock_type=lock_data.lock_type,
+        user_id=current_user.user_id,
+    )
+
+    return ApiResponse[Dict[str, Any]](
+        success=release_result["success"],
+        message=release_result["message"],
+        data=release_result.get("data"),
     )

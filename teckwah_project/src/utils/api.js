@@ -40,11 +40,15 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    
+
     // 401 에러이고 재시도하지 않은 경우
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
-      
+
       try {
         // 리프레시 토큰으로 액세스 토큰 재발급 시도
         const refreshed = await refreshToken();
@@ -59,7 +63,7 @@ api.interceptors.response.use(
         return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -72,7 +76,8 @@ export const checkSession = () => api.get('/auth/check-session');
 export const logout = () => api.post('/auth/logout');
 
 // 대시보드 API
-export const fetchDashboards = (params) => api.get('/dashboard/list', { params });
+export const fetchDashboards = (params) =>
+  api.get('/dashboard/list', { params });
 
 export const getDashboardDetail = (id) => api.get(`/dashboard/${id}`);
 
@@ -80,29 +85,81 @@ export const createDashboard = (data) => api.post('/dashboard', data);
 
 export const updateDashboard = (id, data) => api.put(`/dashboard/${id}`, data);
 
-export const updateStatus = (id, data) => api.patch(`/dashboard/${id}/status`, data);
+export const updateStatus = (id, data) =>
+  api.patch(`/dashboard/${id}/status`, data);
 
 export const assignDriver = (data) => api.post('/dashboard/assign', data);
 
-export const deleteDashboards = (ids) => api.delete('/dashboard', { data: { dashboard_ids: ids } });
+export const deleteDashboards = (ids) =>
+  api.delete('/dashboard', { data: { dashboard_ids: ids } });
 
 // 락 관련 API
-export const acquireLock = (id, lockType) => api.post(`/dashboard-lock/${id}/lock`, { lock_type: lockType });
+export const acquireLock = (id, lockType, isMultiple = false) => {
+  // 다중 락 요청 처리
+  if (isMultiple) {
+    return api.post(`/dashboard-lock/multiple/lock`, {
+      dashboard_ids: Array.isArray(id) ? id : [id],
+      lock_type: lockType,
+    });
+  }
 
-export const releaseLock = (id, lockType) => api.delete(`/dashboard-lock/${id}/lock?lock_type=${lockType}`);
+  // 단일 락 요청 처리
+  return api.post(`/dashboard-lock/${id}/lock`, { lock_type: lockType });
+};
 
-export const getLockInfo = (id, lockType) => api.get(`/dashboard-lock/${id}/lock?lock_type=${lockType}`);
+export const releaseLock = (id, lockType, isMultiple = false) => {
+  // 다중 락 해제 처리
+  if (isMultiple) {
+    return api.delete(`/dashboard-lock/multiple/lock`, {
+      data: {
+        dashboard_ids: Array.isArray(id) ? id : [id],
+        lock_type: lockType,
+      },
+    });
+  }
 
-// 시각화 API
-export const getDeliveryStatus = (params) => api.get('/visualization/delivery-status', { params });
+  // 단일 락 해제 처리
+  return api.delete(`/dashboard-lock/${id}/lock?lock_type=${lockType}`);
+};
 
-export const getHourlyOrders = (params) => api.get('/visualization/hourly-orders', { params });
+export const getLockInfo = (id, lockType) =>
+  api.get(`/dashboard-lock/${id}/lock?lock_type=${lockType}`);
 
-export const getVisualizationDateRange = () => api.get('/visualization/date-range');
+// 인수인계 API
+export const getHandovers = (params) => api.get('/api/handover', { params });
+
+export const getHandoverDetail = (id) => api.get(`/api/handover/${id}`);
+
+export const createHandover = (data) => api.post('/api/handover', data);
+
+export const updateHandover = (id, data) =>
+  api.put(`/api/handover/${id}`, data);
+
+export const deleteHandover = (id) => api.delete(`/api/handover/${id}`);
+
+// 인수인계 락 API
+export const acquireHandoverLock = (id, timeout = 300) =>
+  api.post(`/api/handover/${id}/lock`, { timeout });
+
+export const releaseHandoverLock = (id) =>
+  api.delete(`/api/handover/${id}/lock`);
+
+export const getHandoverLockInfo = (id) => api.get(`/api/handover/${id}/lock`);
 
 // 다운로드 API
-export const downloadExcel = (params) => api.post('/download/excel', params, { responseType: 'blob' });
+export const downloadExcel = (params) =>
+  api.post('/download/excel', params, { responseType: 'blob' });
 
 export const getDownloadDateRange = () => api.get('/download/date-range');
+
+// 사용자 관리 API
+export const fetchUsers = () => api.get('/user');
+
+export const createUser = (userData) => api.post('/user', userData);
+
+export const updateUser = (userId, userData) =>
+  api.put(`/user/${userId}`, userData);
+
+export const deleteUser = (userId) => api.delete(`/user/${userId}`);
 
 export default api;

@@ -166,6 +166,147 @@ class DashboardLockService:
             "expires_at": lock.expires_at.isoformat(),
         }
 
+    def acquire_multiple_locks(
+        self, dashboard_ids: List[int], lock_type: str, user_id: str
+    ) -> Dict[str, Any]:
+        """여러 대시보드에 대한 락을 원자적으로 획득합니다."""
+        if not dashboard_ids:
+            return {
+                "success": False,
+                "message": "대시보드 ID가 제공되지 않았습니다",
+                "error_code": "INVALID_REQUEST",
+            }
+            
+        # 트랜잭션 시작
+        try:
+            # 모든 대시보드가 존재하는지 확인
+            existing_ids = set(
+                row[0]
+                for row in self.db.query(Dashboard.dashboard_id)
+                .filter(Dashboard.dashboard_id.in_(dashboard_ids))
+                .all()
+            )
+            
+            if len(existing_ids) != len(dashboard_ids):
+                missing_ids = [id for id in dashboard_ids if id not in existing_ids]
+                return {
+                    "success": False,
+                    "message": f"존재하지 않는 대시보드 ID: {missing_ids}",
+                    "error_code": "NOT_FOUND",
+                }
+                
+            # 기존 락 확인
+            existing_locks = (
+                self.db.query(DashboardLock)
+                .filter(
+                    DashboardLock.dashboard_id.in_(dashboard_ids),
+                    DashboardLock.lock_type == lock_type,
+                )
+                .all()
+            )
+            
+            # 만료되지 않은 다른 사용자의 락이 있는지 확인
+            for lock in existing_locks:
+                if not lock.is_expired and lock.locked_by != user_id:
+                    return {
+                        "success": False,
+                        "message": f"다른 사용자가 수정 중입니다 (ID: {lock.dashboard_id}, 잠금 해제: {lock.expires_at.isoformat()})",
+                        "error_code": "LOCK_CONFLICT",
+                        "data": {
+                            "is_locked": True,
+                            "dashboard_id": lock.dashboard_id,
+                            "locked_by": lock.locked_by,
+                            "lock_type": lock.lock_type,
+                            "expires_at": lock.expires_at.isoformat(),
+                        },
+                    }
+                    
+            # 모든 락을 획득하거나 갱신
+            now = get_kst_now()
+            acquired_locks = []
+            
+            # 기존 락 처리
+            existing_lock_map = {lock.dashboard_id: lock for lock in existing_locks}
+            
+            for dashboard_id in dashboard_ids:
+                if dashboard_id in existing_lock_map:
+                    lock = existing_lock_map[dashboard_id]
+                    # 만료된 락이거나 현재 사용자의 락이면 갱신
+                    if lock.is_expired or lock.locked_by == user_id:
+                        lock.locked_by = user_id
+                        lock.locked_at = now
+                        lock.expires_at = now + self.lock_timeout
+                        acquired_locks.append(lock)
+                else:
+                    # 새 락 생성
+                    new_lock = DashboardLock(
+                        dashboard_id=dashboard_id,
+                        locked_by=user_id,
+                        lock_type=lock_type,
+                        locked_at=now,
+                        expires_at=now + self.lock_timeout,
+                    )
+                    self.db.add(new_lock)
+                    acquired_locks.append(new_lock)
+                    
+            # 변경사항 커밋
+            self.db.commit()
+            
+            # 락 정보 포함하여 응답
+            return {
+                "success": True,
+                "message": f"{len(acquired_locks)}개의 대시보드에 대한 락을 획득했습니다",
+                "data": {
+                    "dashboard_ids": dashboard_ids,
+                    "lock_type": lock_type,
+                    "locked_by": user_id,
+                    "expires_at": now.isoformat(),
+                },
+            }
+                
+        except Exception as e:
+            self.db.rollback()
+            return {
+                "success": False,
+                "message": f"락 획득 중 오류가 발생했습니다: {str(e)}",
+                "error_code": "INTERNAL_ERROR",
+            }
+            
+    def release_multiple_locks(
+        self, dashboard_ids: List[int], lock_type: str, user_id: str
+    ) -> Dict[str, Any]:
+        """여러 대시보드에 대한 락을 해제합니다."""
+        if not dashboard_ids:
+            return {
+                "success": True,
+                "message": "해제할 락이 없습니다",
+            }
+            
+        try:
+            # 현재 사용자의 락만 해제
+            released = (
+                self.db.query(DashboardLock)
+                .filter(
+                    DashboardLock.dashboard_id.in_(dashboard_ids),
+                    DashboardLock.lock_type == lock_type,
+                    DashboardLock.locked_by == user_id,
+                )
+                .delete(synchronize_session=False)
+            )
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": f"{released}개의 락을 해제했습니다",
+            }
+        except Exception as e:
+            self.db.rollback()
+            return {
+                "success": False,
+                "message": f"락 해제 중 오류가 발생했습니다: {str(e)}",
+            }
+
 
 def get_dashboard_lock_service(db: Session = Depends(get_db)) -> DashboardLockService:
     """DashboardLockService 의존성 주입 함수"""

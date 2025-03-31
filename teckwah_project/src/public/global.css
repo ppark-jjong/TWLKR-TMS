@@ -1,0 +1,153 @@
+/* src/public/global.css */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+.logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.1);
+  margin-bottom: 16px;
+  padding: 0 16px;
+  overflow: hidden;
+}
+
+.logo-image {
+  height: 32px;
+  margin-right: 8px;
+}
+
+.logo-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ant-layout-sider-collapsed .logo {
+  padding: 0;
+  justify-content: center;
+}
+
+.ant-layout-sider-collapsed .logo-text {
+  display: none;
+}
+
+.ant-layout-sider-collapsed .logo-image {
+  margin-right: 0;
+}
+
+/* 사용자 정보 스타일 */
+.sidebar-user-info {
+  position: absolute;
+  bottom: 60px;
+  width: 100%;
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.65);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-dropdown {
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+  overflow: hidden;
+}
+
+.user-name {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-dept {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-trigger {
+  position: absolute;
+  bottom: 16px;
+  width: 100%;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 18px;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.sidebar-trigger:hover {
+  color: #fff;
+}
+
+.site-layout .ant-layout-header {
+  background: #fff;
+  padding: 0;
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+}
+
+.ant-layout-content {
+  background: #f0f2f5;
+  padding: 24px;
+  margin: 0;
+}
+
+.ant-card-bordered {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.ant-table-wrapper {
+  background: #fff;
+  border-radius: 2px;
+}
+
+/* 상태 태그 스타일 */
+.ant-tag-blue {
+  color: #1890ff;
+  background: #e6f7ff;
+  border-color: #91d5ff;
+}
+
+.ant-tag-orange {
+  color: #fa8c16;
+  background: #fff7e6;
+  border-color: #ffd591;
+}
+
+.ant-tag-green {
+  color: #52c41a;
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}
+
+.ant-tag-red {
+  color: #f5222d;
+  background: #fff1f0;
+  border-color: #ffa39e;
+}
+
+.ant-tag-gray {
+  color: #8c8c8c;
+  background: #f5f5f5;
+  border-color: #d9d9d9;
+}

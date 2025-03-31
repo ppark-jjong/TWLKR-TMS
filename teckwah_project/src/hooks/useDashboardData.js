@@ -1,6 +1,6 @@
 // src/hooks/useDashboardData.js
 import { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from 'react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchDashboards } from '../utils/api';
 import { message } from 'antd';
 

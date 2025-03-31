@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, message } from 'antd';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import locale from 'antd/es/date-picker/locale/ko_KR';
 import { createDashboard } from '../utils/api';

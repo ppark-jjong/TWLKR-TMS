@@ -141,6 +141,13 @@ class LockRequest(BaseModel):
     lock_type: str = Field(..., description="락 유형 (EDIT, STATUS, ASSIGN)")
 
 
+class MultipleLockRequest(BaseModel):
+    """다중 락 요청 스키마"""
+
+    dashboard_ids: List[int] = Field(..., description="대시보드 ID 목록")
+    lock_type: str = Field(..., description="락 유형 (EDIT, STATUS, ASSIGN)")
+
+
 # API 응답 스키마
 class DashboardListResponse(ApiResponse[List[DashboardListItem]]):
     """대시보드 목록 응답 스키마"""

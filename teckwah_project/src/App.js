@@ -11,10 +11,9 @@ import { isAuthenticated, getUserFromToken } from './utils/authHelpers';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
-import VisualizationPage from './pages/VisualizationPage';
+import HandoverPage from './pages/HandoverPage';
 import NotFoundPage from './pages/NotFoundPage';
 import Sidebar from './components/Sidebar';
-import Header from './components/Header';
 
 const { Content } = Layout;
 
@@ -59,61 +58,103 @@ function App() {
   }
 
   return (
-    <Router>
-      {auth ? (
-        <Layout style={{ minHeight: '100vh' }}>
-          <Sidebar userData={userData} />
-          <Layout className="site-layout">
-            <Header userData={userData} setAuth={setAuth} />
-            <Content style={{ margin: '16px' }}>
-              <Routes>
-                {/* 권한별 라우팅 설정 */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute
-                      element={<DashboardPage />}
-                      allowedRoles={['USER']}
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute
-                      element={<AdminPage />}
-                      allowedRoles={['ADMIN']}
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route path="/visualization" element={<VisualizationPage />} />
-                <Route
-                  path="/"
-                  element={
-                    userData?.user_role === 'ADMIN' ? (
-                      <Navigate to="/admin" replace />
-                    ) : (
-                      <Navigate to="/dashboard" replace />
-                    )
-                  }
-                />
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </Content>
-          </Layout>
-        </Layout>
-      ) : (
+    <div className="app">
+      <Router>
         <Routes>
+          {/* 로그인 페이지 */}
           <Route
             path="/login"
-            element={<LoginPage setAuth={setAuth} setUserData={setUserData} />}
+            element={
+              auth ? (
+                <Navigate
+                  to={userData?.user_role === 'ADMIN' ? '/admin' : '/dashboard'}
+                />
+              ) : (
+                <LoginPage setAuth={setAuth} />
+              )
+            }
           />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+
+          {/* 인증 필요한 페이지들 */}
+          <Route
+            path="/"
+            element={
+              auth ? (
+                <Layout>
+                  <Sidebar userData={userData} setAuth={setAuth} />
+                  <Layout className="site-layout">
+                    <Content className="content-wrapper">
+                      <Routes>
+                        {/* 대시보드 페이지 (일반 사용자) */}
+                        <Route
+                          path="/dashboard"
+                          element={
+                            <ProtectedRoute
+                              element={<DashboardPage />}
+                              allowedRoles={['USER']}
+                              userData={userData}
+                            />
+                          }
+                        />
+
+                        {/* 관리자 페이지 (관리자 전용) */}
+                        <Route
+                          path="/admin"
+                          element={
+                            <ProtectedRoute
+                              element={<AdminPage />}
+                              allowedRoles={['ADMIN']}
+                              userData={userData}
+                            />
+                          }
+                        />
+
+                        {/* 사용자 관리 페이지 (관리자 전용) */}
+                        <Route
+                          path="/admin/users"
+                          element={
+                            <ProtectedRoute
+                              element={<AdminPage activeTab="users" />}
+                              allowedRoles={['ADMIN']}
+                              userData={userData}
+                            />
+                          }
+                        />
+
+                        {/* 인수인계 페이지 (공통) */}
+                        <Route path="/handover" element={<HandoverPage />} />
+
+                        {/* 메인 페이지 리다이렉트 (권한에 따라) */}
+                        <Route
+                          path="/"
+                          element={
+                            <ProtectedRoute
+                              element={
+                                <Navigate
+                                  to={
+                                    userData?.user_role === 'ADMIN'
+                                      ? '/admin'
+                                      : '/dashboard'
+                                  }
+                                />
+                              }
+                              allowedRoles={['USER', 'ADMIN']}
+                              userData={userData}
+                            />
+                          }
+                        />
+                      </Routes>
+                    </Content>
+                  </Layout>
+                </Layout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
         </Routes>
-      )}
-    </Router>
+      </Router>
+    </div>
   );
 }
 

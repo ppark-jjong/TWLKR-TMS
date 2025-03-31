@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   duration_time INT NULL,
   address TEXT NOT NULL,
   customer VARCHAR(150) NOT NULL,
-  contact VARCHAR(20) NOT NULL, 
+  contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
   updated_by VARCHAR(50) NULL, -- 생성, 수정 시 해당 내용 user_id로 update
@@ -102,7 +102,36 @@ CREATE TABLE IF NOT EXISTS dashboard_lock (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 9. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정
+-- 9. 인수인계 정보를 저장할 handover 테이블 생성
+CREATE TABLE IF NOT EXISTS handover (
+    handover_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+    effective_date DATETIME AS (COALESCE(updated_at, created_at)) STORED,  -- 생성된 컬럼 추가
+    created_by VARCHAR(50) NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE CASCADE,
+    INDEX idx_date_sort (effective_date)  -- 생성된 컬럼에 인덱스 생성
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+-- 9-1. 인수인계 락을 관리하기 위한 테이블 생성
+CREATE TABLE IF NOT EXISTS handover_lock (
+    handover_id INT NOT NULL PRIMARY KEY,
+    locked_by VARCHAR(50) NOT NULL,
+    locked_at DATETIME NOT NULL,
+    expires_at DATETIME NOT NULL,
+    lock_timeout INT NOT NULL DEFAULT 300, -- 락 타임아웃(초), 기본값 5분
+    FOREIGN KEY (handover_id) REFERENCES handover(handover_id) ON DELETE CASCADE,
+    INDEX idx_handover_expires_at (expires_at),
+    INDEX idx_handover_locked_by (locked_by)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+-- 10. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정
 DELIMITER //
 
 CREATE TRIGGER trg_dashboard_before_insert_postal
@@ -159,7 +188,7 @@ END//
 
 DELIMITER ;
 
--- 10. 저장 프로시저: 만료된 락 자동 정리
+-- 11. 저장 프로시저: 만료된 락 자동 정리
 DELIMITER //
 CREATE PROCEDURE cleanup_expired_locks()
 BEGIN

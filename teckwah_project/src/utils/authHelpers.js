@@ -89,9 +89,17 @@ export const refreshToken = async () => {
   if (!refreshToken) return false;
 
   try {
-    const response = await apiLogin.post('/auth/refresh', {
-      refresh_token: refreshToken,
-    });
+    // 리프레시 토큰을 쿠키로 전송하도록 설정
+    const response = await apiLogin.post(
+      '/auth/refresh',
+      {},
+      {
+        withCredentials: true,
+        headers: {
+          Cookie: `refresh_token=${refreshToken}`,
+        },
+      }
+    );
 
     if (response.data && response.data.success) {
       const { access_token, refresh_token } = response.data.data;

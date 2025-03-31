@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { Card, Button, Space, Divider, message } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateStatus, assignDriver, getDashboardDetail } from '../utils/api';
 import { getUserFromToken } from '../utils/authHelpers';
 
@@ -191,7 +191,7 @@ const DashboardPage = () => {
     if (user) {
       handleSearch({ department: user.user_department });
     }
-  }, []);
+  }, [handleSearch]);
 
   return (
     <div>
