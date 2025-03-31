@@ -25,6 +25,8 @@ ERROR_MESSAGES = {
     "VALIDATION_ERROR": "입력 데이터가 유효하지 않습니다",
     "DB_ERROR": "데이터베이스 오류가 발생했습니다",
     "DB_CONNECTION": "데이터베이스 연결 오류가 발생했습니다",
+    "ROW_LOCK_TIMEOUT": "데이터 잠금 시간이 초과되었습니다",
+    "DEADLOCK_DETECTED": "데이터 접근 충돌이 발생했습니다",
 }
 
 T = TypeVar("T")
@@ -100,6 +102,32 @@ class LockConflictException(BaseException):
             detail=detail, error_code=error_code, status_code=status.HTTP_409_CONFLICT
         )
         self.lock_info = lock_info
+
+
+class RowLockTimeoutException(BaseException):
+    """행 수준 락 획득 시 타임아웃 발생 예외"""
+    
+    def __init__(
+        self,
+        detail: str = "데이터 잠금 시간이 초과되었습니다. 다시 시도해주세요.",
+        error_code: str = "ROW_LOCK_TIMEOUT",
+    ):
+        super().__init__(
+            detail=detail, error_code=error_code, status_code=status.HTTP_409_CONFLICT
+        )
+
+
+class DeadlockDetectedException(BaseException):
+    """데드락 감지 예외"""
+    
+    def __init__(
+        self,
+        detail: str = "데이터 접근 충돌이 발생했습니다. 잠시 후 다시 시도해주세요.",
+        error_code: str = "DEADLOCK_DETECTED",
+    ):
+        super().__init__(
+            detail=detail, error_code=error_code, status_code=status.HTTP_409_CONFLICT
+        )
 
 
 def format_error_response(error: BaseException) -> Dict[str, Any]:
@@ -180,6 +208,23 @@ def error_handler(operation_name: str) -> Callable:
                 
             except OperationalError as e:
                 log_error(f"{operation_name} - 데이터베이스 연결 오류: {str(e)}")
+                # 락 타임아웃인 경우 특별 처리
+                if "lock wait timeout" in str(e).lower():
+                    return {
+                        "success": False,
+                        "error_code": "ROW_LOCK_TIMEOUT",
+                        "message": ERROR_MESSAGES["ROW_LOCK_TIMEOUT"],
+                        "timestamp": get_kst_now().isoformat(),
+                    }
+                # 데드락 감지인 경우 특별 처리
+                elif "deadlock" in str(e).lower():
+                    return {
+                        "success": False,
+                        "error_code": "DEADLOCK_DETECTED",
+                        "message": ERROR_MESSAGES["DEADLOCK_DETECTED"],
+                        "timestamp": get_kst_now().isoformat(),
+                    }
+                # 기타 데이터베이스 연결 오류
                 return {
                     "success": False,
                     "error_code": "DB_CONNECTION",
@@ -199,6 +244,15 @@ def error_handler(operation_name: str) -> Callable:
                 if hasattr(e, "lock_info") and e.lock_info:
                     response["data"] = e.lock_info
                 return response
+                
+            except (RowLockTimeoutException, DeadlockDetectedException) as e:
+                log_error(f"{operation_name} - 행 락 오류: {str(e)}")
+                return {
+                    "success": False,
+                    "error_code": getattr(e, "error_code", "LOCK_ERROR"),
+                    "message": str(e),
+                    "timestamp": get_kst_now().isoformat(),
+                }
                 
             except BaseException as e:
                 # 사용자 정의 예외 처리

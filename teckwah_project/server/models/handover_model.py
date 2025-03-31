@@ -1,8 +1,5 @@
-from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, func, Index, Computed
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import expression
-
-Base = declarative_base()
+from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, func, Index, Boolean
+from server.config.database import Base
 
 class HandoverRecord(Base):
     """
@@ -13,13 +10,14 @@ class HandoverRecord(Base):
     handover_id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    updated_at = Column(DateTime, onupdate=func.now(), nullable=True)
-    # SQL의 STORED GENERATED COLUMN과 매핑
-    effective_date = Column(DateTime, Computed("COALESCE(updated_at, created_at)"))
-    created_by = Column(String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False)
-
+    update_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    update_by = Column(String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False)
+    
+    # 공지 관련 필드
+    is_notice = Column(Boolean, default=False)
+    
     # 날짜별 정렬을 위한 인덱스
     __table_args__ = (
-        Index('idx_date_sort', effective_date),
+        Index('idx_date_sort', update_at),
+        Index('idx_notice', is_notice),
     ) 

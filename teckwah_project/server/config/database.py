@@ -29,6 +29,8 @@ engine = create_engine(
 def set_timezone(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("SET time_zone = '+09:00'")
+    # 락 타임아웃 설정 (초 단위, settings에서 가져옴)
+    cursor.execute(f"SET innodb_lock_wait_timeout = {settings.LOCK_TIMEOUT_SECONDS}")
     cursor.close()
 
 

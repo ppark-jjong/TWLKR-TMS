@@ -5,51 +5,23 @@ from fastapi import Depends, HTTPException, status, Request, Cookie, Header
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from datetime import datetime
-from fastapi.security import OAuth2PasswordBearer
 
 from server.config.database import get_db
 from server.config.settings import get_settings, Settings
 from server.schemas.auth_schema import TokenData
-from server.utils.logger import log_info, log_error, set_request_id, log_warning
+from server.utils.logger import log_info, log_error, set_request_id
 from server.repositories.dashboard_repository import DashboardRepository
-from server.repositories.lock_repository import LockRepository
-from server.utils.lock_manager import LockManager
 from server.utils.datetime import get_kst_now
 from server.utils.constants import MESSAGES
 from server.utils.datetime import get_kst_now as get_kst_now_helper
 from server.utils.auth import get_token_data_from_header, verify_admin_role
-from server.services.dashboard_lock_service import DashboardLockService
-from server.utils.error import UnauthorizedException, ForbiddenException
-from server.models.user_model import User
-from server.domains.dashboard_manager import DashboardManager
 
 settings = get_settings()
-
-# OAuth2 설정
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 
 def get_dashboard_repository(db: Session = Depends(get_db)) -> DashboardRepository:
     """대시보드 레포지토리 의존성 주입"""
     return DashboardRepository(db)
-
-
-def get_lock_repository(db: Session = Depends(get_db)) -> LockRepository:
-    """락 레포지토리 의존성 주입"""
-    return LockRepository(db)
-
-
-def get_lock_manager(
-    dashboard_repository: DashboardRepository = Depends(get_dashboard_repository),
-    db: Session = Depends(get_db),
-) -> LockManager:
-    """LockManager 의존성 주입"""
-    return LockManager(dashboard_repository, db)
-
-
-def get_dashboard_lock_service(db: Session = Depends(get_db)) -> DashboardLockService:
-    """DashboardLockService 의존성 주입 함수"""
-    return DashboardLockService(db=db)
 
 
 def get_request_id():
@@ -65,59 +37,32 @@ def get_settings_dependency():
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    authorization: str = Header(None, alias="Authorization"),
+    request: Request = None,
 ) -> TokenData:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="유효하지 않은 인증 정보",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    """Authorization 헤더에서 토큰 추출하여 사용자 정보 반환
+
+    모든 인증이 필요한 API 엔드포인트에서 사용되는 의존성 함수입니다.
+    """
     try:
-        # 토큰 디코딩
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-        
-        # 토큰 만료 확인
-        exp: int = payload.get("exp")
-        if not exp or datetime.fromtimestamp(exp) < datetime.now():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="토큰이 만료되었습니다",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # 사용자 정보 확인
-        token_data = TokenData(
-            user_id=user_id,
-            user_name=payload.get("user_name", ""),
-            user_department=payload.get("user_department", ""),
-            is_admin=payload.get("is_admin", False),
-            is_active=payload.get("is_active", True),
-        )
-        
-        # DB에서 사용자 확인
-        user = db.query(User).filter(User.user_id == user_id).first()
-        if user is None or not user.is_active:
-            raise credentials_exception
-        
-        return token_data
-    except JWTError as e:
-        log_error(f"JWT 검증 오류: {str(e)}")
-        raise credentials_exception
-
-
-async def get_admin_user(
-    current_user: TokenData = Depends(get_current_user)
-) -> TokenData:
-    if not current_user.is_admin:
+        return get_token_data_from_header(authorization)
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="접근 권한이 없습니다. 관리자만 이 기능을 사용할 수 있습니다."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "success": False,
+                "message": MESSAGES["ERROR"]["UNAUTHORIZED"],
+                "error_code": "UNAUTHORIZED",
+            },
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return current_user
+
+
+async def check_admin_access(current_user: TokenData = Depends(get_current_user)):
+    """관리자 권한 체크"""
+    return await verify_admin_role(current_user)
 
 
 async def get_transaction_db():
@@ -131,8 +76,3 @@ async def get_transaction_db():
         raise
     finally:
         db.close()
-
-
-def get_dashboard_manager(db: Session = Depends(get_db)) -> DashboardManager:
-    """DashboardManager 의존성 주입 헬퍼"""
-    return DashboardManager(db)

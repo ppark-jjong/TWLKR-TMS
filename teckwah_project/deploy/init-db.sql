@@ -1,10 +1,10 @@
--- 1. 데이터베이스 생성 및 사용
+-- 1. 데이터베이스 생성 및 사용 (기존 유지)
 CREATE DATABASE IF NOT EXISTS delivery_system
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE=utf8mb4_unicode_ci;
 USE delivery_system;
 
--- 2. 기본 지역 정보를 저장할 postal_code 테이블 생성
+-- 2. 기본 지역 정보를 저장할 postal_code 테이블 (기존 유지)
 CREATE TABLE IF NOT EXISTS postal_code (
   postal_code VARCHAR(5) NOT NULL PRIMARY KEY,
   city VARCHAR(100) NULL,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS postal_code (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 3. 통합된 postal_code_detail 테이블 생성 (창고별 분리 대신 통합)
+-- 3. 통합된 postal_code_detail 테이블 (기존 유지)
 CREATE TABLE IF NOT EXISTS postal_code_detail (
    postal_code VARCHAR(5) NOT NULL,
    warehouse ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON') NOT NULL,
@@ -22,12 +22,12 @@ CREATE TABLE IF NOT EXISTS postal_code_detail (
    duration_time INT NOT NULL,
    PRIMARY KEY (postal_code, warehouse),
    FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
-   INDEX idx_warehouse_postal (warehouse, postal_code) -- 성능 최적화를 위한 복합 인덱스
+   INDEX idx_warehouse_postal (warehouse, postal_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 4. 사용자 정보를 저장할 user 테이블 생성
+-- 4. 사용자 정보를 저장할 user 테이블 (기존 유지)
 CREATE TABLE IF NOT EXISTS user (
   user_id VARCHAR(50) NOT NULL PRIMARY KEY,
   user_password VARCHAR(255) NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS user (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 5. 리프레시 토큰 관리를 위한 refresh_token 테이블 생성
+-- 5. 리프레시 토큰 관리를 위한 refresh_token 테이블 (기존 유지)
 CREATE TABLE IF NOT EXISTS refresh_token (
   refresh_token_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   user_id VARCHAR(50) NOT NULL,
@@ -45,13 +45,13 @@ CREATE TABLE IF NOT EXISTS refresh_token (
   expires_at DATETIME NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE,
-  INDEX idx_token (refresh_token), -- 토큰 검색 최적화
-  INDEX idx_expires (expires_at) -- 만료된 토큰 정리 최적화
+  INDEX idx_token (refresh_token),
+  INDEX idx_expires (expires_at)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 6. 대시보드 정보를 저장할 dashboard 테이블 생성 (메모 필드 통합)
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 (불필요 필드 제거)
 CREATE TABLE IF NOT EXISTS dashboard (
   dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(15) NOT NULL,
@@ -76,62 +76,31 @@ CREATE TABLE IF NOT EXISTS dashboard (
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
-  updated_by VARCHAR(50) NULL, -- 생성, 수정 시 해당 내용 user_id로 update
+  updated_by VARCHAR(50) NULL,
   remark TEXT NULL,
+  update_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
-  INDEX idx_status (status),
   INDEX idx_department (department),
-  INDEX idx_order_no (order_no) -- 최적화: 주문번호 기준 검색 성능 향상
+  INDEX idx_order_no (order_no)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 8. 비관적 락을 관리하기 위한 테이블 생성 (개선)
-CREATE TABLE IF NOT EXISTS dashboard_lock (
-  dashboard_id INT NOT NULL PRIMARY KEY,
-  locked_by VARCHAR(50) NOT NULL,
-  locked_at DATETIME NOT NULL,
-  lock_type ENUM('EDIT', 'STATUS', 'ASSIGN') NOT NULL,
-  expires_at DATETIME NOT NULL,
-  lock_timeout INT NOT NULL DEFAULT 300, -- 락 타임아웃(초), 기본값 5분
-  FOREIGN KEY (dashboard_id) REFERENCES dashboard(dashboard_id) ON DELETE CASCADE,
-  INDEX idx_expires_at (expires_at),
-  INDEX idx_locked_by (locked_by) -- 최적화: 사용자별 락 조회
-) ENGINE=InnoDB
-  DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
-
--- 9. 인수인계 정보를 저장할 handover 테이블 생성
+-- 9. 인수인계 정보를 저장할 handover 테이블 (불필요 필드 제거)
 CREATE TABLE IF NOT EXISTS handover (
     handover_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
-    effective_date DATETIME AS (COALESCE(updated_at, created_at)) STORED,  -- 생성된 컬럼 추가
-    created_by VARCHAR(50) NOT NULL,
-    FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE CASCADE,
-    INDEX idx_date_sort (effective_date)  -- 생성된 컬럼에 인덱스 생성
+    update_by VARCHAR(50) NOT NULL,
+    is_notice BOOLEAN DEFAULT FALSE,
+    update_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 9-1. 인수인계 락을 관리하기 위한 테이블 생성
-CREATE TABLE IF NOT EXISTS handover_lock (
-    handover_id INT NOT NULL PRIMARY KEY,
-    locked_by VARCHAR(50) NOT NULL,
-    locked_at DATETIME NOT NULL,
-    expires_at DATETIME NOT NULL,
-    lock_timeout INT NOT NULL DEFAULT 300, -- 락 타임아웃(초), 기본값 5분
-    FOREIGN KEY (handover_id) REFERENCES handover(handover_id) ON DELETE CASCADE,
-    INDEX idx_handover_expires_at (expires_at),
-    INDEX idx_handover_locked_by (locked_by)
-) ENGINE=InnoDB
-  DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
-
--- 10. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정
+-- 10. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정 (버전 관련 트리거 제거)
 DELIMITER //
 
 CREATE TRIGGER trg_dashboard_before_insert_postal
@@ -179,22 +148,9 @@ BEGIN
     END IF;
   ELSE
     -- 우편번호가 존재하지 않으면 기본값 설정
-    -- 데이터베이스 레벨에서는 최소한의 처리만 수행 (NULL 유지)
     SET NEW.distance = 0;
     SET NEW.duration_time = 0;
   END IF;
-  
 END//
 
-DELIMITER ;
-
--- 11. 저장 프로시저: 만료된 락 자동 정리
-DELIMITER //
-CREATE PROCEDURE cleanup_expired_locks()
-BEGIN
-  DELETE FROM dashboard_lock
-  WHERE expires_at < NOW();
-  
-  SELECT ROW_COUNT() AS cleaned_locks;
-END //
 DELIMITER ;

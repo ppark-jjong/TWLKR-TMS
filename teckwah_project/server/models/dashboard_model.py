@@ -9,6 +9,7 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Computed,
+    func,
 )
 from sqlalchemy.orm import relationship
 from server.config.database import Base
@@ -51,12 +52,10 @@ class Dashboard(Base):
     driver_contact = Column(String(50), nullable=True)
     updated_by = Column(String(50), nullable=True)  # 업데이트한 사용자 ID
     remark = Column(Text, nullable=True)  # 메모 내용
+    update_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)  # 업데이트 시각
 
     # 관계 설정
     postal_code_info = relationship("PostalCode", backref="dashboards", viewonly=True)
-    locks = relationship(
-        "DashboardLock", back_populates="dashboard", cascade="all, delete-orphan"
-    )
 
     def __repr__(self):
         return f"<Dashboard(id={self.dashboard_id}, order_no={self.order_no})>"

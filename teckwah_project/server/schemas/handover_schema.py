@@ -8,6 +8,8 @@ class HandoverCreate(BaseModel):
     """
     title: str = Field(..., min_length=1, max_length=255)
     content: str = Field(..., min_length=1)
+    is_notice: Optional[bool] = False  # 공지 여부
+    notice_until: Optional[datetime] = None  # 공지 종료일
 
 
 class HandoverUpdate(BaseModel):
@@ -16,22 +18,23 @@ class HandoverUpdate(BaseModel):
     """
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     content: Optional[str] = Field(None, min_length=1)
+    is_notice: Optional[bool] = None  # 공지 여부
+    notice_until: Optional[datetime] = None  # 공지 종료일
 
 
 class HandoverResponse(BaseModel):
     """
     인수인계 응답 스키마
     """
-    handover_id: int
+    id: int
     title: str
     content: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    effective_date: datetime
+    created_at: str  # ISO 포맷 문자열
+    updated_at: Optional[str] = None  # ISO 포맷 문자열
     created_by: str
-    is_own: bool = False  # 본인 작성 여부
-    is_locked: bool = False  # 락 여부
-    locked_by: Optional[str] = None  # 락을 건 사용자
+    is_owner: bool = False  # 본인 작성 여부
+    is_notice: bool = False  # 공지 여부
+    notice_until: Optional[str] = None  # 공지 종료일 (ISO 포맷 문자열)
 
     class Config:
         from_attributes = True
@@ -56,7 +59,7 @@ class HandoverLockResponse(BaseModel):
     """
     인수인계 락 응답 스키마
     """
-    handover_id: int
+    id: int
     locked_by: str
     locked_at: datetime
     expires_at: datetime

@@ -14,9 +14,11 @@ from ..schemas.handover_schema import (
     HandoverApiResponse
 )
 from .deps import get_db, get_current_user, get_user_is_admin
+from ..utils.transaction import transaction
+from ..utils.error import LockConflictException, NotFoundException
 
 router = APIRouter(
-    prefix="/api/handover",
+    prefix="/handover",
     tags=["handover"]
 )
 
@@ -25,18 +27,33 @@ router = APIRouter(
 def create_handover(
     data: HandoverCreate,
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    is_admin: bool = Depends(get_user_is_admin)
 ):
     """
-    새 인수인계 레코드 생성
+    인수인계 레코드 생성
+    관리자만 공지 설정 가능
     """
     service = HandoverService(db)
-    handover = service.create_handover(data, current_user)
     
-    return {
-        "success": True,
-        "data": handover
-    }
+    # 관리자가 아닌 경우 공지 설정 제거
+    if not is_admin:
+        data.is_notice = False
+        data.notice_until = None
+    
+    try:
+        # 인수인계 생성
+        handover = service.create_handover(data, current_user)
+        return {
+            "success": True,
+            "data": handover
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error_code": "SERVER_ERROR",
+            "message": str(e)
+        }
 
 
 @router.get("/{handover_id}", response_model=HandoverApiResponse)
@@ -66,54 +83,71 @@ def get_handover(
 
 @router.get("", response_model=HandoverApiResponse)
 def get_handovers(
-    start_date: Optional[str] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+    start_date: str,
+    end_date: str,
     db: Session = Depends(get_db),
     current_user: str = Depends(get_current_user)
 ):
     """
-    인수인계 목록 조회 (날짜별 그룹화)
+    날짜 범위로 인수인계 목록 조회
     """
-    # 기본값: 최근 7일
-    now = datetime.now()
-    
-    if start_date:
-        start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    else:
-        start_date = now - timedelta(days=7)
-    
-    if end_date:
-        end_date = datetime.strptime(end_date, "%Y-%m-%d")
-    else:
-        end_date = now
-    
-    service = HandoverService(db)
-    handovers = service.get_handovers_by_date_range(start_date, end_date, current_user)
-    
-    return {
-        "success": True,
-        "data": handovers
-    }
+    try:
+        # 날짜 형식 변환
+        start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+        end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        service = HandoverService(db)
+        handovers = service.get_handovers_by_date_range(start_datetime, end_datetime, current_user)
+        
+        return {
+            "success": True,
+            "data": handovers
+        }
+    except ValueError:
+        return {
+            "success": False,
+            "error_code": "VALIDATION_ERROR",
+            "message": "날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식을 사용하세요."
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error_code": "SERVER_ERROR",
+            "message": str(e)
+        }
 
 
 @router.post("/{handover_id}/lock", response_model=HandoverApiResponse)
-def acquire_lock(
+def acquire_handover_lock(
     handover_id: int,
-    data: HandoverLockRequest,
+    lock_request: HandoverLockRequest = None,
     db: Session = Depends(get_db),
     current_user: str = Depends(get_current_user)
 ):
     """
-    인수인계 레코드에 락 획득
+    인수인계 레코드에 락 획득 (메모리 기반 락 사용)
     """
     service = HandoverService(db)
-    lock_info = service.acquire_lock(handover_id, current_user, data.timeout)
+    
+    # 락 요청 세부 정보
+    timeout = lock_request.timeout if lock_request and lock_request.timeout else 300
+    
+    # 락 획득 시도
+    lock_info = service.acquire_lock(handover_id, current_user, timeout)
     
     if not lock_info:
+        existing_lock = service.get_lock_info(handover_id)
+        if existing_lock:
+            return {
+                "success": False,
+                "error_code": "LOCK_CONFLICT",
+                "message": f"다른 사용자({existing_lock.locked_by})가 수정 중입니다.",
+                "data": existing_lock
+            }
         return {
             "success": False,
-            "error_code": "LOCK_CONFLICT",
-            "message": "이미 다른 사용자가 수정 중입니다."
+            "error_code": "SERVER_ERROR",
+            "message": "락 획득에 실패했습니다."
         }
     
     return {
@@ -123,13 +157,13 @@ def acquire_lock(
 
 
 @router.delete("/{handover_id}/lock", response_model=HandoverApiResponse)
-def release_lock(
+def release_handover_lock(
     handover_id: int,
     db: Session = Depends(get_db),
     current_user: str = Depends(get_current_user)
 ):
     """
-    인수인계 레코드의 락 해제
+    인수인계 레코드 락 해제 (메모리 기반 락 사용)
     """
     service = HandoverService(db)
     success = service.release_lock(handover_id, current_user)
@@ -137,27 +171,36 @@ def release_lock(
     if not success:
         return {
             "success": False,
-            "error_code": "LOCK_RELEASE_FAILED",
-            "message": "락 해제에 실패했습니다."
+            "error_code": "LOCK_ERROR",
+            "message": "락 해제에 실패했습니다. (권한이 없거나 락이 존재하지 않습니다)"
         }
     
     return {
         "success": True,
-        "data": {"released": True}
+        "message": "락이 해제되었습니다."
     }
 
 
 @router.get("/{handover_id}/lock", response_model=HandoverApiResponse)
-def get_lock_info(
+def get_handover_lock_info(
     handover_id: int,
     db: Session = Depends(get_db),
     current_user: str = Depends(get_current_user)
 ):
     """
-    인수인계 레코드의 락 정보 조회
+    인수인계 레코드 락 정보 조회 (메모리 기반 락 사용)
     """
     service = HandoverService(db)
     lock_info = service.get_lock_info(handover_id)
+    
+    if not lock_info:
+        return {
+            "success": True,
+            "data": {
+                "is_locked": False,
+                "id": handover_id
+            }
+        }
     
     return {
         "success": True,
@@ -174,17 +217,10 @@ def update_handover(
     is_admin: bool = Depends(get_user_is_admin)
 ):
     """
-    인수인계 레코드 수정 (작성자 또는 관리자만 가능, 락 필요)
+    인수인계 레코드 수정 (작성자 또는 관리자만 가능, 행 수준 락 사용)
+    관리자만 공지 설정 가능
     """
     service = HandoverService(db)
-    
-    # 락 확인
-    if service.is_locked_by_others(handover_id, current_user):
-        return {
-            "success": False,
-            "error_code": "LOCK_CONFLICT",
-            "message": "이미 다른 사용자가 수정 중입니다."
-        }
     
     # 수정 권한 확인 및 수정 처리
     result = service.update_handover_with_permission(handover_id, data, current_user, is_admin)
@@ -193,7 +229,8 @@ def update_handover(
         return {
             "success": False,
             "error_code": result["error_code"],
-            "message": result["message"]
+            "message": result["message"],
+            "data": result.get("handover")
         }
     
     return {
@@ -210,19 +247,11 @@ def delete_handover(
     is_admin: bool = Depends(get_user_is_admin)
 ):
     """
-    인수인계 레코드 삭제 (작성자 또는 관리자만 가능, 락 필요)
+    인수인계 레코드 삭제 (작성자 또는 관리자만 가능, 행 수준 락 사용)
     """
     service = HandoverService(db)
     
-    # 락 확인
-    if service.is_locked_by_others(handover_id, current_user):
-        return {
-            "success": False,
-            "error_code": "LOCK_CONFLICT",
-            "message": "이미 다른 사용자가 수정 중입니다."
-        }
-    
-    # 삭제 처리
+    # 삭제 권한 확인 및 삭제 처리
     result = service.delete_handover_with_permission(handover_id, current_user, is_admin)
     
     if result["error_code"]:
@@ -234,5 +263,5 @@ def delete_handover(
     
     return {
         "success": True,
-        "data": {"deleted": True}
+        "message": "인수인계 항목이 삭제되었습니다."
     } 

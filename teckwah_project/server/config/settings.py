@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     LOCK_CLEANUP_INTERVAL_MINUTES: int = int(
         os.getenv("LOCK_CLEANUP_INTERVAL_MINUTES", "10")
     )
+    # 락 획득 시 대기 타임아웃 설정 (초 단위)
+    LOCK_WAIT_TIMEOUT: int = int(os.getenv("LOCK_WAIT_TIMEOUT", "5"))
 
     class Config:
         env_file = ".env.local"

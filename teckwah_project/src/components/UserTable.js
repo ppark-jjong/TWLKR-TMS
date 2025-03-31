@@ -15,6 +15,8 @@ import {
   EditOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
+  UserOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchUsers, createUser, updateUser, deleteUser } from '../utils/api';

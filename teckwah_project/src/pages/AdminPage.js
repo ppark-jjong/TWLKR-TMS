@@ -28,7 +28,6 @@ import {
   UserOutlined,
   LockOutlined,
   EditOutlined,
-  TeamOutlined,
 } from '@ant-design/icons';
 import locale from 'antd/es/date-picker/locale/ko_KR';
 import dayjs from 'dayjs';
@@ -63,15 +62,13 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import UserTable from '../components/UserTable';
 
 const { RangePicker } = DatePicker;
-const { TabPane } = Tabs;
 
-const AdminPage = ({ activeTab = 'dashboard' }) => {
+const AdminPage = () => {
   const queryClient = useQueryClient();
   const [downloadForm] = Form.useForm();
   const [dateRangeInfo, setDateRangeInfo] = useState(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [currentTab, setCurrentTab] = useState(activeTab);
 
   // 커스텀 훅 사용
   const {
@@ -254,8 +251,8 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
           },
         });
       })
-      .catch((errorInfo) => {
-        console.error('Validation Failed:', errorInfo);
+      .catch((error) => {
+        message.error('폼 검증에 실패했습니다');
       });
   };
 
@@ -267,210 +264,240 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
         assignMutation.mutate({
           dashboard_ids: selectedRowKeys,
           driver_name: values.driver_name,
-          driver_phone: values.driver_phone,
-          driver_company: values.driver_company,
-          is_admin: true, // 관리자 권한
+          driver_contact: values.driver_contact,
         });
       })
-      .catch((errorInfo) => {
-        console.error('Validation Failed:', errorInfo);
+      .catch((error) => {
+        message.error('폼 검증에 실패했습니다');
       });
   };
 
-  // 엑셀 다운로드
-  const handleDownload = () => {
-    downloadForm
-      .validateFields()
-      .then(async (values) => {
-        setDownloadLoading(true);
-        try {
-          const params = {
-            start_date: values.date_range[0].format('YYYY-MM-DD'),
-            end_date: values.date_range[1].format('YYYY-MM-DD'),
-          };
+  // 엑셀 다운로드 처리
+  const handleDownload = async () => {
+    try {
+      await downloadForm.validateFields();
+      const values = downloadForm.getFieldsValue();
 
-          const response = await downloadExcel(params);
+      if (!values.date_range) {
+        message.error('날짜 범위를 선택해주세요');
+        return;
+      }
 
-          // Blob 생성 및 다운로드
-          const blob = new Blob([response.data], {
-            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `배송_데이터_${params.start_date}_${params.end_date}.xlsx`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
+      // 날짜 범위 유효성 검사 (최대 3개월)
+      const start = dayjs(values.date_range[0]);
+      const end = dayjs(values.date_range[1]);
+      const diff = end.diff(start, 'day');
 
-          message.success('엑셀 파일 다운로드가 완료되었습니다');
-        } catch (error) {
-          console.error('Download error:', error);
-          message.error('다운로드 중 오류가 발생했습니다');
-        } finally {
-          setDownloadLoading(false);
-        }
-      })
-      .catch((errorInfo) => {
-        console.error('Validation Failed:', errorInfo);
-      });
+      if (diff > 90) {
+        message.error('최대 3개월 내의 데이터만 다운로드할 수 있습니다');
+        return;
+      }
+
+      setDownloadLoading(true);
+
+      try {
+        const params = {
+          start_date: start.format('YYYY-MM-DD'),
+          end_date: end.format('YYYY-MM-DD'),
+        };
+
+        const response = await downloadExcel(params);
+
+        // 파일 다운로드 처리
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute(
+          'download',
+          `대시보드_데이터_${start.format('YYYYMMDD')}_${end.format(
+            'YYYYMMDD'
+          )}.xlsx`
+        );
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        message.success('엑셀 파일 다운로드가 완료되었습니다');
+      } catch (error) {
+        console.error('Download error:', error);
+        message.error('다운로드 중 오류가 발생했습니다');
+      } finally {
+        setDownloadLoading(false);
+      }
+    } catch (error) {
+      message.error('입력 값을 확인해주세요');
+    }
   };
 
-  // 선택한 항목 삭제
-  const handleDelete = () => {
+  // 삭제 처리 (관리자 전용 기능)
+  const handleDelete = async () => {
     if (selectedRowKeys.length === 0) {
       message.warning('삭제할 항목을 선택해주세요');
       return;
     }
 
-    // 다중 락 획득 후 삭제 실행
     setDeleteLoading(true);
-    acquireMultipleLocks(selectedRowKeys, 'DELETE', () => {
+
+    // 다중 락 획득 시도
+    try {
+      // 모든 선택된 항목에 대해 락 획득
+      await Promise.all(selectedRowKeys.map((id) => acquireLock(id, 'EDIT')));
+
+      // 락 획득 성공 시 삭제 처리
       deleteMutation.mutate(selectedRowKeys);
-    });
+    } catch (error) {
+      setDeleteLoading(false);
+      console.error('Lock acquisition error:', error);
+
+      if (error.response?.data?.error_code === 'LOCK_CONFLICT') {
+        setLockConflictInfo(error.response.data.data);
+        return;
+      }
+
+      message.error('락 획득 중 오류가 발생했습니다');
+    }
   };
 
-  // 초기 데이터 로드
+  // 관리자 권한 확인
   useEffect(() => {
+    // 관리자 권한 검증 추가
+    if (!isAdmin()) {
+      message.error('관리자 권한이 필요합니다');
+      window.location.href = '/dashboard';
+      return;
+    }
+
     fetchDateRange();
   }, []);
 
-  // 탭 변경 처리
-  const handleTabChange = (key) => {
-    setCurrentTab(key);
-  };
-
-  // 대시보드 탭 렌더링
-  const renderDashboardTab = () => (
-    <div className="admin-dashboard-content">
-      <Card title="대시보드 관리" bordered={false}>
-        {/* 검색 폼 */}
-        <DashboardSearch
-          onSearch={handleSearch}
-          onReset={handleReset}
-          initialValues={searchParams}
-          isAdmin={true}
-        />
-
-        {/* 테이블 및 작업 영역 */}
-        <Row gutter={16} style={{ marginTop: 16 }}>
+  return (
+    <div>
+      <Card title="관리자 기능">
+        <Row gutter={[16, 16]}>
           <Col span={24}>
-            <Card
-              title="배송 목록"
-              extra={
-                <Space>
-                  <Button
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    onClick={refreshData}
-                  >
-                    새로고침
-                  </Button>
-                  <Button
-                    type="primary"
-                    icon={<UserOutlined />}
-                    onClick={showAssignModal}
-                    disabled={selectedRowKeys.length === 0}
-                  >
-                    배차처리
-                  </Button>
-                </Space>
-              }
-            >
-              {isLoading ? (
-                <LoadingSpinner tip="데이터 로드 중..." />
-              ) : (
-                <DashboardTable
-                  data={data}
-                  isAdmin={true}
-                  selectedRowKeys={selectedRowKeys}
-                  onSelectChange={onSelectChange}
-                  onTableChange={handleTableChange}
-                  onStatusChange={showStatusModal}
-                  onDetailView={showDetailDrawer}
-                  pagination={{
-                    current: meta.current_page,
-                    pageSize: meta.page_size,
-                    total: meta.total_count,
-                    showSizeChanger: true,
-                    showTotal: (total) => `총 ${total}개 항목`,
-                  }}
-                />
-              )}
-            </Card>
-          </Col>
-        </Row>
-
-        {/* 다운로드 및 삭제 기능 */}
-        <Row gutter={16} style={{ marginTop: 16 }}>
-          <Col span={12}>
-            <Card title="데이터 다운로드">
+            <Card title="엑셀 다운로드" bordered={false}>
               <Form form={downloadForm} layout="vertical">
-                <Form.Item
-                  name="date_range"
-                  label="날짜 범위"
-                  rules={[
-                    {
-                      required: true,
-                      message: '날짜 범위를 선택해주세요',
-                    },
-                  ]}
-                >
-                  <RangePicker
-                    style={{ width: '100%' }}
-                    locale={locale}
-                    format="YYYY-MM-DD"
-                    allowClear={false}
-                    disabledDate={(current) => {
-                      if (!dateRangeInfo) return false;
-                      const oldest = dayjs(dateRangeInfo.oldest_date);
-                      const latest = dayjs(dateRangeInfo.latest_date);
-                      return (
-                        current < oldest.startOf('day') ||
-                        current > latest.endOf('day')
-                      );
-                    }}
-                  />
-                </Form.Item>
+                <Row gutter={16}>
+                  <Col span={16}>
+                    <Form.Item
+                      name="date_range"
+                      label="날짜 범위 (최대 3개월)"
+                      rules={[
+                        { required: true, message: '날짜 범위를 선택해주세요' },
+                      ]}
+                    >
+                      <RangePicker
+                        locale={locale}
+                        style={{ width: '100%' }}
+                        disabledDate={(current) => {
+                          // 날짜 범위 제한
+                          if (!dateRangeInfo || !current) return false;
 
-                <Button
-                  type="primary"
-                  icon={<DownloadOutlined />}
-                  onClick={handleDownload}
-                  loading={downloadLoading}
-                  style={{ width: '100%' }}
-                >
-                  엑셀 다운로드
-                </Button>
+                          const oldest = dayjs(dateRangeInfo.oldest_date);
+                          const latest = dayjs(dateRangeInfo.latest_date);
+
+                          return (
+                            current.isBefore(oldest) || current.isAfter(latest)
+                          );
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item label=" " style={{ marginTop: 5 }}>
+                      <Button
+                        type="primary"
+                        icon={<DownloadOutlined />}
+                        onClick={handleDownload}
+                        loading={downloadLoading}
+                        style={{ width: '100%' }}
+                      >
+                        엑셀 다운로드
+                      </Button>
+                    </Form.Item>
+                  </Col>
+                </Row>
               </Form>
               <div style={{ marginTop: 8, color: 'rgba(0, 0, 0, 0.45)' }}>
-                * 다운로드는 최대 한 달 단위로 가능합니다.
+                * 최대 3개월 내의 데이터만 다운로드할 수 있습니다. 엑셀 파일에는
+                선택한 날짜 범위 내의 모든 주문 정보가 포함됩니다.
               </div>
             </Card>
           </Col>
-          <Col span={12}>
-            <Card title="데이터 삭제">
-              <Popconfirm
-                title="선택한 항목을 삭제하시겠습니까?"
-                description={`총 ${selectedRowKeys.length}개 항목이 삭제됩니다.`}
-                onConfirm={handleDelete}
-                okText="삭제"
-                cancelText="취소"
-                icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}
-                disabled={selectedRowKeys.length === 0}
-              >
-                <Button
-                  danger
-                  type="primary"
-                  icon={<DeleteOutlined />}
-                  loading={deleteLoading}
-                  disabled={selectedRowKeys.length === 0}
-                  style={{ width: '100%' }}
-                >
-                  선택 항목 삭제
-                </Button>
-              </Popconfirm>
+
+          <Col span={24}>
+            <Card title="데이터 관리" bordered={false}>
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <Popconfirm
+                    title="정말 삭제하시겠습니까?"
+                    description="선택한 항목이 영구적으로 삭제됩니다."
+                    icon={
+                      <ExclamationCircleOutlined style={{ color: 'red' }} />
+                    }
+                    onConfirm={handleDelete}
+                    okText="삭제"
+                    cancelText="취소"
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    <Button
+                      type="primary"
+                      danger
+                      icon={<DeleteOutlined />}
+                      loading={deleteLoading}
+                      disabled={selectedRowKeys.length === 0}
+                    >
+                      선택 항목 삭제 ({selectedRowKeys.length}건)
+                    </Button>
+                  </Popconfirm>
+
+                  <Button
+                    type="primary"
+                    onClick={showAssignModal}
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    배차 처리 ({selectedRowKeys.length}건)
+                  </Button>
+
+                  <Button icon={<ReloadOutlined />} onClick={refreshData}>
+                    새로고침
+                  </Button>
+                </Space>
+                <span style={{ marginLeft: 8 }}>
+                  {selectedRowKeys.length > 0
+                    ? `${selectedRowKeys.length}건 선택됨`
+                    : ''}
+                </span>
+              </div>
+
+              {/* 검색 폼 */}
+              <DashboardSearch
+                onSearch={handleSearch}
+                onReset={handleReset}
+                userRole="ADMIN"
+              />
+
+              <Divider />
+
+              {isLoading ? (
+                <LoadingSpinner />
+              ) : (
+                <DashboardTable
+                  data={data}
+                  loading={isLoading}
+                  selectedRowKeys={selectedRowKeys}
+                  onSelectChange={onSelectChange}
+                  pagination={{
+                    current: searchParams.page,
+                    pageSize: searchParams.size,
+                    total: meta?.total || 0,
+                  }}
+                  onChange={handleTableChange}
+                  userRole="ADMIN"
+                  onShowStatusModal={showStatusModal}
+                  onShowDetailDrawer={showDetailDrawer}
+                />
+              )}
               <div style={{ marginTop: 8, color: 'rgba(0, 0, 0, 0.45)' }}>
                 * 여기서 삭제된 데이터는 영구적으로 삭제되며 복구할 수 없습니다.
                 주의하세요.
@@ -479,48 +506,6 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
           </Col>
         </Row>
       </Card>
-    </div>
-  );
-
-  // 사용자 관리 탭 렌더링
-  const renderUserTab = () => (
-    <div className="admin-users-content">
-      <Card title="사용자 관리" bordered={false}>
-        <UserTable />
-      </Card>
-    </div>
-  );
-
-  return (
-    <div className="admin-page">
-      <Tabs
-        activeKey={currentTab}
-        onChange={handleTabChange}
-        size="large"
-        type="card"
-        items={[
-          {
-            key: 'dashboard',
-            label: (
-              <span>
-                <SettingOutlined />
-                대시보드 관리
-              </span>
-            ),
-            children: renderDashboardTab(),
-          },
-          {
-            key: 'users',
-            label: (
-              <span>
-                <TeamOutlined />
-                사용자 관리
-              </span>
-            ),
-            children: renderUserTab(),
-          },
-        ]}
-      />
 
       {/* 상태 변경 모달 */}
       <StatusChangeModal
