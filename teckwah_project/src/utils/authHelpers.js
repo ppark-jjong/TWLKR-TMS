@@ -119,17 +119,27 @@ export const loginUser = async (credentials) => {
   try {
     const response = await apiLogin(credentials);
 
+    // API가 성공했지만 success: false인 경우 (서버에서는 200 OK지만 인증 실패)
+    if (response.data && response.data.success === false) {
+      return {
+        success: false,
+        message: response.data?.message || "로그인에 실패했습니다.",
+        errorType: "validation",
+      };
+    }
+
+    // 정상적인 성공 케이스
     if (response.data && response.data.success) {
       const { token, user } = response.data.data;
       setTokens(token.access_token, token.refresh_token);
       return { success: true, user };
     }
 
-    // API가 success: false로 응답한 경우 (서버 측에서 검증 실패)
+    // 응답 구조가 예상과 다른 경우
     return {
       success: false,
-      message: response.data?.message || "로그인에 실패했습니다.",
-      errorType: "validation",
+      message: "서버 응답 형식이 올바르지 않습니다.",
+      errorType: "unknown",
     };
   } catch (error) {
     console.error("로그인 오류:", error);

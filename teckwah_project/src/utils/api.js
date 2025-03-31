@@ -34,27 +34,8 @@ api.interceptors.request.use(
 // 응답 인터셉터 - 에러 처리 및 토큰 갱신
 api.interceptors.response.use(
   (response) => {
-    // success: true인 경우에만 정상 처리
-    if (response.data && response.data.success === false) {
-      return Promise.reject({
-        response: {
-          data: response.data,
-          status: response.status,
-        },
-      });
-    }
-
-    // 데이터 유효성 검증 (타입 안정성)
-    if (response.config.validateResponseType) {
-      const { data, type } = response.config.validateResponseType;
-      if (data && !validateApiData(data, type)) {
-        console.warn(
-          `API 응답 데이터가 예상된 형식 (${type})과 일치하지 않습니다:`,
-          data
-        );
-      }
-    }
-
+    // success: false인 경우, 에러로 reject하지 않고 그대로 반환
+    // 각 컴포넌트에서 success 필드를 확인하여 처리하도록 함
     return response;
   },
   async (error) => {
@@ -77,15 +58,13 @@ api.interceptors.response.use(
         } else {
           // 액세스 토큰 갱신 실패 시 로그아웃 처리
           removeTokens();
-          // 인터셉터에서는 메시지를 표시하지 않음 (중복 방지)
-          redirectToLogin();
+          // 인증 실패 시 자동 리디렉션하지 않고 오류만 반환
           return Promise.reject(error);
         }
       } catch (refreshError) {
         // 리프레시 실패 시 로그아웃 처리
         removeTokens();
-        // 인터셉터에서는 메시지를 표시하지 않음 (중복 방지)
-        redirectToLogin();
+        // 인증 실패 시 자동 리디렉션하지 않고 오류만 반환
         return Promise.reject(refreshError);
       }
     }

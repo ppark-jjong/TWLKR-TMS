@@ -1,14 +1,25 @@
 // src/pages/LoginPage.js
 import React, { useState } from "react";
-import { Form, Input, Button, Card, message, Typography, Alert } from "antd";
-import { UserOutlined, LockOutlined } from "@ant-design/icons";
+import {
+  Form,
+  Input,
+  Button,
+  Card,
+  message,
+  Typography,
+  Alert,
+  Space,
+} from "antd";
+import { UserOutlined, LockOutlined, ReloadOutlined } from "@ant-design/icons";
 import { loginUser } from "../utils/authHelpers";
+import { useNavigate } from "react-router-dom";
 
 const { Title } = Typography;
 
 const LoginPage = ({ setAuth, setUserData }) => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(null);
+  const navigate = useNavigate();
 
   const onFinish = async (values) => {
     // 이전 오류 메시지 초기화
@@ -25,10 +36,18 @@ const LoginPage = ({ setAuth, setUserData }) => {
         if (response.user && setUserData) {
           setUserData(response.user);
         }
+
+        // 사용자 역할에 따라 적절한 페이지로 리다이렉트
+        const role = response.user?.user_role || "USER";
+        if (role === "ADMIN") {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         // 로그인 실패 - 오류 메시지 설정 (Alert 컴포넌트로 표시)
         setLoginError({
-          message: response.message,
+          message: response.message || "로그인에 실패했습니다",
           type: response.errorType || "error",
         });
       }
@@ -43,6 +62,11 @@ const LoginPage = ({ setAuth, setUserData }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 새로고침 처리 함수
+  const handleRefresh = () => {
+    window.location.reload();
   };
 
   return (
@@ -66,6 +90,15 @@ const LoginPage = ({ setAuth, setUserData }) => {
             type={loginError.type}
             showIcon
             style={{ marginBottom: 16 }}
+            action={
+              <Button
+                size="small"
+                type="text"
+                icon={<ReloadOutlined />}
+                onClick={handleRefresh}
+                title="새로고침"
+              />
+            }
           />
         )}
 
@@ -90,9 +123,16 @@ const LoginPage = ({ setAuth, setUserData }) => {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block>
-              로그인
-            </Button>
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <Button type="primary" htmlType="submit" loading={loading} block>
+                로그인
+              </Button>
+              {loginError && (
+                <Button icon={<ReloadOutlined />} onClick={handleRefresh} block>
+                  새로고침
+                </Button>
+              )}
+            </Space>
           </Form.Item>
         </Form>
       </Card>

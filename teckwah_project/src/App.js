@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { Layout, message } from "antd";
+import { Layout, message, Button, notification } from "antd";
 import { isAuthenticated, getUserFromToken } from "./utils/authHelpers";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -9,6 +9,7 @@ import AdminPage from "./pages/AdminPage";
 import HandoverPage from "./pages/HandoverPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import Sidebar from "./components/Sidebar";
+import { ReloadOutlined } from "@ant-design/icons";
 
 const { Content } = Layout;
 
@@ -16,12 +17,29 @@ const { Content } = Layout;
 window.onerror = function (message, source, lineno, colno, error) {
   console.error("전역 오류 발생:", { message, source, lineno, colno, error });
 
-  // 오류 정보를 콘솔에만 로깅하고 자동 새로고침은 제거
+  // 오류 정보를 콘솔에만 로깅
   if (error && error.stack) {
     console.error("Stack trace:", error.stack);
   }
 
-  // 내장 alert를 사용하지 않고 콘솔에만 기록
+  // 사용자에게 알림으로 오류 정보 표시 (자동 닫힘)
+  notification.error({
+    message: "오류가 발생했습니다",
+    description:
+      "일시적인 문제가 발생했습니다. 계속 발생하면 새로고침을 해보세요.",
+    duration: 5, // 5초 후 자동으로 닫힘
+    btn: (
+      <Button
+        type="primary"
+        size="small"
+        icon={<ReloadOutlined />}
+        onClick={() => window.location.reload()}
+      >
+        새로고침
+      </Button>
+    ),
+  });
+
   return true; // 오류 처리됨을 브라우저에 알림
 };
 
@@ -47,12 +65,20 @@ const ProtectedRoute = ({ element, allowedRoles, userData }) => {
 const AuthWrapper = ({ children }) => {
   const [isAuth, setIsAuth] = useState(false);
   const [checking, setChecking] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuthStatus = () => {
-      const { isAuth } = isAuthenticated();
-      setIsAuth(isAuth);
-      setChecking(false);
+      try {
+        const { isAuth } = isAuthenticated();
+        setIsAuth(isAuth);
+        setChecking(false);
+      } catch (error) {
+        console.error("인증 상태 확인 중 오류 발생:", error);
+        // 오류 발생 시에도 체크 상태를 완료로 변경하고 인증되지 않은 것으로 처리
+        setChecking(false);
+        setIsAuth(false);
+      }
     };
 
     checkAuthStatus();
@@ -83,10 +109,19 @@ function App() {
   useEffect(() => {
     // 초기 인증 상태 확인
     const checkAuth = () => {
-      const { isAuth, userData } = isAuthenticated();
-      setAuth(isAuth);
-      setUserData(userData);
-      setLoading(false);
+      try {
+        const { isAuth, userData } = isAuthenticated();
+        setAuth(isAuth);
+        setUserData(userData);
+        setLoading(false);
+      } catch (error) {
+        console.error("초기 인증 상태 확인 중 오류 발생:", error);
+        // 오류 발생 시에도 로딩 상태를 완료로 변경
+        setLoading(false);
+        // 기본적으로 인증되지 않은 상태로 설정
+        setAuth(false);
+        setUserData(null);
+      }
     };
 
     checkAuth();
