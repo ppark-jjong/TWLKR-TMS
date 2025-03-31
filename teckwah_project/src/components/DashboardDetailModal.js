@@ -27,16 +27,16 @@ const { Text } = Typography;
 /**
  * 대시보드 상세 정보 모달 컴포넌트
  * @param {Object} props - 컴포넌트 속성
- * @param {boolean} props.visible - 모달 표시 여부
- * @param {Function} props.onClose - 닫기 핸들러
+ * @param {boolean} props.open - 모달 표시 여부
+ * @param {Function} props.onCancel - 닫기 핸들러
  * @param {Function} props.onStatusChange - 상태 변경 핸들러
  * @param {Object} props.form - Form 인스턴스
  * @param {Object} props.dashboard - 대시보드 데이터
  * @param {string} props.userRole - 사용자 권한
  */
 const DashboardDetailModal = ({
-  visible,
-  onClose,
+  open,
+  onCancel,
   onStatusChange,
   form,
   dashboard,
@@ -166,8 +166,8 @@ const DashboardDetailModal = ({
     <Modal
       title="주문 상세 정보"
       width={900}
-      open={visible}
-      onCancel={onClose}
+      open={open}
+      onCancel={onCancel}
       footer={null}
       centered
     >

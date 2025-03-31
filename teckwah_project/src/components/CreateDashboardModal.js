@@ -1,18 +1,23 @@
 // src/components/CreateDashboardModal.js - 개선된 버전
 
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, message } from 'antd';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import dayjs from 'dayjs';
-import locale from 'antd/es/date-picker/locale/ko_KR';
-import { createDashboard } from '../utils/api';
-import { formatPhoneNumber } from '../utils/commonUtils';
-import { getUserFromToken } from '../utils/authHelpers';
+import React, { useState, useEffect } from "react";
+import { Modal, Form, Input, Select, DatePicker, message } from "antd";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
+import locale from "antd/es/date-picker/locale/ko_KR";
+import { createDashboard } from "../utils/api";
+import { formatPhoneNumber } from "../utils/commonUtils";
+import { getUserFromToken } from "../utils/authHelpers";
 
 const { Option } = Select;
 const { TextArea } = Input;
 
-const CreateDashboardModal = ({ visible, onCancel }) => {
+const CreateDashboardModal = ({
+  open,
+  onCancel,
+  onSuccess,
+  userRole = "USER",
+}) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -29,19 +34,19 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         department: user.user_department,
       });
     }
-  }, [form, visible]); // visible 의존성 추가로 모달이 열릴 때마다 초기화
+  }, [form, open]); // open 의존성 추가로 모달이 열릴 때마다 초기화
 
   // 생성 뮤테이션
   const createMutation = useMutation((data) => createDashboard(data), {
     onSuccess: () => {
-      message.success('대시보드가 생성되었습니다');
-      queryClient.invalidateQueries('dashboards');
+      message.success("대시보드가 생성되었습니다");
+      queryClient.invalidateQueries("dashboards");
       form.resetFields();
       onCancel();
     },
     onError: (error) => {
-      console.error('Create dashboard error:', error);
-      message.error('대시보드 생성 중 오류가 발생했습니다');
+      console.error("Create dashboard error:", error);
+      message.error("대시보드 생성 중 오류가 발생했습니다");
     },
     onSettled: () => {
       setConfirmLoading(false);
@@ -58,7 +63,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         const formattedValues = {
           ...values,
           eta: values.eta
-            ? values.eta.format('YYYY-MM-DDTHH:mm:ss')
+            ? values.eta.format("YYYY-MM-DDTHH:mm:ss")
             : undefined,
           contact: values.contact
             ? formatPhoneNumber(values.contact)
@@ -68,14 +73,14 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         createMutation.mutate(formattedValues);
       })
       .catch((errorInfo) => {
-        console.log('Validate Failed:', errorInfo);
+        console.log("Validate Failed:", errorInfo);
       });
   };
 
   return (
     <Modal
       title="새 대시보드 생성"
-      open={visible} // visible 대신 open으로 변경
+      open={open}
       onOk={handleOk}
       onCancel={onCancel}
       confirmLoading={confirmLoading}
@@ -86,7 +91,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="order_no"
           label="주문번호"
-          rules={[{ required: true, message: '주문번호를 입력해주세요' }]}
+          rules={[{ required: true, message: "주문번호를 입력해주세요" }]}
         >
           <Input maxLength={15} placeholder="주문번호 입력" />
         </Form.Item>
@@ -94,7 +99,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="type"
           label="유형"
-          rules={[{ required: true, message: '유형을 선택해주세요' }]}
+          rules={[{ required: true, message: "유형을 선택해주세요" }]}
         >
           <Select placeholder="유형 선택">
             <Option value="DELIVERY">배송</Option>
@@ -106,7 +111,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="department"
           label="부서"
-          rules={[{ required: true, message: '부서를 선택해주세요' }]}
+          rules={[{ required: true, message: "부서를 선택해주세요" }]}
         >
           <Select placeholder="부서 선택">
             <Option value="CS">CS</Option>
@@ -118,7 +123,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="warehouse"
           label="창고"
-          rules={[{ required: true, message: '창고를 선택해주세요' }]}
+          rules={[{ required: true, message: "창고를 선택해주세요" }]}
         >
           <Select placeholder="창고 선택">
             <Option value="SEOUL">서울</Option>
@@ -131,7 +136,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="sla"
           label="SLA"
-          rules={[{ required: true, message: 'SLA를 입력해주세요' }]}
+          rules={[{ required: true, message: "SLA를 입력해주세요" }]}
         >
           <Input maxLength={10} placeholder="SLA 입력" />
         </Form.Item>
@@ -139,15 +144,15 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="eta"
           label="예상 도착 시간"
-          rules={[{ required: true, message: '예상 도착 시간을 선택해주세요' }]}
+          rules={[{ required: true, message: "예상 도착 시간을 선택해주세요" }]}
         >
           <DatePicker
             showTime
             format="YYYY-MM-DD HH:mm:ss"
             locale={locale}
-            style={{ width: '100%' }}
+            style={{ width: "100%" }}
             disabledDate={(current) => {
-              return current && current < dayjs().startOf('day');
+              return current && current < dayjs().startOf("day");
             }}
           />
         </Form.Item>
@@ -156,9 +161,9 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
           name="postal_code"
           label="우편번호"
           rules={[
-            { required: true, message: '우편번호를 입력해주세요' },
-            { len: 5, message: '우편번호는 5자리여야 합니다' },
-            { pattern: /^\d{5}$/, message: '우편번호는 숫자 5자리여야 합니다' },
+            { required: true, message: "우편번호를 입력해주세요" },
+            { len: 5, message: "우편번호는 5자리여야 합니다" },
+            { pattern: /^\d{5}$/, message: "우편번호는 숫자 5자리여야 합니다" },
           ]}
         >
           <Input maxLength={5} placeholder="우편번호 입력 (예: 12345)" />
@@ -167,7 +172,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="address"
           label="주소"
-          rules={[{ required: true, message: '주소를 입력해주세요' }]}
+          rules={[{ required: true, message: "주소를 입력해주세요" }]}
         >
           <TextArea rows={2} maxLength={500} placeholder="주소 입력" />
         </Form.Item>
@@ -175,7 +180,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
         <Form.Item
           name="customer"
           label="고객명"
-          rules={[{ required: true, message: '고객명을 입력해주세요' }]}
+          rules={[{ required: true, message: "고객명을 입력해주세요" }]}
         >
           <Input maxLength={150} placeholder="고객명 입력" />
         </Form.Item>
@@ -186,7 +191,7 @@ const CreateDashboardModal = ({ visible, onCancel }) => {
           rules={[
             {
               pattern: /^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$/,
-              message: '올바른 연락처 형식이 아닙니다',
+              message: "올바른 연락처 형식이 아닙니다",
             },
           ]}
         >

@@ -1,5 +1,30 @@
 import { message } from "antd";
-import { getErrorType } from "../types";
+import { getErrorType } from "../types.js";
+
+// 에러 메시지를 위한 맵 (더 구체적인 메시지 사용)
+const ERROR_MESSAGES = {
+  auth: "인증에 실패했습니다. 다시 로그인해주세요.",
+  network: "네트워크 연결을 확인해주세요.",
+  validation: "입력 내용을 확인해주세요.",
+  server: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+  unknown: "알 수 없는 오류가 발생했습니다.",
+};
+
+// 에러 알림이 중복 표시되지 않도록 관리할 객체
+const errorMsgTracker = {
+  lastErrorMsg: "",
+  lastErrorTime: 0,
+  // 최근에 같은 에러가 표시되었는지 확인 (3초 이내)
+  isDuplicate: function (msg) {
+    const now = Date.now();
+    const isDup = this.lastErrorMsg === msg && now - this.lastErrorTime < 3000;
+    if (!isDup) {
+      this.lastErrorMsg = msg;
+      this.lastErrorTime = now;
+    }
+    return isDup;
+  },
+};
 
 /**
  * API 오류 처리 함수
@@ -11,7 +36,7 @@ import { getErrorType } from "../types";
  * @param {Function} options.onServerError - 서버 오류 발생 시 실행할 콜백
  * @param {Function} options.onUnknownError - 알 수 없는 오류 발생 시 실행할 콜백
  * @param {boolean} options.showMessage - 오류 메시지를 화면에 표시할지 여부 (기본값: true)
- * @param {boolean} options.refreshOnServerError - 서버 오류 발생 시 페이지를 새로고침할지 여부 (기본값: true)
+ * @param {boolean} options.refreshOnServerError - 서버 오류 발생 시 페이지를 새로고침할지 여부 (기본값: false)
  */
 export const handleApiError = (error, options = {}) => {
   const {
@@ -21,7 +46,7 @@ export const handleApiError = (error, options = {}) => {
     onServerError,
     onUnknownError,
     showMessage = true,
-    refreshOnServerError = true,
+    refreshOnServerError = false,
   } = options;
 
   // 에러 정보 로깅
@@ -29,32 +54,57 @@ export const handleApiError = (error, options = {}) => {
 
   // 오류 유형 확인
   const errorType = getErrorType(error);
-  const errorMsg = error.response?.data?.message || "오류가 발생했습니다";
+
+  // 서버 응답에서 오류 메시지 추출
+  const serverMsg = error.response?.data?.message;
+
+  // 기본 오류 메시지
+  let errorMsg =
+    serverMsg || ERROR_MESSAGES[errorType] || ERROR_MESSAGES.unknown;
+
+  // HTTP 상태 코드별 사용자 친화적 메시지 처리
+  if (error.response) {
+    const status = error.response.status;
+    if (status === 401) {
+      errorMsg = "인증이 만료되었습니다. 다시 로그인해주세요.";
+    } else if (status === 404) {
+      errorMsg = serverMsg || "요청한 리소스를 찾을 수 없습니다.";
+    } else if (status === 400) {
+      errorMsg = serverMsg || "요청 형식이 올바르지 않습니다.";
+    }
+  }
 
   // 오류 유형별 처리
   switch (errorType) {
     case "auth":
-      if (showMessage)
-        message.error("인증에 실패했습니다. 다시 로그인해주세요");
+      if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
+        message.error(errorMsg);
+      }
       if (onAuthError) onAuthError(error);
       break;
 
     case "network":
-      if (showMessage) message.error("네트워크 연결을 확인해주세요");
+      if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
+        message.error(errorMsg);
+      }
       if (onNetworkError) onNetworkError(error);
       break;
 
     case "validation":
-      if (showMessage) message.error(errorMsg || "입력 내용을 확인해주세요");
+      if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
+        message.error(errorMsg);
+      }
       if (onValidationError) onValidationError(error);
       break;
 
     case "server":
-      if (showMessage)
-        message.error("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요");
+      if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
+        message.error(errorMsg);
+      }
+
       if (onServerError) onServerError(error);
 
-      // 서버 오류 시 자동 새로고침
+      // 서버 오류 시 자동 새로고침 (옵션에 따라)
       if (refreshOnServerError) {
         console.log("서버 오류 발생, 페이지 새로고침 예정...");
         setTimeout(() => {
@@ -64,8 +114,9 @@ export const handleApiError = (error, options = {}) => {
       break;
 
     default:
-      if (showMessage)
-        message.error(errorMsg || "알 수 없는 오류가 발생했습니다");
+      if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
+        message.error(errorMsg);
+      }
       if (onUnknownError) onUnknownError(error);
       break;
   }

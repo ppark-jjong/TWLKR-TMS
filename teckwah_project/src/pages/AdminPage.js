@@ -154,7 +154,7 @@ const AdminPage = () => {
       message.success("배차가 완료되었습니다");
       closeAssignModal();
       setSelectedRowKeys([]);
-      queryClient.invalidateQueries("admin-dashboards");
+      queryClient.invalidateQueries(["admin-dashboards"]);
 
       // 락 해제
       releaseMultipleLocks(selectedRowKeys, "ASSIGN");
@@ -173,7 +173,7 @@ const AdminPage = () => {
     onSuccess: () => {
       message.success("선택한 항목이 삭제되었습니다");
       setSelectedRowKeys([]);
-      queryClient.invalidateQueries("admin-dashboards");
+      queryClient.invalidateQueries(["admin-dashboards"]);
     },
     onError: (error) => {
       message.error("삭제 중 오류가 발생했습니다");
@@ -564,7 +564,7 @@ const AdminPage = () => {
 
       {/* 상태 변경 모달 */}
       <StatusChangeModal
-        visible={statusModalVisible}
+        open={statusModalVisible}
         onOk={handleStatusSubmit}
         onCancel={closeStatusModal}
         form={statusForm}
@@ -575,7 +575,7 @@ const AdminPage = () => {
 
       {/* 배차 처리 모달 */}
       <AssignDriverModal
-        visible={assignModalVisible}
+        open={assignModalVisible}
         onOk={handleAssignSubmit}
         onCancel={closeAssignModal}
         form={assignForm}
@@ -585,8 +585,8 @@ const AdminPage = () => {
 
       {/* 상세 정보 모달 */}
       <DashboardDetailModal
-        visible={detailModalVisible}
-        onClose={closeDetailModal}
+        open={detailModalVisible}
+        onCancel={closeDetailModal}
         form={detailForm}
         dashboard={currentDashboard}
         onStatusChange={handleStatusChangeInModal}
@@ -595,7 +595,7 @@ const AdminPage = () => {
 
       {/* 락 충돌 모달 */}
       <LockConflictModal
-        visible={!!lockConflictInfo}
+        open={!!lockConflictInfo}
         lockInfo={lockConflictInfo}
         onRetry={retryLock}
         onCancel={cancelLock}

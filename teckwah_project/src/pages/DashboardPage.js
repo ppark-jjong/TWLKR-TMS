@@ -24,7 +24,7 @@ import {
 } from "../utils/api";
 import { getUserFromToken } from "../utils/authHelpers";
 import { handleApiError, safeAsync, goBack } from "../utils/errorHandlers";
-import { DashboardItemType, UserType } from "../types";
+import { DashboardItemType, UserType } from "../types.js";
 import PropTypes from "prop-types";
 import locale from "antd/es/date-picker/locale/ko_KR";
 
@@ -102,7 +102,7 @@ const DashboardPage = () => {
     onSuccess: () => {
       message.success("상태가 변경되었습니다");
       closeStatusModal();
-      queryClient.invalidateQueries("dashboards");
+      queryClient.invalidateQueries(["dashboards"]);
 
       // 락 해제
       if (currentDashboard) {
@@ -128,7 +128,7 @@ const DashboardPage = () => {
       message.success("배차가 완료되었습니다");
       closeAssignModal();
       setSelectedRowKeys([]);
-      queryClient.invalidateQueries("dashboards");
+      queryClient.invalidateQueries(["dashboards"]);
 
       // 락 해제
       releaseMultipleLocks(selectedRowKeys, "ASSIGN");
@@ -204,19 +204,32 @@ const DashboardPage = () => {
   };
 
   // 상세 모달 내에서 상태 변경
-  const handleStatusChangeInModal = (status) => {
+  const handleStatusChangeInModal = async (status) => {
     if (!currentDashboard) return;
 
-    // 락 획득 필요
-    acquireLock(currentDashboard.dashboard_id, "STATUS", () => {
-      statusMutation.mutate({
+    try {
+      // 락 획득 필요
+      await acquireLock(currentDashboard.dashboard_id, "STATUS");
+
+      await statusMutation.mutateAsync({
         id: currentDashboard.dashboard_id,
         data: {
           status: status,
           is_admin: false, // 일반 사용자 권한
         },
       });
-    });
+
+      message.success("상태가 성공적으로 변경되었습니다.");
+      queryClient.invalidateQueries(["dashboards"]);
+    } catch (error) {
+      message.error("상태 변경 중 오류가 발생했습니다.");
+      console.error("상세 모달 상태 변경 오류:", error);
+    } finally {
+      // 락 해제 시도
+      if (currentDashboard) {
+        releaseLock(currentDashboard.dashboard_id, "STATUS");
+      }
+    }
   };
 
   // 배차 처리 제출
@@ -395,7 +408,7 @@ const DashboardPage = () => {
 
       {/* 상태 변경 모달 */}
       <StatusChangeModal
-        visible={statusModalVisible}
+        open={statusModalVisible}
         onOk={handleStatusSubmit}
         onCancel={closeStatusModal}
         form={statusForm}
@@ -406,7 +419,7 @@ const DashboardPage = () => {
 
       {/* 배차 처리 모달 */}
       <AssignDriverModal
-        visible={assignModalVisible}
+        open={assignModalVisible}
         onOk={handleAssignSubmit}
         onCancel={closeAssignModal}
         form={assignForm}
@@ -416,8 +429,8 @@ const DashboardPage = () => {
 
       {/* 상세 정보 모달 */}
       <DashboardDetailModal
-        visible={detailModalVisible}
-        onClose={closeDetailModal}
+        open={detailModalVisible}
+        onCancel={closeDetailModal}
         dashboard={currentDashboard}
         onStatusChange={handleStatusChangeInModal}
         userRole="USER"
@@ -426,7 +439,7 @@ const DashboardPage = () => {
 
       {/* 락 충돌 모달 */}
       <LockConflictModal
-        visible={!!lockConflictInfo}
+        open={!!lockConflictInfo}
         lockInfo={lockConflictInfo}
         onCancel={cancelLock}
         onRetry={retryLock}
@@ -435,7 +448,7 @@ const DashboardPage = () => {
 
       {/* 주문 추가 모달 */}
       <CreateDashboardModal
-        visible={createModalVisible}
+        open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
         onSuccess={() => {
           setCreateModalVisible(false);

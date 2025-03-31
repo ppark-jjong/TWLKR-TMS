@@ -1,7 +1,7 @@
 // src/utils/api.js
 import axios from "axios";
 import { getAccessToken, refreshToken, removeTokens } from "./authHelpers";
-import { validateApiData } from "../types";
+import { validateApiData } from "../types.js";
 import { handleApiError } from "./errorHandlers";
 import { message } from "antd";
 
@@ -77,25 +77,28 @@ api.interceptors.response.use(
         } else {
           // 액세스 토큰 갱신 실패 시 로그아웃 처리
           removeTokens();
-          message.error("인증이 만료되었습니다. 다시 로그인해주세요.");
+          // 인터셉터에서는 메시지를 표시하지 않음 (중복 방지)
           redirectToLogin();
           return Promise.reject(error);
         }
       } catch (refreshError) {
         // 리프레시 실패 시 로그아웃 처리
         removeTokens();
-        message.error("인증이 만료되었습니다. 다시 로그인해주세요.");
+        // 인터셉터에서는 메시지를 표시하지 않음 (중복 방지)
         redirectToLogin();
         return Promise.reject(refreshError);
       }
     }
 
-    // API 오류 처리
-    handleApiError(error, {
-      refreshOnServerError: false, // 인터셉터에서는 자동 새로고침 안함
-      showMessage: false, // 인터셉터에서는 메시지 안보여줌 (각 컴포넌트에서 처리)
-    });
+    // 에러 로깅 (콘솔에만)
+    if (error.response && error.response.status === 500) {
+      console.error("서버 내부 오류:", error);
+    } else {
+      console.error("API 요청 오류:", error);
+    }
 
+    // 인터셉터에서는 에러 처리 함수를 호출하지 않고, 오류를 그대로 전파
+    // 각 컴포넌트에서 처리하도록 함
     return Promise.reject(error);
   }
 );
@@ -134,6 +137,28 @@ export const safeApiCall = async (apiCall, options = {}) => {
   try {
     const response = await apiCall();
 
+    // API 응답이 success: false인 경우
+    if (response.data && response.data.success === false) {
+      const errorMsg =
+        response.data.message || `${context} 중 오류가 발생했습니다`;
+
+      if (showErrorMessage) {
+        // handleApiError에서 중복 메시지 체크를 수행
+        handleApiError(
+          {
+            response: {
+              data: response.data,
+              status: response.status,
+            },
+          },
+          { showMessage: true }
+        );
+      }
+
+      if (onError) onError(new Error(errorMsg));
+      return null;
+    }
+
     // 데이터 유효성 검증
     if (dataType && response.data?.data) {
       if (!validateApiData(response.data.data, dataType)) {
@@ -147,12 +172,13 @@ export const safeApiCall = async (apiCall, options = {}) => {
     if (onSuccess) onSuccess(response.data);
     return response.data;
   } catch (error) {
-    handleApiError(error, {
-      showMessage: showErrorMessage,
-      onUnknownError: () => {
-        console.error(`${context} 중 오류 발생:`, error);
-      },
-    });
+    console.error(`${context} 중 오류 발생:`, error);
+
+    if (showErrorMessage) {
+      handleApiError(error, {
+        showMessage: true,
+      });
+    }
 
     if (onError) onError(error);
     return null;

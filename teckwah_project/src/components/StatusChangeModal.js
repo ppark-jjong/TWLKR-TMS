@@ -12,7 +12,7 @@ const { Option } = Select;
 /**
  * 상태 변경 모달 컴포넌트
  * @param {Object} props - 컴포넌트 속성
- * @param {boolean} props.visible - 모달 표시 여부
+ * @param {boolean} props.open - 모달 표시 여부
  * @param {Function} props.onOk - 확인 핸들러
  * @param {Function} props.onCancel - 취소 핸들러
  * @param {Object} props.form - Form 인스턴스
@@ -21,7 +21,7 @@ const { Option } = Select;
  * @param {boolean} props.confirmLoading - 확인 버튼 로딩 상태
  */
 const StatusChangeModal = ({
-  visible,
+  open,
   onOk,
   onCancel,
   form,
@@ -48,7 +48,7 @@ const StatusChangeModal = ({
   return (
     <Modal
       title="상태 변경"
-      open={visible}
+      open={open}
       onOk={onOk}
       onCancel={onCancel}
       confirmLoading={confirmLoading}

@@ -1,20 +1,20 @@
 // src/components/LockConflictModal.js
-import React from 'react';
-import { Modal, Button, Alert, Typography } from 'antd';
+import React from "react";
+import { Modal, Button, Alert, Typography } from "antd";
 
 const { Text } = Typography;
 
 /**
  * 락 충돌 모달 컴포넌트
  * @param {Object} props - 컴포넌트 속성
- * @param {boolean} props.visible - 모달 표시 여부
+ * @param {boolean} props.open - 모달 표시 여부
  * @param {Object} props.lockInfo - 락 정보
  * @param {Function} props.onRetry - 재시도 핸들러
  * @param {Function} props.onCancel - 취소 핸들러
  * @param {boolean} props.confirmLoading - 확인 버튼 로딩 상태
  */
 const LockConflictModal = ({
-  visible,
+  open,
   lockInfo,
   onRetry,
   onCancel,
@@ -27,15 +27,15 @@ const LockConflictModal = ({
 
     // 만료 시간 포맷팅
     const expiryTime = expires_at
-      ? new Date(expires_at).toLocaleTimeString('ko-KR')
-      : '알 수 없음';
+      ? new Date(expires_at).toLocaleTimeString("ko-KR")
+      : "알 수 없음";
 
     // 남은 시간 계산
     const now = new Date();
     const expiryDate = expires_at ? new Date(expires_at) : null;
     const waitMinutes = expiryDate
       ? Math.max(0, Math.ceil((expiryDate - now) / 60000))
-      : '?';
+      : "?";
 
     return (
       <Alert
@@ -64,8 +64,9 @@ const LockConflictModal = ({
 
   return (
     <Modal
-      open={visible}
-      title="작업 충돌"
+      title="락 충돌 발생"
+      open={open}
+      onCancel={onCancel}
       footer={[
         <Button key="cancel" onClick={onCancel}>
           작업 취소
