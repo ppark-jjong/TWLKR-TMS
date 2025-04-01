@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types';
 
 /**
- * 대시보드 항목 타입 정의
+ * 대시보드 항목 타입 정의 - 백엔드 응답 구조와 정확히 일치
  */
 export const DashboardItemType = PropTypes.shape({
   dashboard_id: PropTypes.number.isRequired,
@@ -20,7 +20,7 @@ export const DashboardItemType = PropTypes.shape({
 });
 
 /**
- * 사용자 정보 타입 정의
+ * 사용자 정보 타입 정의 - 백엔드 응답 구조와 정확히 일치
  */
 export const UserType = PropTypes.shape({
   user_id: PropTypes.string.isRequired,
@@ -30,7 +30,7 @@ export const UserType = PropTypes.shape({
 });
 
 /**
- * 페이지네이션 타입 정의
+ * 페이지네이션 타입 정의 - 백엔드 응답 구조와 정확히 일치
  */
 export const PaginationType = PropTypes.shape({
   current: PropTypes.number.isRequired,
@@ -39,7 +39,7 @@ export const PaginationType = PropTypes.shape({
 });
 
 /**
- * 락 정보 타입 정의
+ * 락 정보 타입 정의 - 백엔드 응답 구조와 정확히 일치
  */
 export const LockInfoType = PropTypes.shape({
   user_id: PropTypes.string.isRequired,
@@ -62,91 +62,11 @@ export const SearchParamsType = PropTypes.shape({
 });
 
 /**
- * API 응답 데이터 형식 정의 (런타임 체크용)
- * @param {any} data - API 응답 데이터
- * @param {string} type - 데이터 타입 ('dashboard', 'user', 'lock' 등)
- * @returns {boolean} 유효한 데이터인지 여부
+ * API 응답 데이터 구조 정의
  */
-export const validateApiData = (data, type) => {
-  if (!data) return false;
-
-  switch (type) {
-    case 'dashboard':
-      return (
-        typeof data.dashboard_id === 'number' && typeof data.status === 'string'
-      );
-    case 'user':
-      return (
-        typeof data.user_id === 'string' &&
-        ['ADMIN', 'USER'].includes(data.user_role)
-      );
-    case 'lock':
-      return (
-        typeof data.user_id === 'string' &&
-        typeof data.lock_type === 'string' &&
-        typeof data.acquired_at === 'string'
-      );
-    default:
-      return false;
-  }
-};
-
-/**
- * 오류 객체의 유형을 확인하는 유틸리티 함수
- * @param {Error} error - 오류 객체
- * @returns {string} 오류 유형 ('network', 'auth', 'validation', 'server', 'unknown')
- */
-export const getErrorType = (error) => {
-  if (!error) return 'unknown';
-
-  if (!error.response) return 'network';
-
-  const status = error.response.status;
-
-  if (status === 401 || status === 403) return 'auth';
-  if (status === 400 || status === 422) return 'validation';
-  if (status >= 500) return 'server';
-
-  return 'unknown';
-};
-
-/**
- * 안전하게 객체 속성에 접근
- * @param {Object} obj - 접근할 객체
- * @param {string} path - 속성 경로 (예: "user.name", "data.items[0].title")
- * @param {any} defaultValue - 속성이 없는 경우 반환할 기본값
- * @returns {any} 찾은 값 또는 기본값
- */
-export const safeGet = (obj, path, defaultValue = undefined) => {
-  if (!obj || !path) return defaultValue;
-
-  try {
-    const pathParts = path.split('.');
-    let result = obj;
-
-    for (const part of pathParts) {
-      if (result === undefined || result === null) {
-        return defaultValue;
-      }
-
-      // 배열 인덱스 처리 (예: items[0])
-      const match = part.match(/^(.*?)\[(\d+)\]$/);
-
-      if (match) {
-        const [_, propName, index] = match;
-
-        if (!result[propName] || !Array.isArray(result[propName])) {
-          return defaultValue;
-        }
-
-        result = result[propName][parseInt(index, 10)];
-      } else {
-        result = result[part];
-      }
-    }
-
-    return result !== undefined && result !== null ? result : defaultValue;
-  } catch (error) {
-    return defaultValue;
-  }
-};
+export const ApiResponseType = PropTypes.shape({
+  success: PropTypes.bool.isRequired,
+  message: PropTypes.string,
+  data: PropTypes.any,
+  meta: PropTypes.object,
+});

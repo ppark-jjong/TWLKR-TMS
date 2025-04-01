@@ -12,6 +12,7 @@ from server.utils.datetime import KST, get_kst_now, localize_to_kst
 from server.utils.transaction import with_row_lock, update_lock_info, with_row_lock_timeout
 from server.utils.error import LockConflictException
 from server.config.settings import get_settings
+from server.utils.transaction import generic_acquire_lock
 
 
 class DashboardRepository:
@@ -61,20 +62,19 @@ class DashboardRepository:
         try:
             log_info(f"대시보드 락 획득 조회: ID={dashboard_id}, 사용자={user_id}")
             
-            # 개선된 타임아웃 처리가 적용된 행 락 획득 함수 사용
-            dashboard = (
-                with_row_lock_timeout(
-                    self.db.query(Dashboard)
-                    .filter(Dashboard.dashboard_id == dashboard_id)
-                )
-                .options(joinedload(Dashboard.postal_code_info))
-                .first()
+            # 공통 락 획득 함수 사용
+            dashboard = generic_acquire_lock(
+                self.db, 
+                Dashboard, 
+                dashboard_id, 
+                user_id, 
+                field_name='dashboard_id'
             )
             
+            # 추가 조인 로딩이 필요한 경우
             if dashboard:
-                # UI 표시용 락 정보 업데이트
-                update_lock_info(dashboard, user_id)
-                self.db.flush()
+                # 이미 락은 획득했으므로 조인만 추가
+                self.db.refresh(dashboard, ["postal_code_info"])
                 log_info(f"대시보드 락 획득 성공: ID={dashboard_id}")
             else:
                 log_info(f"락 획득할 대시보드 없음: ID={dashboard_id}")

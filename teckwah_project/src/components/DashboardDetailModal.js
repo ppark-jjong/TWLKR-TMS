@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo } from 'react';
 import {
   Modal,
   Form,
@@ -13,13 +13,13 @@ import {
   Card,
   Divider,
   Tag,
-} from "antd";
-import dayjs from "dayjs";
+} from 'antd';
+import dayjs from 'dayjs';
 import {
   getAvailableStatusTransitions,
   getStatusText,
   getStatusColor,
-} from "../utils/permissionUtils";
+} from '../utils/permissionUtils';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -40,7 +40,7 @@ const DashboardDetailModal = ({
   onStatusChange,
   form,
   dashboard,
-  userRole = "USER",
+  userRole = 'USER',
   confirmLoading = false,
 }) => {
   const [isStatusEditing, setIsStatusEditing] = useState(false);
@@ -73,13 +73,13 @@ const DashboardDetailModal = ({
   // 상태 변경 확인
   const handleStatusChange = () => {
     form
-      .validateFields(["status"])
+      .validateFields(['status'])
       .then((values) => {
         onStatusChange && onStatusChange(values.status);
         setIsStatusEditing(false);
       })
       .catch((error) => {
-        console.error("상태 변경 유효성 검사 실패:", error);
+        console.error('상태 변경 유효성 검사 실패:', error);
       });
   };
 
@@ -93,7 +93,7 @@ const DashboardDetailModal = ({
 
   // 상태 필드 - 편집 모드에 따라 다르게 렌더링
   const renderStatusField = () => {
-    const isDisabled = ["COMPLETE", "ISSUE", "CANCEL"].includes(
+    const isDisabled = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(
       dashboard?.status
     );
 
@@ -105,7 +105,7 @@ const DashboardDetailModal = ({
               <Form.Item
                 label="상태"
                 name="status"
-                rules={[{ required: true, message: "상태를 선택해주세요" }]}
+                rules={[{ required: true, message: '상태를 선택해주세요' }]}
               >
                 <Select placeholder="상태 선택" size="large">
                   {statusOptions}
@@ -115,9 +115,9 @@ const DashboardDetailModal = ({
             <Col
               span={8}
               style={{
-                display: "flex",
-                alignItems: "flex-end",
-                marginBottom: "8px",
+                display: 'flex',
+                alignItems: 'flex-end',
+                marginBottom: '8px',
               }}
             >
               <Space>
@@ -150,7 +150,7 @@ const DashboardDetailModal = ({
       >
         <Tag
           color={getStatusColor(dashboard?.status)}
-          style={{ fontSize: "16px", padding: "4px 8px" }}
+          style={{ fontSize: '16px', padding: '4px 8px' }}
         >
           {getStatusText(dashboard?.status)}
         </Tag>
@@ -187,7 +187,7 @@ const DashboardDetailModal = ({
           <Row gutter={24}>
             <Col span={8}>
               <Form.Item label="주문번호" name="order_no">
-                <Input disabled style={{ fontWeight: "bold" }} />
+                <Input disabled style={{ fontWeight: 'bold' }} />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -229,13 +229,42 @@ const DashboardDetailModal = ({
             <Col span={8}>
               <Form.Item label="ETA" name="eta">
                 <DatePicker
-                  disabled
                   showTime
-                  format="YYYY-MM-DD HH:mm"
-                  style={{ width: "100%" }}
+                  format="YYYY-MM-DD HH:MM"
+                  disabled
+                  style={{ width: '100%' }}
                 />
               </Form.Item>
             </Col>
+            <Col span={8}>
+              <Form.Item label="출발 시간" name="depart_time">
+                <Input
+                  disabled
+                  value={
+                    dashboard.depart_time
+                      ? dayjs(dashboard.depart_time).format('YYYY-MM-DD HH:MM')
+                      : '-'
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="완료 시간" name="complete_time">
+                <Input
+                  disabled
+                  value={
+                    dashboard.complete_time
+                      ? dayjs(dashboard.complete_time).format(
+                          'YYYY-MM-DD HH:MM'
+                        )
+                      : '-'
+                  }
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
             <Col span={8}>
               <Form.Item label="배송기사" name="driver_name">
                 <Input disabled />
@@ -267,14 +296,14 @@ const DashboardDetailModal = ({
           </Row>
         </Card>
 
-        <div style={{ textAlign: "right", color: "#999" }}>
-          <Space direction="vertical" size={0} style={{ fontSize: "12px" }}>
-            <Text type="secondary">수정자: {dashboard.updated_by || "-"}</Text>
+        <div style={{ textAlign: 'right', color: '#999' }}>
+          <Space direction="vertical" size={0} style={{ fontSize: '12px' }}>
+            <Text type="secondary">수정자: {dashboard.updated_by || '-'}</Text>
             <Text type="secondary">
-              수정일:{" "}
+              수정일:{' '}
               {dashboard.updated_at
-                ? dayjs(dashboard.updated_at).format("YYYY-MM-DD HH:mm:ss")
-                : "-"}
+                ? dayjs(dashboard.updated_at).format('YYYY-MM-DD HH:mm:ss')
+                : '-'}
             </Text>
           </Space>
         </div>

@@ -1,6 +1,8 @@
 # teckwah_project/server/services/dashboard_service.py
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from server.models.dashboard_model import Dashboard
 from server.models.postal_code_model import PostalCode, PostalCodeDetail
@@ -9,17 +11,22 @@ from server.schemas.dashboard_schema import (
     DriverAssignment,
     DashboardUpdate,
 )
-from server.utils.datetime import get_kst_now
+from server.utils.datetime import get_kst_now, parse_datetime
 from server.utils.logger import log_info, log_error
 from server.utils.error import (
     LockConflictException,
     ValidationException,
     NotFoundException,
     ForbiddenException,
+    create_success_response,
+    create_error_response
 )
 from server.utils.transaction import transactional, transaction
 from server.utils.constants import STATUS_TRANSITIONS, MESSAGES
 from server.config.settings import get_settings
+from server.config.database import get_db
+from server.repositories.dashboard_repository import DashboardRepository
+from server.utils.common import DeliveryStatus, STATUS_TEXT_MAP
 
 settings = get_settings()
 
@@ -110,11 +117,35 @@ class DashboardService:
 
     def get_dashboard_detail(self, dashboard_id: int) -> Dict[str, Any]:
         """대시보드 상세 정보 조회"""
+        log_info(f"대시보드 상세 정보 조회: id={dashboard_id}")
+        
+        # 리포지토리에서 조회
         dashboard = self.repository.get_dashboard_detail(dashboard_id)
+        
         if not dashboard:
-            raise NotFoundException(MESSAGES["ERROR"]["NOT_FOUND"])
-
-        return self._prepare_dashboard_detail(dashboard)
+            log_error(f"대시보드 상세 정보 없음: id={dashboard_id}")
+            return create_error_response(
+                error_code="NOT_FOUND",
+                message=f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다"
+            )
+            
+        # 응답 데이터 생성
+        dashboard_data = Dashboard.to_dict(dashboard)
+        
+        # 반환 데이터에 우편번호 정보 추가
+        if dashboard.postal_code_info:
+            dashboard_data["postal_code_info"] = {
+                "sigungu": dashboard.postal_code_info.sigungu,
+                "eupmyeondong": dashboard.postal_code_info.eupmyeondong
+            }
+        
+        log_info(f"대시보드 상세 정보 조회 성공: id={dashboard_id}")
+        
+        # 성공 응답 생성
+        return create_success_response(
+            data=dashboard_data,
+            message="대시보드 상세 정보 조회 성공"
+        )
 
     @transactional
     def delete_dashboards(self, dashboard_ids: List[int], user_id: str) -> int:

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
 from ..models.handover_model import HandoverRecord
-from ..utils.transaction import with_row_lock, update_lock_info
+from ..utils.transaction import with_row_lock, update_lock_info, generic_acquire_lock
 from ..utils.error import LockConflictException, NotFoundException
 
 
@@ -43,17 +43,14 @@ class HandoverRepository:
         ID로 단일 인수인계 조회 (행 수준 락 획득)
         """
         try:
-            # SELECT FOR UPDATE 쿼리로 행 락 획득
-            handover = with_row_lock(
-                self.db.query(HandoverRecord).filter(HandoverRecord.handover_id == handover_id)
-            ).first()
-            
-            if handover:
-                # UI 표시용 락 정보 업데이트
-                update_lock_info(handover, user_id)
-                self.db.flush()
-                
-            return handover
+            # 공통 락 획득 함수 사용
+            return generic_acquire_lock(
+                self.db,
+                HandoverRecord,
+                handover_id,
+                user_id,
+                field_name='handover_id'
+            )
         except Exception as e:
             # 오류 발생 시 LockConflictException으로 변환하여 상위에 전달
             raise LockConflictException(f"행 락 획득 실패: {str(e)}")

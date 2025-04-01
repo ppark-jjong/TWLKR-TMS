@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Button,
@@ -16,6 +16,8 @@ import {
   Tag,
   Checkbox,
   Alert,
+  Divider,
+  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
@@ -24,9 +26,12 @@ import {
   LockOutlined,
   NotificationOutlined,
   PushpinOutlined,
+  CalendarOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
+import locale from 'antd/es/date-picker/locale/ko_KR';
 import useUser from '../hooks/useUser';
 import {
   getHandovers,
@@ -43,10 +48,9 @@ const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const HandoverPage = () => {
-  const [dateRange, setDateRange] = useState([
-    dayjs().subtract(7, 'day'),
-    dayjs(),
-  ]);
+  // 현재 날짜 기준으로 초기화
+  const today = dayjs();
+  const [dateRange, setDateRange] = useState([today.subtract(7, 'day'), today]);
   const [formVisible, setFormVisible] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
   const [form] = Form.useForm();
@@ -54,8 +58,13 @@ const HandoverPage = () => {
   const { user } = useUser(); // 현재 사용자 정보
   const isAdmin = user?.user_role === 'ADMIN'; // 관리자 여부 확인
 
+  // 페이지 로드 시 최근 7일 데이터 자동 조회
+  useEffect(() => {
+    // 이미 dateRange가 설정되어 있으면 자동으로 데이터를 조회함
+  }, []);
+
   // 인수인계 목록 조회
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['handovers', dateRange],
     queryFn: async () => {
       const response = await getHandovers({
@@ -72,6 +81,7 @@ const HandoverPage = () => {
       return response.data.data;
     },
     enabled: !!dateRange,
+    refetchOnWindowFocus: false,
   });
 
   // 락 획득 mutation
@@ -203,26 +213,38 @@ const HandoverPage = () => {
         notice_until: noticeUntil,
       });
     } else {
-      // 새로 작성 모드
+      // 생성 모드
       form.resetFields();
+      form.setFieldsValue({
+        is_notice: false,
+      });
     }
   };
 
-  // 폼 취소 핸들러
+  // 폼 취소 처리
   const handleFormCancel = () => {
-    // 락 해제
+    form.resetFields();
+    setFormVisible(false);
+
+    // 수정 모드였다면 락 해제
     if (editRecord?.id) {
       releaseLockMutation.mutate(editRecord.id);
     }
-    setFormVisible(false);
     setEditRecord(null);
   };
 
-  // 폼 제출 핸들러
+  // 폼 제출 처리
   const handleFormSubmit = (values) => {
-    // 공지 설정 시 종료일 변환
-    if (values.notice_until) {
-      values.notice_until = values.notice_until.toISOString();
+    // 공지 여부와 공지 기간 처리
+    if (values.is_notice && !values.notice_until) {
+      // 공지 설정 시 날짜가 없으면 1주일 후로 자동 설정
+      values.notice_until = dayjs().add(7, 'day').format('YYYY-MM-DD');
+    } else if (!values.is_notice) {
+      // 공지 해제 시 날짜도 제거
+      values.notice_until = null;
+    } else if (values.notice_until) {
+      // 공지 날짜 포맷 변환
+      values.notice_until = values.notice_until.format('YYYY-MM-DD');
     }
 
     if (editRecord) {
@@ -234,298 +256,305 @@ const HandoverPage = () => {
     }
   };
 
-  // 삭제 핸들러
+  // 삭제 처리
   const handleDelete = async (record) => {
-    try {
-      // 삭제 전 락 획득
-      await acquireLockMutation.mutateAsync(record.id);
-
-      // 삭제 확인 모달
-      Modal.confirm({
-        title: '인수인계 삭제',
-        content: '이 인수인계를 삭제하시겠습니까?',
-        okText: '삭제',
-        okType: 'danger',
-        cancelText: '취소',
-        onOk: () => {
+    Modal.confirm({
+      title: '인수인계 삭제',
+      content: '정말로 이 인수인계를 삭제하시겠습니까?',
+      okText: '삭제',
+      okType: 'danger',
+      cancelText: '취소',
+      onOk: async () => {
+        try {
+          // 락 획득 후 삭제
+          await acquireLockMutation.mutateAsync(record.id);
           deleteHandoverMutation.mutate(record.id);
-        },
-        onCancel: () => {
-          // 취소 시 락 해제
-          releaseLockMutation.mutate(record.id);
-        },
-      });
-    } catch (error) {
-      // 락 획득 실패는 에러 핸들러에서 처리됨
-    }
+        } catch (error) {
+          message.error('삭제할 권한이 없습니다.');
+        }
+      },
+    });
   };
 
-  // 날짜 범위 변경 핸들러
+  // 날짜 범위 변경 처리
   const handleDateRangeChange = (dates) => {
     setDateRange(dates);
   };
 
-  // 날짜 헤더 포맷 함수
+  // 새로고침 처리
+  const handleRefresh = () => {
+    refetch();
+    message.success('인수인계 목록을 새로고침했습니다.');
+  };
+
+  // 날짜 헤더 포맷
   const formatDateHeader = (dateStr) => {
     const date = dayjs(dateStr);
-    return date.format('YYYY년 MM월 DD일');
+    return date.format('YYYY년 MM월 DD일 (ddd)');
   };
 
-  // 시간 포맷 함수
+  // 시간 포맷
   const formatTime = (dateTimeStr) => {
-    if (!dateTimeStr) return '';
-    return dayjs(dateTimeStr).format('HH:mm');
+    const time = dayjs(dateTimeStr);
+    return time.format('HH:mm');
   };
 
-  // 공지 종료일 확인 함수
+  // 공지 만료 여부 확인
   const isNoticeExpired = (notice_until) => {
-    if (!notice_until) return false;
-    return dayjs(notice_until).isBefore(dayjs());
+    return notice_until && dayjs(notice_until).isBefore(dayjs());
   };
 
-  // 공지 종료까지 남은 일수 계산 함수
+  // 공지 남은 일수 계산
   const getRemainingDays = (notice_until) => {
     if (!notice_until) return null;
-    const now = dayjs();
-    const endDate = dayjs(notice_until);
-    if (endDate.isBefore(now)) return '만료됨';
-    const days = endDate.diff(now, 'day');
-    if (days === 0) return '오늘 만료';
+
+    const today = dayjs().startOf('day');
+    const expireDate = dayjs(notice_until).startOf('day');
+    const days = expireDate.diff(today, 'day');
+
+    if (days < 0) return '만료됨';
+    if (days === 0) return '오늘까지';
     return `${days}일 남음`;
   };
 
-  // 공지 필터링 및 정렬: 공지를 최상단에 표시
+  // 인수인계 데이터 가공 (날짜별 그룹화 및 정렬)
   const getProcessedHandovers = () => {
-    if (!data) return [];
+    if (!data || !Array.isArray(data)) return [];
 
-    // 깊은 복사를 통해 원본 데이터 보존
-    const processedData = JSON.parse(JSON.stringify(data));
+    // 날짜별로 그룹화
+    const groupedByDate = data.reduce((groups, item) => {
+      const date = dayjs(item.created_at).format('YYYY-MM-DD');
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(item);
+      return groups;
+    }, {});
 
-    // 각 날짜 그룹 내에서 공지를 최상단으로 정렬
-    processedData.forEach((dateGroup) => {
-      dateGroup.records.sort((a, b) => {
-        // 공지가 아닌 경우 원래 순서 유지
-        if (!a.is_notice && !b.is_notice) return 0;
-        // a만 공지인 경우 a를 앞으로
-        if (a.is_notice && !b.is_notice) return -1;
-        // b만 공지인 경우 b를 앞으로
-        if (!a.is_notice && b.is_notice) return 1;
-        // 둘 다 공지인 경우 날짜 기준 정렬
-        return dayjs(b.created_at).diff(dayjs(a.created_at));
-      });
-    });
-
-    return processedData;
+    // 날짜별로 정렬하고 데이터 포맷
+    return Object.keys(groupedByDate)
+      .sort((a, b) => dayjs(b).diff(dayjs(a))) // 최근 날짜 순
+      .map((date) => ({
+        date,
+        items: groupedByDate[date].sort((a, b) =>
+          dayjs(b.created_at).diff(dayjs(a.created_at))
+        ),
+      }));
   };
 
-  // 로딩 중 표시
-  if (isLoading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '100px' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
+  // 인수인계 카드 렌더링
+  const renderHandoverGroups = () => {
+    const processedData = getProcessedHandovers();
 
-  // 에러 표시
-  if (error) {
-    return (
-      <div style={{ textAlign: 'center', padding: '100px' }}>
-        <Alert
-          message="오류 발생"
-          description={
-            error.message || '인수인계 목록을 불러오는데 실패했습니다.'
-          }
-          type="error"
-          showIcon
+    if (processedData.length === 0) {
+      return (
+        <Empty
+          description="해당 기간에 인수인계 내용이 없습니다."
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
-      </div>
-    );
-  }
+      );
+    }
 
-  return (
-    <div className="handover-page">
-      <div className="page-header" style={{ marginBottom: 20 }}>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Title level={3}>인수인계 목록</Title>
-          </Col>
-          <Col>
-            <Space>
-              <RangePicker
-                value={dateRange}
-                onChange={handleDateRangeChange}
-                allowClear={false}
-              />
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => showForm()}
-              >
-                인수인계 작성
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </div>
-
-      {/* 인수인계 목록 */}
-      {!data || data.length === 0 ? (
-        <Empty description="인수인계 내역이 없습니다." />
-      ) : (
-        getProcessedHandovers().map((group) => (
-          <div
-            key={group.date}
-            className="date-group"
-            style={{ marginBottom: 20 }}
-          >
-            <div
-              className="date-header"
-              style={{
-                padding: '10px 15px',
-                background: '#f0f2f5',
-                borderRadius: '4px',
-                marginBottom: '10px',
-              }}
-            >
-              <Text strong>{formatDateHeader(group.date)}</Text>
-            </div>
-
-            {group.records.map((record) => (
+    return processedData.map((group) => (
+      <div key={group.date} className="handover-group">
+        <div className="date-header">
+          <Title level={4}>{formatDateHeader(group.date)}</Title>
+          <Divider style={{ margin: '12px 0' }} />
+        </div>
+        <Row gutter={[16, 16]} className="handover-items">
+          {group.items.map((item) => (
+            <Col xs={24} sm={24} md={12} lg={8} xl={8} key={item.id}>
               <Card
-                key={record.id}
-                style={{
-                  marginBottom: 16,
-                  borderLeft:
-                    record.is_notice && !isNoticeExpired(record.notice_until)
-                      ? '4px solid #1890ff'
-                      : 'none',
-                  background:
-                    record.is_notice && !isNoticeExpired(record.notice_until)
-                      ? '#f0f7ff'
-                      : 'white',
-                  boxShadow:
-                    record.is_notice && !isNoticeExpired(record.notice_until)
-                      ? '0 2px 8px rgba(24, 144, 255, 0.15)'
-                      : 'none',
-                }}
-                title={
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {record.is_notice &&
-                      !isNoticeExpired(record.notice_until) && (
-                        <NotificationOutlined
-                          style={{ color: '#1890ff', marginRight: 8 }}
-                        />
-                      )}
-                    <Text strong>{record.title}</Text>
-                    {record.is_notice &&
-                      !isNoticeExpired(record.notice_until) && (
-                        <>
-                          <Tag color="blue" style={{ marginLeft: 8 }}>
-                            공지
-                          </Tag>
-                          {record.notice_until && (
-                            <Tag color="cyan" style={{ marginLeft: 4 }}>
-                              {getRemainingDays(record.notice_until)}
-                            </Tag>
-                          )}
-                        </>
-                      )}
-                  </div>
-                }
+                className="handover-card"
+                hoverable
                 extra={
                   <Space>
-                    <Text type="secondary">
-                      작성자: {record.created_by}
-                      {record.updated_at
-                        ? ` (수정: ${formatTime(record.updated_at)})`
-                        : ''}
-                    </Text>
-                    {(record.is_owner || isAdmin) && (
+                    {item.is_notice && (
+                      <Tooltip
+                        title={`공지: ${getRemainingDays(item.notice_until)}`}
+                      >
+                        <Tag
+                          color={
+                            isNoticeExpired(item.notice_until)
+                              ? 'default'
+                              : 'red'
+                          }
+                          icon={<NotificationOutlined />}
+                        >
+                          공지
+                        </Tag>
+                      </Tooltip>
+                    )}
+                    {(isAdmin || item.created_by === user?.user_id) && (
                       <>
                         <Button
                           type="text"
                           icon={<EditOutlined />}
-                          onClick={() => tryEditWithLock(record)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            tryEditWithLock(item);
+                          }}
+                          size="small"
                         />
                         <Button
                           type="text"
                           danger
                           icon={<DeleteOutlined />}
-                          onClick={() => handleDelete(record)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(item);
+                          }}
+                          size="small"
                         />
                       </>
                     )}
                   </Space>
                 }
+                title={
+                  <div className="handover-title">
+                    <Text
+                      strong
+                      ellipsis
+                      style={{ maxWidth: 'calc(100% - 60px)' }}
+                    >
+                      {item.title}
+                    </Text>
+                  </div>
+                }
               >
-                <div
-                  style={{ whiteSpace: 'pre-wrap' }}
-                  dangerouslySetInnerHTML={{ __html: record.content }}
-                />
+                <div className="handover-content">
+                  <div className="handover-text">
+                    {item.content.split('\n').map((line, i) => (
+                      <div key={i}>{line || <br />}</div>
+                    ))}
+                  </div>
+                  <div className="handover-footer">
+                    <Text type="secondary">
+                      {item.created_by} | {formatTime(item.created_at)}
+                    </Text>
+                  </div>
+                </div>
               </Card>
-            ))}
-          </div>
-        ))
-      )}
+            </Col>
+          ))}
+        </Row>
+      </div>
+    ));
+  };
 
-      {/* 인수인계 작성/수정 폼 모달 */}
+  return (
+    <div className="handover-page">
+      <Card>
+        <Row gutter={[16, 16]} className="handover-header">
+          <Col xs={24} md={16}>
+            <Space direction="vertical" size="small">
+              <Title level={2}>인수인계</Title>
+              <Space size="middle" align="center">
+                <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
+                  새로고침
+                </Button>
+              </Space>
+            </Space>
+          </Col>
+          <Col xs={24} md={8} style={{ textAlign: 'right' }}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => showForm()}
+              style={{ marginTop: '32px' }}
+            >
+              인수인계 작성
+            </Button>
+          </Col>
+        </Row>
+
+        <Divider />
+
+        {isLoading ? (
+          <div className="loading-container">
+            <Spin size="large" tip="인수인계 목록을 불러오는 중입니다..." />
+          </div>
+        ) : error ? (
+          <Alert
+            message="데이터 로딩 오류"
+            description={
+              error.message || '인수인계 목록을 불러오는데 실패했습니다.'
+            }
+            type="error"
+            showIcon
+            action={
+              <Button size="small" onClick={refetch}>
+                다시 시도
+              </Button>
+            }
+          />
+        ) : (
+          <div className="handover-list">{renderHandoverGroups()}</div>
+        )}
+      </Card>
+
+      {/* 인수인계 작성/수정 모달 */}
       <Modal
         title={editRecord ? '인수인계 수정' : '인수인계 작성'}
         open={formVisible}
         onCancel={handleFormCancel}
         footer={null}
         width={700}
+        destroyOnClose
       >
         <Form
           form={form}
           layout="vertical"
           onFinish={handleFormSubmit}
-          initialValues={{ is_notice: false }}
+          initialValues={{ is_notice: false, notice_until: null }}
         >
           <Form.Item
             name="title"
             label="제목"
-            rules={[{ required: true, message: '제목을 입력해주세요' }]}
+            rules={[{ required: true, message: '제목을 입력해주세요.' }]}
           >
-            <Input placeholder="제목을 입력하세요" />
+            <Input placeholder="인수인계 제목을 입력하세요" maxLength={100} />
           </Form.Item>
 
           <Form.Item
             name="content"
             label="내용"
-            rules={[{ required: true, message: '내용을 입력해주세요' }]}
+            rules={[{ required: true, message: '내용을 입력해주세요.' }]}
           >
-            <TextArea rows={10} placeholder="내용을 입력하세요" />
+            <TextArea
+              placeholder="인수인계 내용을 입력하세요"
+              autoSize={{ minRows: 5, maxRows: 15 }}
+              maxLength={2000}
+              showCount
+            />
           </Form.Item>
 
-          {/* 관리자만 공지 설정 가능 */}
           {isAdmin && (
-            <>
+            <div className="notice-options">
               <Form.Item name="is_notice" valuePropName="checked">
-                <Checkbox>공지로 설정</Checkbox>
+                <Checkbox>공지로 등록</Checkbox>
               </Form.Item>
 
               <Form.Item
                 name="notice_until"
-                label="공지 종료일 (설정하지 않으면 무기한)"
+                label="공지 기간"
                 dependencies={['is_notice']}
+                style={{ marginBottom: 0 }}
               >
                 <DatePicker
-                  style={{ width: '100%' }}
-                  disabled={!form.getFieldValue('is_notice')}
-                  placeholder="공지 종료일 선택 (선택사항)"
+                  locale={locale}
+                  format="YYYY-MM-DD"
+                  placeholder="공지 종료일"
                   disabledDate={(current) =>
                     current && current < dayjs().startOf('day')
                   }
+                  disabled={!form.getFieldValue('is_notice')}
                 />
               </Form.Item>
-            </>
+            </div>
           )}
 
-          <Form.Item
-            style={{ textAlign: 'right', marginBottom: 0, marginTop: 16 }}
-          >
+          <div style={{ marginTop: 24, textAlign: 'right' }}>
             <Space>
               <Button onClick={handleFormCancel}>취소</Button>
               <Button
@@ -536,10 +565,10 @@ const HandoverPage = () => {
                   updateHandoverMutation.isLoading
                 }
               >
-                {editRecord ? '수정' : '등록'}
+                {editRecord ? '수정' : '작성'}
               </Button>
             </Space>
-          </Form.Item>
+          </div>
         </Form>
       </Modal>
     </div>

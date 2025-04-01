@@ -10,6 +10,7 @@ from sqlalchemy.exc import (
 )
 from typing import Any, Dict, List, Optional, Union, Callable, TypeVar, cast
 from pydantic import ValidationError
+from datetime import datetime
 
 from server.utils.logger import log_info, log_error
 from server.utils.datetime import get_kst_now
@@ -292,3 +293,63 @@ def error_handler(operation_name: str) -> Callable:
         return cast(Callable[..., T], wrapper)
 
     return decorator
+
+
+def create_success_response(
+    data: Any = None, 
+    message: str = "성공적으로 처리되었습니다",
+    meta: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    성공 응답 생성 헬퍼 함수
+    
+    Args:
+        data: 응답 데이터
+        message: 성공 메시지
+        meta: 메타 데이터 (페이지네이션 등)
+        
+    Returns:
+        일관된 형식의 성공 응답 딕셔너리
+    """
+    response = {
+        "success": True,
+        "message": message,
+        "timestamp": get_kst_now().isoformat()
+    }
+    
+    if data is not None:
+        response["data"] = data
+        
+    if meta is not None:
+        response["meta"] = meta
+        
+    return response
+
+
+def create_error_response(
+    error_code: str, 
+    message: str = "오류가 발생했습니다",
+    details: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    오류 응답 생성 헬퍼 함수
+    
+    Args:
+        error_code: 오류 코드
+        message: 오류 메시지
+        details: 상세 오류 정보
+        
+    Returns:
+        일관된 형식의 오류 응답 딕셔너리
+    """
+    response = {
+        "success": False,
+        "error_code": error_code,
+        "message": message,
+        "timestamp": get_kst_now().isoformat()
+    }
+    
+    if details is not None:
+        response["details"] = details
+        
+    return response

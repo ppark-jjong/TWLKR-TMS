@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>배송 관제 시스템 - 사용자 관리</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- 사이드바 -->
+      <div id="sidebar" class="sidebar">
+        <div class="logo">
+          <span class="logo-text">TMS System</span>
+        </div>
+        <ul class="menu">
+          <li class="menu-item" data-page="dashboard">대시보드</li>
+          <li class="menu-item" data-page="handover">인수인계</li>
+          <li class="menu-item active" data-page="users">사용자 관리</li>
+        </ul>
+        <div class="sidebar-user-info">
+          <div class="user-dropdown">
+            <div class="user-info">
+              <div class="user-name">관리자</div>
+              <div class="user-dept">관리부</div>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-trigger" id="sidebarToggle">◀</div>
+      </div>
+
+      <!-- 메인 콘텐츠 영역 -->
+      <div id="mainContent" class="main-content">
+        <div id="usersPage" class="users-page">
+          <div class="dashboard-card">
+            <h2 class="card-title">사용자 관리</h2>
+
+            <div class="action-container">
+              <button class="action-btn primary" id="addUserBtn">
+                사용자 추가
+              </button>
+            </div>
+
+            <table class="dashboard-table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>이름</th>
+                  <th>부서</th>
+                  <th>권한</th>
+                  <th>상태</th>
+                  <th>액션</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <!-- JavaScript로 동적 생성 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사용자 추가 모달 -->
+    <div id="userModal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">사용자 추가</h3>
+          <button class="modal-close" id="userModalClose">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="userId"><strong>ID:</strong></label>
+            <input
+              type="text"
+              id="userId"
+              class="form-control"
+              placeholder="사용자 ID 입력"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="userName"><strong>이름:</strong></label>
+            <input
+              type="text"
+              id="userName"
+              class="form-control"
+              placeholder="이름 입력"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="userPassword"><strong>비밀번호:</strong></label>
+            <input
+              type="password"
+              id="userPassword"
+              class="form-control"
+              placeholder="비밀번호 입력"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="userDepartment"><strong>부서:</strong></label>
+            <select id="userDepartment" class="form-select">
+              <option value="CS">CS</option>
+              <option value="HES">HES</option>
+              <option value="LENOVO">LENOVO</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="userRole"><strong>권한:</strong></label>
+            <select id="userRole" class="form-select">
+              <option value="USER">일반 사용자</option>
+              <option value="ADMIN">관리자</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="action-btn" id="userModalCancel">취소</button>
+          <button class="action-btn primary" id="userModalSubmit">추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사용자 수정 모달 -->
+    <div id="editUserModal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">사용자 수정</h3>
+          <button class="modal-close" id="editUserModalClose">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editUserId" />
+          <div class="form-group">
+            <label for="editUserName"><strong>이름:</strong></label>
+            <input
+              type="text"
+              id="editUserName"
+              class="form-control"
+              placeholder="이름 입력"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="editUserDepartment"><strong>부서:</strong></label>
+            <select id="editUserDepartment" class="form-select">
+              <option value="CS">CS</option>
+              <option value="HES">HES</option>
+              <option value="LENOVO">LENOVO</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="editUserRole"><strong>권한:</strong></label>
+            <select id="editUserRole" class="form-select">
+              <option value="USER">일반 사용자</option>
+              <option value="ADMIN">관리자</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="editUserStatus"><strong>상태:</strong></label>
+            <select id="editUserStatus" class="form-select">
+              <option value="ACTIVE">활성</option>
+              <option value="INACTIVE">비활성</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="action-btn" id="editUserModalCancel">취소</button>
+          <button class="action-btn primary" id="editUserModalSubmit">
+            수정
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 비밀번호 변경 모달 -->
+    <div id="passwordModal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">비밀번호 변경</h3>
+          <button class="modal-close" id="passwordModalClose">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="passwordUserId" />
+          <div class="modal-info">
+            <strong>사용자:</strong> <span id="passwordUserName"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="newPassword"><strong>새 비밀번호:</strong></label>
+            <input
+              type="password"
+              id="newPassword"
+              class="form-control"
+              placeholder="새 비밀번호 입력"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword"><strong>비밀번호 확인:</strong></label>
+            <input
+              type="password"
+              id="confirmPassword"
+              class="form-control"
+              placeholder="비밀번호 확인"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="action-btn" id="passwordModalCancel">취소</button>
+          <button class="action-btn primary" id="passwordModalSubmit">
+            변경
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 스크립트 -->
+    <script src="js/mock-data.js"></script>
+    <script>
+      // 전역 변수
+      let currentUserItem = null;
+
+      // 페이지 로드 시 실행
+      document.addEventListener('DOMContentLoaded', function () {
+        // 사이드바 토글 이벤트 리스너
+        document
+          .getElementById('sidebarToggle')
+          .addEventListener('click', toggleSidebar);
+
+        // 메뉴 아이템 이벤트 리스너
+        document.querySelectorAll('.menu-item').forEach((item) => {
+          item.addEventListener('click', function () {
+            navigateToPage(this.dataset.page);
+          });
+        });
+
+        // 사용자 추가 버튼 이벤트 리스너
+        document
+          .getElementById('addUserBtn')
+          .addEventListener('click', function () {
+            toggleModal('userModal', true);
+          });
+
+        // 사용자 추가 모달 이벤트 리스너
+        document
+          .getElementById('userModalClose')
+          .addEventListener('click', function () {
+            toggleModal('userModal', false);
+          });
+        document
+          .getElementById('userModalCancel')
+          .addEventListener('click', function () {
+            toggleModal('userModal', false);
+          });
+        document
+          .getElementById('userModalSubmit')
+          .addEventListener('click', handleAddUser);
+
+        // 사용자 수정 모달 이벤트 리스너
+        document
+          .getElementById('editUserModalClose')
+          .addEventListener('click', function () {
+            toggleModal('editUserModal', false);
+          });
+        document
+          .getElementById('editUserModalCancel')
+          .addEventListener('click', function () {
+            toggleModal('editUserModal', false);
+          });
+        document
+          .getElementById('editUserModalSubmit')
+          .addEventListener('click', handleEditUser);
+
+        // 비밀번호 변경 모달 이벤트 리스너
+        document
+          .getElementById('passwordModalClose')
+          .addEventListener('click', function () {
+            toggleModal('passwordModal', false);
+          });
+        document
+          .getElementById('passwordModalCancel')
+          .addEventListener('click', function () {
+            toggleModal('passwordModal', false);
+          });
+        document
+          .getElementById('passwordModalSubmit')
+          .addEventListener('click', handleChangePassword);
+
+        // 사용자 테이블 렌더링
+        renderUsersTable();
+      });
+
+      // 사이드바 토글
+      function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+
+        sidebar.classList.toggle('sidebar-collapsed');
+        mainContent.classList.toggle('main-content-full');
+
+        const toggleBtn = document.getElementById('sidebarToggle');
+        toggleBtn.textContent = sidebar.classList.contains('sidebar-collapsed')
+          ? '▶'
+          : '◀';
+      }
+
+      // 페이지 이동
+      function navigateToPage(page) {
+        switch (page) {
+          case 'dashboard':
+            window.location.href = 'index.html';
+            break;
+          case 'handover':
+            window.location.href = 'handover.html';
+            break;
+          case 'users':
+            // 현재 페이지이므로 아무 작업 없음
+            break;
+        }
+      }
+
+      // 사용자 테이블 렌더링
+      function renderUsersTable() {
+        const tbody = document.getElementById('usersTableBody');
+        tbody.innerHTML = '';
+
+        userData.forEach((user) => {
+          const tr = document.createElement('tr');
+
+          // ID, 이름, 부서
+          tr.appendChild(createCell(user.user_id));
+          tr.appendChild(createCell(user.name || user.user_id)); // 이름이 없으면 ID 표시
+          tr.appendChild(createCell(user.user_department));
+
+          // 권한
+          const roleCell = document.createElement('td');
+          const roleTag = document.createElement('span');
+          roleTag.className =
+            user.user_role === 'ADMIN' ? 'tag tag-blue' : 'tag tag-gray';
+          roleTag.textContent =
+            user.user_role === 'ADMIN' ? '관리자' : '일반 사용자';
+          roleCell.appendChild(roleTag);
+          tr.appendChild(roleCell);
+
+          // 상태
+          const statusCell = document.createElement('td');
+          const statusTag = document.createElement('span');
+          statusTag.className =
+            user.status === 'ACTIVE' ? 'tag tag-green' : 'tag tag-red';
+          statusTag.textContent = user.status === 'ACTIVE' ? '활성' : '비활성';
+          statusCell.appendChild(statusTag);
+          tr.appendChild(statusCell);
+
+          // 액션
+          const actionCell = document.createElement('td');
+
+          const editButton = document.createElement('button');
+          editButton.className = 'action-button';
+          editButton.textContent = '수정';
+          editButton.style.marginRight = '4px';
+          editButton.addEventListener('click', function (e) {
+            e.stopPropagation();
+            showEditModal(user);
+          });
+          actionCell.appendChild(editButton);
+
+          const pwdButton = document.createElement('button');
+          pwdButton.className = 'action-button';
+          pwdButton.textContent = '비밀번호 변경';
+          pwdButton.addEventListener('click', function (e) {
+            e.stopPropagation();
+            showPasswordModal(user);
+          });
+          actionCell.appendChild(pwdButton);
+
+          tr.appendChild(actionCell);
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      // 셀 생성 헬퍼 함수
+      function createCell(text) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        return td;
+      }
+
+      // 사용자 수정 모달 표시
+      function showEditModal(user) {
+        currentUserItem = user;
+
+        document.getElementById('editUserId').value = user.user_id;
+        document.getElementById('editUserName').value = user.name || '';
+        document.getElementById('editUserDepartment').value =
+          user.user_department;
+        document.getElementById('editUserRole').value = user.user_role;
+        document.getElementById('editUserStatus').value = user.status;
+
+        toggleModal('editUserModal', true);
+      }
+
+      // 비밀번호 변경 모달 표시
+      function showPasswordModal(user) {
+        document.getElementById('passwordUserId').value = user.user_id;
+        document.getElementById('passwordUserName').textContent =
+          user.name || user.user_id;
+
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+
+        toggleModal('passwordModal', true);
+      }
+
+      // 사용자 추가 처리
+      function handleAddUser() {
+        const userId = document.getElementById('userId').value;
+        const userName = document.getElementById('userName').value;
+        const userPassword = document.getElementById('userPassword').value;
+        const userDepartment = document.getElementById('userDepartment').value;
+        const userRole = document.getElementById('userRole').value;
+
+        if (!userId || !userPassword) {
+          alert('ID와 비밀번호는 필수 항목입니다.');
+          return;
+        }
+
+        // ID 중복 체크
+        if (userData.some((user) => user.user_id === userId)) {
+          alert('이미 존재하는 ID입니다.');
+          return;
+        }
+
+        // 새 사용자 생성
+        const newUser = {
+          user_id: userId,
+          name: userName,
+          user_password: `$2b$12$P6tQZsH1yJwZ4YC.2jF1D.ZBzplXEjzZm5y6.eBgeq6nXvh/TFIfi`, // 암호화된 비밀번호 (실제로는 bcrypt 등으로 암호화)
+          user_department: userDepartment,
+          user_role: userRole,
+          status: 'ACTIVE',
+        };
+
+        // 데이터 추가
+        userData.push(newUser);
+
+        // 테이블 새로고침
+        renderUsersTable();
+
+        // 모달 닫기
+        toggleModal('userModal', false);
+
+        // 폼 초기화
+        document.getElementById('userId').value = '';
+        document.getElementById('userName').value = '';
+        document.getElementById('userPassword').value = '';
+
+        alert('사용자가 추가되었습니다.');
+      }
+
+      // 사용자 수정 처리
+      function handleEditUser() {
+        const userId = document.getElementById('editUserId').value;
+        const userName = document.getElementById('editUserName').value;
+        const userDepartment =
+          document.getElementById('editUserDepartment').value;
+        const userRole = document.getElementById('editUserRole').value;
+        const userStatus = document.getElementById('editUserStatus').value;
+
+        // 데이터 업데이트
+        const index = userData.findIndex((user) => user.user_id === userId);
+        if (index !== -1) {
+          userData[index].name = userName;
+          userData[index].user_department = userDepartment;
+          userData[index].user_role = userRole;
+          userData[index].status = userStatus;
+        }
+
+        // 테이블 새로고침
+        renderUsersTable();
+
+        // 모달 닫기
+        toggleModal('editUserModal', false);
+
+        alert('사용자 정보가 수정되었습니다.');
+      }
+
+      // 비밀번호 변경 처리
+      function handleChangePassword() {
+        const userId = document.getElementById('passwordUserId').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword =
+          document.getElementById('confirmPassword').value;
+
+        if (!newPassword) {
+          alert('새 비밀번호를 입력해주세요.');
+          return;
+        }
+
+        if (newPassword !== confirmPassword) {
+          alert('비밀번호가 일치하지 않습니다.');
+          return;
+        }
+
+        // 비밀번호 업데이트 (실제로는 서버 API 호출)
+        const index = userData.findIndex((user) => user.user_id === userId);
+        if (index !== -1) {
+          // 실제로는 비밀번호 해싱을 통해 안전하게 저장해야 함
+          userData[
+            index
+          ].user_password = `$2b$12$P6tQZsH1yJwZ4YC.2jF1D.ZBzplXEjzZm5y6.eBgeq6nXvh/TFIfi`;
+        }
+
+        // 모달 닫기
+        toggleModal('passwordModal', false);
+
+        alert('비밀번호가 변경되었습니다.');
+      }
+
+      // 모달 토글
+      function toggleModal(modalId, show) {
+        const modal = document.getElementById(modalId);
+        if (show) {
+          modal.classList.remove('hidden');
+        } else {
+          modal.classList.add('hidden');
+        }
+      }
+    </script>
+  </body>
+</html>

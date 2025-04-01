@@ -11,17 +11,13 @@
     "antd": "^5.4.2",
     "dayjs": "^1.11.7",
     "jwt-decode": "^3.1.2",
-    "recharts": "^2.5.0",
-    "react-scripts": "5.0.1"
+    "recharts": "^2.5.0"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "GENERATE_SOURCEMAP=false react-scripts build",
-    "build:dev": "GENERATE_SOURCEMAP=true react-scripts build",
-    "build:sourcemap": "cross-env GENERATE_SOURCEMAP=true react-scripts build",
+    "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "analyze": "source-map-explorer 'build/static/js/*.js'"
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
@@ -41,8 +37,6 @@
     ]
   },
   "devDependencies": {
-    "@tanstack/react-query-devtools": "^4.29.5",
-    "cross-env": "^7.0.3",
-    "source-map-explorer": "^2.5.3"
+    "react-scripts": "5.0.1"
   }
 } 

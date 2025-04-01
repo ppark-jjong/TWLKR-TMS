@@ -166,3 +166,93 @@ def update_lock_info(record, user_id: str):
     """
     if hasattr(record, "updated_by"):
         record.updated_by = user_id
+
+
+def generic_acquire_lock(db, model_class, record_id, user_id, field_name='id', timeout=300):
+    """
+    공통 행 락 획득 함수 (모든 모델에서 사용 가능)
+    
+    Args:
+        db: SQLAlchemy 세션
+        model_class: 락을 획득할 모델 클래스
+        record_id: 락을 획득할 레코드 ID
+        user_id: 락을 획득하는 사용자 ID
+        field_name: ID 필드 이름 (기본값: 'id')
+        timeout: 락 타임아웃 (초)
+        
+    Returns:
+        획득한 레코드 객체 또는 None
+        
+    Raises:
+        LockConflictException: 다른 사용자가 락을 보유하고 있는 경우
+    """
+    try:
+        # ID 필드 동적 접근
+        filter_condition = getattr(model_class, field_name) == record_id
+        
+        # 락과 함께 레코드 조회
+        record = with_row_lock_timeout(
+            db.query(model_class).filter(filter_condition)
+        ).first()
+        
+        if record:
+            # UI 표시용 락 정보 업데이트
+            update_lock_info(record, user_id, timeout)
+            db.flush()
+        
+        return record
+    except Exception as e:
+        from server.utils.error import LockConflictException
+        raise LockConflictException(f"락 획득 실패: {str(e)}")
+
+def generic_release_lock(db, model_class, record_id, user_id, field_name='id'):
+    """
+    공통 행 락 해제 함수 (모든 모델에서 사용 가능)
+    
+    Args:
+        db: SQLAlchemy 세션
+        model_class: 락을 해제할 모델 클래스
+        record_id: 락을 해제할 레코드 ID
+        user_id: 락을 해제하는 사용자 ID
+        field_name: ID 필드 이름 (기본값: 'id')
+        
+    Returns:
+        성공 여부와 메시지가 포함된 딕셔너리
+    """
+    try:
+        # ID 필드 동적 접근
+        filter_condition = getattr(model_class, field_name) == record_id
+        
+        # 레코드 조회
+        record = db.query(model_class).filter(filter_condition).with_for_update(nowait=True).first()
+        
+        if not record:
+            return {
+                "success": False,
+                "message": "락을 해제할 레코드를 찾을 수 없습니다."
+            }
+            
+        # 락 정보 초기화
+        if hasattr(record, 'locked_by') and record.locked_by == user_id:
+            record.locked_by = None
+            record.lock_time = None
+            db.flush()
+            return {
+                "success": True,
+                "message": "락이 해제되었습니다."
+            }
+        elif hasattr(record, 'locked_by') and record.locked_by:
+            return {
+                "success": False,
+                "message": f"다른 사용자({record.locked_by})가 락을 소유하고 있습니다."
+            }
+        else:
+            return {
+                "success": True,
+                "message": "락이 없는 상태였습니다."
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"락 해제 중 오류 발생: {str(e)}"
+        }

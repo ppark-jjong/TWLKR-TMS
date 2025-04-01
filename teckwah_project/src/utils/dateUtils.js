@@ -8,10 +8,10 @@ dayjs.locale('ko');
 /**
  * 날짜/시간 포맷팅
  * @param {string|Date} date - 날짜/시간
- * @param {string} format - 포맷 (기본값: YYYY-MM-DD HH:mm:ss)
+ * @param {string} format - 포맷 (기본값: YYYY-MM-DD HH:MM:ss)
  * @returns {string} 포맷된 날짜/시간
  */
-export const formatDate = (date, format = 'YYYY-MM-DD HH:mm:ss') => {
+export const formatDate = (date, format = 'YYYY-MM-DD HH:MM:ss') => {
   if (!date) return '-';
   return dayjs(date).format(format);
 };
@@ -28,10 +28,10 @@ export const formatDateOnly = (date) => {
 /**
  * 시간만 포맷팅
  * @param {string|Date} date - 시간
- * @returns {string} 포맷된 시간 (HH:mm:ss)
+ * @returns {string} 포맷된 시간 (HH:MM:ss)
  */
 export const formatTimeOnly = (date) => {
-  return formatDate(date, 'HH:mm:ss');
+  return formatDate(date, 'HH:MM:ss');
 };
 
 /**

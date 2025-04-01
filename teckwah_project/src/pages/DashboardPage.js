@@ -16,17 +16,13 @@ import {
 } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  updateStatus,
-  assignDriver,
-  getDashboardDetail,
-  safeApiCall,
-} from '../utils/api';
+import { updateStatus, assignDriver, getDashboardDetail } from '../utils/api';
 import { getUserFromToken } from '../utils/authHelpers';
-import { handleApiError, safeAsync, goBack } from '../utils/errorHandlers';
+import { handleApiError } from '../utils/errorHandlers';
 import { DashboardItemType, UserType } from '../types.js';
 import PropTypes from 'prop-types';
 import locale from 'antd/es/date-picker/locale/ko_KR';
+import dayjs from 'dayjs';
 
 // 커스텀 훅 가져오기
 import useDashboardData from '../hooks/useDashboardData';
@@ -51,33 +47,33 @@ const DashboardPage = () => {
 
   // 커스텀 훅 사용
   const {
-    data,
-    meta,
+    dashboards: data,
     isLoading,
     searchParams,
-    selectedRowKeys,
+    filterOptions,
     handleSearch,
-    handleReset,
-    handleTableChange,
-    onSelectChange,
-    setSelectedRowKeys,
-    refreshData,
-    dateParams,
-    searchTerm,
-    statusFilter,
-    departmentFilter,
-    warehouseFilter,
+    handlePaginationChange,
+    handleDateRangeChange,
+    refetch: refreshData,
+    totalItems,
+    dateRange,
   } = useDashboardData('USER');
+
+  // 선택된 행 상태 관리
+  const [selectedRowKeys, setSelectedRowKeys] = React.useState([]);
+  const onSelectChange = (newSelectedRowKeys) => {
+    setSelectedRowKeys(newSelectedRowKeys);
+  };
 
   const {
     lockConflictInfo,
     isLockLoading,
-    acquireLock,
-    releaseLock,
-    acquireMultipleLocks,
-    releaseMultipleLocks,
-    cancelLock,
-    retryLock,
+    handleAcquireLock: acquireLock,
+    handleReleaseLock: releaseLock,
+    handleAcquireMultipleLocks: acquireMultipleLocks,
+    handleReleaseMultipleLocks: releaseMultipleLocks,
+    handleCancelLock: cancelLock,
+    handleRetryLock: retryLock,
   } = useDashboardLock();
 
   const {
@@ -112,13 +108,12 @@ const DashboardPage = () => {
     onError: (error) => {
       handleApiError(error, {
         context: '상태 변경',
-        onComplete: () => {
-          // 오류 발생해도 락 해제 시도
-          if (currentDashboard) {
-            releaseLock(currentDashboard.dashboard_id, 'STATUS');
-          }
-        },
       });
+
+      // 오류 발생해도 락 해제 시도
+      if (currentDashboard) {
+        releaseLock(currentDashboard.dashboard_id, 'STATUS');
+      }
     },
   });
 
@@ -136,11 +131,10 @@ const DashboardPage = () => {
     onError: (error) => {
       handleApiError(error, {
         context: '배차 처리',
-        onComplete: () => {
-          // 오류 발생해도 락 해제 시도
-          releaseMultipleLocks(selectedRowKeys, 'ASSIGN');
-        },
       });
+
+      // 오류 발생해도 락 해제 시도
+      releaseMultipleLocks(selectedRowKeys, 'ASSIGN');
     },
   });
 
@@ -198,37 +192,45 @@ const DashboardPage = () => {
           },
         });
       })
-      .catch((error) => {
-        message.error('폼 검증에 실패했습니다');
+      .catch((err) => {
+        console.error('Form validation error:', err);
       });
   };
 
-  // 상세 모달 내에서 상태 변경
+  // 상세 정보 모달에서 상태 변경
   const handleStatusChangeInModal = async (status) => {
     if (!currentDashboard) return;
 
     try {
-      // 락 획득 필요
-      await acquireLock(currentDashboard.dashboard_id, 'STATUS');
+      // 락 획득
+      const lockAcquired = await acquireLock(
+        currentDashboard.dashboard_id,
+        'STATUS'
+      );
 
-      await statusMutation.mutateAsync({
-        id: currentDashboard.dashboard_id,
-        data: {
-          status: status,
-          is_admin: false, // 일반 사용자 권한
-        },
-      });
+      if (lockAcquired) {
+        // 상태 변경 요청
+        const response = await updateStatus(currentDashboard.dashboard_id, {
+          status,
+          is_admin: false,
+        });
 
-      message.success('상태가 성공적으로 변경되었습니다.');
-      queryClient.invalidateQueries(['dashboards']);
-    } catch (error) {
-      message.error('상태 변경 중 오류가 발생했습니다.');
-      console.error('상세 모달 상태 변경 오류:', error);
-    } finally {
-      // 락 해제 시도
-      if (currentDashboard) {
-        releaseLock(currentDashboard.dashboard_id, 'STATUS');
+        if (response.data && response.data.success) {
+          message.success('상태가 변경되었습니다');
+          closeDetailModal();
+          refreshData();
+        } else {
+          message.error(response.data?.message || '상태 변경에 실패했습니다');
+        }
+
+        // 락 해제
+        await releaseLock(currentDashboard.dashboard_id, 'STATUS');
       }
+    } catch (error) {
+      handleApiError(error, { context: '상태 변경' });
+
+      // 락 해제 시도
+      releaseLock(currentDashboard.dashboard_id, 'STATUS');
     }
   };
 
@@ -237,21 +239,23 @@ const DashboardPage = () => {
     assignForm
       .validateFields()
       .then((values) => {
+        if (selectedRowKeys.length === 0) return;
+
         assignMutation.mutate({
           dashboard_ids: selectedRowKeys,
           driver_name: values.driver_name,
           driver_contact: values.driver_contact,
         });
       })
-      .catch((error) => {
-        message.error('폼 검증에 실패했습니다');
+      .catch((err) => {
+        console.error('Form validation error:', err);
       });
   };
 
   // 에러 발생 시 뒤로가기
   const handleErrorBack = () => {
     message.info('이전 화면으로 돌아갑니다');
-    goBack();
+    window.history.back();
   };
 
   // 이전 검색 조건 복원
@@ -265,11 +269,26 @@ const DashboardPage = () => {
   // 페이지네이션 설정
   const pagination = {
     current: searchParams?.page || 1,
-    pageSize: searchParams?.size || 15,
-    total: meta?.total && typeof meta.total === 'number' ? meta.total : 0,
+    pageSize: searchParams?.size || 10,
+    total: totalItems,
     showSizeChanger: true,
     showQuickJumper: true,
     showTotal: (total) => `총 ${total}개`,
+  };
+
+  // 테이블 변경 핸들러
+  const handleTableChange = (pagination, filters, sorter) => {
+    handlePaginationChange(pagination.current, pagination.pageSize);
+  };
+
+  // 필터 초기화 핸들러
+  const handleReset = () => {
+    handleSearch({
+      status: undefined,
+      department: undefined,
+      warehouse: undefined,
+      search_term: '',
+    });
   };
 
   return (
@@ -289,29 +308,31 @@ const DashboardPage = () => {
       >
         {/* 상단 날짜 선택 및 검색창 */}
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12}>
+          <Col xs={24} md={14}>
             <Form layout="inline">
               <Form.Item label="기간 선택" style={{ marginBottom: 0 }}>
                 <RangePicker
                   locale={locale}
                   format="YYYY-MM-DD"
-                  onChange={(dates, dateStrings) => {
-                    if (dates) {
-                      handleSearch({
-                        start_date: dateStrings[0],
-                        end_date: dateStrings[1],
-                      });
-                    }
-                  }}
+                  onChange={handleDateRangeChange}
+                  value={[
+                    searchParams.start_date
+                      ? dayjs(searchParams.start_date)
+                      : null,
+                    searchParams.end_date ? dayjs(searchParams.end_date) : null,
+                  ]}
                   allowClear
                   style={{ width: '280px' }}
                 />
+                <span className="date-range-info">
+                  ETA 범위: {dateRange.min} ~ {dateRange.max}
+                </span>
               </Form.Item>
             </Form>
           </Col>
-          <Col xs={24} md={12} style={{ textAlign: 'right' }}>
+          <Col xs={24} md={10} style={{ textAlign: 'right' }}>
             <Input.Search
-              placeholder="주문번호, 고객명 검색"
+              placeholder="주문번호 검색"
               onSearch={(value) => handleSearch({ search_term: value })}
               style={{ width: 280 }}
               allowClear
@@ -340,28 +361,29 @@ const DashboardPage = () => {
                   { value: 'ISSUE', label: '문제발생' },
                   { value: 'CANCEL', label: '취소' },
                 ]}
+                value={searchParams.status || undefined}
               />
               <Select
                 placeholder="부서 필터"
                 style={{ width: 120 }}
                 onChange={(value) => handleSearch({ department: value })}
                 allowClear
-                options={[
-                  { value: '물류부', label: '물류부' },
-                  { value: '영업부', label: '영업부' },
-                  { value: '관리부', label: '관리부' },
-                ]}
+                options={filterOptions.departments.map((dept) => ({
+                  value: dept,
+                  label: dept,
+                }))}
+                value={searchParams.department || undefined}
               />
               <Select
                 placeholder="창고 필터"
                 style={{ width: 120 }}
                 onChange={(value) => handleSearch({ warehouse: value })}
                 allowClear
-                options={[
-                  { value: '서울창고', label: '서울창고' },
-                  { value: '부산창고', label: '부산창고' },
-                  { value: '대구창고', label: '대구창고' },
-                ]}
+                options={filterOptions.warehouses.map((wh) => ({
+                  value: wh,
+                  label: wh,
+                }))}
+                value={searchParams.warehouse || undefined}
               />
               <Button type="primary" onClick={handleReset}>
                 필터 초기화
@@ -373,18 +395,15 @@ const DashboardPage = () => {
               <Button
                 type="primary"
                 onClick={showAssignModal}
-                disabled={selectedRowKeys.length === 0}
+                disabled={!selectedRowKeys.length}
               >
                 배차 처리
               </Button>
               <Button
-                type="primary"
+                type="default"
                 onClick={() => setCreateModalVisible(true)}
               >
-                주문 추가
-              </Button>
-              <Button icon={<ReloadOutlined />} onClick={refreshData}>
-                새로고침
+                신규 등록
               </Button>
             </Space>
           </Col>
@@ -393,29 +412,19 @@ const DashboardPage = () => {
         <Divider style={{ margin: '16px 0' }} />
 
         {/* 데이터 테이블 */}
-        <DashboardTable
-          data={Array.isArray(data) ? data : []}
-          loading={isLoading || false}
-          selectedRowKeys={
-            Array.isArray(selectedRowKeys) ? selectedRowKeys : []
-          }
-          onSelectChange={
-            typeof onSelectChange === 'function' ? onSelectChange : undefined
-          }
-          pagination={pagination || { current: 1, pageSize: 15, total: 0 }}
-          onChange={
-            typeof handleTableChange === 'function'
-              ? handleTableChange
-              : undefined
-          }
-          userRole="USER"
-          onShowStatusModal={
-            typeof showStatusModal === 'function' ? showStatusModal : undefined
-          }
-          onRowClick={
-            typeof showDetailModal === 'function' ? showDetailModal : undefined
-          }
-        />
+        <div className="responsive-table">
+          <DashboardTable
+            data={data}
+            loading={isLoading}
+            selectedRowKeys={selectedRowKeys}
+            onSelectChange={onSelectChange}
+            pagination={pagination}
+            onChange={handleTableChange}
+            userRole="USER"
+            onShowStatusModal={showStatusModal}
+            onRowClick={showDetailModal}
+          />
+        </div>
       </Card>
 
       {/* 상태 변경 모달 */}
@@ -466,17 +475,13 @@ const DashboardPage = () => {
           setCreateModalVisible(false);
           refreshData();
         }}
-        userRole="USER"
       />
-
-      {/* 락 획득 로딩 */}
-      {isLockLoading && <LoadingSpinner tip="락 획득 중..." />}
     </Layout>
   );
 };
 
 DashboardPage.propTypes = {
-  // 필요한 경우 추가
+  userRole: PropTypes.oneOf(['ADMIN', 'USER']),
 };
 
 export default DashboardPage;

@@ -1,19 +1,30 @@
 // src/hooks/useDashboardLock.js
-import { useState } from "react";
-import { message } from "antd";
-import { acquireLock, releaseLock, safeApiCall } from "../utils/api";
-import { handleApiError, safeAsync } from "../utils/errorHandlers";
-import PropTypes from "prop-types";
+import { useState } from 'react';
+import { message } from 'antd';
+import { acquireLock, releaseLock } from '../utils/api';
 
 /**
- * 대시보드 락 관리 훅
+ * 락 상태 관리를 위한 타입
+ * @typedef {Object} LockState
+ * @property {string} type - 락 타입 (EDIT, STATUS, ASSIGN)
+ * @property {number|number[]} dashboardId - 대시보드 ID 또는 ID 배열
+ * @property {Function} actionAfterLock - 락 획득 후 실행할 함수
+ */
+
+/**
+ * 대시보드 락 관리 훅 - 간소화된 버전
  * @returns {Object} 락 관련 상태 및 함수들
  */
 const useDashboardLock = () => {
+  // 락 충돌 정보
   const [lockConflictInfo, setLockConflictInfo] = useState(null);
-  const [lockType, setLockType] = useState("");
-  const [dashboardIdForLock, setDashboardIdForLock] = useState(null);
-  const [actionAfterLock, setActionAfterLock] = useState(null);
+  // 현재 락 상태
+  const [lockState, setLockState] = useState({
+    type: '',
+    dashboardId: null,
+    actionAfterLock: null,
+  });
+  // 락 처리 로딩 상태
   const [isLockLoading, setIsLockLoading] = useState(false);
 
   /**
@@ -25,26 +36,21 @@ const useDashboardLock = () => {
   const handleAcquireLock = async (dashboardId, type, action) => {
     try {
       if (!dashboardId || !type) {
-        message.error("락 획득에 필요한 정보가 부족합니다");
+        message.error('락 획득에 필요한 정보가 부족합니다');
         return false;
       }
 
       setIsLockLoading(true);
-      setDashboardIdForLock(dashboardId);
-      setLockType(type);
-      setActionAfterLock(action);
+      // 락 상태 설정
+      setLockState({
+        type,
+        dashboardId,
+        actionAfterLock: action,
+      });
 
       // 락 획득 시도
-      const result = await safeAsync(
-        async () => {
-          const response = await acquireLock(dashboardId, type);
-          return response.data;
-        },
-        {
-          context: "락 획득",
-          showMessage: false,
-        }
-      );
+      const response = await acquireLock(dashboardId, type);
+      const result = response.data;
 
       // 락 획득 성공 시 액션 실행
       if (result && result.success) {
@@ -52,25 +58,25 @@ const useDashboardLock = () => {
         return true;
       } else {
         // 실패 시 락 충돌 처리
-        if (result && result.error_code === "LOCK_CONFLICT") {
+        if (result && result.error_code === 'LOCK_CONFLICT') {
           setLockConflictInfo(result.data);
+          message.warning(result.message || '이미 다른 사용자가 편집 중입니다');
         } else if (result) {
-          message.error(result.message || "락 획득에 실패했습니다");
+          message.error(result.message || '락 획득에 실패했습니다');
         }
         return false;
       }
     } catch (error) {
-      handleApiError(error, {
-        context: "락 획득",
-        showMessage: true,
-        onUnknownError: () => {
-          if (error.response?.data?.error_code === "LOCK_CONFLICT") {
-            setLockConflictInfo(error.response.data.data);
-            return;
-          }
-          message.error("락 획득 중 오류가 발생했습니다");
-        },
-      });
+      console.error('락 획득 오류:', error);
+
+      if (error.response?.data?.error_code === 'LOCK_CONFLICT') {
+        setLockConflictInfo(error.response.data.data);
+        message.warning(
+          error.response.data.message || '이미 다른 사용자가 편집 중입니다'
+        );
+      } else {
+        message.error('락 획득 중 오류가 발생했습니다');
+      }
       return false;
     } finally {
       setIsLockLoading(false);
@@ -86,20 +92,10 @@ const useDashboardLock = () => {
     if (!dashboardId || !type) return false;
 
     try {
-      await safeAsync(
-        async () => {
-          await releaseLock(dashboardId, type);
-        },
-        {
-          context: "락 해제",
-          showMessage: false,
-        }
-      );
-
-      return true;
+      const response = await releaseLock(dashboardId, type);
+      return response.data && response.data.success;
     } catch (error) {
-      console.error("Lock release error:", error);
-      // 락 해제 실패는 조용히 처리 (이미 해제된 경우도 있으므로)
+      console.error('락 해제 오류:', error);
       return false;
     }
   };
@@ -112,31 +108,27 @@ const useDashboardLock = () => {
    */
   const handleAcquireMultipleLocks = async (dashboardIds, type, action) => {
     if (!dashboardIds || dashboardIds.length === 0) {
-      message.warning("선택된 항목이 없습니다");
+      message.warning('선택된 항목이 없습니다');
       return false;
     }
 
     if (!type) {
-      message.error("락 유형이 지정되지 않았습니다");
+      message.error('락 유형이 지정되지 않았습니다');
       return false;
     }
 
     try {
       setIsLockLoading(true);
-      setLockType(type);
-      setActionAfterLock(action);
+      // 락 상태 설정
+      setLockState({
+        type,
+        dashboardId: dashboardIds,
+        actionAfterLock: action,
+      });
 
-      // 백엔드 API를 통한 다중 락 획득 시도 (한 번의 호출로 원자성 보장)
-      const result = await safeAsync(
-        async () => {
-          const response = await acquireLock(dashboardIds, type, true);
-          return response.data;
-        },
-        {
-          context: "다중 락 획득",
-          showMessage: false,
-        }
-      );
+      // 다중 락 획득 시도
+      const response = await acquireLock(dashboardIds, type, true);
+      const result = response.data;
 
       if (result && result.success) {
         // 성공 시 액션 실행
@@ -144,25 +136,28 @@ const useDashboardLock = () => {
         return true;
       } else {
         // 실패 시 락 충돌 정보 표시
-        if (result && result.error_code === "LOCK_CONFLICT") {
+        if (result && result.error_code === 'LOCK_CONFLICT') {
           setLockConflictInfo(result.data);
+          message.warning(
+            result.message || '이미 다른 사용자가 편집 중인 항목이 있습니다'
+          );
         } else if (result) {
-          message.error(result.message || "락 획득에 실패했습니다");
+          message.error(result.message || '락 획득에 실패했습니다');
         }
         return false;
       }
     } catch (error) {
-      handleApiError(error, {
-        context: "다중 락 획득",
-        showMessage: true,
-        onUnknownError: () => {
-          if (error.response?.data?.error_code === "LOCK_CONFLICT") {
-            setLockConflictInfo(error.response.data.data);
-          } else {
-            message.error("락 획득 중 오류가 발생했습니다");
-          }
-        },
-      });
+      console.error('다중 락 획득 오류:', error);
+
+      if (error.response?.data?.error_code === 'LOCK_CONFLICT') {
+        setLockConflictInfo(error.response.data.data);
+        message.warning(
+          error.response.data.message ||
+            '이미 다른 사용자가 편집 중인 항목이 있습니다'
+        );
+      } else {
+        message.error('락 획득 중 오류가 발생했습니다');
+      }
       return false;
     } finally {
       setIsLockLoading(false);
@@ -178,43 +173,44 @@ const useDashboardLock = () => {
     if (!dashboardIds || !dashboardIds.length || !type) return false;
 
     try {
-      // 백엔드 API를 통한 다중 락 해제 (한 번의 호출로 원자성 보장)
-      await safeAsync(
-        async () => {
-          await releaseLock(dashboardIds, type, true);
-        },
-        {
-          context: "다중 락 해제",
-          showMessage: false,
-        }
-      );
-
-      return true;
+      const response = await releaseLock(dashboardIds, type, true);
+      return response.data && response.data.success;
     } catch (error) {
-      console.error("Multiple lock release error:", error);
-      // 락 해제 실패는 조용히 처리 (이미 해제된 경우도 있으므로)
+      console.error('다중 락 해제 오류:', error);
       return false;
     }
   };
 
   /**
-   * 락 충돌 모달 닫기
+   * 락 충돌 취소 처리
    */
   const handleCancelLock = () => {
     setLockConflictInfo(null);
-    setDashboardIdForLock(null);
-    setLockType("");
-    setActionAfterLock(null);
+    setLockState({
+      type: '',
+      dashboardId: null,
+      actionAfterLock: null,
+    });
   };
 
   /**
-   * 락 재시도
+   * 락 획득 재시도
    */
   const handleRetryLock = async () => {
     setLockConflictInfo(null);
 
-    if (dashboardIdForLock && lockType && actionAfterLock) {
-      return handleAcquireLock(dashboardIdForLock, lockType, actionAfterLock);
+    const { type, dashboardId, actionAfterLock } = lockState;
+
+    if (dashboardId && type && actionAfterLock) {
+      if (Array.isArray(dashboardId)) {
+        return await handleAcquireMultipleLocks(
+          dashboardId,
+          type,
+          actionAfterLock
+        );
+      } else {
+        return await handleAcquireLock(dashboardId, type, actionAfterLock);
+      }
     }
 
     return false;
@@ -223,19 +219,13 @@ const useDashboardLock = () => {
   return {
     lockConflictInfo,
     isLockLoading,
-    acquireLock: handleAcquireLock,
-    releaseLock: handleReleaseLock,
-    acquireMultipleLocks: handleAcquireMultipleLocks,
-    releaseMultipleLocks: handleReleaseMultipleLocks,
-    cancelLock: handleCancelLock,
-    retryLock: handleRetryLock,
-    setLockConflictInfo,
+    handleAcquireLock,
+    handleReleaseLock,
+    handleAcquireMultipleLocks,
+    handleReleaseMultipleLocks,
+    handleCancelLock,
+    handleRetryLock,
   };
-};
-
-// PropTypes 정의
-useDashboardLock.propTypes = {
-  // 없음 - 이 훅은 props를 받지 않음
 };
 
 export default useDashboardLock;
