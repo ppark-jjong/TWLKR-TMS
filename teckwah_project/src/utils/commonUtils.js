@@ -6,16 +6,16 @@
  */
 export const formatPhoneNumber = (phone) => {
   if (!phone) return '';
-  
+
   // 숫자만 추출
   const cleaned = ('' + phone).replace(/\D/g, '');
-  
+
   // 전화번호 형식 적용
   const match = cleaned.match(/^(\d{3})(\d{3,4})(\d{4})$/);
   if (match) {
     return `${match[1]}-${match[2]}-${match[3]}`;
   }
-  
+
   return phone;
 };
 
@@ -25,6 +25,7 @@ export const formatPhoneNumber = (phone) => {
  * @returns {boolean} 유효하면 true
  */
 export const isValidPostalCode = (postalCode) => {
+  if (!postalCode) return false;
   return /^\d{5}$/.test(postalCode);
 };
 
@@ -34,6 +35,7 @@ export const isValidPostalCode = (postalCode) => {
  * @returns {boolean} 유효하면 true
  */
 export const isValidPhoneNumber = (phone) => {
+  if (!phone) return false;
   return /^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$/.test(phone);
 };
 
@@ -45,6 +47,7 @@ export const isValidPhoneNumber = (phone) => {
  */
 export const truncateString = (str, maxLength) => {
   if (!str) return '';
+  if (typeof str !== 'string') return '';
   if (str.length <= maxLength) return str;
   return str.substring(0, maxLength) + '...';
 };
@@ -57,9 +60,19 @@ export const truncateString = (str, maxLength) => {
  * @returns {Array} 정렬된 배열
  */
 export const sortArrayByKey = (array, key, ascending = true) => {
-  if (!array || !array.length) return [];
-  
+  if (!array || !Array.isArray(array) || !array.length) return [];
+
   return [...array].sort((a, b) => {
+    // a나 b가 undefined/null인 경우 처리
+    if (!a && !b) return 0;
+    if (!a) return ascending ? 1 : -1;
+    if (!b) return ascending ? -1 : 1;
+
+    // key가 없는 경우 처리
+    if (a[key] === undefined && b[key] === undefined) return 0;
+    if (a[key] === undefined) return ascending ? 1 : -1;
+    if (b[key] === undefined) return ascending ? -1 : 1;
+
     if (a[key] < b[key]) return ascending ? -1 : 1;
     if (a[key] > b[key]) return ascending ? 1 : -1;
     return 0;
@@ -73,7 +86,8 @@ export const sortArrayByKey = (array, key, ascending = true) => {
  * @returns {Array} 필터링된 배열
  */
 export const filterArray = (array, predicate) => {
-  if (!array || !array.length) return [];
+  if (!array || !Array.isArray(array) || !array.length) return [];
+  if (typeof predicate !== 'function') return array;
   return array.filter(predicate);
 };
 
@@ -98,14 +112,17 @@ export const sanitizeInput = (input) => {
  * @param {string} defaultMessage - 기본 메시지
  * @returns {string} 오류 메시지
  */
-export const getErrorMessage = (error, defaultMessage = '오류가 발생했습니다') => {
+export const getErrorMessage = (
+  error,
+  defaultMessage = '오류가 발생했습니다'
+) => {
   if (!error) return defaultMessage;
-  
+
   if (error.response && error.response.data) {
     // API 응답 오류
     return error.response.data.message || defaultMessage;
   }
-  
+
   return error.message || defaultMessage;
 };
 

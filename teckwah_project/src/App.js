@@ -1,32 +1,62 @@
 // src/App.js
-import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { Layout, message, Button, notification } from "antd";
-import { isAuthenticated, getUserFromToken } from "./utils/authHelpers";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import AdminPage from "./pages/AdminPage";
-import HandoverPage from "./pages/HandoverPage";
-import NotFoundPage from "./pages/NotFoundPage";
-import Sidebar from "./components/Sidebar";
-import { ReloadOutlined } from "@ant-design/icons";
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Layout, message, Button, notification } from 'antd';
+import { isAuthenticated, getUserFromToken } from './utils/authHelpers';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import AdminPage from './pages/AdminPage';
+import HandoverPage from './pages/HandoverPage';
+import NotFoundPage from './pages/NotFoundPage';
+import Sidebar from './components/Sidebar';
+import { ReloadOutlined } from '@ant-design/icons';
+
+// 개발 환경에서만 React Query DevTools 추가
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const { Content } = Layout;
 
 // 전역 오류 핸들러 설정
 window.onerror = function (message, source, lineno, colno, error) {
-  console.error("전역 오류 발생:", { message, source, lineno, colno, error });
+  console.error('전역 오류 발생:', { message, source, lineno, colno, error });
+
+  // 더 자세한 오류 정보 기록
+  console.error('오류 발생 시간:', new Date().toISOString());
+  console.error('현재 URL:', window.location.href);
+  console.error('사용자 에이전트:', navigator.userAgent);
+
+  // 컴포넌트 상태 스냅샷 - React DevTools 통합
+  if (
+    window.__REACT_DEVTOOLS_GLOBAL_HOOK__ &&
+    window.__REACT_DEVTOOLS_GLOBAL_HOOK__.renderers
+  ) {
+    console.log(
+      'React 컴포넌트 상태가 있습니다. React DevTools에서 확인하세요.'
+    );
+  }
 
   // 오류 정보를 콘솔에만 로깅
   if (error && error.stack) {
-    console.error("Stack trace:", error.stack);
+    console.error('Stack trace:', error.stack);
+  }
+
+  // 데이터 구조 관련 오류인 경우 힌트 제공
+  if (message && message.includes('Cannot read properties of undefined')) {
+    console.error(
+      '힌트: undefined 객체의 속성에 접근하려는 시도가 있었습니다. 데이터가 올바르게 로드되었는지 확인하세요.'
+    );
+    // 현재 로컬 스토리지 상태 확인 (토큰 등)
+    console.log('로컬 스토리지 상태:', {
+      hasToken: !!localStorage.getItem('token'),
+      hasRefreshToken: !!localStorage.getItem('refresh'),
+    });
   }
 
   // 사용자에게 알림으로 오류 정보 표시 (자동 닫힘)
   notification.error({
-    message: "오류가 발생했습니다",
+    message: '오류가 발생했습니다',
     description:
-      "일시적인 문제가 발생했습니다. 계속 발생하면 새로고침을 해보세요.",
+      '일시적인 문제가 발생했습니다. 계속 발생하면 새로고침을 해보세요.',
     duration: 5, // 5초 후 자동으로 닫힘
     btn: (
       <Button
@@ -50,7 +80,7 @@ const ProtectedRoute = ({ element, allowedRoles, userData }) => {
 
   // 권한이 없으면 적절한 페이지로 리디렉션
   if (!hasAccess) {
-    return userData?.user_role === "ADMIN" ? (
+    return userData?.user_role === 'ADMIN' ? (
       <Navigate to="/admin" replace />
     ) : (
       <Navigate to="/dashboard" replace />
@@ -70,11 +100,30 @@ const AuthWrapper = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = () => {
       try {
-        const { isAuth } = isAuthenticated();
+        const { isAuth, userData } = isAuthenticated();
         setIsAuth(isAuth);
+
+        // 로그인 상태지만 잘못된 페이지에 있는 경우 리다이렉션
+        if (isAuth && userData) {
+          const currentPath = window.location.pathname;
+          if (
+            userData.user_role === 'ADMIN' &&
+            currentPath !== '/admin' &&
+            !currentPath.startsWith('/admin/')
+          ) {
+            navigate('/admin', { replace: true });
+          } else if (
+            userData.user_role === 'USER' &&
+            currentPath !== '/dashboard' &&
+            !currentPath.startsWith('/dashboard/')
+          ) {
+            navigate('/dashboard', { replace: true });
+          }
+        }
+
         setChecking(false);
       } catch (error) {
-        console.error("인증 상태 확인 중 오류 발생:", error);
+        console.error('인증 상태 확인 중 오류 발생:', error);
         // 오류 발생 시에도 체크 상태를 완료로 변경하고 인증되지 않은 것으로 처리
         setChecking(false);
         setIsAuth(false);
@@ -82,12 +131,7 @@ const AuthWrapper = ({ children }) => {
     };
 
     checkAuthStatus();
-
-    // 주기적으로 인증 상태 확인 (30초마다)
-    const interval = setInterval(checkAuthStatus, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
+  }, [navigate]);
 
   if (checking) {
     return <div>인증 확인 중...</div>;
@@ -105,6 +149,7 @@ function App() {
   const [auth, setAuth] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // 초기 인증 상태 확인
@@ -113,9 +158,20 @@ function App() {
         const { isAuth, userData } = isAuthenticated();
         setAuth(isAuth);
         setUserData(userData);
+
+        // 로그인 상태라면 권한에 따른 페이지로 리다이렉션
+        if (isAuth && userData) {
+          const currentPath = window.location.pathname;
+          if (currentPath === '/' || currentPath === '/login') {
+            const targetPath =
+              userData.user_role === 'ADMIN' ? '/admin' : '/dashboard';
+            navigate(targetPath, { replace: true });
+          }
+        }
+
         setLoading(false);
       } catch (error) {
-        console.error("초기 인증 상태 확인 중 오류 발생:", error);
+        console.error('초기 인증 상태 확인 중 오류 발생:', error);
         // 오류 발생 시에도 로딩 상태를 완료로 변경
         setLoading(false);
         // 기본적으로 인증되지 않은 상태로 설정
@@ -125,7 +181,7 @@ function App() {
     };
 
     checkAuth();
-  }, []);
+  }, [navigate]);
 
   // 인증 로딩 중 스피너 표시
   if (loading) {
@@ -141,7 +197,8 @@ function App() {
           element={
             auth ? (
               <Navigate
-                to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
+                to={userData?.user_role === 'ADMIN' ? '/admin' : '/dashboard'}
+                replace
               />
             ) : (
               <LoginPage setAuth={setAuth} setUserData={setUserData} />
@@ -160,7 +217,7 @@ function App() {
                   <Content className="content-wrapper">
                     <ProtectedRoute
                       element={<DashboardPage />}
-                      allowedRoles={["USER"]}
+                      allowedRoles={['USER']}
                       userData={userData}
                     />
                   </Content>
@@ -181,7 +238,7 @@ function App() {
                   <Content className="content-wrapper">
                     <ProtectedRoute
                       element={<AdminPage />}
-                      allowedRoles={["ADMIN"]}
+                      allowedRoles={['ADMIN']}
                       userData={userData}
                     />
                   </Content>
@@ -202,7 +259,7 @@ function App() {
                   <Content className="content-wrapper">
                     <ProtectedRoute
                       element={<AdminPage activeTab="users" />}
-                      allowedRoles={["ADMIN"]}
+                      allowedRoles={['ADMIN']}
                       userData={userData}
                     />
                   </Content>
@@ -233,17 +290,25 @@ function App() {
         <Route
           path="/"
           element={
-            <AuthWrapper>
+            auth ? (
               <Navigate
-                to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
+                to={userData?.user_role === 'ADMIN' ? '/admin' : '/dashboard'}
+                replace
               />
-            </AuthWrapper>
+            ) : (
+              <Navigate to="/login" replace />
+            )
           }
         />
 
         {/* 404 페이지 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+
+      {/* 개발 환경에서만 React Query DevTools 표시 */}
+      {process.env.NODE_ENV === 'development' && (
+        <ReactQueryDevtools initialIsOpen={false} />
+      )}
     </div>
   );
 }

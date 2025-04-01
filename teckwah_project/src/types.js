@@ -1,4 +1,4 @@
-import PropTypes from "prop-types";
+import PropTypes from 'prop-types';
 
 /**
  * 대시보드 항목 타입 정의
@@ -26,7 +26,7 @@ export const UserType = PropTypes.shape({
   user_id: PropTypes.string.isRequired,
   user_name: PropTypes.string,
   user_department: PropTypes.string,
-  user_role: PropTypes.oneOf(["ADMIN", "USER"]).isRequired,
+  user_role: PropTypes.oneOf(['ADMIN', 'USER']).isRequired,
 });
 
 /**
@@ -71,20 +71,20 @@ export const validateApiData = (data, type) => {
   if (!data) return false;
 
   switch (type) {
-    case "dashboard":
+    case 'dashboard':
       return (
-        typeof data.dashboard_id === "number" && typeof data.status === "string"
+        typeof data.dashboard_id === 'number' && typeof data.status === 'string'
       );
-    case "user":
+    case 'user':
       return (
-        typeof data.user_id === "string" &&
-        ["ADMIN", "USER"].includes(data.user_role)
+        typeof data.user_id === 'string' &&
+        ['ADMIN', 'USER'].includes(data.user_role)
       );
-    case "lock":
+    case 'lock':
       return (
-        typeof data.user_id === "string" &&
-        typeof data.lock_type === "string" &&
-        typeof data.acquired_at === "string"
+        typeof data.user_id === 'string' &&
+        typeof data.lock_type === 'string' &&
+        typeof data.acquired_at === 'string'
       );
     default:
       return false;
@@ -97,15 +97,56 @@ export const validateApiData = (data, type) => {
  * @returns {string} 오류 유형 ('network', 'auth', 'validation', 'server', 'unknown')
  */
 export const getErrorType = (error) => {
-  if (!error) return "unknown";
+  if (!error) return 'unknown';
 
-  if (!error.response) return "network";
+  if (!error.response) return 'network';
 
   const status = error.response.status;
 
-  if (status === 401 || status === 403) return "auth";
-  if (status === 400 || status === 422) return "validation";
-  if (status >= 500) return "server";
+  if (status === 401 || status === 403) return 'auth';
+  if (status === 400 || status === 422) return 'validation';
+  if (status >= 500) return 'server';
 
-  return "unknown";
+  return 'unknown';
+};
+
+/**
+ * 안전하게 객체 속성에 접근
+ * @param {Object} obj - 접근할 객체
+ * @param {string} path - 속성 경로 (예: "user.name", "data.items[0].title")
+ * @param {any} defaultValue - 속성이 없는 경우 반환할 기본값
+ * @returns {any} 찾은 값 또는 기본값
+ */
+export const safeGet = (obj, path, defaultValue = undefined) => {
+  if (!obj || !path) return defaultValue;
+
+  try {
+    const pathParts = path.split('.');
+    let result = obj;
+
+    for (const part of pathParts) {
+      if (result === undefined || result === null) {
+        return defaultValue;
+      }
+
+      // 배열 인덱스 처리 (예: items[0])
+      const match = part.match(/^(.*?)\[(\d+)\]$/);
+
+      if (match) {
+        const [_, propName, index] = match;
+
+        if (!result[propName] || !Array.isArray(result[propName])) {
+          return defaultValue;
+        }
+
+        result = result[propName][parseInt(index, 10)];
+      } else {
+        result = result[part];
+      }
+    }
+
+    return result !== undefined && result !== null ? result : defaultValue;
+  } catch (error) {
+    return defaultValue;
+  }
 };

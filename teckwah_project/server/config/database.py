@@ -20,8 +20,8 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=3600,
-    pool_size=16,  # 32에서 16으로 감소
-    max_overflow=32,  # 64에서 32로 감소
+    pool_size=16, 
+    max_overflow=32,  
 )
 
 

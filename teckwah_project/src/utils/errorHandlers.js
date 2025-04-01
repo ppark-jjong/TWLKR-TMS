@@ -1,18 +1,18 @@
-import { message } from "antd";
-import { getErrorType } from "../types.js";
+import { message } from 'antd';
+import { getErrorType } from '../types.js';
 
 // 에러 메시지를 위한 맵 (더 구체적인 메시지 사용)
 const ERROR_MESSAGES = {
-  auth: "인증에 실패했습니다. 다시 로그인해주세요.",
-  network: "네트워크 연결을 확인해주세요.",
-  validation: "입력 내용을 확인해주세요.",
-  server: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-  unknown: "알 수 없는 오류가 발생했습니다.",
+  auth: '인증에 실패했습니다. 다시 로그인해주세요.',
+  network: '네트워크 연결을 확인해주세요.',
+  validation: '입력 내용을 확인해주세요.',
+  server: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+  unknown: '알 수 없는 오류가 발생했습니다.',
 };
 
 // 에러 알림이 중복 표시되지 않도록 관리할 객체
 const errorMsgTracker = {
-  lastErrorMsg: "",
+  lastErrorMsg: '',
   lastErrorTime: 0,
   // 최근에 같은 에러가 표시되었는지 확인 (3초 이내)
   isDuplicate: function (msg) {
@@ -39,6 +39,12 @@ const errorMsgTracker = {
  * @param {boolean} options.refreshOnServerError - 서버 오류 발생 시 페이지를 새로고침할지 여부 (기본값: false)
  */
 export const handleApiError = (error, options = {}) => {
+  // 오류 객체가 null이거나 undefined인 경우 처리
+  if (!error) {
+    console.warn('handleApiError: 에러 객체가 제공되지 않았습니다');
+    error = new Error('알 수 없는 오류가 발생했습니다');
+  }
+
   const {
     onAuthError,
     onNetworkError,
@@ -47,66 +53,81 @@ export const handleApiError = (error, options = {}) => {
     onUnknownError,
     showMessage = true,
     refreshOnServerError = false,
-  } = options;
+  } = options || {};
 
   // 에러 정보 로깅
-  console.error("API 에러 발생:", error);
+  console.error('API 에러 발생:', error);
 
   // 오류 유형 확인
   const errorType = getErrorType(error);
 
-  // 서버 응답에서 오류 메시지 추출
-  const serverMsg = error.response?.data?.message;
+  // 서버 응답에서 오류 메시지 추출 (안전한 객체 접근)
+  const serverMsg =
+    error.response && error.response.data ? error.response.data.message : null;
 
   // 기본 오류 메시지
   let errorMsg =
-    serverMsg || ERROR_MESSAGES[errorType] || ERROR_MESSAGES.unknown;
+    serverMsg ||
+    (ERROR_MESSAGES[errorType]
+      ? ERROR_MESSAGES[errorType]
+      : ERROR_MESSAGES.unknown);
 
   // HTTP 상태 코드별 사용자 친화적 메시지 처리
   if (error.response) {
     const status = error.response.status;
     if (status === 401) {
-      errorMsg = "인증이 만료되었습니다. 다시 로그인해주세요.";
+      errorMsg = '인증이 만료되었습니다. 다시 로그인해주세요.';
     } else if (status === 404) {
-      errorMsg = serverMsg || "요청한 리소스를 찾을 수 없습니다.";
+      errorMsg = serverMsg || '요청한 리소스를 찾을 수 없습니다.';
     } else if (status === 400) {
-      errorMsg = serverMsg || "요청 형식이 올바르지 않습니다.";
+      errorMsg = serverMsg || '요청 형식이 올바르지 않습니다.';
     }
   }
 
+  // 안전한 콜백 실행 함수
+  const safeCallback = (callback) => {
+    if (typeof callback === 'function') {
+      try {
+        callback(error);
+      } catch (callbackError) {
+        console.error('에러 처리 콜백에서 예외 발생:', callbackError);
+      }
+    }
+  };
+
   // 오류 유형별 처리
   switch (errorType) {
-    case "auth":
+    case 'auth':
       if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
         message.error(errorMsg);
       }
-      if (onAuthError) onAuthError(error);
+      safeCallback(onAuthError);
       break;
 
-    case "network":
+    case 'network':
       if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
         message.error(errorMsg);
       }
-      if (onNetworkError) onNetworkError(error);
+      safeCallback(onNetworkError);
       break;
 
-    case "validation":
+    case 'validation':
       if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
         message.error(errorMsg);
       }
-      if (onValidationError) onValidationError(error);
+      safeCallback(onValidationError);
       break;
 
-    case "server":
+    case 'server':
       if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
         message.error(errorMsg);
       }
 
-      if (onServerError) onServerError(error);
+      safeCallback(onServerError);
 
       // 서버 오류 시 자동 새로고침 (옵션에 따라)
       if (refreshOnServerError) {
-        console.log("서버 오류 발생, 페이지 새로고침 예정...");
+        console.log('서버 오류 발생, 페이지 새로고침 예정...');
         setTimeout(() => {
           window.location.reload();
         }, 3000);
@@ -117,7 +138,7 @@ export const handleApiError = (error, options = {}) => {
       if (showMessage && !errorMsgTracker.isDuplicate(errorMsg)) {
         message.error(errorMsg);
       }
-      if (onUnknownError) onUnknownError(error);
+      safeCallback(onUnknownError);
       break;
   }
 };
@@ -128,7 +149,7 @@ export const handleApiError = (error, options = {}) => {
  * @param {string} context - 오류 발생 컨텍스트
  * @param {Function} onComplete - 오류 처리 후 실행할 콜백
  */
-export const handleFormError = (error, context = "작업", onComplete) => {
+export const handleFormError = (error, context = '작업', onComplete) => {
   console.error(`${context} 중 오류 발생:`, error);
   message.error(`${context} 중 오류가 발생했습니다`);
 
@@ -146,7 +167,7 @@ export const handleFormError = (error, context = "작업", onComplete) => {
  * @returns {Promise<any>} - 비동기 작업 결과
  */
 export const safeAsync = async (asyncFn, options = {}) => {
-  const { context = "작업", onSuccess, onError, onComplete } = options;
+  const { context = '작업', onSuccess, onError, onComplete } = options;
 
   try {
     const result = await asyncFn();
@@ -183,9 +204,9 @@ export const goBack = () => {
  * @param {string} role - 사용자 권한 ('ADMIN' 또는 'USER')
  */
 export const goHome = (role) => {
-  if (role === "ADMIN") {
-    window.location.href = "/admin";
+  if (role === 'ADMIN') {
+    window.location.href = '/admin';
   } else {
-    window.location.href = "/dashboard";
+    window.location.href = '/dashboard';
   }
 };

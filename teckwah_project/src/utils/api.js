@@ -1,18 +1,18 @@
 // src/utils/api.js
-import axios from "axios";
-import { getAccessToken, refreshToken, removeTokens } from "./authHelpers";
-import { validateApiData } from "../types.js";
-import { handleApiError } from "./errorHandlers";
-import { message } from "antd";
+import axios from 'axios';
+import { getAccessToken, refreshToken, removeTokens } from './authHelpers';
+import { validateApiData } from '../types.js';
+import { handleApiError } from './errorHandlers';
+import { message } from 'antd';
 
 const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
+  process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
 });
 
@@ -21,12 +21,12 @@ api.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
     if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
   (error) => {
-    console.error("API 요청 인터셉터 오류:", error);
+    console.error('API 요청 인터셉터 오류:', error);
     return Promise.reject(error);
   }
 );
@@ -71,9 +71,9 @@ api.interceptors.response.use(
 
     // 에러 로깅 (콘솔에만)
     if (error.response && error.response.status === 500) {
-      console.error("서버 내부 오류:", error);
+      console.error('서버 내부 오류:', error);
     } else {
-      console.error("API 요청 오류:", error);
+      console.error('API 요청 오류:', error);
     }
 
     // 인터셉터에서는 에러 처리 함수를 호출하지 않고, 오류를 그대로 전파
@@ -85,9 +85,9 @@ api.interceptors.response.use(
 // 로그인 페이지로 리다이렉션하는 함수
 const redirectToLogin = () => {
   // 현재 경로가 로그인 페이지가 아닐 경우에만 리다이렉션
-  if (!window.location.pathname.includes("/login")) {
-    console.log("인증되지 않은 상태, 로그인 페이지로 이동합니다.");
-    window.location.href = "/login";
+  if (!window.location.pathname.includes('/login')) {
+    console.log('인증되지 않은 상태, 로그인 페이지로 이동합니다.');
+    window.location.href = '/login';
   }
 };
 
@@ -105,7 +105,7 @@ const redirectToLogin = () => {
  */
 export const safeApiCall = async (apiCall, options = {}) => {
   const {
-    context = "API 호출",
+    context = 'API 호출',
     dataType,
     showErrorMessage = true,
     onSuccess,
@@ -114,15 +114,19 @@ export const safeApiCall = async (apiCall, options = {}) => {
   } = options;
 
   try {
+    // 함수가 아니면 에러
+    if (typeof apiCall !== 'function') {
+      throw new Error(`${context}: 잘못된 API 호출 함수`);
+    }
+
     const response = await apiCall();
 
     // API 응답이 success: false인 경우
-    if (response.data && response.data.success === false) {
+    if (response?.data?.success === false) {
       const errorMsg =
         response.data.message || `${context} 중 오류가 발생했습니다`;
 
       if (showErrorMessage) {
-        // handleApiError에서 중복 메시지 체크를 수행
         handleApiError(
           {
             response: {
@@ -134,21 +138,20 @@ export const safeApiCall = async (apiCall, options = {}) => {
         );
       }
 
-      if (onError) onError(new Error(errorMsg));
+      if (typeof onError === 'function') onError(new Error(errorMsg));
       return null;
     }
 
     // 데이터 유효성 검증
-    if (dataType && response.data?.data) {
+    if (dataType && response?.data?.data) {
       if (!validateApiData(response.data.data, dataType)) {
         console.warn(
-          `API 응답 데이터가 예상된 형식 (${dataType})과 일치하지 않습니다:`,
-          response.data.data
+          `API 응답 데이터가 예상된 형식 (${dataType})과 일치하지 않습니다.`
         );
       }
     }
 
-    if (onSuccess) onSuccess(response.data);
+    if (typeof onSuccess === 'function') onSuccess(response.data);
     return response.data;
   } catch (error) {
     console.error(`${context} 중 오류 발생:`, error);
@@ -159,40 +162,40 @@ export const safeApiCall = async (apiCall, options = {}) => {
       });
     }
 
-    if (onError) onError(error);
+    if (typeof onError === 'function') onError(error);
     return null;
   } finally {
-    if (onComplete) onComplete();
+    if (typeof onComplete === 'function') onComplete();
   }
 };
 
 // API 함수들
-export const login = (credentials) => api.post("/auth/login", credentials);
+export const login = (credentials) => api.post('/auth/login', credentials);
 
-export const checkSession = () => api.get("/auth/check-session");
+export const checkSession = () => api.get('/auth/check-session');
 
-export const logout = () => api.post("/auth/logout");
+export const logout = () => api.post('/auth/logout');
 
 // 대시보드 API
 export const fetchDashboards = (params) =>
-  api.get("/dashboard/list", { params });
+  api.get('/dashboard/list', { params });
 
 export const fetchAdminData = (params) =>
-  api.get("/dashboard/admin-list", { params });
+  api.get('/dashboard/admin-list', { params });
 
 export const getDashboardDetail = (id) => api.get(`/dashboard/${id}`);
 
-export const createDashboard = (data) => api.post("/dashboard", data);
+export const createDashboard = (data) => api.post('/dashboard', data);
 
 export const updateDashboard = (id, data) => api.put(`/dashboard/${id}`, data);
 
 export const updateStatus = (id, data) =>
   api.patch(`/dashboard/${id}/status`, data);
 
-export const assignDriver = (data) => api.post("/dashboard/assign", data);
+export const assignDriver = (data) => api.post('/dashboard/assign', data);
 
 export const deleteDashboards = (ids) =>
-  api.delete("/dashboard", { data: { dashboard_ids: ids } });
+  api.delete('/dashboard', { data: { dashboard_ids: ids } });
 
 // 락 관련 API
 export const acquireLock = (id, lockType, isMultiple = false) => {
@@ -227,11 +230,11 @@ export const getLockInfo = (id, lockType) =>
   api.get(`/dashboard-lock/${id}/lock?lock_type=${lockType}`);
 
 // 인수인계 API
-export const getHandovers = (params) => api.get("/handover", { params });
+export const getHandovers = (params) => api.get('/handover', { params });
 
 export const getHandoverDetail = (id) => api.get(`/handover/${id}`);
 
-export const createHandover = (data) => api.post("/handover", data);
+export const createHandover = (data) => api.post('/handover', data);
 
 export const updateHandover = (id, data) => api.put(`/handover/${id}`, data);
 
@@ -252,16 +255,16 @@ export const getHandoverLockInfo = (id) => api.get(`/handover/${id}/lock`);
  */
 export const downloadExcel = async (params) => {
   try {
-    const response = await api.get("/dashboard/export/excel", {
+    const response = await api.get('/dashboard/export/excel', {
       params,
-      responseType: "blob",
+      responseType: 'blob',
     });
 
     // 파일명 결정
-    let filename = "dashboard_data.xlsx";
+    let filename = 'dashboard_data.xlsx';
 
     // Content-Disposition 헤더에서 파일명 추출 시도
-    const contentDisposition = response.headers["content-disposition"];
+    const contentDisposition = response.headers['content-disposition'];
     if (contentDisposition) {
       const filenameMatch = contentDisposition.match(
         /filename="?(.+?)"?(?:;|$)/
@@ -271,8 +274,8 @@ export const downloadExcel = async (params) => {
       }
     } else {
       // 파일명 생성 (날짜 기반)
-      const startDate = params.start_date?.replace(/-/g, "") || "";
-      const endDate = params.end_date?.replace(/-/g, "") || "";
+      const startDate = params.start_date?.replace(/-/g, '') || '';
+      const endDate = params.end_date?.replace(/-/g, '') || '';
       if (startDate && endDate) {
         filename = `dashboard_data_${startDate}_${endDate}.xlsx`;
       }
@@ -280,9 +283,9 @@ export const downloadExcel = async (params) => {
 
     // Blob URL 생성 및 다운로드
     const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
-    link.setAttribute("download", filename);
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -291,19 +294,19 @@ export const downloadExcel = async (params) => {
     return response;
   } catch (error) {
     handleApiError(error, {
-      context: "엑셀 다운로드",
+      context: '엑셀 다운로드',
       showMessage: true,
     });
     throw error;
   }
 };
 
-export const getDownloadDateRange = () => api.get("/download/date-range");
+export const getDownloadDateRange = () => api.get('/download/date-range');
 
 // 사용자 관리 API
-export const fetchUsers = () => api.get("/user");
+export const fetchUsers = () => api.get('/user');
 
-export const createUser = (userData) => api.post("/user", userData);
+export const createUser = (userData) => api.post('/user', userData);
 
 export const updateUser = (userId, userData) =>
   api.put(`/user/${userId}`, userData);

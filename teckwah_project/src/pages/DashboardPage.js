@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.js
-import React, { useEffect } from "react";
+import React, { useEffect } from 'react';
 import {
   Card,
   Button,
@@ -13,35 +13,35 @@ import {
   Input,
   Select,
   Layout,
-} from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+} from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   updateStatus,
   assignDriver,
   getDashboardDetail,
   safeApiCall,
-} from "../utils/api";
-import { getUserFromToken } from "../utils/authHelpers";
-import { handleApiError, safeAsync, goBack } from "../utils/errorHandlers";
-import { DashboardItemType, UserType } from "../types.js";
-import PropTypes from "prop-types";
-import locale from "antd/es/date-picker/locale/ko_KR";
+} from '../utils/api';
+import { getUserFromToken } from '../utils/authHelpers';
+import { handleApiError, safeAsync, goBack } from '../utils/errorHandlers';
+import { DashboardItemType, UserType } from '../types.js';
+import PropTypes from 'prop-types';
+import locale from 'antd/es/date-picker/locale/ko_KR';
 
 // 커스텀 훅 가져오기
-import useDashboardData from "../hooks/useDashboardData";
-import useDashboardLock from "../hooks/useDashboardLock";
-import useDashboardModals from "../hooks/useDashboardModals";
+import useDashboardData from '../hooks/useDashboardData';
+import useDashboardLock from '../hooks/useDashboardLock';
+import useDashboardModals from '../hooks/useDashboardModals';
 
 // 공통 컴포넌트 가져오기
-import DashboardTable from "../components/DashboardTable";
-import DashboardSearch from "../components/DashboardSearch";
-import StatusChangeModal from "../components/StatusChangeModal";
-import AssignDriverModal from "../components/AssignDriverModal";
-import DashboardDetailModal from "../components/DashboardDetailModal";
-import LockConflictModal from "../components/LockConflictModal";
-import CreateDashboardModal from "../components/CreateDashboardModal";
-import LoadingSpinner from "../components/LoadingSpinner";
+import DashboardTable from '../components/DashboardTable';
+import DashboardSearch from '../components/DashboardSearch';
+import StatusChangeModal from '../components/StatusChangeModal';
+import AssignDriverModal from '../components/AssignDriverModal';
+import DashboardDetailModal from '../components/DashboardDetailModal';
+import LockConflictModal from '../components/LockConflictModal';
+import CreateDashboardModal from '../components/CreateDashboardModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const { RangePicker } = DatePicker;
 
@@ -67,7 +67,7 @@ const DashboardPage = () => {
     statusFilter,
     departmentFilter,
     warehouseFilter,
-  } = useDashboardData("USER");
+  } = useDashboardData('USER');
 
   const {
     lockConflictInfo,
@@ -100,22 +100,22 @@ const DashboardPage = () => {
   // 상태 변경 뮤테이션
   const statusMutation = useMutation(({ id, data }) => updateStatus(id, data), {
     onSuccess: () => {
-      message.success("상태가 변경되었습니다");
+      message.success('상태가 변경되었습니다');
       closeStatusModal();
-      queryClient.invalidateQueries(["dashboards"]);
+      queryClient.invalidateQueries(['dashboards']);
 
       // 락 해제
       if (currentDashboard) {
-        releaseLock(currentDashboard.dashboard_id, "STATUS");
+        releaseLock(currentDashboard.dashboard_id, 'STATUS');
       }
     },
     onError: (error) => {
       handleApiError(error, {
-        context: "상태 변경",
+        context: '상태 변경',
         onComplete: () => {
           // 오류 발생해도 락 해제 시도
           if (currentDashboard) {
-            releaseLock(currentDashboard.dashboard_id, "STATUS");
+            releaseLock(currentDashboard.dashboard_id, 'STATUS');
           }
         },
       });
@@ -125,20 +125,20 @@ const DashboardPage = () => {
   // 배차 처리 뮤테이션
   const assignMutation = useMutation((data) => assignDriver(data), {
     onSuccess: () => {
-      message.success("배차가 완료되었습니다");
+      message.success('배차가 완료되었습니다');
       closeAssignModal();
       setSelectedRowKeys([]);
-      queryClient.invalidateQueries(["dashboards"]);
+      queryClient.invalidateQueries(['dashboards']);
 
       // 락 해제
-      releaseMultipleLocks(selectedRowKeys, "ASSIGN");
+      releaseMultipleLocks(selectedRowKeys, 'ASSIGN');
     },
     onError: (error) => {
       handleApiError(error, {
-        context: "배차 처리",
+        context: '배차 처리',
         onComplete: () => {
           // 오류 발생해도 락 해제 시도
-          releaseMultipleLocks(selectedRowKeys, "ASSIGN");
+          releaseMultipleLocks(selectedRowKeys, 'ASSIGN');
         },
       });
     },
@@ -149,7 +149,7 @@ const DashboardPage = () => {
     setCurrentDashboard(record);
 
     // 락 획득 후 모달 오픈
-    acquireLock(record.dashboard_id, "STATUS", () => {
+    acquireLock(record.dashboard_id, 'STATUS', () => {
       openStatusModal(record);
     });
   };
@@ -162,23 +162,23 @@ const DashboardPage = () => {
         const dashboardData = response.data.data;
         openDetailModal(dashboardData);
       } else {
-        message.error("상세 정보를 불러오는데 실패했습니다");
+        message.error('상세 정보를 불러오는데 실패했습니다');
       }
     } catch (error) {
-      console.error("상세 정보 조회 오류:", error);
-      message.error("상세 정보를 불러오는데 실패했습니다");
+      console.error('상세 정보 조회 오류:', error);
+      message.error('상세 정보를 불러오는데 실패했습니다');
     }
   };
 
   // 배차 모달 열기 (락 획득 후)
   const showAssignModal = () => {
     if (selectedRowKeys.length === 0) {
-      message.warning("배차할 항목을 선택해주세요");
+      message.warning('배차할 항목을 선택해주세요');
       return;
     }
 
     // 다중 락 획득 후 모달 오픈
-    acquireMultipleLocks(selectedRowKeys, "ASSIGN", () => {
+    acquireMultipleLocks(selectedRowKeys, 'ASSIGN', () => {
       openAssignModal();
     });
   };
@@ -199,7 +199,7 @@ const DashboardPage = () => {
         });
       })
       .catch((error) => {
-        message.error("폼 검증에 실패했습니다");
+        message.error('폼 검증에 실패했습니다');
       });
   };
 
@@ -209,7 +209,7 @@ const DashboardPage = () => {
 
     try {
       // 락 획득 필요
-      await acquireLock(currentDashboard.dashboard_id, "STATUS");
+      await acquireLock(currentDashboard.dashboard_id, 'STATUS');
 
       await statusMutation.mutateAsync({
         id: currentDashboard.dashboard_id,
@@ -219,15 +219,15 @@ const DashboardPage = () => {
         },
       });
 
-      message.success("상태가 성공적으로 변경되었습니다.");
-      queryClient.invalidateQueries(["dashboards"]);
+      message.success('상태가 성공적으로 변경되었습니다.');
+      queryClient.invalidateQueries(['dashboards']);
     } catch (error) {
-      message.error("상태 변경 중 오류가 발생했습니다.");
-      console.error("상세 모달 상태 변경 오류:", error);
+      message.error('상태 변경 중 오류가 발생했습니다.');
+      console.error('상세 모달 상태 변경 오류:', error);
     } finally {
       // 락 해제 시도
       if (currentDashboard) {
-        releaseLock(currentDashboard.dashboard_id, "STATUS");
+        releaseLock(currentDashboard.dashboard_id, 'STATUS');
       }
     }
   };
@@ -244,13 +244,13 @@ const DashboardPage = () => {
         });
       })
       .catch((error) => {
-        message.error("폼 검증에 실패했습니다");
+        message.error('폼 검증에 실패했습니다');
       });
   };
 
   // 에러 발생 시 뒤로가기
   const handleErrorBack = () => {
-    message.info("이전 화면으로 돌아갑니다");
+    message.info('이전 화면으로 돌아갑니다');
     goBack();
   };
 
@@ -266,7 +266,7 @@ const DashboardPage = () => {
   const pagination = {
     current: searchParams?.page || 1,
     pageSize: searchParams?.size || 15,
-    total: meta?.total || 0,
+    total: meta?.total && typeof meta.total === 'number' ? meta.total : 0,
     showSizeChanger: true,
     showQuickJumper: true,
     showTotal: (total) => `총 ${total}개`,
@@ -275,16 +275,16 @@ const DashboardPage = () => {
   return (
     <Layout
       className="dashboard-layout"
-      style={{ background: "white", padding: "16px" }}
+      style={{ background: 'white', padding: '16px' }}
     >
       <Card
         className="dashboard-card"
         bordered={false}
         style={{
-          width: "100%",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          borderRadius: "8px",
-          padding: "8px",
+          width: '100%',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          borderRadius: '8px',
+          padding: '8px',
         }}
       >
         {/* 상단 날짜 선택 및 검색창 */}
@@ -304,12 +304,12 @@ const DashboardPage = () => {
                     }
                   }}
                   allowClear
-                  style={{ width: "280px" }}
+                  style={{ width: '280px' }}
                 />
               </Form.Item>
             </Form>
           </Col>
-          <Col xs={24} md={12} style={{ textAlign: "right" }}>
+          <Col xs={24} md={12} style={{ textAlign: 'right' }}>
             <Input.Search
               placeholder="주문번호, 고객명 검색"
               onSearch={(value) => handleSearch({ search_term: value })}
@@ -320,7 +320,7 @@ const DashboardPage = () => {
           </Col>
         </Row>
 
-        <Divider style={{ margin: "16px 0" }} />
+        <Divider style={{ margin: '16px 0' }} />
 
         {/* 필터링 및 액션 버튼 영역 */}
         <Row gutter={[16, 16]} align="middle">
@@ -332,13 +332,13 @@ const DashboardPage = () => {
                 onChange={(value) => handleSearch({ status: value })}
                 allowClear
                 options={[
-                  { value: "PENDING", label: "대기중" },
-                  { value: "ASSIGNED", label: "배차완료" },
-                  { value: "IN_TRANSIT", label: "이동중" },
-                  { value: "DELIVERED", label: "배송완료" },
-                  { value: "COMPLETE", label: "완료" },
-                  { value: "ISSUE", label: "문제발생" },
-                  { value: "CANCEL", label: "취소" },
+                  { value: 'PENDING', label: '대기중' },
+                  { value: 'ASSIGNED', label: '배차완료' },
+                  { value: 'IN_TRANSIT', label: '이동중' },
+                  { value: 'DELIVERED', label: '배송완료' },
+                  { value: 'COMPLETE', label: '완료' },
+                  { value: 'ISSUE', label: '문제발생' },
+                  { value: 'CANCEL', label: '취소' },
                 ]}
               />
               <Select
@@ -347,9 +347,9 @@ const DashboardPage = () => {
                 onChange={(value) => handleSearch({ department: value })}
                 allowClear
                 options={[
-                  { value: "물류부", label: "물류부" },
-                  { value: "영업부", label: "영업부" },
-                  { value: "관리부", label: "관리부" },
+                  { value: '물류부', label: '물류부' },
+                  { value: '영업부', label: '영업부' },
+                  { value: '관리부', label: '관리부' },
                 ]}
               />
               <Select
@@ -358,9 +358,9 @@ const DashboardPage = () => {
                 onChange={(value) => handleSearch({ warehouse: value })}
                 allowClear
                 options={[
-                  { value: "서울창고", label: "서울창고" },
-                  { value: "부산창고", label: "부산창고" },
-                  { value: "대구창고", label: "대구창고" },
+                  { value: '서울창고', label: '서울창고' },
+                  { value: '부산창고', label: '부산창고' },
+                  { value: '대구창고', label: '대구창고' },
                 ]}
               />
               <Button type="primary" onClick={handleReset}>
@@ -368,7 +368,7 @@ const DashboardPage = () => {
               </Button>
             </Space>
           </Col>
-          <Col xs={24} lg={8} style={{ textAlign: "right" }}>
+          <Col xs={24} lg={8} style={{ textAlign: 'right' }}>
             <Space size="middle">
               <Button
                 type="primary"
@@ -390,19 +390,31 @@ const DashboardPage = () => {
           </Col>
         </Row>
 
-        <Divider style={{ margin: "16px 0" }} />
+        <Divider style={{ margin: '16px 0' }} />
 
         {/* 데이터 테이블 */}
         <DashboardTable
-          data={data}
-          loading={isLoading}
-          selectedRowKeys={selectedRowKeys}
-          onSelectChange={onSelectChange}
-          pagination={pagination}
-          onChange={handleTableChange}
+          data={Array.isArray(data) ? data : []}
+          loading={isLoading || false}
+          selectedRowKeys={
+            Array.isArray(selectedRowKeys) ? selectedRowKeys : []
+          }
+          onSelectChange={
+            typeof onSelectChange === 'function' ? onSelectChange : undefined
+          }
+          pagination={pagination || { current: 1, pageSize: 15, total: 0 }}
+          onChange={
+            typeof handleTableChange === 'function'
+              ? handleTableChange
+              : undefined
+          }
           userRole="USER"
-          onShowStatusModal={showStatusModal}
-          onRowClick={showDetailModal}
+          onShowStatusModal={
+            typeof showStatusModal === 'function' ? showStatusModal : undefined
+          }
+          onRowClick={
+            typeof showDetailModal === 'function' ? showDetailModal : undefined
+          }
         />
       </Card>
 
