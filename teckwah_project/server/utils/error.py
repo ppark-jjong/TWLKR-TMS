@@ -1,37 +1,26 @@
 # server/utils/error.py
+"""
+에러 처리 유틸리티 모듈
+공통 예외 클래스와 에러 처리 함수를 제공합니다.
+"""
 
 import functools
 from fastapi import HTTPException, status
 from sqlalchemy.exc import (
     SQLAlchemyError,
-    IntegrityError,  # 무결성 제약 조건 위반
-    OperationalError,  # 데이터베이스 연결 및 기타 문제
-    TimeoutError,  # 쿼리 타임아웃
+    IntegrityError,
+    OperationalError,
+    TimeoutError,
 )
 from typing import Any, Dict, List, Optional, Union, Callable, TypeVar, cast
 from pydantic import ValidationError
-from datetime import datetime
 
 from server.utils.logger import log_info, log_error
 from server.utils.datetime import get_kst_now
-
-# 공통 메시지 상수
-ERROR_MESSAGES = {
-    "SERVER_ERROR": "서버 내부 오류가 발생했습니다",
-    "NOT_FOUND": "요청한 리소스를 찾을 수 없습니다",
-    "UNAUTHORIZED": "인증되지 않은 접근입니다",
-    "FORBIDDEN": "권한이 없습니다",
-    "BAD_REQUEST": "잘못된 요청입니다",
-    "LOCK_CONFLICT": "다른 사용자가 작업 중입니다",
-    "VALIDATION_ERROR": "입력 데이터가 유효하지 않습니다",
-    "DB_ERROR": "데이터베이스 오류가 발생했습니다",
-    "DB_CONNECTION": "데이터베이스 연결 오류가 발생했습니다",
-    "ROW_LOCK_TIMEOUT": "데이터 잠금 시간이 초과되었습니다",
-    "DEADLOCK_DETECTED": "데이터 접근 충돌이 발생했습니다",
-}
+from server.utils.constants import ERROR_MESSAGES
+from server.utils.api_response import create_success_response, create_error_response
 
 T = TypeVar("T")
-
 
 # 필수 기본 예외 클래스만 유지 (YAGNI 원칙)
 class BaseException(HTTPException):
@@ -134,12 +123,10 @@ class DeadlockDetectedException(BaseException):
 
 def format_error_response(error: BaseException) -> Dict[str, Any]:
     """표준화된 에러 응답 생성"""
-    response = {
-        "success": False,
-        "error_code": getattr(error, "error_code", "SERVER_ERROR"),
-        "message": error.detail,
-        "timestamp": get_kst_now().isoformat(),
-    }
+    response = create_error_response(
+        error_code=getattr(error, "error_code", "SERVER_ERROR"),
+        message=error.detail
+    )
 
     # 락 충돌인 경우 락 정보 추가
     if isinstance(error, LockConflictException) and error.lock_info:
@@ -150,7 +137,7 @@ def format_error_response(error: BaseException) -> Dict[str, Any]:
 
 def error_handler(operation_name: str) -> Callable:
     """에러 처리를 위한 데코레이터
-
+    
     모든 API 응답을 일관된 형식으로 변환하고 예외를 적절히 처리합니다.
     """
 
@@ -168,35 +155,29 @@ def error_handler(operation_name: str) -> Callable:
                 log_info(f"{operation_name} 처리 완료")
 
                 # 응답에 타임스탬프 추가
-                if hasattr(result, "model_dump") and callable(
-                    getattr(result, "model_dump")
-                ):
-                    result_dict = result.model_dump()
-                    if (
-                        "timestamp" not in result_dict
-                        or result_dict["timestamp"] is None
-                    ):
-                        result.timestamp = get_kst_now().isoformat()
-
+                if isinstance(result, dict) and "timestamp" not in result:
+                    result["timestamp"] = get_kst_now().isoformat()
+                    
                 return result
+
+            except BaseException as e:
+                # 커스텀 예외 처리 (이미 형식화되어 있음)
+                log_error(f"{operation_name} - {e.__class__.__name__}: {e.detail}")
+                return format_error_response(e)
 
             except ValidationError as e:
                 log_error(f"{operation_name} - 유효성 검증 실패: {str(e)}")
-                return {
-                    "success": False,
-                    "error_code": "VALIDATION_ERROR",
-                    "message": f"입력 데이터 유효성 검증 실패: {str(e)}",
-                    "timestamp": get_kst_now().isoformat(),
-                }
+                return create_error_response(
+                    error_code="VALIDATION_ERROR",
+                    message=f"입력 데이터 유효성 검증 실패: {str(e)}"
+                )
 
             except TimeoutError as e:
                 log_error(f"{operation_name} - 데이터베이스 쿼리 타임아웃: {str(e)}")
-                return {
-                    "success": False,
-                    "error_code": "QUERY_TIMEOUT",
-                    "message": "데이터베이스 쿼리 시간이 초과되었습니다",
-                    "timestamp": get_kst_now().isoformat(),
-                }
+                return create_error_response(
+                    error_code="QUERY_TIMEOUT",
+                    message="데이터베이스 쿼리 시간이 초과되었습니다"
+                )
 
             except IntegrityError as e:
                 log_error(f"{operation_name} - 데이터 무결성 오류: {str(e)}")
@@ -206,150 +187,38 @@ def error_handler(operation_name: str) -> Callable:
                 elif "foreign key" in str(e).lower():
                     error_message = "참조하는 데이터가 존재하지 않습니다"
 
-                return {
-                    "success": False,
-                    "error_code": "INTEGRITY_ERROR",
-                    "message": error_message,
-                    "timestamp": get_kst_now().isoformat(),
-                }
+                return create_error_response(
+                    error_code="INTEGRITY_ERROR",
+                    message=error_message
+                )
 
             except OperationalError as e:
                 log_error(f"{operation_name} - 데이터베이스 연결 오류: {str(e)}")
                 # 락 타임아웃인 경우 특별 처리
                 if "lock wait timeout" in str(e).lower():
-                    return {
-                        "success": False,
-                        "error_code": "ROW_LOCK_TIMEOUT",
-                        "message": ERROR_MESSAGES["ROW_LOCK_TIMEOUT"],
-                        "timestamp": get_kst_now().isoformat(),
-                    }
+                    return create_error_response(
+                        error_code="ROW_LOCK_TIMEOUT",
+                        message=ERROR_MESSAGES["ROW_LOCK_TIMEOUT"]
+                    )
                 # 데드락 감지인 경우 특별 처리
                 elif "deadlock" in str(e).lower():
-                    return {
-                        "success": False,
-                        "error_code": "DEADLOCK_DETECTED",
-                        "message": ERROR_MESSAGES["DEADLOCK_DETECTED"],
-                        "timestamp": get_kst_now().isoformat(),
-                    }
+                    return create_error_response(
+                        error_code="DEADLOCK_DETECTED",
+                        message=ERROR_MESSAGES["DEADLOCK_DETECTED"]
+                    )
                 # 기타 데이터베이스 연결 오류
-                return {
-                    "success": False,
-                    "error_code": "DB_CONNECTION",
-                    "message": ERROR_MESSAGES["DB_CONNECTION"],
-                    "timestamp": get_kst_now().isoformat(),
-                }
-
-            except LockConflictException as e:
-                log_error(f"{operation_name} - 락 충돌 발생: {str(e)}")
-                response = {
-                    "success": False,
-                    "error_code": "LOCK_CONFLICT",
-                    "message": str(e),
-                    "timestamp": get_kst_now().isoformat(),
-                }
-                # 락 정보가 있으면 추가
-                if hasattr(e, "lock_info") and e.lock_info:
-                    response["data"] = e.lock_info
-                return response
-
-            except (RowLockTimeoutException, DeadlockDetectedException) as e:
-                log_error(f"{operation_name} - 행 락 오류: {str(e)}")
-                return {
-                    "success": False,
-                    "error_code": getattr(e, "error_code", "LOCK_ERROR"),
-                    "message": str(e),
-                    "timestamp": get_kst_now().isoformat(),
-                }
-
-            except BaseException as e:
-                # 사용자 정의 예외 처리
-                log_error(error=e, message=f"{operation_name} - 예외 발생")
-                return {
-                    "success": False,
-                    "error_code": getattr(e, "error_code", "SERVER_ERROR"),
-                    "message": str(e),
-                    "timestamp": get_kst_now().isoformat(),
-                }
-
-            except SQLAlchemyError as e:
-                log_error(f"{operation_name} - 데이터베이스 오류: {str(e)}")
-                return {
-                    "success": False,
-                    "error_code": "DB_ERROR",
-                    "message": ERROR_MESSAGES["DB_ERROR"],
-                    "timestamp": get_kst_now().isoformat(),
-                }
+                return create_error_response(
+                    error_code="DB_CONNECTION",
+                    message=ERROR_MESSAGES["DB_CONNECTION"]
+                )
 
             except Exception as e:
-                # 예상치 못한 일반 예외 처리
                 log_error(f"{operation_name} - 예상치 못한 오류: {str(e)}")
-                return {
-                    "success": False,
-                    "error_code": "SERVER_ERROR",
-                    "message": ERROR_MESSAGES["SERVER_ERROR"],
-                    "timestamp": get_kst_now().isoformat(),
-                }
+                return create_error_response(
+                    error_code="SERVER_ERROR",
+                    message=ERROR_MESSAGES["SERVER_ERROR"]
+                )
 
-        return cast(Callable[..., T], wrapper)
+        return wrapper
 
     return decorator
-
-
-def create_success_response(
-    data: Any = None, 
-    message: str = "성공적으로 처리되었습니다",
-    meta: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """
-    성공 응답 생성 헬퍼 함수
-    
-    Args:
-        data: 응답 데이터
-        message: 성공 메시지
-        meta: 메타 데이터 (페이지네이션 등)
-        
-    Returns:
-        일관된 형식의 성공 응답 딕셔너리
-    """
-    response = {
-        "success": True,
-        "message": message,
-        "timestamp": get_kst_now().isoformat()
-    }
-    
-    if data is not None:
-        response["data"] = data
-        
-    if meta is not None:
-        response["meta"] = meta
-        
-    return response
-
-
-def create_error_response(
-    error_code: str, 
-    message: str = "오류가 발생했습니다",
-    details: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """
-    오류 응답 생성 헬퍼 함수
-    
-    Args:
-        error_code: 오류 코드
-        message: 오류 메시지
-        details: 상세 오류 정보
-        
-    Returns:
-        일관된 형식의 오류 응답 딕셔너리
-    """
-    response = {
-        "success": False,
-        "error_code": error_code,
-        "message": message,
-        "timestamp": get_kst_now().isoformat()
-    }
-    
-    if details is not None:
-        response["details"] = details
-        
-    return response

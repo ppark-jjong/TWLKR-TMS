@@ -1,6 +1,7 @@
 // src/components/AssignDriverModal.js
-import React from "react";
-import { Modal, Form, Input, Row, Col, Badge, Typography } from "antd";
+import React from 'react';
+import { Form, Input, Row, Col, Badge, Typography } from 'antd';
+import BaseModal from './shared/BaseModal';
 
 const { Text } = Typography;
 
@@ -23,7 +24,7 @@ const AssignDriverModal = ({
   selectedCount = 0,
 }) => {
   return (
-    <Modal
+    <BaseModal
       title="배차 처리"
       open={open}
       onOk={onOk}
@@ -36,7 +37,7 @@ const AssignDriverModal = ({
         <div style={{ marginBottom: 20 }}>
           <Badge color="blue" status="processing" />
           <Text strong> 선택된 주문: {selectedCount}건</Text>
-          <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
             선택한 주문에 동일한 배송기사 정보가 할당됩니다.
           </Text>
         </div>
@@ -48,7 +49,7 @@ const AssignDriverModal = ({
             <Form.Item
               name="driver_name"
               label="기사명"
-              rules={[{ required: true, message: "기사명을 입력해주세요" }]}
+              rules={[{ required: true, message: '기사명을 입력해주세요' }]}
             >
               <Input placeholder="기사명 입력" size="large" />
             </Form.Item>
@@ -58,10 +59,10 @@ const AssignDriverModal = ({
               name="driver_contact"
               label="연락처"
               rules={[
-                { required: true, message: "연락처를 입력해주세요" },
+                { required: true, message: '연락처를 입력해주세요' },
                 {
                   pattern: /^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$/,
-                  message: "올바른 연락처 형식이 아닙니다",
+                  message: '올바른 연락처 형식이 아닙니다',
                 },
               ]}
             >
@@ -73,7 +74,7 @@ const AssignDriverModal = ({
           </Col>
         </Row>
       </Form>
-    </Modal>
+    </BaseModal>
   );
 };
 

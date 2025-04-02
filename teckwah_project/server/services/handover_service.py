@@ -8,6 +8,9 @@ from ..models.handover_model import HandoverRecord
 from ..schemas.handover_schema import HandoverCreate, HandoverUpdate, HandoverResponse, HandoverListResponse, HandoverLockResponse
 from ..utils.transaction import transaction
 from ..utils.error import LockConflictException, NotFoundException
+from ..utils.lock_manager import LockManager
+from ..utils.api_response import create_response, error_response
+from ..utils.logger import log_info, log_error
 
 
 class HandoverService:
@@ -17,6 +20,7 @@ class HandoverService:
     def __init__(self, db: Session):
         self.repository = HandoverRepository(db)
         self.db = db
+        self.lock_manager = LockManager(db)
 
     def create_handover(self, data: HandoverCreate, current_user: str) -> HandoverResponse:
         """
@@ -78,50 +82,62 @@ class HandoverService:
     def acquire_lock(self, 
                     handover_id: int, 
                     current_user: str, 
-                    timeout: int = 300) -> Optional[HandoverLockResponse]:
+                    timeout: int = 300) -> Dict[str, Any]:
         """
-        인수인계 레코드 락 획득 (행 단위 락 사용)
+        인수인계 레코드 락 획득 (LockManager 사용)
         """
         try:
-            # 행 단위 락 획득 시도
-            handover = self.repository.get_handover_with_lock(handover_id, current_user)
+            # LockManager를 통한 락 획득
+            lock_result = self.lock_manager.acquire_lock(
+                HandoverRecord, 
+                handover_id, 
+                current_user, 
+                action_type="EDIT",
+                timeout=timeout
+            )
             
-            if handover:
-                # 락 획득 성공
-                return HandoverLockResponse(
-                    id=handover_id,
-                    locked_by=current_user,
-                    locked_at=datetime.now(),
-                    expires_at=datetime.now() + timedelta(seconds=timeout)
-                )
-            return None
-        except LockConflictException:
-            # 락 충돌 시 None 반환
-            return None
+            return lock_result
+        except LockConflictException as e:
+            log_error(f"락 충돌: 인수인계(ID: {handover_id}) - 사용자: {current_user}")
+            return error_response(
+                message=str(e),
+                error_code="LOCK_CONFLICT",
+                status_code=409
+            )
+        except NotFoundException as e:
+            log_error(f"리소스 없음: 인수인계(ID: {handover_id})")
+            return error_response(
+                message=str(e),
+                error_code="NOT_FOUND",
+                status_code=404
+            )
         except Exception as e:
-            # 기타 오류 처리
-            print(f"락 획득 오류: {str(e)}")
-            return None
+            log_error(f"락 획득 오류: {str(e)}")
+            return error_response(
+                message=f"락 획득 중 오류가 발생했습니다: {str(e)}",
+                error_code="SERVER_ERROR",
+                status_code=500
+            )
 
-    def release_lock(self, handover_id: int, current_user: str) -> bool:
+    def release_lock(self, handover_id: int, current_user: str) -> Dict[str, Any]:
         """
-        인수인계 레코드 락 해제 - 행 단위 락은 트랜잭션 종료 시 자동 해제
+        인수인계 레코드 락 해제 (LockManager 사용)
         """
-        return True
+        try:
+            result = self.lock_manager.release_lock(HandoverRecord, handover_id, current_user)
+            return result
+        except Exception as e:
+            log_error(f"락 해제 오류: {str(e)}")
+            return error_response(
+                message=f"락 해제 중 오류가 발생했습니다: {str(e)}",
+                error_code="SERVER_ERROR"
+            )
 
-    def get_lock_info(self, handover_id: int) -> Optional[HandoverLockResponse]:
+    def get_lock_info(self, handover_id: int) -> Optional[Dict[str, Any]]:
         """
-        인수인계 레코드 락 정보 조회 - 행 단위 락은 실시간 확인 불가
+        인수인계 레코드 락 정보 조회 (LockManager 사용)
         """
-        # 행 단위 락은 UI 표시용 정보를 제공하지 않음
-        return None
-
-    def is_locked_by_others(self, handover_id: int, current_user: str) -> bool:
-        """
-        다른 사용자에 의해 락이 걸려있는지 확인 - 행 단위 락은 실시간 확인 불가
-        """
-        # 행 단위 락은 실시간 조회가 어려우므로 항상 False 반환
-        return False
+        return self.lock_manager.get_lock_info(HandoverRecord, handover_id)
 
     def update_handover_with_permission(self, 
                                        handover_id: int, 
@@ -129,32 +145,40 @@ class HandoverService:
                                        current_user: str,
                                        is_admin: bool = False) -> Dict[str, Any]:
         """
-        인수인계 레코드 수정 (권한 확인 포함, 행 단위 락 사용)
+        인수인계 레코드 수정 (권한 확인 포함, LockManager 사용)
         """
-        # 기본 응답 구조
-        result = {
-            "handover": None,
-            "error_code": None,
-            "message": None
-        }
-        
         try:
             with transaction(self.db):
-                # 행 단위 락 획득을 통한 레코드 조회
-                handover = self.repository.get_handover_with_lock(handover_id, current_user)
+                # LockManager를 통한 락 획득
+                lock_result = self.lock_manager.acquire_lock(
+                    HandoverRecord, 
+                    handover_id, 
+                    current_user, 
+                    action_type="EDIT"
+                )
+                
+                if not lock_result.get("success", False):
+                    return lock_result
+                
+                # 레코드 조회
+                handover = self.repository.get_handover_by_id(handover_id)
                 
                 # 존재하지 않는 레코드
                 if not handover:
-                    result["error_code"] = "NOT_FOUND"
-                    result["message"] = "인수인계 항목을 찾을 수 없습니다."
-                    return result
+                    return error_response(
+                        message="인수인계 항목을 찾을 수 없습니다.",
+                        error_code="NOT_FOUND",
+                        status_code=404
+                    )
                 
                 # 권한 확인 (작성자 또는 관리자만 수정 가능)
-                if handover.update_by != current_user and not is_admin:
-                    result["error_code"] = "FORBIDDEN"
-                    result["message"] = "수정 권한이 없습니다. (본인 또는 관리자만 가능)"
-                    result["handover"] = self._to_response(handover, current_user)
-                    return result
+                if handover.created_by != current_user and not is_admin:
+                    return error_response(
+                        message="수정 권한이 없습니다. (본인 또는 관리자만 가능)",
+                        error_code="FORBIDDEN",
+                        status_code=403,
+                        data={"handover": self._to_response(handover, current_user)}
+                    )
                 
                 # 수정 데이터 준비
                 update_data = data.model_dump(exclude_unset=True)
@@ -166,77 +190,98 @@ class HandoverService:
                     if 'notice_until' in update_data:
                         del update_data['notice_until']
                 
-                # 필드 업데이트
-                for key, value in update_data.items():
-                    setattr(handover, key, value)
+                # 마지막 업데이트 정보 추가
+                update_data["update_by"] = current_user
                 
-                # 마지막 업데이트 정보 갱신
-                handover.update_by = current_user
-                
-                # DB 반영
-                self.db.flush()
+                # 레코드 업데이트
+                updated_handover = self.repository.update_handover(handover_id, update_data)
                 
                 # 응답 구성
-                result["handover"] = self._to_response(handover, current_user)
-                return result
+                return create_response(
+                    message="인수인계 항목이 업데이트되었습니다.",
+                    data={"handover": self._to_response(updated_handover, current_user)}
+                )
                 
-        except LockConflictException:
-            result["error_code"] = "LOCK_CONFLICT"
-            result["message"] = "다른 사용자가 편집 중입니다."
-            return result
+        except LockConflictException as e:
+            return error_response(
+                message="다른 사용자가 편집 중입니다.",
+                error_code="LOCK_CONFLICT",
+                status_code=409
+            )
         except Exception as e:
-            result["error_code"] = "SERVER_ERROR"
-            result["message"] = f"서버 오류: {str(e)}"
-            return result
+            log_error(f"인수인계 업데이트 오류: {str(e)}")
+            return error_response(
+                message=f"서버 오류: {str(e)}",
+                error_code="SERVER_ERROR",
+                status_code=500
+            )
 
     def delete_handover_with_permission(self, 
                                        handover_id: int, 
                                        current_user: str, 
                                        is_admin: bool = False) -> Dict[str, Any]:
         """
-        인수인계 레코드 삭제 (권한 확인 포함, 행 단위 락 사용)
+        인수인계 레코드 삭제 (권한 확인 포함, LockManager 사용)
         """
-        # 기본 응답 구조
-        result = {
-            "success": False,
-            "error_code": None,
-            "message": None
-        }
-        
         try:
             with transaction(self.db):
-                # 행 단위 락 획득을 통한 레코드 조회
-                handover = self.repository.get_handover_with_lock(handover_id, current_user)
+                # LockManager를 통한 락 획득
+                lock_result = self.lock_manager.acquire_lock(
+                    HandoverRecord, 
+                    handover_id, 
+                    current_user, 
+                    action_type="DELETE"
+                )
+                
+                if not lock_result.get("success", False):
+                    return lock_result
+                
+                # 레코드 조회
+                handover = self.repository.get_handover_by_id(handover_id)
                 
                 # 존재하지 않는 레코드
                 if not handover:
-                    result["error_code"] = "NOT_FOUND"
-                    result["message"] = "인수인계 항목을 찾을 수 없습니다."
-                    return result
+                    return error_response(
+                        message="인수인계 항목을 찾을 수 없습니다.",
+                        error_code="NOT_FOUND",
+                        status_code=404
+                    )
                 
                 # 권한 확인 (작성자 또는 관리자만 삭제 가능)
-                if handover.update_by != current_user and not is_admin:
-                    result["error_code"] = "FORBIDDEN"
-                    result["message"] = "삭제 권한이 없습니다. (본인 또는 관리자만 가능)"
-                    return result
+                if handover.created_by != current_user and not is_admin:
+                    return error_response(
+                        message="삭제 권한이 없습니다. (본인 또는 관리자만 가능)",
+                        error_code="FORBIDDEN",
+                        status_code=403
+                    )
                 
                 # 삭제 실행
-                self.db.delete(handover)
-                self.db.flush()
+                success = self.repository.delete_handover(handover_id)
                 
                 # 성공 응답
-                result["success"] = True
-                result["message"] = "인수인계 항목이 삭제되었습니다."
-                return result
+                if success:
+                    return create_response(
+                        message="인수인계 항목이 삭제되었습니다."
+                    )
+                else:
+                    return error_response(
+                        message="인수인계 항목 삭제에 실패했습니다.",
+                        error_code="DELETE_FAILED"
+                    )
                 
         except LockConflictException:
-            result["error_code"] = "LOCK_CONFLICT"
-            result["message"] = "다른 사용자가 편집 중입니다."
-            return result
+            return error_response(
+                message="다른 사용자가 편집 중입니다.",
+                error_code="LOCK_CONFLICT",
+                status_code=409
+            )
         except Exception as e:
-            result["error_code"] = "SERVER_ERROR"
-            result["message"] = f"서버 오류: {str(e)}"
-            return result
+            log_error(f"인수인계 삭제 오류: {str(e)}")
+            return error_response(
+                message=f"서버 오류: {str(e)}",
+                error_code="SERVER_ERROR",
+                status_code=500
+            )
 
     def _to_response(self, handover: HandoverRecord, current_user: str) -> HandoverResponse:
         """

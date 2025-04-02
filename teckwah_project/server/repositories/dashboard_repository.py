@@ -9,17 +9,17 @@ from server.models.dashboard_model import Dashboard
 from server.models.postal_code_model import PostalCode, PostalCodeDetail
 from server.utils.logger import log_info, log_error
 from server.utils.datetime import KST, get_kst_now, localize_to_kst
-from server.utils.transaction import with_row_lock, update_lock_info, with_row_lock_timeout
 from server.utils.error import LockConflictException
-from server.config.settings import get_settings
-from server.utils.transaction import generic_acquire_lock
+from server.repositories.base_repository import BaseRepository
+from server.utils.lock_manager import LockManager
 
 
-class DashboardRepository:
+class DashboardRepository(BaseRepository[Dashboard]):
     """통합된 대시보드 저장소 구현"""
 
     def __init__(self, db: Session):
-        self.db = db
+        super().__init__(db, Dashboard)
+        self.lock_manager = LockManager(db)
 
     #
     # [대시보드 기본 기능 영역]
@@ -62,30 +62,38 @@ class DashboardRepository:
         try:
             log_info(f"대시보드 락 획득 조회: ID={dashboard_id}, 사용자={user_id}")
             
-            # 공통 락 획득 함수 사용
-            dashboard = generic_acquire_lock(
-                self.db, 
+            # LockManager 사용
+            lock_result = self.lock_manager.acquire_lock(
                 Dashboard, 
                 dashboard_id, 
                 user_id, 
-                field_name='dashboard_id'
+                action_type="EDIT"
             )
             
-            # 추가 조인 로딩이 필요한 경우
+            if not lock_result.get("success", False):
+                log_error(f"락 획득 실패: {lock_result.get('message', '')}")
+                raise LockConflictException(
+                    detail=lock_result.get('message', '다른 사용자가 편집 중입니다')
+                )
+            
+            # 락 획득 성공, 조인 로딩 적용된 대시보드 반환
+            dashboard = (
+                self.db.query(Dashboard)
+                .filter(Dashboard.dashboard_id == dashboard_id)
+                .options(joinedload(Dashboard.postal_code_info))
+                .first()
+            )
+            
             if dashboard:
-                # 이미 락은 획득했으므로 조인만 추가
-                self.db.refresh(dashboard, ["postal_code_info"])
                 log_info(f"대시보드 락 획득 성공: ID={dashboard_id}")
             else:
                 log_info(f"락 획득할 대시보드 없음: ID={dashboard_id}")
                 
             return dashboard
-        except LockConflictException as e:
-            log_error(f"대시보드 락 충돌: ID={dashboard_id}, 사용자={user_id}")
-            # 간소화된 락 충돌 정보
-            raise LockConflictException(
-                detail=f"대시보드 ID {dashboard_id}에 대한 락을 획득할 수 없습니다. 다른 사용자가 편집 중입니다."
-            )
+            
+        except LockConflictException:
+            # 다시 던지기
+            raise
         except Exception as e:
             log_error(f"대시보드 락 획득 실패: {str(e)}")
             raise
@@ -121,10 +129,8 @@ class DashboardRepository:
         """대시보드 생성"""
         try:
             log_info(f"대시보드 생성: {dashboard_data}")
-            dashboard = Dashboard(**dashboard_data)
-            self.db.add(dashboard)
-            self.db.flush()  # ID 생성을 위해 flush
-            self.db.refresh(dashboard)
+            # BaseRepository의 create 메서드 사용
+            dashboard = self.create(**dashboard_data)
             log_info(f"대시보드 생성 완료: ID={dashboard.dashboard_id}")
             return dashboard
         except Exception as e:
@@ -138,7 +144,8 @@ class DashboardRepository:
         try:
             log_info(f"대시보드 필드 업데이트: ID={dashboard_id}, 필드={fields}")
             
-            # 락과 함께 대시보드 조회
+            # BaseRepository의 update_with_lock 메서드 사용
+            # 하지만 dashboard_id 필드 이름이 다르므로 직접 구현
             dashboard = self.get_dashboard_with_lock(dashboard_id, user_id)
             
             if not dashboard:
@@ -161,28 +168,45 @@ class DashboardRepository:
             raise
 
     def assign_driver(
-        self, dashboard_ids: List[int], driver_name: str, driver_contact: str, user_id: str
+        self, dashboard_ids: List[int], driver_info: Dict[str, str], user_id: str
     ) -> List[Dashboard]:
         """배차 처리 (여러 대시보드에 배차 담당자 할당) - 행 수준 락 적용"""
         try:
+            driver_name = driver_info.get('driver_name', '')
+            driver_contact = driver_info.get('driver_contact', '')
+            
             log_info(f"배차 처리: IDs={dashboard_ids}, 담당자={driver_name}")
             
             updated_dashboards = []
             
-            # 각 대시보드에 대해 락 획득 후 개별 업데이트
+            # LockManager를 사용하여 다중 락 획득
+            lock_result = self.lock_manager.acquire_multiple_locks(
+                Dashboard, 
+                dashboard_ids, 
+                user_id,
+                action_type="ASSIGN"
+            )
+            
+            if not lock_result.get("success", False):
+                # 락 획득 실패
+                failed_ids = lock_result.get("failed_ids", [])
+                raise LockConflictException(
+                    detail=f"{len(failed_ids)}개 항목에 대한 락 획득 실패"
+                )
+                
+            # 각 대시보드 업데이트
             for dashboard_id in dashboard_ids:
-                # 락 획득 시도
-                dashboard = self.get_dashboard_with_lock(dashboard_id, user_id)
+                dashboard = (
+                    self.db.query(Dashboard)
+                    .filter(Dashboard.dashboard_id == dashboard_id)
+                    .first()
+                )
                 
                 if dashboard:
-                    # 배차 정보 업데이트
                     dashboard.driver_name = driver_name
                     dashboard.driver_contact = driver_contact
                     dashboard.updated_by = user_id
                     updated_dashboards.append(dashboard)
-                else:
-                    # 하나라도 락 획득에 실패하면 중단 (All or Nothing)
-                    raise LockConflictException(f"대시보드 ID {dashboard_id}에 대한 락 획득 실패")
             
             self.db.flush()
             log_info(f"배차 처리 완료: {len(updated_dashboards)}건")
@@ -197,24 +221,30 @@ class DashboardRepository:
         try:
             log_info(f"대시보드 삭제: IDs={dashboard_ids}")
             
-            deleted_count = 0
+            # LockManager를 사용하여 다중 락 획득
+            lock_result = self.lock_manager.acquire_multiple_locks(
+                Dashboard, 
+                dashboard_ids, 
+                user_id,
+                action_type="DELETE"
+            )
             
-            # 각 대시보드에 대해 락 획득 후 개별 삭제
-            for dashboard_id in dashboard_ids:
-                # 락 획득 시도
-                dashboard = self.get_dashboard_with_lock(dashboard_id, user_id)
-                
-                if dashboard:
-                    # 대시보드 삭제
-                    self.db.delete(dashboard)
-                    deleted_count += 1
-                else:
-                    # 하나라도 락 획득에 실패하면 중단 (All or Nothing)
-                    raise LockConflictException(f"대시보드 ID {dashboard_id}에 대한 락 획득 실패")
+            if not lock_result.get("success", False):
+                # 락 획득 실패
+                failed_ids = lock_result.get("failed_ids", [])
+                raise LockConflictException(
+                    detail=f"{len(failed_ids)}개 항목에 대한 락 획득 실패"
+                )
+            
+            # 삭제 처리
+            delete_result = self.db.query(Dashboard).filter(
+                Dashboard.dashboard_id.in_(dashboard_ids)
+            ).delete(synchronize_session=False)
             
             self.db.flush()
-            log_info(f"대시보드 삭제 완료: {deleted_count}건")
-            return deleted_count
+            log_info(f"대시보드 삭제 완료: {delete_result}건")
+            return delete_result
+            
         except Exception as e:
             log_error(f"대시보드 삭제 실패: {str(e)}", {"ids": dashboard_ids})
             raise
@@ -222,32 +252,15 @@ class DashboardRepository:
     def search_dashboards_by_order_no(self, order_no: str) -> List[Dashboard]:
         """주문번호로 대시보드 검색"""
         try:
-            log_info(f"주문번호 검색: {order_no}")
-
-            # LIKE 검색 조건 생성 (주문번호에 검색어가 포함된 경우)
-            search_term = f"%{order_no}%"
-
+            log_info(f"주문번호로 대시보드 검색: {order_no}")
             dashboards = (
                 self.db.query(Dashboard)
-                .filter(Dashboard.order_no.like(search_term))
-                .order_by(desc(Dashboard.eta))
+                .filter(Dashboard.order_no.ilike(f"%{order_no}%"))
+                .order_by(Dashboard.eta)
                 .all()
             )
-
-            log_info(f"주문번호 검색 결과: {len(dashboards)}건")
+            log_info(f"검색 결과: {len(dashboards)}건")
             return dashboards
         except Exception as e:
-            log_error(f"주문번호 검색 실패: {str(e)}")
+            log_error(f"주문번호 검색 실패: {str(e)}", {"order_no": order_no})
             return []
-            
-    def get_lock_info(self, dashboard_id: int) -> Optional[Dict[str, Any]]:
-        """Dashboard 행 단위 락 정보 제공 (UI 표시용)"""
-        try:
-            # 행 단위 락은 UI에서 보여줄 필요가 없으므로 간단한 정보만 반환
-            return {
-                "id": dashboard_id,
-                "is_locked": False  # 행 단위 락은 UI에서 별도 표시하지 않음
-            }
-        except Exception as e:
-            log_error(f"락 정보 조회 실패: {str(e)}")
-            return None
