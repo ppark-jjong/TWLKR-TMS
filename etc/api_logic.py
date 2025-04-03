@@ -29,7 +29,7 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
         "편한길": None,
         "최적경로": None,
         "무료우선": None,
-        "second_highest": None,  # 두 번째로 높은 값을 저장할 컬럼
+        "second_highest": None,
     }
 
     options = [
@@ -39,8 +39,7 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
         ("traavoidtoll", "무료우선"),
     ]
 
-    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving15"
-    # Directions 5: https://naveropenapi.apigw.ntruss.com/map-direction/v1
+    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1"
 
     headers = {
         "X-NCP-APIGW-API-KEY-ID": client_id,
@@ -56,9 +55,14 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
         }
 
         try:
+            print(f"\n[디버그] {option_name} 경로 계산 시도...")
             response = requests.get(url, headers=headers, params=params)
+            print(f"[디버그] API 응답 상태 코드: {response.status_code}")
+
             if response.status_code == 200:
                 result = response.json()
+                print(f"[디버그] API 응답: {result}")
+
                 if "route" in result and option_code in result["route"]:
                     distance = (
                         result["route"][option_code][0]["summary"]["distance"] / 1000
@@ -67,6 +71,12 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
                     route_distances[option_name] = distance
                     distances.append(distance)
                     print(f"- {option_name}: {distance}km")
+                else:
+                    print(
+                        f"[디버그] 경로 정보 없음: route={option_code in result.get('route', {})}"
+                    )
+            else:
+                print(f"[디버그] API 오류: {response.text}")
 
             time.sleep(0.5)  # API 호출 간격
 
@@ -75,8 +85,8 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
 
     # 두 번째로 높은 값 계산
     if len(distances) >= 2:
-        sorted_distances = sorted(distances, reverse=True)  # 내림차순 정렬
-        route_distances["second_highest"] = sorted_distances[1]  # 두 번째로 높은 값
+        sorted_distances = sorted(distances, reverse=True)
+        route_distances["second_highest"] = sorted_distances[1]
 
     return route_distances
 
