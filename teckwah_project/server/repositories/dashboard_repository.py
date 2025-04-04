@@ -25,22 +25,36 @@ class DashboardRepository(BaseRepository[Dashboard]):
     # [대시보드 기본 기능 영역]
     #
     def get_dashboard_list_by_date(
-        self, start_date: datetime, end_date: datetime
-    ) -> List[Dashboard]:
-        """ETA 기준으로 날짜 범위 내 대시보드 목록 조회"""
+        self, start_date: datetime, end_date: datetime, page: int = 1, page_size: int = 100
+    ) -> Tuple[List[Dashboard], int]:
+        """ETA 기준으로 날짜 범위 내 대시보드 목록 조회 (페이지네이션 적용)"""
         try:
-            log_info(f"대시보드 목록 조회: {start_date} ~ {end_date}")
+            log_info(f"대시보드 목록 조회: {start_date} ~ {end_date}, 페이지={page}, 페이지크기={page_size}")
+            
+            # 전체 개수 쿼리 (메인 쿼리와 분리하여 성능 향상)
+            count_query = (
+                self.db.query(func.count(Dashboard.dashboard_id))
+                .filter(Dashboard.eta.between(start_date, end_date))
+            )
+            total_count = count_query.scalar()
+            
+            # 페이지네이션 적용된 데이터 쿼리
+            offset = (page - 1) * page_size
             query = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.eta.between(start_date, end_date))
                 .order_by(Dashboard.eta)
+                .offset(offset)
+                .limit(page_size)
             )
+            
             result = query.all()
-            log_info(f"대시보드 목록 조회 결과: {len(result)}건")
-            return result
+            log_info(f"대시보드 목록 조회 결과: {len(result)}건 (전체 {total_count}건)")
+            return result, total_count
+            
         except Exception as e:
             log_error(f"대시보드 목록 조회 실패: {str(e)}")
-            return []
+            return [], 0
 
     def get_dashboard_detail(self, dashboard_id: int) -> Optional[Dashboard]:
         """대시보드 상세 정보 조회"""
@@ -249,18 +263,146 @@ class DashboardRepository(BaseRepository[Dashboard]):
             log_error(f"대시보드 삭제 실패: {str(e)}", {"ids": dashboard_ids})
             raise
 
-    def search_dashboards_by_order_no(self, order_no: str) -> List[Dashboard]:
+    def search_dashboards_by_order_no(self, order_no: str, page: int = 1, page_size: int = 10) -> Tuple[List[Dashboard], int]:
         """주문번호로 대시보드 검색"""
         try:
-            log_info(f"주문번호로 대시보드 검색: {order_no}")
+            log_info(f"주문번호로 대시보드 검색: {order_no}, 페이지={page}, 페이지크기={page_size}")
+            
+            # 전체 개수 쿼리
+            count_query = (
+                self.db.query(func.count(Dashboard.dashboard_id))
+                .filter(Dashboard.order_no.ilike(f"%{order_no}%"))
+            )
+            total_count = count_query.scalar()
+            
+            # 페이지네이션 적용된 데이터 쿼리
+            offset = (page - 1) * page_size
             dashboards = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.order_no.ilike(f"%{order_no}%"))
                 .order_by(Dashboard.eta)
+                .offset(offset)
+                .limit(page_size)
                 .all()
             )
-            log_info(f"검색 결과: {len(dashboards)}건")
-            return dashboards
+            
+            log_info(f"검색 결과: {len(dashboards)}건 (전체 {total_count}건)")
+            return dashboards, total_count
+            
         except Exception as e:
             log_error(f"주문번호 검색 실패: {str(e)}", {"order_no": order_no})
-            return []
+            return [], 0
+
+    def get_eta_date_range(self):
+        """대시보드 ETA의 최소/최대 날짜 범위 조회"""
+        result = {}
+        try:
+            min_eta_query = self.db.query(func.min(Dashboard.eta)).scalar()
+            max_eta_query = self.db.query(func.max(Dashboard.eta)).scalar()
+            
+            result = {
+                'min_eta': min_eta_query,
+                'max_eta': max_eta_query
+            }
+        except Exception as e:
+            log_error(f"ETA 날짜 범위 조회 중 오류 발생: {str(e)}")
+        
+        return result
+
+    def get_dashboard_list_by_date_with_filters(
+        self, start_date, end_date, page=1, size=10, filters=None
+    ) -> Tuple[List[Dashboard], int]:
+        """날짜 범위와 필터를 적용하여 대시보드 목록 조회 (페이지네이션 적용)"""
+        if filters is None:
+            filters = {}
+            
+        # 기본 쿼리 구성
+        query = self.db.query(Dashboard)
+        
+        # 날짜 필터링 적용 (필수 조건)
+        if start_date:
+            query = query.filter(Dashboard.eta >= start_date)
+        if end_date:
+            query = query.filter(Dashboard.eta <= end_date)
+            
+        # 추가 필터 적용
+        if 'status' in filters and filters['status']:
+            query = query.filter(Dashboard.status == filters['status'])
+            
+        if 'department' in filters and filters['department']:
+            query = query.filter(Dashboard.department == filters['department'])
+            
+        if 'warehouse' in filters and filters['warehouse']:
+            query = query.filter(Dashboard.warehouse == filters['warehouse'])
+            
+        if 'search_term' in filters and filters['search_term']:
+            search_term = f"%{filters['search_term']}%"
+            query = query.filter(
+                or_(
+                    Dashboard.order_no.ilike(search_term),
+                    Dashboard.customer.ilike(search_term),
+                    Dashboard.address.ilike(search_term),
+                    Dashboard.driver_name.ilike(search_term)
+                )
+            )
+        
+        # 전체 개수 쿼리 (별도 실행하여 성능 최적화)
+        count_query = query.with_entities(func.count())
+        total_count = count_query.scalar()
+        
+        # 페이지네이션 적용
+        offset = (page - 1) * size
+        query = query.order_by(Dashboard.eta.asc()).offset(offset).limit(size)
+        
+        # 결과 반환
+        results = query.all()
+        log_info(f"필터 조회 결과: {len(results)}건 (전체 {total_count}건)")
+        return results, total_count
+
+    # get_all_dashboard_list_with_filters 메서드는 필요할 경우에만 사용하도록 경고 추가
+    def get_all_dashboard_list_with_filters(self, start_date, end_date, filters=None):
+        """
+        클라이언트 사이드 페이지네이션을 위한 전체 데이터셋 조회
+        주의: 큰 데이터셋에서는 성능 문제가 발생할 수 있으므로 가급적 서버 사이드 페이지네이션 사용 권장
+        """
+        log_info("전체 대시보드 목록 조회 (클라이언트 페이지네이션용) - 성능 주의")
+        
+        if filters is None:
+            filters = {}
+            
+        query = self.db.query(Dashboard)
+        
+        # 날짜 필터링 적용
+        if start_date:
+            query = query.filter(Dashboard.eta >= start_date)
+        if end_date:
+            query = query.filter(Dashboard.eta <= end_date)
+            
+        # 추가 필터 적용
+        if 'status' in filters and filters['status']:
+            query = query.filter(Dashboard.status == filters['status'])
+            
+        if 'department' in filters and filters['department']:
+            query = query.filter(Dashboard.department == filters['department'])
+            
+        if 'warehouse' in filters and filters['warehouse']:
+            query = query.filter(Dashboard.warehouse == filters['warehouse'])
+            
+        if 'search_term' in filters and filters['search_term']:
+            search_term = f"%{filters['search_term']}%"
+            query = query.filter(
+                or_(
+                    Dashboard.order_no.ilike(search_term),
+                    Dashboard.customer.ilike(search_term),
+                    Dashboard.address.ilike(search_term),
+                    Dashboard.driver_name.ilike(search_term)
+                )
+            )
+        
+        # 정렬 적용
+        query = query.order_by(Dashboard.eta.asc())
+        
+        # 결과 반환 (경고 로그 추가)
+        results = query.all()
+        log_info(f"전체 목록 조회 완료: {len(results)}건 (큰 데이터셋에서는 성능 주의)")
+        return results

@@ -15,7 +15,7 @@ COPY src/ ./src/
 RUN mkdir -p ./public && \
     cp -r ./src/public/* ./public/
 
-# 빌드 실행
+# 빌드 실행 (PUBLIC_URL을 빈 문자열로 설정하여 상대 경로 사용)
 ENV PUBLIC_URL=""
 ENV NODE_ENV=production
 RUN npm run build

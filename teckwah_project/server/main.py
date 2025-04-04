@@ -33,19 +33,20 @@ app = FastAPI(
     title="배송 실시간 관제 시스템",
     description="배송 주문을 실시간으로 관리하는 API",
     version="1.0.0",
-    openapi_url="/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+
     lifespan=lifespan
 )
 
 # CORS 설정
+origins = settings.CORS_ORIGINS
+log_info(f"CORS 허용 출처: {origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 실제 환경에서는 구체적인 출처로 제한
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
 
 
@@ -69,22 +70,10 @@ app.include_router(dashboard_router, prefix="", tags=["대시보드"])
 app.include_router(download_router, prefix="/download", tags=["다운로드"])
 app.include_router(handover_router, tags=["인수인계"])  # 인수인계 라우터 추가 (prefix는 라우터에 정의됨)
 
-# 정적 파일 서비스 설정
+# 정적 파일 서비스 설정 - 빌드 파일이 있는 루트 디렉토리를 먼저 마운트
+app.mount("/", StaticFiles(directory="/app/server/static", html=True), name="root")
+# 기존 /static 경로도 유지하여 하위 경로 호환성 보장
 app.mount("/static", StaticFiles(directory="/app/server/static"), name="static")
-
-# SPA 라우팅을 위한 경로 처리
-@app.get("/{path:path}")
-async def serve_spa(path: str, request: Request):
-    # API 경로는 무시 (API 라우터에서 처리)
-    if path.startswith("api/"):
-        raise HTTPException(status_code=404, detail="Not found")
-    
-    # 정적 파일 경로도 무시 (정적 파일 핸들러에서 처리)
-    if path.startswith("static/"):
-        raise HTTPException(status_code=404, detail="Not found")
-        
-    # 그 외 모든 경로는 React SPA의 index.html로 리다이렉트
-    return FileResponse("/app/server/static/index.html")
 
 # 헬스체크 엔드포인트
 @app.get("/health", tags=["시스템"])

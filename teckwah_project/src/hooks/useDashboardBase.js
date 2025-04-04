@@ -1,10 +1,11 @@
+// src/hooks/useDashboardBase.js
 import { useState } from 'react';
 import { message } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateStatus, assignDriver, getDashboardDetail } from '../utils/api';
 import { handleApiError } from '../utils/errorHandlers';
 
-// 커스텀 훅 가져오기
+// 서브 훅 가져오기
 import useDashboardData from './useDashboardData';
 import useDashboardLock from './useDashboardLock';
 import useDashboardModals from './useDashboardModals';
@@ -19,7 +20,6 @@ import useDashboardModals from './useDashboardModals';
 const useDashboardBase = (userRole = 'USER') => {
   const queryClient = useQueryClient();
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [createModalVisible, setCreateModalVisible] = useState(false);
 
   // 데이터 로드
   const {
@@ -44,12 +44,12 @@ const useDashboardBase = (userRole = 'USER') => {
   const {
     lockConflictInfo,
     isLockLoading,
-    handleAcquireLock: acquireLock,
-    handleReleaseLock: releaseLock,
-    handleAcquireMultipleLocks: acquireMultipleLocks,
-    handleReleaseMultipleLocks: releaseMultipleLocks,
-    handleCancelLock: cancelLock,
-    handleRetryLock: retryLock,
+    handleAcquireLock,
+    handleReleaseLock,
+    handleAcquireMultipleLocks,
+    handleReleaseMultipleLocks,
+    handleCancelLock,
+    handleRetryLock,
   } = useDashboardLock();
 
   // 모달 관리
@@ -71,17 +71,19 @@ const useDashboardBase = (userRole = 'USER') => {
   } = useDashboardModals();
 
   // 상태 변경 뮤테이션
-  const statusMutation = useMutation(({ id, data }) => updateStatus(id, data), {
+  const statusMutation = useMutation({
+    mutationFn: ({ id, data }) => updateStatus(id, data),
     onSuccess: () => {
       message.success('상태가 변경되었습니다');
       closeStatusModal();
-      queryClient.invalidateQueries([
-        userRole === 'ADMIN' ? 'admin-dashboards' : 'dashboards',
-      ]);
+      
+      // 캐시 갱신
+      const queryKey = userRole === 'ADMIN' ? 'admin-dashboards' : 'dashboards';
+      queryClient.invalidateQueries({ queryKey: [queryKey] });
 
       // 락 해제
       if (currentDashboard) {
-        releaseLock(currentDashboard.dashboard_id, 'STATUS');
+        handleReleaseLock(currentDashboard.dashboard_id, 'STATUS');
       }
     },
     onError: (error) => {
@@ -91,23 +93,25 @@ const useDashboardBase = (userRole = 'USER') => {
 
       // 오류 발생해도 락 해제 시도
       if (currentDashboard) {
-        releaseLock(currentDashboard.dashboard_id, 'STATUS');
+        handleReleaseLock(currentDashboard.dashboard_id, 'STATUS');
       }
     },
   });
 
   // 배차 처리 뮤테이션
-  const assignMutation = useMutation((data) => assignDriver(data), {
+  const assignMutation = useMutation({
+    mutationFn: (data) => assignDriver(data),
     onSuccess: () => {
       message.success('배차가 완료되었습니다');
       closeAssignModal();
       setSelectedRowKeys([]);
-      queryClient.invalidateQueries([
-        userRole === 'ADMIN' ? 'admin-dashboards' : 'dashboards',
-      ]);
+      
+      // 캐시 갱신
+      const queryKey = userRole === 'ADMIN' ? 'admin-dashboards' : 'dashboards';
+      queryClient.invalidateQueries({ queryKey: [queryKey] });
 
       // 락 해제
-      releaseMultipleLocks(selectedRowKeys, 'ASSIGN');
+      handleReleaseMultipleLocks(selectedRowKeys, 'ASSIGN');
     },
     onError: (error) => {
       handleApiError(error, {
@@ -115,7 +119,7 @@ const useDashboardBase = (userRole = 'USER') => {
       });
 
       // 오류 발생해도 락 해제 시도
-      releaseMultipleLocks(selectedRowKeys, 'ASSIGN');
+      handleReleaseMultipleLocks(selectedRowKeys, 'ASSIGN');
     },
   });
 
@@ -124,7 +128,7 @@ const useDashboardBase = (userRole = 'USER') => {
     setCurrentDashboard(record);
 
     // 락 획득 후 모달 오픈
-    acquireLock(record.dashboard_id, 'STATUS', () => {
+    handleAcquireLock(record.dashboard_id, 'STATUS', () => {
       openStatusModal(record);
     });
   };
@@ -132,14 +136,22 @@ const useDashboardBase = (userRole = 'USER') => {
   // 상세 정보 모달 열기
   const showDetailModal = async (id) => {
     try {
+      // 로딩 메시지 표시
+      message.loading({ content: '데이터를 불러오는 중...', key: 'detail-loading' });
+      
       const response = await getDashboardDetail(id);
-      if (response && response.data && response.data.success) {
+      
+      // 로딩 메시지 완료 처리
+      message.destroy('detail-loading');
+      
+      if (response?.data?.success) {
         const dashboardData = response.data.data;
         openDetailModal(dashboardData);
       } else {
         message.error('상세 정보를 불러오는데 실패했습니다');
       }
     } catch (error) {
+      message.destroy('detail-loading');
       console.error('상세 정보 조회 오류:', error);
       message.error('상세 정보를 불러오는데 실패했습니다');
     }
@@ -153,7 +165,7 @@ const useDashboardBase = (userRole = 'USER') => {
     }
 
     // 다중 락 획득 후 모달 오픈
-    acquireMultipleLocks(selectedRowKeys, 'ASSIGN', () => {
+    handleAcquireMultipleLocks(selectedRowKeys, 'ASSIGN', () => {
       openAssignModal();
     });
   };
@@ -163,7 +175,10 @@ const useDashboardBase = (userRole = 'USER') => {
     statusForm
       .validateFields()
       .then((values) => {
-        if (!currentDashboard) return;
+        if (!currentDashboard) {
+          message.error('데이터가 선택되지 않았습니다');
+          return;
+        }
 
         statusMutation.mutate({
           id: currentDashboard.dashboard_id,
@@ -174,7 +189,8 @@ const useDashboardBase = (userRole = 'USER') => {
         });
       })
       .catch((err) => {
-        console.error('Form validation error:', err);
+        console.error('폼 유효성 검증 오류:', err);
+        message.error('입력 데이터를 확인해주세요');
       });
   };
 
@@ -183,14 +199,26 @@ const useDashboardBase = (userRole = 'USER') => {
     assignForm
       .validateFields()
       .then((values) => {
+        if (!selectedRowKeys.length) {
+          message.error('선택된 항목이 없습니다');
+          return;
+        }
+        
         assignMutation.mutate({
           dashboard_ids: selectedRowKeys,
           driver: values.driver,
         });
       })
       .catch((err) => {
-        console.error('Form validation error:', err);
+        console.error('폼 유효성 검증 오류:', err);
+        message.error('입력 데이터를 확인해주세요');
       });
+  };
+
+  // 강제 갱신 처리
+  const handleRefresh = () => {
+    refreshData();
+    message.success('데이터가 갱신되었습니다');
   };
 
   return {
@@ -207,8 +235,6 @@ const useDashboardBase = (userRole = 'USER') => {
     onSelectChange,
 
     // 모달 상태
-    createModalVisible,
-    setCreateModalVisible,
     statusModalVisible,
     assignModalVisible,
     detailModalVisible,
@@ -227,7 +253,7 @@ const useDashboardBase = (userRole = 'USER') => {
     handleSearch,
     handlePaginationChange,
     handleDateRangeChange,
-    refreshData,
+    refreshData: handleRefresh,
     showStatusModal,
     showDetailModal,
     showAssignModal,
@@ -235,20 +261,17 @@ const useDashboardBase = (userRole = 'USER') => {
     handleAssignSubmit,
 
     // 모달 제어
-    openStatusModal,
     closeStatusModal,
-    openAssignModal,
     closeAssignModal,
-    openDetailModal,
     closeDetailModal,
 
-    // 락 제어
-    acquireLock,
-    releaseLock,
-    acquireMultipleLocks,
-    releaseMultipleLocks,
-    cancelLock,
-    retryLock,
+    // 락 관련 핸들러
+    handleCancelLock,
+    handleRetryLock,
+    
+    // 뮤테이션 상태
+    isStatusUpdating: statusMutation.isPending,
+    isAssignUpdating: assignMutation.isPending,
   };
 };
 

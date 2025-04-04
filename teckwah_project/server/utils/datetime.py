@@ -26,6 +26,15 @@ def localize_to_kst(dt: Optional[datetime]) -> Optional[datetime]:
     return dt.astimezone(KST)
 
 
+def get_unix_timestamp(dt: Optional[datetime] = None) -> int:
+    """datetime 객체를 UNIX 타임스탬프로 변환 (초 단위)"""
+    if dt is None:
+        dt = get_kst_now()
+    elif dt.tzinfo is None:
+        dt = dt.replace(tzinfo=KST)
+    return int(dt.timestamp())
+
+
 def get_date_range(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,

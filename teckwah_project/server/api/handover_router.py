@@ -99,9 +99,11 @@ def get_handovers(
         service = HandoverService(db)
         handovers = service.get_handovers_by_date_range(start_datetime, end_datetime, current_user)
         
+        # 데이터 없을 경우 빈 배열을 반환
         return {
             "success": True,
-            "data": handovers
+            "message": "인수인계 목록을 조회했습니다",
+            "data": handovers or []
         }
     except ValueError:
         return {

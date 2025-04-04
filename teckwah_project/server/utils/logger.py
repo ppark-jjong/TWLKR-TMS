@@ -1,8 +1,10 @@
 # teckwah_project/server/utils/logger.py
+"""
+로그 유틸리티 모듈 - 간소화 버전
+"""
 import logging
 import json
-from datetime import datetime
-from typing import Any, Optional, Dict, Union
+from typing import Any, Optional, Union
 from contextvars import ContextVar
 from server.utils.datetime import get_kst_now
 
@@ -27,34 +29,23 @@ def get_request_id() -> str:
 
 
 def log_info(message: str, data: Optional[Any] = None) -> None:
-    """정보 로깅 - 기본 컨텍스트 정보 추가"""
+    """정보 로깅"""
     _log(logger.info, message, data)
 
 
 def log_error(
     error: Union[Exception, Any], message: str, data: Optional[Any] = None
 ) -> None:
-    """에러 로깅 - 기본 컨텍스트 정보 추가"""
+    """에러 로깅"""
     if isinstance(error, Exception):
         message = f"{message}: {str(error)}"
     _log(logger.error, message, data)
 
 
-def log_warning(message: str, data: Optional[Any] = None) -> None:
-    """경고 로깅 - 기본 컨텍스트 정보 추가"""
-    _log(logger.warning, message, data)
-
-
-def log_debug(message: str, data: Optional[Any] = None) -> None:
-    """디버그 로깅 - 기본 컨텍스트 정보 추가"""
-    _log(logger.debug, message, data)
-
-
 def _log(log_func, message: str, data: Optional[Any] = None) -> None:
-    """내부 로깅 함수 - 공통 로깅 로직"""
-    now = get_kst_now()
+    """내부 로깅 함수"""
     log_entry = {
-        "timestamp": now.isoformat(),
+        "timestamp": get_kst_now().isoformat(),
         "message": message,
         "request_id": get_request_id(),
     }
@@ -69,3 +60,8 @@ def _log(log_func, message: str, data: Optional[Any] = None) -> None:
             log_entry["data"] = "데이터 직렬화 실패"
 
     log_func(json.dumps(log_entry, ensure_ascii=False, default=str))
+
+
+# 호환성을 위한 별칭 함수들
+log_warning = log_info
+log_debug = log_info

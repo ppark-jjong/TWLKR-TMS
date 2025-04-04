@@ -1,7 +1,7 @@
 # teckwah_project/server/schemas/auth_schema.py
 
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 
@@ -24,23 +24,33 @@ class UserRole(str, Enum):
 class UserLogin(BaseModel):
     """로그인 요청 스키마"""
 
-    user_id: str
-    password: str
+    user_id: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=4)
+
+
+class UserCreate(BaseModel):
+    user_id: str = Field(..., min_length=3, max_length=50, description="사용자 ID")
+    password: str = Field(..., min_length=4, description="비밀번호")
+    department: str = Field(..., description="부서 (CS, HES, LENOVO)")
+    role: str = Field("USER", description="권한 (ADMIN, USER)")
 
 
 class Token(BaseModel):
     """토큰 응답 스키마"""
 
     access_token: str
-    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    refresh_token: Optional[str] = None
 
 
 class TokenData(BaseModel):
     """토큰 페이로드 스키마"""
 
     user_id: str
-    department: UserDepartment
-    role: UserRole
+    department: str
+    role: str
+    exp: int
 
 
 class RefreshTokenRequest(BaseModel):
@@ -59,11 +69,10 @@ class UserResponse(BaseModel):
     """사용자 정보 응답 스키마"""
 
     user_id: str
-    user_department: UserDepartment
-    user_role: UserRole
-
-    class Config:
-        from_attributes = True
+    department: str
+    role: str
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RefreshTokenDB(BaseModel):
@@ -82,8 +91,8 @@ class RefreshTokenDB(BaseModel):
 class LoginResponse(BaseModel):
     """로그인 응답 통합 스키마"""
 
-    token: Token
     user: UserResponse
+    token: Token
 
     class Config:
         from_attributes = True
@@ -95,3 +104,7 @@ class ApiResponse(BaseModel):
     success: bool
     message: str
     data: Optional[dict] = None
+
+
+class UserList(BaseModel):
+    users: List[UserResponse]

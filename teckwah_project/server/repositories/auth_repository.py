@@ -1,7 +1,7 @@
 # teckwah_project/server/repositories/auth_repository.py
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from server.utils.datetime import get_kst_now
 
 from server.models.user_model import User
@@ -24,6 +24,61 @@ class AuthRepository:
         except Exception as e:
             log_error(e, "사용자 조회 실패", {"user_id": user_id})
             return None
+
+    def get_all_users(self) -> List[User]:
+        """모든 사용자 목록 조회"""
+        try:
+            log_info("모든 사용자 목록 조회")
+            users = self.db.query(User).order_by(User.user_id).all()
+            log_info(f"사용자 목록 조회 결과: {len(users)}명")
+            return users
+        except Exception as e:
+            log_error(e, "사용자 목록 조회 실패")
+            return []
+
+    def create_user(
+        self, user_id: str, hashed_password: str, department: str, role: str
+    ) -> User:
+        """사용자 생성"""
+        try:
+            log_info(f"사용자 생성: user_id={user_id}, department={department}, role={role}")
+            
+            user = User(
+                user_id=user_id,
+                user_password=hashed_password,
+                user_department=department,
+                user_role=role,
+            )
+            
+            self.db.add(user)
+            self.db.flush()
+            log_info(f"사용자 생성 완료: user_id={user_id}")
+            
+            return user
+        except Exception as e:
+            log_error(e, "사용자 생성 실패", {"user_id": user_id})
+            self.db.rollback()
+            raise
+
+    def delete_user(self, user_id: str) -> bool:
+        """사용자 삭제"""
+        try:
+            log_info(f"사용자 삭제: user_id={user_id}")
+            
+            # 사용자 삭제
+            result = self.db.query(User).filter(User.user_id == user_id).delete()
+            
+            # 연관된 리프레시 토큰 삭제
+            self.db.query(RefreshToken).filter(RefreshToken.user_id == user_id).delete()
+            
+            self.db.flush()
+            log_info(f"사용자 삭제 결과: {result}건")
+            
+            return result > 0
+        except Exception as e:
+            log_error(e, "사용자 삭제 실패", {"user_id": user_id})
+            self.db.rollback()
+            return False
 
     def store_refresh_token(
         self, user_id: str, refresh_token: str, expires_at: datetime
