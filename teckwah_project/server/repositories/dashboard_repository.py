@@ -38,11 +38,12 @@ class DashboardRepository(BaseRepository[Dashboard]):
             )
             total_count = count_query.scalar()
             
-            # 페이지네이션 적용된 데이터 쿼리
+            # 페이지네이션 적용된 데이터 쿼리 - N+1 쿼리 문제 해결을 위한 조인로드 적용
             offset = (page - 1) * page_size
             query = (
                 self.db.query(Dashboard)
                 .filter(Dashboard.eta.between(start_date, end_date))
+                .options(joinedload(Dashboard.postal_code_info))  # N+1 쿼리 방지를 위한 조인 로드
                 .order_by(Dashboard.eta)
                 .offset(offset)
                 .limit(page_size)
@@ -350,9 +351,9 @@ class DashboardRepository(BaseRepository[Dashboard]):
         count_query = query.with_entities(func.count())
         total_count = count_query.scalar()
         
-        # 페이지네이션 적용
+        # 페이지네이션 적용 - N+1 쿼리 문제 해결을 위한 조인로드 적용
         offset = (page - 1) * size
-        query = query.order_by(Dashboard.eta.asc()).offset(offset).limit(size)
+        query = query.options(joinedload(Dashboard.postal_code_info)).order_by(Dashboard.eta.asc()).offset(offset).limit(size)
         
         # 결과 반환
         results = query.all()

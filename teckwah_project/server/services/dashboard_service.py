@@ -1,5 +1,5 @@
 # teckwah_project/server/services/dashboard_service.py
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Union
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -18,8 +18,6 @@ from server.utils.error import (
     ValidationException,
     NotFoundException,
     ForbiddenException,
-    create_success_response,
-    create_error_response
 )
 from server.utils.transaction import transactional, transaction
 from server.utils.constants import STATUS_TRANSITIONS, MESSAGES
@@ -106,46 +104,113 @@ class DashboardService:
             log_error(f"대시보드 생성 실패: {str(e)}")
             raise
 
-    @transactional
-    def get_dashboard_list(self, filters=None) -> List[Dict[str, Any]]:
-        """대시보드 목록 조회 (필터링 가능)"""
-        dashboards = self.repository.get_dashboard_list_by_date(
-            filters.get("start_date", get_kst_now()),
-            filters.get("end_date", get_kst_now()),
-        )
-        return [self._convert_to_dict(dashboard) for dashboard in dashboards]
+    def get_dashboard_list(
+        self, 
+        page: Optional[int] = None, 
+        size: Optional[int] = None, 
+        start_date: Optional[str] = None, 
+        end_date: Optional[str] = None, 
+        filters: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """대시보드 목록 조회 (필터링, 페이지네이션 지원)"""
+        if filters is None:
+            filters = {}
+            
+        # 날짜 파싱
+        try:
+            start_date_obj = None
+            end_date_obj = None
+            
+            if start_date:
+                if isinstance(start_date, str):
+                    start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                else:
+                    start_date_obj = start_date
+            
+            if end_date:
+                if isinstance(end_date, str):
+                    end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                else:
+                    end_date_obj = end_date
+                    
+            # 날짜가 지정되지 않은 경우 가장 넓은 범위를 사용하도록 설정
+            if not start_date_obj and not end_date_obj:
+                # ETA 날짜의 최소/최대 값 조회
+                eta_range = self.repository.get_eta_date_range()
+                start_date_obj = eta_range.get('min_eta') if eta_range.get('min_eta') else get_kst_now().replace(hour=0, minute=0, second=0)
+                end_date_obj = eta_range.get('max_eta') if eta_range.get('max_eta') else get_kst_now().replace(hour=23, minute=59, second=59)
+            elif not start_date_obj:
+                # 시작일만 없는 경우
+                eta_range = self.repository.get_eta_date_range()
+                start_date_obj = eta_range.get('min_eta') if eta_range.get('min_eta') else get_kst_now().replace(hour=0, minute=0, second=0)
+            elif not end_date_obj:
+                # 종료일만 없는 경우
+                eta_range = self.repository.get_eta_date_range()
+                end_date_obj = eta_range.get('max_eta') if eta_range.get('max_eta') else get_kst_now().replace(hour=23, minute=59, second=59)
+        except Exception as e:
+            raise ValidationException(f"날짜 형식이 올바르지 않습니다: {str(e)}")
+        
+        # 필터 조건 정제
+        clean_filters = {}
+        for key, value in filters.items():
+            if value is not None and (not isinstance(value, str) or value.strip()):
+                clean_filters[key] = value
+        
+        # ETA 날짜 범위 조회 (UI에서 날짜 선택기 제한용)
+        eta_range = self.repository.get_eta_date_range()
+        
+        # 메타데이터 구성
+        meta_data = {
+            "date_range": {
+                "start_date": start_date_obj.isoformat(),
+                "end_date": end_date_obj.isoformat(),
+            },
+            "eta_range": {
+                "min_eta": eta_range.get('min_eta').isoformat() if eta_range.get('min_eta') else None,
+                "max_eta": eta_range.get('max_eta').isoformat() if eta_range.get('max_eta') else None,
+            }
+        }
+        
+        # CSR 페이지네이션을 위해 모든 데이터를 가져옴 (page, size가 없을 경우)
+        if page is None or size is None:
+            # 클라이언트 사이드 렌더링을 위한 전체 데이터 조회
+            items = self.repository.get_all_dashboard_list_with_filters(start_date_obj, end_date_obj, clean_filters)
+            total = len(items)
+            
+            # 페이지네이션 메타데이터 추가
+            meta_data["pagination"] = {"total": total}
+        else:
+            # 서버 사이드 페이지네이션
+            items, total = self.repository.get_dashboard_list_by_date_with_filters(
+                start_date_obj, end_date_obj, page, size, clean_filters
+            )
+            
+            # 페이지네이션 메타데이터 추가
+            meta_data["pagination"] = {
+                "page": page,
+                "size": size,
+                "total": total,
+                "pages": (total + size - 1) // size if size > 0 else 0,
+            }
+        
+        # 응답 결과 구성
+        result = {
+            "items": [self._convert_to_dict(item) for item in items],
+            "meta": meta_data
+        }
+        
+        return result
 
     def get_dashboard_detail(self, dashboard_id: int) -> Dict[str, Any]:
         """대시보드 상세 정보 조회"""
-        log_info(f"대시보드 상세 정보 조회: id={dashboard_id}")
-        
-        # 리포지토리에서 조회
         dashboard = self.repository.get_dashboard_detail(dashboard_id)
-        
         if not dashboard:
-            log_error(f"대시보드 상세 정보 없음: id={dashboard_id}")
-            return create_error_response(
-                error_code="NOT_FOUND",
-                message=f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다"
-            )
-            
-        # 응답 데이터 생성
-        dashboard_data = Dashboard.to_dict(dashboard)
-        
-        # 반환 데이터에 우편번호 정보 추가
-        if dashboard.postal_code_info:
-            dashboard_data["postal_code_info"] = {
-                "sigungu": dashboard.postal_code_info.sigungu,
-                "eupmyeondong": dashboard.postal_code_info.eupmyeondong
-            }
-        
-        log_info(f"대시보드 상세 정보 조회 성공: id={dashboard_id}")
-        
-        # 성공 응답 생성
-        return create_success_response(
-            data=dashboard_data,
-            message="대시보드 상세 정보 조회 성공"
-        )
+            return None
+        return self._prepare_dashboard_detail(dashboard)
+    
+    def get_lock_info(self, dashboard_id: int) -> Dict[str, Any]:
+        """대시보드 락 정보 조회"""
+        return self.repository.get_lock_info(dashboard_id)
 
     @transactional
     def delete_dashboards(self, dashboard_ids: List[int], user_id: str) -> int:

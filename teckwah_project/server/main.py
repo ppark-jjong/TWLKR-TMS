@@ -37,16 +37,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS 설정
+# CORS 설정 - 프로덕션 환경에서는 구체적인 출처로 제한
 origins = settings.CORS_ORIGINS
 log_info(f"CORS 허용 출처: {origins}")
 
+# 와일드카드 대신 구체적인 허용 출처 적용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
+    # 필요한 메서드만 명시적으로 허용
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    # 필요한 헤더만 명시적으로 허용
     allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    # 브라우저가 CORS 응답을 캐시하는 시간 설정 (초 단위)
+    max_age=3600,
 )
 
 

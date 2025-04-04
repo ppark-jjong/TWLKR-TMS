@@ -64,45 +64,11 @@ async def get_dashboard_list(
     current_user: TokenData = Depends(get_current_user),
 ):
     """날짜 기준 대시보드 데이터 조회 API - CSR 필터링 지원"""
-
-    repository = DashboardRepository(db)
     
-    # 시작/종료 날짜 처리 - 유연한 형식 지원
-    # 날짜 파라미터가 문자열로 전달되면 변환 시도
-    try:
-        start_date_obj = None
-        end_date_obj = None
-        
-        if start_date:
-            if isinstance(start_date, str):
-                start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            else:
-                start_date_obj = start_date
-        
-        if end_date:
-            if isinstance(end_date, str):
-                end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            else:
-                end_date_obj = end_date
-                
-        # 날짜가 지정되지 않은 경우 가장 넓은 범위를 사용하도록 설정
-        if not start_date_obj and not end_date_obj:
-            # ETA 날짜의 최소/최대 값 조회
-            eta_range = repository.get_eta_date_range()
-            start_date_obj = eta_range.get('min_eta') if eta_range.get('min_eta') else get_kst_now().replace(hour=0, minute=0, second=0)
-            end_date_obj = eta_range.get('max_eta') if eta_range.get('max_eta') else get_kst_now().replace(hour=23, minute=59, second=59)
-        elif not start_date_obj:
-            # 시작일만 없는 경우
-            eta_range = repository.get_eta_date_range()
-            start_date_obj = eta_range.get('min_eta') if eta_range.get('min_eta') else get_kst_now().replace(hour=0, minute=0, second=0)
-        elif not end_date_obj:
-            # 종료일만 없는 경우
-            eta_range = repository.get_eta_date_range()
-            end_date_obj = eta_range.get('max_eta') if eta_range.get('max_eta') else get_kst_now().replace(hour=23, minute=59, second=59)
-    except Exception as e:
-        raise ValidationException(f"날짜 형식이 올바르지 않습니다: {str(e)}")
-
-    # 필터 조건 설정
+    # 서비스 생성 (의존성 주입 대신 라우터 내에서 생성)
+    service = get_dashboard_service(db)
+    
+    # 검색 필터 구성
     filters = {}
     if status and status.strip():
         filters["status"] = status
@@ -112,51 +78,27 @@ async def get_dashboard_list(
         filters["warehouse"] = warehouse
     if search_term and search_term.strip():
         filters["search_term"] = search_term
-
-    # ETA 날짜 범위 조회 (UI에서 날짜 선택기 제한용)
-    eta_range = repository.get_eta_date_range()
     
-    # 메타데이터 기본 정보
-    meta_data = {
-        "date_range": {
-            "start_date": start_date_obj.isoformat(),
-            "end_date": end_date_obj.isoformat(),
-        },
-        "eta_range": {
-            "min_eta": eta_range.get('min_eta').isoformat() if eta_range.get('min_eta') else None,
-            "max_eta": eta_range.get('max_eta').isoformat() if eta_range.get('max_eta') else None,
-        }
-    }
-    
-    # CSR 페이지네이션을 위해 모든 데이터를 가져옴 (page, size가 없을 경우)
-    if page is None or size is None:
-        # 클라이언트 사이드 렌더링을 위한 전체 데이터 조회
-        items = repository.get_all_dashboard_list_with_filters(start_date_obj, end_date_obj, filters)
-        total = len(items)
-        
-        # 페이지네이션 메타데이터 추가
-        meta_data["pagination"] = {"total": total}
-    else:
-        # 서버 사이드 페이지네이션(선택 사항)
-        items, total = repository.get_dashboard_list_by_date_with_filters(
-            start_date_obj, end_date_obj, page, size, filters
+    # 서비스 계층을 통한 데이터 조회
+    try:
+        result = service.get_dashboard_list(
+            page=page,
+            size=size,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters
         )
         
-        # 페이지네이션 메타데이터 추가
-        meta_data["pagination"] = {
-            "page": page,
-            "size": size,
-            "total": total,
-            "pages": (total + size - 1) // size,
-        }
-    
-    # 응답 생성
-    return DashboardListResponse(
-        success=True,
-        message="목록을 조회했습니다",
-        data=[DashboardListItem.model_validate(item) for item in items],
-        meta=meta_data,
-    )
+        # 응답 형식 표준화
+        return DashboardListResponse(
+            success=True,
+            message="목록을 조회했습니다",
+            data=result.get("items", []),
+            meta=result.get("meta", {})
+        )
+    except Exception as e:
+        # 오류 처리는 error_handler 데코레이터에서 처리됨
+        raise e
 
 
 @router.get("/{dashboard_id}", response_model=DashboardDetailResponse)
@@ -175,14 +117,14 @@ async def get_dashboard_detail(
         raise NotFoundException(f"ID가 {dashboard_id}인 대시보드를 찾을 수 없습니다")
 
     # 락 정보 조회 (UI 표시용)
-    repository = DashboardRepository(db)
-    lock_info = repository.get_lock_info(dashboard_id)
+    lock_info = service.get_lock_info(dashboard_id)
 
     # 락 메타데이터 생성
     is_locked = False
     lock_metadata = None
     if lock_info:
         is_locked = lock_info.get("is_locked", False)
+        lock_metadata = lock_info.get("metadata")
 
     return DashboardDetailResponse(
         success=True,
@@ -204,6 +146,7 @@ async def create_dashboard(
 
     # 데이터 정제
     dashboard_dict = dashboard_data.model_dump()
+    
     # 사용자 정보 설정 (생성자 = 업데이트한 사용자)
     dashboard_dict["updated_by"] = current_user.user_id
 

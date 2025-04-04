@@ -6,20 +6,26 @@ import os
 from pathlib import Path
 import logging
 
-# 환경 변수 파일 로드 (파일이 존재하는 경우만)
-env_paths = [".env", ".env.local", "/app/.env"]
-env_loaded = False
+# 환경 변수 파일 로드 - 여러 경로에서 검색
+env_paths = [
+    "/app/.env",            # Docker 컨테이너 내부 경로
+    "../deploy/.env.local", # 프로젝트 루트 기준 deploy 디렉토리
+    ".env.local",           # 현재 디렉토리
+    ".env",                 # 기본 파일명
+]
 
+env_loaded = False
 for env_path in env_paths:
     env_file = Path(env_path)
     if env_file.exists():
         load_dotenv(env_file)
-        logging.info(f"환경 변수 파일 로드: {env_path}")
+        logging.info(f"환경 변수 파일 로드 성공: {env_path}")
         env_loaded = True
         break
 
 if not env_loaded:
     logging.warning("환경 변수 파일을 찾을 수 없습니다. 기본값을 사용합니다.")
+    logging.info(f"검색한 경로: {', '.join(env_paths)}")
 
 
 class Settings(BaseSettings):
@@ -40,14 +46,27 @@ class Settings(BaseSettings):
     # API 기본 URL 설정
     API_BASE_URL: str = os.getenv("API_BASE_URL", "http://0.0.0.0:8000")
     
-    # CORS 설정
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://0.0.0.0:8000",
-    ]
-    if DEBUG:
-        CORS_ORIGINS.append("*")  # 개발 환경에서는 모든 출처 허용
+    # CORS 설정 - 환경별로 분리
+    CORS_ORIGINS: List[str] = []
+    
+    # 환경 변수에서 쉼표로 구분된 출처 목록 읽기
+    origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    if origins_env:
+        CORS_ORIGINS = [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+    
+    # 기본 출처 설정 (환경 변수가 없는 경우)
+    if not CORS_ORIGINS:
+        CORS_ORIGINS = [
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            "http://0.0.0.0:8000",
+        ]
+        
+    # 개발 모드에서만 모든 출처 허용 (와일드카드)
+    if DEBUG and "*" not in CORS_ORIGINS:
+        CORS_ORIGINS.append("*")
 
     # Dash 앱 설정
     DASH_PORT: int = int(os.getenv("DASH_PORT", "3000"))

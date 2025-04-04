@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { Layout, message, Button, notification } from "antd";
+import { Layout, message, Button, notification, ConfigProvider } from "antd";
 import { isAuthenticated, getUserFromToken } from "./utils/authHelpers";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -9,7 +9,9 @@ import AdminPage from "./pages/AdminPage";
 import HandoverPage from "./pages/HandoverPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import Sidebar from "./components/Sidebar";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { ReloadOutlined } from "@ant-design/icons";
+import { themeVariables } from "./styles/themeConfig";
 
 const { Content } = Layout;
 
@@ -133,118 +135,130 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <Routes>
-        {/* 로그인 페이지 */}
-        <Route
-          path="/login"
-          element={
-            auth ? (
-              <Navigate
-                to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
-              />
-            ) : (
-              <LoginPage setAuth={setAuth} setUserData={setUserData} />
-            )
-          }
-        />
+    <ConfigProvider theme={{ token: themeVariables }}>
+      <ErrorBoundary>
+        <div className="app">
+          <Routes>
+            {/* 로그인 페이지 */}
+            <Route
+              path="/login"
+              element={
+                auth ? (
+                  <Navigate
+                    to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
+                  />
+                ) : (
+                  <LoginPage setAuth={setAuth} setUserData={setUserData} />
+                )
+              }
+            />
 
-        {/* 대시보드 페이지 (일반 사용자) */}
-        <Route
-          path="/dashboard"
-          element={
-            <AuthWrapper>
-              <Layout>
-                <Sidebar userData={userData} setAuth={setAuth} />
-                <Layout className="site-layout">
-                  <Content className="content-wrapper">
-                    <ProtectedRoute
-                      element={<DashboardPage />}
-                      allowedRoles={["USER"]}
-                      userData={userData}
-                    />
-                  </Content>
-                </Layout>
-              </Layout>
-            </AuthWrapper>
-          }
-        />
+            {/* 대시보드 페이지 (일반 사용자) */}
+            <Route
+              path="/dashboard"
+              element={
+                <AuthWrapper>
+                  <Layout>
+                    <Sidebar userData={userData} setAuth={setAuth} />
+                    <Layout className="site-layout">
+                      <Content className="content-wrapper">
+                        <ErrorBoundary>
+                          <ProtectedRoute
+                            element={<DashboardPage />}
+                            allowedRoles={["USER"]}
+                            userData={userData}
+                          />
+                        </ErrorBoundary>
+                      </Content>
+                    </Layout>
+                  </Layout>
+                </AuthWrapper>
+              }
+            />
 
-        {/* 관리자 페이지 (관리자 전용) */}
-        <Route
-          path="/admin"
-          element={
-            <AuthWrapper>
-              <Layout>
-                <Sidebar userData={userData} setAuth={setAuth} />
-                <Layout className="site-layout">
-                  <Content className="content-wrapper">
-                    <ProtectedRoute
-                      element={<AdminPage />}
-                      allowedRoles={["ADMIN"]}
-                      userData={userData}
-                    />
-                  </Content>
-                </Layout>
-              </Layout>
-            </AuthWrapper>
-          }
-        />
+            {/* 관리자 페이지 (관리자 전용) */}
+            <Route
+              path="/admin"
+              element={
+                <AuthWrapper>
+                  <Layout>
+                    <Sidebar userData={userData} setAuth={setAuth} />
+                    <Layout className="site-layout">
+                      <Content className="content-wrapper">
+                        <ErrorBoundary>
+                          <ProtectedRoute
+                            element={<AdminPage />}
+                            allowedRoles={["ADMIN"]}
+                            userData={userData}
+                          />
+                        </ErrorBoundary>
+                      </Content>
+                    </Layout>
+                  </Layout>
+                </AuthWrapper>
+              }
+            />
 
-        {/* 사용자 관리 페이지 (관리자 전용) */}
-        <Route
-          path="/admin/users"
-          element={
-            <AuthWrapper>
-              <Layout>
-                <Sidebar userData={userData} setAuth={setAuth} />
-                <Layout className="site-layout">
-                  <Content className="content-wrapper">
-                    <ProtectedRoute
-                      element={<AdminPage activeTab="users" />}
-                      allowedRoles={["ADMIN"]}
-                      userData={userData}
-                    />
-                  </Content>
-                </Layout>
-              </Layout>
-            </AuthWrapper>
-          }
-        />
+            {/* 사용자 관리 페이지 (관리자 전용) */}
+            <Route
+              path="/admin/users"
+              element={
+                <AuthWrapper>
+                  <Layout>
+                    <Sidebar userData={userData} setAuth={setAuth} />
+                    <Layout className="site-layout">
+                      <Content className="content-wrapper">
+                        <ErrorBoundary>
+                          <ProtectedRoute
+                            element={<AdminPage activeTab="users" />}
+                            allowedRoles={["ADMIN"]}
+                            userData={userData}
+                          />
+                        </ErrorBoundary>
+                      </Content>
+                    </Layout>
+                  </Layout>
+                </AuthWrapper>
+              }
+            />
 
-        {/* 인수인계 페이지 (공통) */}
-        <Route
-          path="/handover"
-          element={
-            <AuthWrapper>
-              <Layout>
-                <Sidebar userData={userData} setAuth={setAuth} />
-                <Layout className="site-layout">
-                  <Content className="content-wrapper">
-                    <HandoverPage />
-                  </Content>
-                </Layout>
-              </Layout>
-            </AuthWrapper>
-          }
-        />
+            {/* 인수인계 페이지 (공통) */}
+            <Route
+              path="/handover"
+              element={
+                <AuthWrapper>
+                  <Layout>
+                    <Sidebar userData={userData} setAuth={setAuth} />
+                    <Layout className="site-layout">
+                      <Content className="content-wrapper">
+                        <ErrorBoundary>
+                          <HandoverPage />
+                        </ErrorBoundary>
+                      </Content>
+                    </Layout>
+                  </Layout>
+                </AuthWrapper>
+              }
+            />
 
-        {/* 메인 페이지 리다이렉트 (권한에 따라) */}
-        <Route
-          path="/"
-          element={
-            <AuthWrapper>
-              <Navigate
-                to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
-              />
-            </AuthWrapper>
-          }
-        />
+            {/* 메인 페이지 리다이렉트 (권한에 따라) */}
+            <Route
+              path="/"
+              element={
+                <AuthWrapper>
+                  <Navigate
+                    to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
+                  />
+                </AuthWrapper>
+              }
+            />
 
-        {/* 404 페이지 */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </div>
+            {/* 404 페이지 */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </div>
+      </ErrorBoundary>
+    </ConfigProvider>
   );
 }
 
