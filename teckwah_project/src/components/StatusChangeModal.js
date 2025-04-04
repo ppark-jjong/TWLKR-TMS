@@ -6,7 +6,7 @@ import {
   getStatusText,
   getStatusColor,
 } from '../utils/permissionUtils';
-import BaseModal from './shared/BaseModal';
+import BaseModal from './BaseModal';
 
 const { Option } = Select;
 

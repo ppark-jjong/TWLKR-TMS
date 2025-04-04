@@ -20,6 +20,7 @@ import {
   getStatusText,
   getStatusColor,
 } from '../utils/permissionUtils';
+import BaseModal from './BaseModal';
 
 const { Option } = Select;
 const { Text } = Typography;

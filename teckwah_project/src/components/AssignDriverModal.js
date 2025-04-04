@@ -1,7 +1,7 @@
 // src/components/AssignDriverModal.js
 import React from 'react';
 import { Form, Input, Row, Col, Badge, Typography } from 'antd';
-import BaseModal from './shared/BaseModal';
+import BaseModal from './BaseModal';
 
 const { Text } = Typography;
 

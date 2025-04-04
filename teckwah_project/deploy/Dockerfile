@@ -4,17 +4,20 @@ FROM node:18-slim AS frontend-builder
 
 WORKDIR /build
 
-# 프론트엔드 빌드에 필요한 파일만 복사
-COPY src/ /build/src/
-COPY deploy/package.json /build/package.json
+# package.json 먼저 복사하여 의존성 설치 캐싱
+COPY deploy/package.json ./package.json
+RUN npm install
+
+# 소스 코드 복사
+COPY src/ ./src/
 
 # React 표준 구조 맞추기
-RUN mkdir -p /build/public && \
-    cp -r /build/src/public/* /build/public/
+RUN mkdir -p ./public && \
+    cp -r ./src/public/* ./public/
 
-# 의존성 설치 및 빌드
-RUN npm install
-ENV PUBLIC_URL="/static"
+# 빌드 실행
+ENV PUBLIC_URL=""
+ENV NODE_ENV=production
 RUN npm run build
 
 # 최종 스테이지: 실행 환경 구성
@@ -42,7 +45,7 @@ COPY server/ /app/server/
 RUN mkdir -p /app/server/static
 
 # 빌드된 React 앱을 정적 파일 디렉토리로 복사
-COPY --from=frontend-builder /build/build/* /app/server/static/
+COPY --from=frontend-builder /build/build/ /app/server/static/
 
 # 추가 정적 파일 복사 (로고, 파비콘 등)
 COPY src/public/logo.png /app/server/static/

@@ -17,7 +17,7 @@ import LockConflictModal from '../components/LockConflictModal';
 import UserTable from '../components/UserTable';
 import CreateDashboardModal from '../components/CreateDashboardModal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import DashboardBase from '../components/shared/DashboardBase';
+import DashboardBase from '../components/DashboardBase';
 
 const AdminPage = ({ activeTab = 'dashboard' }) => {
   const queryClient = useQueryClient();

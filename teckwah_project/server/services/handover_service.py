@@ -9,7 +9,7 @@ from ..schemas.handover_schema import HandoverCreate, HandoverUpdate, HandoverRe
 from ..utils.transaction import transaction
 from ..utils.error import LockConflictException, NotFoundException
 from ..utils.lock_manager import LockManager
-from ..utils.api_response import create_response, error_response
+from ..utils.api_response import create_response, create_error_response
 from ..utils.logger import log_info, log_error
 
 
@@ -99,24 +99,21 @@ class HandoverService:
             return lock_result
         except LockConflictException as e:
             log_error(f"락 충돌: 인수인계(ID: {handover_id}) - 사용자: {current_user}")
-            return error_response(
-                message=str(e),
+            return create_error_response(
                 error_code="LOCK_CONFLICT",
-                status_code=409
+                message=str(e)
             )
         except NotFoundException as e:
             log_error(f"리소스 없음: 인수인계(ID: {handover_id})")
-            return error_response(
-                message=str(e),
+            return create_error_response(
                 error_code="NOT_FOUND",
-                status_code=404
+                message=str(e)
             )
         except Exception as e:
             log_error(f"락 획득 오류: {str(e)}")
-            return error_response(
-                message=f"락 획득 중 오류가 발생했습니다: {str(e)}",
+            return create_error_response(
                 error_code="SERVER_ERROR",
-                status_code=500
+                message=f"락 획득 중 오류가 발생했습니다: {str(e)}"
             )
 
     def release_lock(self, handover_id: int, current_user: str) -> Dict[str, Any]:
@@ -128,9 +125,9 @@ class HandoverService:
             return result
         except Exception as e:
             log_error(f"락 해제 오류: {str(e)}")
-            return error_response(
-                message=f"락 해제 중 오류가 발생했습니다: {str(e)}",
-                error_code="SERVER_ERROR"
+            return create_error_response(
+                error_code="SERVER_ERROR",
+                message=f"락 해제 중 오류가 발생했습니다: {str(e)}"
             )
 
     def get_lock_info(self, handover_id: int) -> Optional[Dict[str, Any]]:
@@ -165,18 +162,16 @@ class HandoverService:
                 
                 # 존재하지 않는 레코드
                 if not handover:
-                    return error_response(
-                        message="인수인계 항목을 찾을 수 없습니다.",
+                    return create_error_response(
                         error_code="NOT_FOUND",
-                        status_code=404
+                        message="인수인계 항목을 찾을 수 없습니다."
                     )
                 
                 # 권한 확인 (작성자 또는 관리자만 수정 가능)
                 if handover.created_by != current_user and not is_admin:
-                    return error_response(
-                        message="수정 권한이 없습니다. (본인 또는 관리자만 가능)",
+                    return create_error_response(
                         error_code="FORBIDDEN",
-                        status_code=403,
+                        message="수정 권한이 없습니다. (본인 또는 관리자만 가능)",
                         data={"handover": self._to_response(handover, current_user)}
                     )
                 
@@ -203,17 +198,15 @@ class HandoverService:
                 )
                 
         except LockConflictException as e:
-            return error_response(
-                message="다른 사용자가 편집 중입니다.",
+            return create_error_response(
                 error_code="LOCK_CONFLICT",
-                status_code=409
+                message="다른 사용자가 편집 중입니다."
             )
         except Exception as e:
             log_error(f"인수인계 업데이트 오류: {str(e)}")
-            return error_response(
-                message=f"서버 오류: {str(e)}",
+            return create_error_response(
                 error_code="SERVER_ERROR",
-                status_code=500
+                message=f"서버 오류: {str(e)}"
             )
 
     def delete_handover_with_permission(self, 
@@ -241,18 +234,16 @@ class HandoverService:
                 
                 # 존재하지 않는 레코드
                 if not handover:
-                    return error_response(
-                        message="인수인계 항목을 찾을 수 없습니다.",
+                    return create_error_response(
                         error_code="NOT_FOUND",
-                        status_code=404
+                        message="인수인계 항목을 찾을 수 없습니다."
                     )
                 
                 # 권한 확인 (작성자 또는 관리자만 삭제 가능)
                 if handover.created_by != current_user and not is_admin:
-                    return error_response(
-                        message="삭제 권한이 없습니다. (본인 또는 관리자만 가능)",
+                    return create_error_response(
                         error_code="FORBIDDEN",
-                        status_code=403
+                        message="삭제 권한이 없습니다. (본인 또는 관리자만 가능)"
                     )
                 
                 # 삭제 실행
@@ -264,23 +255,21 @@ class HandoverService:
                         message="인수인계 항목이 삭제되었습니다."
                     )
                 else:
-                    return error_response(
-                        message="인수인계 항목 삭제에 실패했습니다.",
-                        error_code="DELETE_FAILED"
+                    return create_error_response(
+                        error_code="DELETE_FAILED",
+                        message="인수인계 항목 삭제에 실패했습니다."
                     )
                 
         except LockConflictException:
-            return error_response(
-                message="다른 사용자가 편집 중입니다.",
+            return create_error_response(
                 error_code="LOCK_CONFLICT",
-                status_code=409
+                message="다른 사용자가 편집 중입니다."
             )
         except Exception as e:
             log_error(f"인수인계 삭제 오류: {str(e)}")
-            return error_response(
-                message=f"서버 오류: {str(e)}",
+            return create_error_response(
                 error_code="SERVER_ERROR",
-                status_code=500
+                message=f"서버 오류: {str(e)}"
             )
 
     def _to_response(self, handover: HandoverRecord, current_user: str) -> HandoverResponse:

@@ -12,7 +12,7 @@ import DashboardDetailModal from '../components/DashboardDetailModal';
 import LockConflictModal from '../components/LockConflictModal';
 import CreateDashboardModal from '../components/CreateDashboardModal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import DashboardBase from '../components/shared/DashboardBase';
+import DashboardBase from '../components/DashboardBase';
 
 const DashboardPage = () => {
   // 대시보드 기본 훅 사용 (일반 사용자 역할)
