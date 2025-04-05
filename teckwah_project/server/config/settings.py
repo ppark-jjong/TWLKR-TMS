@@ -1,6 +1,6 @@
 # teckwah_project/server/config/settings.py
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from typing import Optional, List, ClassVar
 from dotenv import load_dotenv
 import os
 from pathlib import Path
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = []
     
     # 환경 변수에서 쉼표로 구분된 출처 목록 읽기
-    origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    origins_env: str = os.getenv("CORS_ALLOWED_ORIGINS", "")
     if origins_env:
         CORS_ORIGINS = [origin.strip() for origin in origins_env.split(",") if origin.strip()]
     

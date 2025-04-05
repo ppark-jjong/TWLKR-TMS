@@ -1,6 +1,7 @@
 // src/pages/DashboardPage.js
 import React from 'react';
 import { Button, Space } from 'antd';
+import PageHeader from '../components/PageHeader';
 
 // 공통 훅 가져오기
 import useDashboardBase from '../hooks/useDashboardBase';
@@ -85,6 +86,8 @@ const DashboardPage = () => {
 
   return (
     <>
+      <PageHeader title="TeckwahTMS" />
+      
       <DashboardBase
         title="배송 대시보드"
         userRole="USER"

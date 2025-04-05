@@ -1,8 +1,16 @@
 // src/App.js
 import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { Layout, message, Button, notification, ConfigProvider } from "antd";
-import { isAuthenticated, getUserFromToken } from "./utils/authHelpers";
+import { 
+  Layout, 
+  message, 
+  Button, 
+  notification, 
+  ConfigProvider, 
+  Spin,
+  Typography
+} from "antd";
+import { isAuthenticated } from "./utils/authHelpers";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
@@ -14,6 +22,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { themeVariables } from "./styles/themeConfig";
 
 const { Content } = Layout;
+const { Text } = Typography;
 
 // 전역 오류 핸들러 설정
 window.onerror = function (message, source, lineno, colno, error) {
@@ -44,6 +53,17 @@ window.onerror = function (message, source, lineno, colno, error) {
 
   return true; // 오류 처리됨을 브라우저에 알림
 };
+
+// 로딩 컴포넌트
+const LoadingScreen = ({ message }) => (
+  <div className="login-loading-container">
+    <div style={{ textAlign: 'center' }}>
+      <img src="/logo.png" alt="Teckwah Logo" style={{ height: 60, marginBottom: 24 }} />
+      <Spin size="large" />
+      <Text style={{ display: 'block', marginTop: 16 }}>{message || '로딩 중...'}</Text>
+    </div>
+  </div>
+);
 
 // 권한 기반 라우팅 컴포넌트
 const ProtectedRoute = ({ element, allowedRoles, userData }) => {
@@ -92,7 +112,7 @@ const AuthWrapper = ({ children }) => {
   }, []);
 
   if (checking) {
-    return <div>인증 확인 중...</div>;
+    return <LoadingScreen message="인증 확인 중..." />;
   }
 
   // 인증되지 않은 경우 로그인 페이지로 리다이렉트
@@ -115,7 +135,11 @@ function App() {
         const { isAuth, userData } = isAuthenticated();
         setAuth(isAuth);
         setUserData(userData);
-        setLoading(false);
+        
+        // 약간의 지연을 줘서 로딩 애니메이션이 자연스럽게 보이도록 함
+        setTimeout(() => {
+          setLoading(false);
+        }, 500);
       } catch (error) {
         console.error("초기 인증 상태 확인 중 오류 발생:", error);
         // 오류 발생 시에도 로딩 상태를 완료로 변경
@@ -131,7 +155,7 @@ function App() {
 
   // 인증 로딩 중 스피너 표시
   if (loading) {
-    return <div>로딩 중...</div>;
+    return <LoadingScreen message="로그인 정보 확인 중..." />;
   }
 
   return (
@@ -158,7 +182,7 @@ function App() {
               path="/dashboard"
               element={
                 <AuthWrapper>
-                  <Layout>
+                  <Layout className="main-layout">
                     <Sidebar userData={userData} setAuth={setAuth} />
                     <Layout className="site-layout">
                       <Content className="content-wrapper">
@@ -181,7 +205,7 @@ function App() {
               path="/admin"
               element={
                 <AuthWrapper>
-                  <Layout>
+                  <Layout className="main-layout">
                     <Sidebar userData={userData} setAuth={setAuth} />
                     <Layout className="site-layout">
                       <Content className="content-wrapper">
@@ -204,7 +228,7 @@ function App() {
               path="/admin/users"
               element={
                 <AuthWrapper>
-                  <Layout>
+                  <Layout className="main-layout">
                     <Sidebar userData={userData} setAuth={setAuth} />
                     <Layout className="site-layout">
                       <Content className="content-wrapper">
@@ -227,7 +251,7 @@ function App() {
               path="/handover"
               element={
                 <AuthWrapper>
-                  <Layout>
+                  <Layout className="main-layout">
                     <Sidebar userData={userData} setAuth={setAuth} />
                     <Layout className="site-layout">
                       <Content className="content-wrapper">

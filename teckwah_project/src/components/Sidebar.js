@@ -1,6 +1,6 @@
 // src/components/Sidebar.js
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Space, Typography } from 'antd';
+import { Layout, Menu, Space, Typography, Avatar } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -74,6 +74,14 @@ const Sidebar = ({ userData, setAuth }) => {
       },
     ];
 
+    // 로그아웃 메뉴 아이템 (모든 사용자에게 추가)
+    const logoutItem = {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '로그아웃',
+      onClick: handleLogout,
+    };
+
     // Admin 전용 메뉴
     if (isAdminUser) {
       return [
@@ -90,6 +98,7 @@ const Sidebar = ({ userData, setAuth }) => {
           onClick: () => navigate('/admin/users'),
         },
         ...commonItems,
+        logoutItem, // 로그아웃 메뉴 추가
       ];
     }
 
@@ -102,6 +111,7 @@ const Sidebar = ({ userData, setAuth }) => {
         onClick: () => navigate('/dashboard'),
       },
       ...commonItems,
+      logoutItem, // 로그아웃 메뉴 추가
     ];
   };
 
@@ -115,21 +125,10 @@ const Sidebar = ({ userData, setAuth }) => {
     return '';
   };
 
-  // 사용자 메뉴 항목
-  const userMenuItems = [
-    {
-      label: '로그아웃',
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      onClick: handleLogout,
-    },
-  ];
-
   return (
     <Sider
       collapsible
       collapsed={collapsed}
-      onCollapse={toggleCollapsed}
       trigger={null}
       theme="light"
       width={220}
@@ -137,9 +136,11 @@ const Sidebar = ({ userData, setAuth }) => {
       breakpoint="lg"
       collapsedWidth={window.innerWidth < 576 ? 0 : 80}
     >
-      <div className="logo">
+      <div className="logo-container">
         <img src="/logo.png" alt="Logo" className="logo-image" />
-        {!collapsed && <span className="logo-text">TMS System</span>}
+        <div className="sidebar-trigger" onClick={toggleCollapsed}>
+          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        </div>
       </div>
 
       <Menu
@@ -150,27 +151,17 @@ const Sidebar = ({ userData, setAuth }) => {
       />
 
       <div className="sidebar-user-info">
-        <Dropdown
-          menu={{ items: userMenuItems }}
-          placement="topRight"
-          trigger={['click']}
-        >
-          <Space className="user-dropdown">
-            <Avatar icon={<UserOutlined />} size="small" />
-            {!collapsed && (
-              <div className="user-info">
-                <Text className="user-name">{userData?.user_id || 'User'}</Text>
-                <Text className="user-dept">
-                  {userData?.user_department || 'No Department'}
-                </Text>
-              </div>
-            )}
-          </Space>
-        </Dropdown>
-      </div>
-
-      <div className="sidebar-trigger" onClick={toggleCollapsed}>
-        {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        <Space className="user-info-content">
+          <Avatar icon={<UserOutlined />} size="small" />
+          {!collapsed && (
+            <div className="user-info">
+              <Text className="user-name">{userData?.user_id || 'User'}</Text>
+              <Text className="user-dept">
+                {userData?.user_department || 'No Department'}
+              </Text>
+            </div>
+          )}
+        </Space>
       </div>
     </Sider>
   );

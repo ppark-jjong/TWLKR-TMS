@@ -1,5 +1,5 @@
 // src/pages/LoginPage.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Form,
   Input,
@@ -9,17 +9,31 @@ import {
   Typography,
   Alert,
   Space,
+  Spin,
+  Divider
 } from "antd";
 import { UserOutlined, LockOutlined, ReloadOutlined } from "@ant-design/icons";
 import { loginUser } from "../utils/authHelpers";
 import { useNavigate } from "react-router-dom";
+import { colors, shadows } from "../styles/commonStyles";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const LoginPage = ({ setAuth, setUserData }) => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(null);
+  const [initialLoading, setInitialLoading] = useState(true);
   const navigate = useNavigate();
+
+  // 페이지 로딩 시 애니메이션 효과를 위한 상태
+  useEffect(() => {
+    // 잠시 지연 후 로딩 상태 해제 (UI 부드럽게 전환)
+    const timer = setTimeout(() => {
+      setInitialLoading(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const onFinish = async (values) => {
     // 이전 오류 메시지 초기화
@@ -69,73 +83,93 @@ const LoginPage = ({ setAuth, setUserData }) => {
     window.location.reload();
   };
 
+  if (initialLoading) {
+    return (
+      <div className="login-loading-container">
+        <Spin size="large" tip="로딩 중..." />
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        background: "#f0f2f5",
-      }}
-    >
-      <Card style={{ width: 400, boxShadow: "0 4px 8px rgba(0,0,0,0.1)" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <Title level={3}>배송 실시간 관제 시스템</Title>
+    <div className="login-page">
+      <div className="login-container">
+        <div className="login-logo-container">
+          <img src="/logo.png" alt="Teckwah Logo" className="login-logo" />
         </div>
+        <Card className="login-card">
+          <div className="login-header">
+            <Title level={3}>TeckwahTMS</Title>
+            <Text type="secondary">배송 실시간 관제 시스템</Text>
+          </div>
 
-        {loginError && (
-          <Alert
-            message={loginError.message}
-            type={loginError.type}
-            showIcon
-            style={{ marginBottom: 16 }}
-            action={
-              <Button
-                size="small"
-                type="text"
-                icon={<ReloadOutlined />}
-                onClick={handleRefresh}
-                title="새로고침"
+          <Divider />
+
+          {loginError && (
+            <Alert
+              message={loginError.message}
+              type={loginError.type}
+              showIcon
+              className="login-alert"
+              action={
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<ReloadOutlined />}
+                  onClick={handleRefresh}
+                  title="새로고침"
+                />
+              }
+            />
+          )}
+
+          <Form
+            name="login"
+            initialValues={{ remember: true }}
+            onFinish={onFinish}
+            size="large"
+            className="login-form"
+          >
+            <Form.Item
+              name="user_id"
+              rules={[{ required: true, message: "아이디를 입력해주세요" }]}
+            >
+              <Input 
+                prefix={<UserOutlined />} 
+                placeholder="아이디" 
+                autoComplete="username"
               />
-            }
-          />
-        )}
+            </Form.Item>
 
-        <Form
-          name="login"
-          initialValues={{ remember: true }}
-          onFinish={onFinish}
-          size="large"
-        >
-          <Form.Item
-            name="user_id"
-            rules={[{ required: true, message: "아이디를 입력해주세요" }]}
-          >
-            <Input prefix={<UserOutlined />} placeholder="아이디" />
-          </Form.Item>
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: "비밀번호를 입력해주세요" }]}
+            >
+              <Input.Password 
+                prefix={<LockOutlined />} 
+                placeholder="비밀번호" 
+                autoComplete="current-password"
+              />
+            </Form.Item>
 
-          <Form.Item
-            name="password"
-            rules={[{ required: true, message: "비밀번호를 입력해주세요" }]}
-          >
-            <Input.Password prefix={<LockOutlined />} placeholder="비밀번호" />
-          </Form.Item>
-
-          <Form.Item>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <Button type="primary" htmlType="submit" loading={loading} block>
+            <Form.Item>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={loading} 
+                block
+                className="login-button"
+              >
                 로그인
               </Button>
-              {loginError && (
-                <Button icon={<ReloadOutlined />} onClick={handleRefresh} block>
-                  새로고침
-                </Button>
-              )}
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
+            </Form.Item>
+          </Form>
+
+          <div className="login-footer">
+            <Text type="secondary">© {new Date().getFullYear()} Teckwah. All rights reserved.</Text>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

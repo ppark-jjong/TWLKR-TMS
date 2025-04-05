@@ -5,6 +5,7 @@ import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { downloadExcel, deleteDashboards } from '../utils/api';
 import { handleApiError } from '../utils/errorHandlers';
+import PageHeader from '../components/PageHeader';
 
 // 공통 훅 가져오기
 import useDashboardBase from '../hooks/useDashboardBase';
@@ -156,6 +157,14 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
     </Space>
   );
 
+  // 현재 탭에 따른 페이지 제목 설정
+  const getPageTitle = () => {
+    if (currentTab === 'users') {
+      return "사용자 관리";
+    }
+    return "TeckwahTMS";
+  };
+
   // 관리자용 탭 컴포넌트 렌더링
   const renderTabContent = () => {
     if (currentTab === 'users') {
@@ -198,6 +207,8 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
 
   return (
     <>
+      <PageHeader title={getPageTitle()} />
+      
       <Tabs
         activeKey={currentTab}
         onChange={setCurrentTab}
