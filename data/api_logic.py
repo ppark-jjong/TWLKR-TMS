@@ -40,7 +40,8 @@ def get_route_distances(start_x, start_y, end_x, end_y, client_id, client_secret
     ]
 
     # URL을 Direction 5 API 엔드포인트로 수정
-    url = "https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving"
+    # url = "https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving"
+    url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
 
     headers = {
         "X-NCP-APIGW-API-KEY-ID": client_id,
