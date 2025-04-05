@@ -13,20 +13,16 @@
         "9341bc6a-f6bb-4a68-9701-b6e4ea6f905d"
       ]
     },
-    "web-search": {
-      "command": "node",
-      "args": ["C:\\MyMain\\mcp\\web-search\\build\\index.js"]
-    },
     "server-sequential-thinking": {
       "command": "node",
       "args": [
-        "C:\\MyMain\\mcp\\reference-servers-main\\src\\sequentialthinking\\dist\\index.js"
+        "C:\\MyMain\\mcp-server\\reference-servers-main\\src\\sequentialthinking\\dist\\index.js"
       ]
     },
     "memory": {
       "command": "node",
       "args": [
-        "C:\\MyMain\\mcp\\reference-servers-main\\src\\memory\\dist\\index.js"
+        "C:\\MyMain\\mcp-server\\reference-servers-main\\src\\memory\\dist\\index.js"
       ]
     },
     "hyperbrowser": {
