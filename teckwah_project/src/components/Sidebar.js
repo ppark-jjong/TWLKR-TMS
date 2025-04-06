@@ -11,6 +11,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 import { logout } from "../utils/api";
 
@@ -63,13 +64,19 @@ const Sidebar = ({ userData, setAuth }) => {
 
   // 권한별 메뉴 아이템 필터링
   const getMenuItems = () => {
-    // 공통 메뉴 아이템 (인수인계는 모든 사용자 공통)
+    // 공통 메뉴 아이템 (인수인계와 시각화는 모든 사용자 공통)
     const commonItems = [
       {
         key: "handover",
         icon: <FileTextOutlined />,
         label: "인수인계",
         onClick: () => navigate("/handover"),
+      },
+      {
+        key: "visualization",
+        icon: <BarChartOutlined />,
+        label: "시각화",
+        onClick: () => navigate("/visualization"),
       },
     ];
 
@@ -109,6 +116,7 @@ const Sidebar = ({ userData, setAuth }) => {
     const path = location.pathname;
     if (path.includes("/dashboard")) return "dashboard";
     if (path.includes("/handover")) return "handover";
+    if (path.includes("/visualization")) return "visualization";
     if (path.includes("/admin/users")) return "users";
     if (path.includes("/admin")) return "admin";
     return "";

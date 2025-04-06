@@ -491,4 +491,19 @@ export const downloadExcel = async (params) => {
 
 export const getDownloadDateRange = () => api.get("/download/date-range");
 
+// 시각화 API
+export const getVisualizationData = async (params) => {
+  try {
+    const response = await api.get("/dashboard/visualization", { params });
+    return response.data;
+  } catch (error) {
+    console.error("시각화 데이터 조회 실패:", error);
+    return {
+      success: false,
+      message: "시각화 데이터를 불러오는데 실패했습니다.",
+      error_code: error.response?.status || "API_ERROR",
+    };
+  }
+};
+
 export default api;
