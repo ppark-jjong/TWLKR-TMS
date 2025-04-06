@@ -9,6 +9,7 @@
     "@tanstack/react-query": "^4.29.5",
     "axios": "^1.4.0",
     "antd": "^5.4.2",
+    "chart.js": "^4.4.1",
     "dayjs": "^1.11.7",
     "jwt-decode": "^3.1.2",
     "recharts": "^2.5.0"
@@ -39,4 +40,4 @@
   "devDependencies": {
     "react-scripts": "5.0.1"
   }
-} 
+}

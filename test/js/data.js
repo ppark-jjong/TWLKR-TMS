@@ -22,8 +22,8 @@ class DataManager {
     }
     
     this.loadingPromise = new Promise((resolve, reject) => {
-      // 먼저 Excel 파일 로드 시도
-      fetch('dashboard.xlsx')
+      // JSON 데이터를 바로 로드 (Excel 파일 대체)
+      fetch('dashboard_data.json')
         .then(response => {
           if (!response.ok) {
             throw new Error('Excel 데이터 로드 실패');
@@ -39,13 +39,23 @@ class DataManager {
             }
             
             // Excel 파일 읽기
-            const workbook = XLSX.read(buffer, { type: 'array' });
+            const workbook = XLSX.read(buffer, {
+              type: 'array',
+              cellDates: true,
+              cellStyles: true,
+              cellNF: true,
+              dateNF: 'yyyy-mm-dd hh:mm'
+            });
             console.log('Excel 워크북 로드됨:', workbook.SheetNames);
             
             // 'dashboard' 시트 읽기 (분석 결과 확인된 실제 시트명)
             if (workbook.SheetNames.includes('dashboard')) {
               const dashboardSheet = workbook.Sheets['dashboard'];
-              const rawData = XLSX.utils.sheet_to_json(dashboardSheet);
+              const rawData = XLSX.utils.sheet_to_json(dashboardSheet, {
+                raw: false,
+                dateNF: 'yyyy-mm-dd hh:mm',
+                defval: ''
+              });
               console.log('대시보드 원본 데이터 로드됨:', rawData.length);
               
               // 날짜 형식 변환 함수
@@ -102,67 +112,59 @@ class DataManager {
               
               // 데이터 변환 - 필드명 매핑 및 필터링
               this.dashboards = rawData.map((row, index) => {
-                // === 날짜 필드 변환 ===
+                // === 날짜 필드 변환 - 통일된 형식으로 처리 ===
                 
-                // eta 필드 변환
-                let etaDate = null;
-                if (row.eta) {
-                  // 숫자인 경우 Excel 날짜로 변환
-                  if (typeof row.eta === 'number') {
-                    etaDate = dateUtils.excelDateToDate(row.eta);
-                  } 
-                  // 문자열인 경우 Date 객체로 변환 시도
-                  else if (typeof row.eta === 'string') {
-                    try {
-                      etaDate = new Date(row.eta);
-                    } catch (e) {
-                      console.warn('ETA 날짜 변환 실패:', row.eta);
+                // 날짜 변환 공통 함수 정의
+                const parseDate = (dateValue) => {
+                  if (!dateValue) return null;
+                  
+                  try {
+                    // 이미 Date 객체인 경우
+                    if (dateValue instanceof Date) return dateValue;
+                    
+                    // 숫자인 경우 Excel 날짜로 변환
+                    if (typeof dateValue === 'number') {
+                      return dateUtils.excelDateToDate(dateValue);
                     }
-                  }
-                }
-                
-                // create_time 필드 변환
-                let createTimeDate = null;
-                if (row.create_time) {
-                  // 숫자인 경우 Excel 날짜로 변환
-                  if (typeof row.create_time === 'number') {
-                    createTimeDate = dateUtils.excelDateToDate(row.create_time);
-                  } 
-                  // 문자열인 경우 Date 객체로 변환 시도
-                  else if (typeof row.create_time === 'string') {
-                    try {
-                      createTimeDate = new Date(row.create_time);
-                    } catch (e) {
-                      console.warn('create_time 날짜 변환 실패:', row.create_time);
+                    
+                    // 문자열인 경우
+                    if (typeof dateValue === 'string') {
+                      // 날짜 패턴 확인 및 포맷 변환
+                      if (dateValue.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/)) {
+                        return new Date(dateValue.replace(' ', 'T'));
+                      }
+                      
+                      // 다른 날짜 형식 처리
+                      return new Date(dateValue);
                     }
+                  } catch (e) {
+                    console.warn('날짜 변환 실패:', dateValue, e);
                   }
-                }
+                  
+                  return null;
+                };
                 
-                // update_at 필드 변환
-                let updateTimeDate = null;
-                if (row.update_at) {
-                  // 숫자인 경우 Excel 날짜로 변환
-                  if (typeof row.update_at === 'number') {
-                    updateTimeDate = dateUtils.excelDateToDate(row.update_at);
-                  } 
-                  // 문자열인 경우 Date 객체로 변환 시도
-                  else if (typeof row.update_at === 'string') {
-                    try {
-                      updateTimeDate = new Date(row.update_at);
-                    } catch (e) {
-                      console.warn('update_at 날짜 변환 실패:', row.update_at);
-                    }
-                  }
-                }
+                // 주요 날짜 필드 통합 변환
+                const etaDate = parseDate(row.eta);
+                const createTimeDate = parseDate(row.create_time);
+                const updateTimeDate = parseDate(row.update_at);
+                const departTimeDate = parseDate(row.depart_time); 
+                const completeTimeDate = parseDate(row.complete_time);
                 
-                // 날짜 문자열 형식으로 변환
+                // 모든 날짜를 동일한 형식의 문자열로 포맷팅 (yyyy-MM-dd HH:mm)
                 const etaFormatted = etaDate ? formatDateString(etaDate) : '';
                 const createTime = createTimeDate ? formatDateString(createTimeDate) : '';
                 const updateTime = updateTimeDate ? formatDateString(updateTimeDate) : createTime;
+                const departTime = departTimeDate ? formatDateString(departTimeDate) : '';
+                const completeTime = completeTimeDate ? formatDateString(completeTimeDate) : '';
                 
                 // 디버깅: 처음 5개 항목 로깅
                 if (index < 5) {
-                  console.log(`항목 ${index+1}: 원본 create_time=${row.create_time}, 변환=${createTime}, 타입=${typeof row.create_time}`);
+                  console.log(`항목 ${index+1}:`);
+                  console.log(`  - create_time: ${row.create_time}, 변환=${createTime}, 타입=${typeof row.create_time}`);
+                  console.log(`  - eta: ${row.eta}, 변환=${etaFormatted}, 타입=${typeof row.eta}`);
+                  console.log(`  - 날짜 데이터 정합성: create_time_date는 ${createTimeDate instanceof Date ? '유효' : '유효하지 않음'}`);
+                  console.log(`  - 날짜 데이터 정합성: eta_date는 ${etaDate instanceof Date ? '유효' : '유효하지 않음'}`);
                 }
                 
                 // 변환된 데이터 반환
@@ -172,20 +174,31 @@ class DataManager {
                   customer: row.customer || '',
                   type: row.type || 'DELIVERY',
                   delivery_status: row.status || 'PENDING',
-                  department: row.department === 'CS' || row.department === 'HES' || row.department === 'LENOVO' 
-                    ? row.department
+                  department: row.department ? 
+                    (row.department === 'CS' || row.department === 'HES' || row.department === 'LENOVO' 
+                      ? row.department
+                      : 'CS') 
                     : 'CS', // 요구사항에 맞게 필터링
                   warehouse: '서울', // 요구사항에 따라 모두 서울로 통일
+                  sla: row.sla || '',
                   eta: etaFormatted,
                   eta_date: etaDate, // 필터링을 위한 Date 객체 저장
+                  depart_time: departTime,
+                  depart_time_date: departTimeDate,
+                  complete_time: completeTime,
+                  complete_time_date: completeTimeDate,
                   driver_name: row.driver_name || '',
                   driver_contact: row.driver_contact || '',
                   address: row.address || '',
                   postal_code: row.postal_code || '',
+                  city: row.city || '',
+                  district: row.district || '',
+                  region: row.region || '',
                   created_at: createTime,
                   updated_at: updateTime,
                   remark: row.remark || '',
-                  // 원본 날짜 값과 변환된 날짜 객체 추가
+                  contact: row.contact || '',
+                  // 원본 날짜 값과 변환된 날짜 객체 추가 - 모든 날짜 필드 관리
                   create_time: row.create_time, // 원본 값 유지
                   create_time_date: createTimeDate, // 변환된 Date 객체
                   update_at: row.update_at, // 원본 값 유지
@@ -236,10 +249,10 @@ class DataManager {
   }
   
   /**
-   * JSON 백업 데이터 로드
+   * JSON 데이터 로드 (메인 데이터 소스)
    */
   async loadJsonData() {
-    console.log('JSON 백업 데이터 로드 시도...');
+    console.log('JSON 데이터 로드 시도...');
     try {
       const response = await fetch('dashboard_data.json');
       if (!response.ok) {
@@ -248,30 +261,98 @@ class DataManager {
       
       const data = await response.json();
       
-      // 대시보드 데이터 처리
-      if (data.dashboards && Array.isArray(data.dashboards)) {
-        // 데이터 필터링 및 변환 - CS, HES, LENOVO만 사용하고 창고는 '서울'로 설정
-        this.dashboards = data.dashboards.map(dashboard => {
-          const updatedDashboard = {...dashboard};
+      // 'dashboard' 시트의 데이터 처리
+      if (data.dashboard && Array.isArray(data.dashboard)) {
+        console.log(`JSON에서 로드된 대시보드 데이터: ${data.dashboard.length}개 행`);
+        
+        // 날짜 문자열을 Date 객체로 변환하는 함수
+        const parseDate = (dateStr) => {
+          if (!dateStr) return null;
+          try {
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? null : date;
+          } catch (e) {
+            console.warn('날짜 파싱 오류:', dateStr, e);
+            return null;
+          }
+        };
+        
+        // 날짜를 포맷팅하는 함수
+        const formatDateString = (date) => {
+          if (!date) return '';
+          try {
+            return date.toISOString().split('T')[0] + ' ' + 
+                  date.toTimeString().split(' ')[0].substring(0, 5);
+          } catch (e) {
+            console.warn('날짜 포맷 변환 실패:', date, e);
+            return '';
+          }
+        };
+        
+        // 데이터 매핑 및 필터링
+        this.dashboards = data.dashboard.map((row, index) => {
+          // ISO 형식 날짜 문자열을 Date 객체로 변환
+          const etaDate = parseDate(row.eta);
+          const createTimeDate = parseDate(row.create_time);
+          const updateTimeDate = parseDate(row.update_at);
+          const departTimeDate = parseDate(row.depart_time);
+          const completeTimeDate = parseDate(row.complete_time);
           
-          // 부서가 CS, HES, LENOVO가 아니면 'CS'로 설정
-          if (!['CS', 'HES', 'LENOVO'].includes(updatedDashboard.department)) {
-            updatedDashboard.department = 'CS';
+          // 날짜 포맷팅 (화면 표시용)
+          const etaFormatted = etaDate ? formatDateString(etaDate) : '';
+          const createTime = createTimeDate ? formatDateString(createTimeDate) : '';
+          const updateTime = updateTimeDate ? formatDateString(updateTimeDate) : createTime;
+          const departTime = departTimeDate ? formatDateString(departTimeDate) : '';
+          const completeTime = completeTimeDate ? formatDateString(completeTimeDate) : '';
+          
+          // 디버깅: 처음 5개 항목 로깅
+          if (index < 5) {
+            console.log(`JSON 항목 ${index+1}:`);
+            console.log(`  - create_time: ${row.create_time}, 변환=${createTime}`);
+            console.log(`  - eta: ${row.eta}, 변환=${etaFormatted}`);
+            console.log(`  - 날짜 데이터 정합성: create_time_date는 ${createTimeDate instanceof Date ? '유효' : '유효하지 않음'}`);
+            console.log(`  - 날짜 데이터 정합성: eta_date는 ${etaDate instanceof Date ? '유효' : '유효하지 않음'}`);
           }
           
-          // 창고 필드를 '서울'로 설정
-          updatedDashboard.warehouse = '서울';
-          
-          // delivery_status 필드명 통일 (status -> delivery_status)
-          if (updatedDashboard.status && !updatedDashboard.delivery_status) {
-            updatedDashboard.delivery_status = updatedDashboard.status;
-            delete updatedDashboard.status;
-          }
-          
-          return updatedDashboard;
+          return {
+            dashboard_id: index + 1,
+            order_no: row.order_no || '',
+            customer: row.customer || '',
+            type: row.type || 'DELIVERY',
+            delivery_status: row.status || 'PENDING',
+            department: row.department ? 
+              (row.department === 'CS' || row.department === 'HES' || row.department === 'LENOVO' 
+                ? row.department 
+                : 'CS') 
+              : 'CS',
+            warehouse: '서울', // 요구사항에 따라 모두 서울로 통일
+            sla: row.sla || '',
+            eta: etaFormatted,
+            eta_date: etaDate,
+            depart_time: departTime,
+            depart_time_date: departTimeDate,
+            complete_time: completeTime,
+            complete_time_date: completeTimeDate,
+            driver_name: row.driver_name || '',
+            driver_contact: row.driver_contact || '',
+            address: row.address || '',
+            postal_code: row.postal_code || '',
+            city: row.city || '',
+            district: row.district || '',
+            region: row.region || '',
+            created_at: createTime,
+            updated_at: updateTime,
+            remark: row.remark || '',
+            contact: row.contact || '',
+            // 날짜 객체 저장 (필터링용)
+            create_time_date: createTimeDate,
+            update_at_date: updateTimeDate
+          };
         });
+        
+        console.log('대시보드 데이터 변환 완료:', this.dashboards.length);
       } else {
-        // dashboards 데이터가 없으면 기본 데이터 생성
+        console.warn('JSON 파일에 dashboard 데이터가 없습니다');
         this.createDefaultData();
       }
       

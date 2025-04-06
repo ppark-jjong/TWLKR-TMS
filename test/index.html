@@ -25,7 +25,7 @@
       <!-- 사이드바 -->
       <aside id="sidebar" class="sidebar">
         <div class="logo-container">
-          <h1>TeckwahTMS</h1>
+          <h1>TWLKR-TMS</h1>
         </div>
         
         <div class="user-info">
@@ -326,7 +326,7 @@
                 </div>
               </div>
               
-              <!-- 데이터 요약 섹션 제거됨 -->
+              <!-- 차트 영역만 유지하고 데이터 요약 섹션 제거함 -->
             </div>
           </div>
           
@@ -726,21 +726,8 @@
     </div>
   </div>
   
-  <!-- SheetJS 라이브러리 추가 -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- Chart.js 라이브러리 추가 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-  <script>
-    // XLSX 라이브러리 로드 확인
-    window.addEventListener('load', function() {
-      if (typeof XLSX === 'undefined') {
-        console.error('XLSX 라이브러리가 로드되지 않았습니다. 페이지를 새로고침하거나 다른 브라우저에서 시도해주세요.');
-        alert('데이터 로드에 필요한 라이브러리가 로드되지 않았습니다. 페이지를 새로고침해주세요.');
-      } else {
-        console.log('XLSX 라이브러리가 정상적으로 로드되었습니다.');
-      }
-    });
-  </script>
   
   <!-- JavaScript 파일 - 순서 중요함 -->
   <script src="js/utils.js"></script>

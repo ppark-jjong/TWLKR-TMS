@@ -228,12 +228,12 @@ class VisualizationPage {
   }
   
   /**
-   * 데이터 필터링 함수 - create_time 기준 날짜와 부서 필터
+   * 데이터 필터링 함수 - eta 기준 날짜와 부서 필터
    */
   filterData(filters) {
     let filteredData = [...this.dashboardData];
     
-    // 날짜 필터링 (create_time 기준)
+    // 날짜 필터링 (eta 기준으로 변경)
     if (filters.startDate && filters.endDate) {
       const startDate = new Date(filters.startDate);
       startDate.setHours(0, 0, 0, 0);
@@ -241,40 +241,35 @@ class VisualizationPage {
       const endDate = new Date(filters.endDate);
       endDate.setHours(23, 59, 59, 999);
       
-      console.log(`날짜 범위 필터 (생성 일자 기준): ${startDate.toISOString()} ~ ${endDate.toISOString()}`);
+      console.log(`날짜 범위 필터 (ETA 기준): ${startDate.toISOString()} ~ ${endDate.toISOString()}`);
+      
+      // 필터링 전 데이터 수
+      const beforeCount = filteredData.length;
       
       filteredData = filteredData.filter(item => {
-        // create_time_date가 Date 객체인 경우
-        if (item.create_time_date instanceof Date) {
-          return item.create_time_date >= startDate && item.create_time_date <= endDate;
+        // eta_date가 Date 객체인 경우
+        if (item.eta_date instanceof Date) {
+          return item.eta_date >= startDate && item.eta_date <= endDate;
         }
         
-        // create_time 문자열이 있는 경우
-        if (item.created_at && typeof item.created_at === 'string') {
+        // eta 문자열이 있는 경우
+        if (item.eta && typeof item.eta === 'string') {
           try {
-            const createDate = new Date(item.created_at);
-            if (!isNaN(createDate.getTime())) {
-              return createDate >= startDate && createDate <= endDate;
+            const etaDate = new Date(item.eta.replace(' ', 'T'));
+            if (!isNaN(etaDate.getTime())) {
+              return etaDate >= startDate && etaDate <= endDate;
             }
           } catch (error) {
-            console.warn('생성 일자 변환 오류:', item.created_at, error);
-          }
-        }
-        
-        // 원본 숫자형 create_time이 있는 경우
-        if (item.create_time && typeof item.create_time === 'number') {
-          try {
-            const createDate = this.convertExcelDate(item.create_time);
-            if (createDate && !isNaN(createDate.getTime())) {
-              return createDate >= startDate && createDate <= endDate;
-            }
-          } catch (error) {
-            console.warn('Excel 생성 일자 변환 오류:', item.create_time, error);
+            console.warn('ETA 날짜 변환 오류:', item.eta, error);
           }
         }
         
         return false;
       });
+      
+      // 필터링 후 데이터 수
+      const afterCount = filteredData.length;
+      console.log(`ETA 날짜 필터링 결과: ${beforeCount}개 → ${afterCount}개 (${beforeCount - afterCount}개 필터링됨)`);
       
       console.log(`날짜 필터링 후 데이터 수: ${filteredData.length}`);
     }
@@ -289,7 +284,7 @@ class VisualizationPage {
   }
   
   /**
-   * 데이터 처리 - 시간대별 집계 (한국 시간 기준, create_time)
+   * 데이터 처리 - 시간대별 집계 (한국 시간 기준, eta 기준)
    */
   processTimeData(filters) {
     // 데이터 필터링
@@ -313,32 +308,28 @@ class VisualizationPage {
     let processedCount = 0;
     let errorCount = 0;
     
-    // 각 주문의 생성 시간을 확인하여 해당 시간대에 카운트 증가
+    // 각 주문의 ETA 시간을 확인하여 해당 시간대에 카운트 증가
     filteredData.forEach((item, index) => {
       try {
-        // 생성 시간 사용
-        let createTime;
+        // ETA 시간 사용 (요청에 따라 create_time에서 eta로 변경)
+        let etaTime;
         
         // Date 객체인 경우
-        if (item.create_time_date instanceof Date) {
-          createTime = item.create_time_date;
+        if (item.eta_date instanceof Date) {
+          etaTime = item.eta_date;
         }
-        // created_at 문자열인 경우
-        else if (item.created_at && typeof item.created_at === 'string') {
-          createTime = new Date(item.created_at);
-        }
-        // 숫자인 경우 (Excel 날짜)
-        else if (item.create_time && typeof item.create_time === 'number') {
-          createTime = this.convertExcelDate(item.create_time);
+        // eta 문자열인 경우
+        else if (item.eta && typeof item.eta === 'string') {
+          etaTime = new Date(item.eta.replace(' ', 'T'));
         }
         
         // 유효한 날짜인지 확인
-        if (!createTime || isNaN(createTime.getTime())) {
+        if (!etaTime || isNaN(etaTime.getTime())) {
           return;
         }
         
         // 한국 시간 기준
-        const hours = createTime.getHours();
+        const hours = etaTime.getHours();
         
         // 시간대 결정 
         let timeSlot;
@@ -359,7 +350,7 @@ class VisualizationPage {
         
         // 디버깅: 처음 5개 항목 로깅
         if (index < 5) {
-          console.log(`항목 ${index+1}: create_time=${item.create_time}, 변환된 시간=${createTime}, 시간대=${timeSlot}`);
+          console.log(`항목 ${index+1}: eta=${item.eta}, 변환된 시간=${etaTime}, 시간대=${timeSlot}`);
         }
       } catch (error) {
         errorCount++;
@@ -488,7 +479,7 @@ class VisualizationPage {
           },
           title: {
             display: true,
-            text: '시간대별 주문 접수 건수 (생성 일자 기준)'
+            text: '시간대별 배송 건수 (ETA 기준)'
           },
           tooltip: {
             callbacks: {
