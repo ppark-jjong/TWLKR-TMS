@@ -71,53 +71,24 @@
         <div class="content-container">
           <!-- 대시보드 페이지 -->
           <div class="page-section" id="dashboardPage">
-            <!-- 요약 카드 영역 -->
-            <div class="summary-cards">
-              <div class="summary-card">
-                <div class="summary-icon" style="background-color: #f9f0ff; color: var(--type-delivery);">
-                  <i class="fa-solid fa-boxes-stacked"></i>
-                </div>
-                <div class="summary-data">
-                  <p class="summary-label">배송 건수</p>
-                  <h3 class="summary-value" id="totalOrders">0건</h3>
-                </div>
-              </div>
-              
-              <div class="summary-card">
-                <div class="summary-icon" style="background-color: #fff7e6; color: var(--type-pickup);">
-                  <i class="fa-solid fa-truck-fast"></i>
-                </div>
-                <div class="summary-data">
-                  <p class="summary-label">회수 건수</p>
-                  <h3 class="summary-value" id="inProgressOrders">0건</h3>
-                </div>
-              </div>
-              
-              <div class="summary-card">
-                <div class="summary-icon" style="background-color: #fffbe6; color: var(--status-progress);">
-                  <i class="fa-solid fa-spinner"></i>
-                </div>
-                <div class="summary-data">
-                  <p class="summary-label">진행 (배송+회수)</p>
-                  <h3 class="summary-value" id="progressOrders">0건</h3>
-                </div>
-              </div>
-              
-              <div class="summary-card">
-                <div class="summary-icon" style="background-color: #f6ffed; color: var(--status-complete);">
-                  <i class="fa-solid fa-check-circle"></i>
-                </div>
-                <div class="summary-data">
-                  <p class="summary-label">완료 (배송+회수)</p>
-                  <h3 class="summary-value" id="completedOrders">0건</h3>
-                </div>
-              </div>
-            </div>
+            <!-- 컨트롤 패널과 카드 섹션을 감싸는 컨테이너 -->
+            <div class="dashboard-content-container">
+              <!-- 컨트롤 패널 영역 (필터 등) -->
             
             <!-- 메인 대시보드 카드 -->
             <div class="main-card">
-              <div class="card-header">
-                <h2>배송 관리</h2>
+              <div class="card-header date-filter-header">
+                <div class="date-period-container">
+                  <h2 style="margin-right: 20px;">배송 관리</h2>
+                  <div class="period-select-container" style="display: flex; align-items: center;">
+                    <input type="date" id="quickStartDate" class="date-input" style="margin-right: 5px;">
+                    <span class="date-separator">~</span>
+                    <input type="date" id="quickEndDate" class="date-input" style="margin-left: 5px; margin-right: 10px;">
+                    <button class="btn primary-btn" id="quickDateBtn">
+                      <i class="fa-solid fa-search"></i> 조회
+                    </button>
+                  </div>
+                </div>
                 
                 <div class="card-actions">
                   <button class="btn primary-btn" id="refreshBtn">
@@ -198,6 +169,49 @@
                         <i class="fa-solid fa-rotate-left"></i> 초기화
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 요약 카드 영역 - 필터링 아래로 이동 -->
+              <div class="summary-cards">
+                <div class="summary-card">
+                  <div class="summary-icon" style="background-color: #f9f0ff; color: var(--type-delivery);">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">배송 건수</p>
+                    <h3 class="summary-value" id="totalOrders">0건</h3>
+                  </div>
+                </div>
+                
+                <div class="summary-card">
+                  <div class="summary-icon" style="background-color: #fff7e6; color: var(--type-pickup);">
+                    <i class="fa-solid fa-truck-fast"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">회수 건수</p>
+                    <h3 class="summary-value" id="inProgressOrders">0건</h3>
+                  </div>
+                </div>
+                
+                <div class="summary-card">
+                  <div class="summary-icon" style="background-color: #fffbe6; color: var(--status-progress);">
+                    <i class="fa-solid fa-spinner"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">진행 (배송+회수)</p>
+                    <h3 class="summary-value" id="progressOrders">0건</h3>
+                  </div>
+                </div>
+                
+                <div class="summary-card">
+                  <div class="summary-icon" style="background-color: #f6ffed; color: var(--status-complete);">
+                    <i class="fa-solid fa-check-circle"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">완료 (배송+회수)</p>
+                    <h3 class="summary-value" id="completedOrders">0건</h3>
                   </div>
                 </div>
               </div>
@@ -346,7 +360,7 @@
             </div>
           </div>
           
-          <!-- 인수인계 페이지 -->
+          <!-- 인수인계 페이지 - 개선된 UI -->
           <div class="page-section" id="handoverPage" style="display: none;">
             <div class="main-card">
               <div class="card-header">
@@ -361,8 +375,82 @@
                 </div>
               </div>
               
-              <!-- 인수인계 테이블 -->
-              <div class="table-container">
+              <!-- 인수인계 필터 영역 -->
+              <div class="handover-filter" style="padding: 16px 20px; border-bottom: 1px solid #f0f2f5; background-color: #fafafa;">
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+                  <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
+                    <label for="handoverCategoryFilter" style="margin-bottom: 6px; display: block; font-size: 0.9rem; color: #666;">카테고리</label>
+                    <select id="handoverCategoryFilter" class="select-field" style="width: 100%;">
+                      <option value="">전체</option>
+                      <option value="배송">배송</option>
+                      <option value="야간근무">야간근무</option>
+                      <option value="안전">안전</option>
+                      <option value="일반">일반</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
+                    <label for="handoverPriorityFilter" style="margin-bottom: 6px; display: block; font-size: 0.9rem; color: #666;">우선순위</label>
+                    <select id="handoverPriorityFilter" class="select-field" style="width: 100%;">
+                      <option value="">전체</option>
+                      <option value="LOW">낮음</option>
+                      <option value="MEDIUM">중간</option>
+                      <option value="HIGH">높음</option>
+                      <option value="URGENT">긴급</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group" style="margin-bottom: 0; flex-grow: 1; min-width: 250px;">
+                    <label for="handoverSearchInput" style="margin-bottom: 6px; display: block; font-size: 0.9rem; color: #666;">검색어</label>
+                    <div style="display: flex;">
+                      <input type="text" id="handoverSearchInput" class="input-field" placeholder="제목 또는 내용 검색" style="flex-grow: 1;">
+                      <button class="btn primary-btn" id="handoverSearchBtn" style="margin-left: 8px;">
+                        <i class="fa-solid fa-search"></i> 검색
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 인수인계 카드형 목록 -->
+              <div class="handover-card-container" style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                <!-- 샘플 카드 1 -->
+                <div class="handover-card" style="background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 16px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span class="category-badge" style="background-color: #e6f7ff; color: #1890ff; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem;">배송</span>
+                    <span class="priority-badge priority-high" style="background-color: #fff7e6; color: #fa8c16; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem;">높음</span>
+                  </div>
+                  <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #333; font-weight: 600;">신규 배송 업체 인수인계 사항</h4>
+                  <p style="margin: 0 0 15px 0; color: #666; font-size: 0.9rem; height: 60px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+                    대한통운에서 로젠으로 배송 업체가 변경됨에 따른 인수인계 사항입니다. 특이사항으로는 업체 담당자가 변경되었으며...
+                  </p>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #999;">
+                    <span>홍길동</span>
+                    <span>2025-03-05 14:30</span>
+                  </div>
+                </div>
+                
+                <!-- 샘플 카드 2 -->
+                <div class="handover-card" style="background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 16px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span class="category-badge" style="background-color: #f9f0ff; color: #722ed1; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem;">야간근무</span>
+                    <span class="priority-badge priority-medium" style="background-color: #e6f7ff; color: #1890ff; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem;">중간</span>
+                  </div>
+                  <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #333; font-weight: 600;">야간 근무 인수인계 사항</h4>
+                  <p style="margin: 0 0 15px 0; color: #666; font-size: 0.9rem; height: 60px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+                    오늘 야간 근무 시 특이사항으로 창고 3번 구역 냉동고 온도 점검이 필요합니다. 또한 배송 지연된 건들 중에서...
+                  </p>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #999;">
+                    <span>김철수</span>
+                    <span>2025-03-04 22:15</span>
+                  </div>
+                </div>
+                
+                <!-- 추가 카드는 JavaScript로 동적 생성 -->
+              </div>
+              
+              <!-- 인수인계 테이블 (필요시 전환 가능) -->
+              <div class="table-container" style="display: none;">
                 <table class="data-table" id="handoverTable">
                   <thead>
                     <tr>
@@ -371,7 +459,6 @@
                       <th>우선순위</th>
                       <th>작성자</th>
                       <th>작성일시</th>
-
                     </tr>
                   </thead>
                   <tbody id="handoverTableBody">
@@ -380,6 +467,17 @@
                     </tr>
                   </tbody>
                 </table>
+              </div>
+              
+              <!-- 페이지네이션 영역 -->
+              <div class="pagination" style="padding: 16px 20px; display: flex; justify-content: center; border-top: 1px solid #f0f2f5;">
+                <button class="page-btn" data-page="prev" style="border-radius: 4px 0 0 4px;">
+                  <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <span class="page-info" id="handoverPageInfo" style="padding: 0 16px; display: flex; align-items: center;">1 / 1</span>
+                <button class="page-btn" data-page="next" style="border-radius: 0 4px 4px 0;">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -595,26 +693,78 @@
     </div>
   </div>
   
-  <!-- 인수인계 상세 모달 -->
+  <!-- 인수인계 상세 모달 - 개선된 디자인 -->
   <div class="modal" id="handoverDetailModal">
-    <div class="modal-content">
+    <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3>인수인계 상세</h3>
         <button class="close-btn" data-modal="handoverDetailModal">
           <i class="fa-solid fa-times"></i>
         </button>
       </div>
-      <div class="modal-body">
-        <div class="handover-detail">
-          <h4 id="handoverDetailTitle">제목</h4>
-          <div class="handover-meta">
-            <span class="category-badge" id="handoverDetailCategory">카테고리</span>
-            <span class="priority-badge" id="handoverDetailPriority">우선순위</span>
-            <span class="handover-author" id="handoverDetailAuthor">작성자</span>
-            <span class="handover-date" id="handoverDetailDate">작성일시</span>
+      <div class="modal-body" style="padding: 0;">
+        <div class="handover-detail" style="padding: 20px 24px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: flex-start;">
+            <h4 id="handoverDetailTitle" style="margin: 0; font-size: 1.3rem; font-weight: 600; color: #333;">제목</h4>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn secondary-btn" style="padding: 6px 12px; font-size: 0.85rem;">
+                <i class="fa-solid fa-edit"></i> 수정
+              </button>
+              <button class="btn secondary-btn" style="padding: 6px 12px; font-size: 0.85rem;">
+                <i class="fa-solid fa-share"></i> 공유
+              </button>
+            </div>
           </div>
-          <div class="handover-content" id="handoverDetailContent">
-            내용이 표시됩니다.
+          
+          <div class="handover-meta" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center;">
+            <span class="category-badge" id="handoverDetailCategory" style="background-color: #e6f7ff; color: #1890ff; padding: 4px 10px; border-radius: 15px; font-size: 0.85rem;">카테고리</span>
+            <span class="priority-badge" id="handoverDetailPriority" style="background-color: #fff7e6; color: #fa8c16; padding: 4px 10px; border-radius: 15px; font-size: 0.85rem;">우선순위</span>
+            <span style="background-color: #f6f6f6; padding: 4px 10px; border-radius: 15px; font-size: 0.85rem;">
+              <i class="fa-solid fa-calendar-alt" style="margin-right: 4px;"></i>
+              <span id="handoverDetailDeadline">마감일: 2025-03-10</span>
+            </span>
+            <div style="margin-left: auto; display: flex; gap: 15px; color: #666; font-size: 0.85rem;">
+              <span class="handover-author" id="handoverDetailAuthor">
+                <i class="fa-solid fa-user" style="margin-right: 4px;"></i> 작성자
+              </span>
+              <span class="handover-date" id="handoverDetailDate">
+                <i class="fa-solid fa-clock" style="margin-right: 4px;"></i> 작성일시
+              </span>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <div style="font-weight: 500; margin-bottom: 5px; color: #666;">태그</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+              <span style="background-color: #f9f9f9; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; color: #666;">#중요</span>
+              <span style="background-color: #f9f9f9; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; color: #666;">#교육필요</span>
+              <span style="background-color: #f9f9f9; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; color: #666;">#팔로우업</span>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <div style="font-weight: 500; margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; color: #333;">내용</div>
+            <div class="handover-content" id="handoverDetailContent" style="background-color: #fafafa; padding: 15px; border-radius: 6px; line-height: 1.6; min-height: 200px; white-space: pre-line;">
+              내용이 표시됩니다.
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px; border-top: 1px solid #f0f0f0; padding-top: 15px;">
+            <div style="font-weight: 500; margin-bottom: 10px; color: #333;">댓글</div>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+              <textarea class="textarea-field" rows="3" placeholder="댓글을 입력하세요" style="flex-grow: 1;"></textarea>
+              <button class="btn primary-btn" style="align-self: flex-end;">
+                <i class="fa-solid fa-paper-plane"></i> 등록
+              </button>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="font-weight: 500; color: #333;">김철수</span>
+                <span style="font-size: 0.85rem; color: #999;">2025-03-05 15:30</span>
+              </div>
+              <p style="margin: 0; font-size: 0.95rem;">확인했습니다. 내일 창고 담당자와 미팅 후 조치하겠습니다.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -721,9 +871,9 @@
     </div>
   </div>
   
-  <!-- 인수인계 등록 모달 -->
+  <!-- 인수인계 등록 모달 - 개선된 디자인 -->
   <div class="modal" id="newHandoverModal">
-    <div class="modal-content">
+    <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3>인수인계 등록</h3>
         <button class="close-btn" data-modal="newHandoverModal">
@@ -734,7 +884,7 @@
         <form id="newHandoverForm">
           <div class="form-group">
             <label for="handoverTitle">제목</label>
-            <input type="text" id="handoverTitle" class="input-field" required>
+            <input type="text" id="handoverTitle" class="input-field" required placeholder="제목을 입력하세요">
           </div>
           
           <div class="form-row">
@@ -757,11 +907,20 @@
                 <option value="URGENT">긴급</option>
               </select>
             </div>
+            <div class="form-group">
+              <label for="handoverDeadline">마감일</label>
+              <input type="date" id="handoverDeadline" class="input-field">
+            </div>
           </div>
           
           <div class="form-group">
             <label for="handoverContent">내용</label>
-            <textarea id="handoverContent" class="textarea-field" rows="6" required></textarea>
+            <textarea id="handoverContent" class="textarea-field" rows="10" required placeholder="인수인계 사항을 상세히 입력하세요"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="handoverTags">태그 (쉼표로 구분)</label>
+            <input type="text" id="handoverTags" class="input-field" placeholder="예: 중요, 교육필요, 팔로우업">
           </div>
         </form>
       </div>

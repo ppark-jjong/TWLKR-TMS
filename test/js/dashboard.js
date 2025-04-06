@@ -76,6 +76,24 @@ class DashboardPage {
     this.elements.startDate.addEventListener('change', this.handleDateChange.bind(this));
     this.elements.endDate.addEventListener('change', this.handleDateChange.bind(this));
     
+    // 빠른 날짜 조회 이벤트
+    const quickDateBtn = document.getElementById('quickDateBtn');
+    const quickStartDate = document.getElementById('quickStartDate');
+    const quickEndDate = document.getElementById('quickEndDate');
+    
+    if (quickDateBtn && quickStartDate && quickEndDate) {
+      // 초기 날짜 설정
+      const today = dateUtils.getCurrentDate();
+      quickEndDate.value = today;
+      
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      quickStartDate.value = dateUtils.formatDate(startDate);
+      
+      // 조회 버튼 이벤트
+      quickDateBtn.addEventListener('click', this.handleQuickDateSearch.bind(this));
+    }
+    
     // 필터 적용 버튼 이벤트 - 상태 필터 적용
     const applyFilterBtn = document.getElementById('applyFilterBtn');
     if (applyFilterBtn) {
@@ -147,6 +165,59 @@ class DashboardPage {
       console.error('대시보드 초기화 오류:', error);
       messageUtils.error('대시보드를 초기화하는 중 오류가 발생했습니다.');
     }
+  }
+  
+  /**
+   * 빠른 날짜 조회 핸들러
+   */
+  handleQuickDateSearch() {
+    const startDate = document.getElementById('quickStartDate').value;
+    const endDate = document.getElementById('quickEndDate').value;
+    
+    if (!startDate || !endDate) {
+      messageUtils.warning('시작일과 종료일을 모두 입력해주세요.');
+      return;
+    }
+    
+    // 시작일이 종료일보다 늦을 경우 조정
+    if (new Date(startDate) > new Date(endDate)) {
+      messageUtils.warning('시작일은 종료일보다 이전이어야 합니다.');
+      document.getElementById('quickEndDate').value = startDate;
+      return;
+    }
+    
+    // 메인 날짜 필터에도 값 설정
+    this.elements.startDate.value = startDate;
+    this.elements.endDate.value = endDate;
+    
+    // 필터 적용
+    this.filters.startDate = startDate;
+    this.filters.endDate = endDate;
+    
+    // 날짜 범위 표시
+    const startFormatted = dateUtils.formatDate(new Date(startDate));
+    const endFormatted = dateUtils.formatDate(new Date(endDate));
+    
+    // 날짜 범위 정보 표시
+    if (this.elements.dateRangeLabel) {
+      this.elements.dateRangeLabel.innerHTML = `기간 (${startFormatted} ~ ${endFormatted})`;
+    }
+    
+    // 다른 필터 초기화
+    this.elements.statusFilter.value = '';
+    this.elements.departmentFilter.value = '';
+    this.elements.warehouseFilter.value = '';
+    this.elements.searchKeyword.value = '';
+    this.filters.status = '';
+    this.filters.department = '';
+    this.filters.warehouse = '';
+    this.filters.keyword = '';
+    
+    // 데이터 새로고침
+    this.currentPage = 1;
+    this.refreshData();
+    
+    messageUtils.success('지정된 기간 내 데이터를 조회합니다.');
   }
   
   /**
@@ -489,9 +560,9 @@ class DashboardPage {
       const statusClass = statusUtils.getStatusClass(item.delivery_status);
       const statusText = statusUtils.getStatusText(item.delivery_status);
       
-      // 배송(보라)과 회수(오렌지) 타입 구분 - 더 명확하게 표시
+      // 배송(보라)과 회수(오렌지) 타입 구분 - 글자 색상만 변경
       const typeLabel = item.type === 'DELIVERY' ? '배송' : '회수';
-      const typeClass = item.type === 'DELIVERY' ? 'bg-purple' : 'bg-orange';
+      const typeClass = item.type === 'DELIVERY' ? 'text-delivery' : 'text-pickup';
       
       row.innerHTML = `
         <td class="checkbox-cell">
@@ -499,7 +570,7 @@ class DashboardPage {
         </td>
         <td>${item.order_no}</td>
         <td>${item.customer}</td>
-        <td style="text-align: center;"><span class="status-badge ${typeClass}" style="display: inline-block; min-width: 60px; text-align: center;">${typeLabel}</span></td>
+        <td style="text-align: center;"><span class="${typeClass}" style="display: inline-block; min-width: 60px; text-align: center;">${typeLabel}</span></td>
         <td style="text-align: center;"><span class="status-badge ${statusClass}" style="display: inline-block; min-width: 60px; text-align: center;">${statusText}</span></td>
         <td>${item.department}</td>
         <td>${item.warehouse}</td>
