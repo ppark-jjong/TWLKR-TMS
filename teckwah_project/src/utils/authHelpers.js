@@ -125,6 +125,7 @@ export const loginUser = async (credentials) => {
         success: false,
         message: response.data?.message || "로그인에 실패했습니다.",
         errorType: "validation",
+        errorId: `login-validation-${Date.now()}`,
       };
     }
 
@@ -140,9 +141,14 @@ export const loginUser = async (credentials) => {
       success: false,
       message: "서버 응답 형식이 올바르지 않습니다.",
       errorType: "unknown",
+      errorId: `login-unknown-${Date.now()}`,
     };
   } catch (error) {
     console.error("로그인 오류:", error);
+
+    // 오류 유형에 따른 고유 ID 생성
+    const timestamp = Date.now();
+    let errorId = `login-error-${timestamp}`;
 
     // 서버 응답이 없는 경우 (네트워크 오류)
     if (!error.response) {
@@ -150,6 +156,7 @@ export const loginUser = async (credentials) => {
         success: false,
         message: "서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.",
         errorType: "network",
+        errorId: `login-network-${timestamp}`,
       };
     }
 
@@ -161,24 +168,28 @@ export const loginUser = async (credentials) => {
           message:
             error.response.data?.message || "아이디나 비밀번호를 확인해주세요.",
           errorType: "validation",
+          errorId: `login-400-${timestamp}`,
         };
       case 401: // 인증 실패
         return {
           success: false,
           message: "아이디나 비밀번호가 일치하지 않습니다.",
           errorType: "auth",
+          errorId: `login-401-${timestamp}`,
         };
       case 404: // 리소스 없음
         return {
           success: false,
           message: "등록되지 않은 사용자입니다.",
           errorType: "validation",
+          errorId: `login-404-${timestamp}`,
         };
       case 500: // 서버 오류
         return {
           success: false,
           message: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
           errorType: "server",
+          errorId: `login-500-${timestamp}`,
         };
       default:
         return {
@@ -186,6 +197,7 @@ export const loginUser = async (credentials) => {
           message:
             error.response.data?.message || "로그인 중 오류가 발생했습니다.",
           errorType: "unknown",
+          errorId: `login-${error.response.status}-${timestamp}`,
         };
     }
   }

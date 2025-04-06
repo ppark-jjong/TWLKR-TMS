@@ -19,3 +19,14 @@ npx @agentdeskai/browser-tools-mcp
 4. 웹 페이지에서 F12 또는 우클릭 > 검사
 5. BrowserToolsMCP 패널 확인
 6. Cursor에서 AI 에이전트에게 브라우저 데이터 분석 요청
+-----------
+typescript 설치
+npm install -g typescript
+
+package.json 마다 리눅스 환경 전용인지 명령어 확인
+rm -rf dist → ✅ rimraf dist 로 교체
+
+로컬 설치
+npm install
+
+npm run build

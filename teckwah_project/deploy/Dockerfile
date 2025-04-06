@@ -1,6 +1,5 @@
-# teckwah_project/deploy/Dockerfile
 # 빌드 스테이지: React 앱 빌드
-FROM node:18-slim AS frontend-builder
+FROM node:20-slim AS frontend-builder
 
 WORKDIR /build
 
@@ -21,22 +20,36 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # 최종 스테이지: 실행 환경 구성
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# 시스템 의존성 설치 (MySQL 클라이언트 등)
+# 시스템 의존성 및 Rust 설치
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     default-libmysqlclient-dev \
-    pkg-config && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    pkg-config \
+    curl \
+    ca-certificates \
+    && \
+    # Rust 설치
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env && \
+    # PATH에 Rust 추가
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $HOME/.bashrc
 
-# Python 의존성 설치
+# Python 의존성 설치 (Rust 사용)
 COPY deploy/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN . $HOME/.cargo/env && \
+    pip install --no-cache-dir -r requirements.txt && \
+    # 빌드 후 불필요한 패키지 및 Rust 제거
+    apt-get remove -y curl && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf $HOME/.cargo /usr/local/rustup && \
+    rm -rf /root/.cache
 
 # 서버 코드 복사
 COPY server/ /app/server/

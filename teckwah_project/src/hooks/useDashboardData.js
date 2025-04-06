@@ -1,18 +1,18 @@
 // src/hooks/useDashboardData.js
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchDashboards, safeApiCall } from '../utils/api';
-import { message } from 'antd';
-import { getUniqueFilterOptions } from '../utils/filterUtils';
-import dayjs from 'dayjs';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchDashboards, safeApiCall } from "../utils/api";
+import { message } from "antd";
+import { getUniqueFilterOptions } from "../utils/filterUtils";
+import dayjs from "dayjs";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /**
  * 현재 날짜에서 7일 전 날짜를 계산하는 함수
  * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
  */
 const getOneWeekAgo = () => {
-  return dayjs().subtract(7, 'day').format('YYYY-MM-DD');
+  return dayjs().subtract(7, "day").format("YYYY-MM-DD");
 };
 
 /**
@@ -20,7 +20,7 @@ const getOneWeekAgo = () => {
  * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
  */
 const getCurrentDate = () => {
-  return dayjs().format('YYYY-MM-DD');
+  return dayjs().format("YYYY-MM-DD");
 };
 
 /**
@@ -29,17 +29,17 @@ const getCurrentDate = () => {
  * @returns {string} 유효한 날짜
  */
 const validateDate = (dateStr) => {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
 
   try {
     const inputDate = dayjs(dateStr);
     if (inputDate.isValid()) {
       return dateStr;
     }
-    return '';
+    return "";
   } catch (error) {
-    console.error('날짜 변환 오류:', error);
-    return '';
+    console.error("날짜 변환 오류:", error);
+    return "";
   }
 };
 
@@ -48,7 +48,7 @@ const validateDate = (dateStr) => {
  * @param {string} userRole - 사용자 권한
  * @returns {Object} - 데이터 관리 객체
  */
-const useDashboardData = (userRole = 'USER') => {
+const useDashboardData = (userRole = "USER") => {
   const location = useLocation();
   const navigate = useNavigate();
   const queryParams = new URLSearchParams(location.search);
@@ -58,14 +58,14 @@ const useDashboardData = (userRole = 'USER') => {
 
   // 검색 파라미터 통합 관리
   const [searchParams, setSearchParams] = useState({
-    page: parseInt(queryParams.get('page') || '1', 10),
-    size: parseInt(queryParams.get('size') || '10', 10),
-    start_date: validateDate(queryParams.get('start_date')) || getOneWeekAgo(),
-    end_date: validateDate(queryParams.get('end_date')) || getCurrentDate(),
-    search_term: queryParams.get('search_term') || '',
-    status: queryParams.get('status') || '',
-    department: queryParams.get('department') || '',
-    warehouse: queryParams.get('warehouse') || '',
+    page: parseInt(queryParams.get("page") || "1", 10),
+    size: parseInt(queryParams.get("size") || "10", 10),
+    start_date: validateDate(queryParams.get("start_date")) || getOneWeekAgo(),
+    end_date: validateDate(queryParams.get("end_date")) || getCurrentDate(),
+    search_term: queryParams.get("search_term") || "",
+    status: queryParams.get("status") || "",
+    department: queryParams.get("department") || "",
+    warehouse: queryParams.get("warehouse") || "",
   });
 
   // 페이지 첫 로드 시 오늘 날짜로 데이터 자동 조회
@@ -93,16 +93,16 @@ const useDashboardData = (userRole = 'USER') => {
       const newParams = new URLSearchParams();
 
       // 필수 파라미터만 URL에 포함
-      if (params.page && params.page > 1) newParams.set('page', params.page);
-      if (params.size && params.size !== 10) newParams.set('size', params.size);
+      if (params.page && params.page > 1) newParams.set("page", params.page);
+      if (params.size && params.size !== 10) newParams.set("size", params.size);
       if (params.start_date)
-        newParams.set('start_date', validateDate(params.start_date));
+        newParams.set("start_date", validateDate(params.start_date));
       if (params.end_date)
-        newParams.set('end_date', validateDate(params.end_date));
-      if (params.search_term) newParams.set('search_term', params.search_term);
-      if (params.status) newParams.set('status', params.status);
-      if (params.department) newParams.set('department', params.department);
-      if (params.warehouse) newParams.set('warehouse', params.warehouse);
+        newParams.set("end_date", validateDate(params.end_date));
+      if (params.search_term) newParams.set("search_term", params.search_term);
+      if (params.status) newParams.set("status", params.status);
+      if (params.department) newParams.set("department", params.department);
+      if (params.warehouse) newParams.set("warehouse", params.warehouse);
 
       navigate(`${location.pathname}?${newParams.toString()}`, {
         replace: true,
@@ -115,17 +115,17 @@ const useDashboardData = (userRole = 'USER') => {
   const handleSearch = useCallback(
     (values) => {
       try {
-        let start_date = '';
-        let end_date = '';
+        let start_date = "";
+        let end_date = "";
 
         // 날짜 범위 설정 및 검증
         if (values.date_range && values.date_range.length === 2) {
           start_date = values.date_range[0]
-            ? values.date_range[0].format('YYYY-MM-DD')
-            : '';
+            ? values.date_range[0].format("YYYY-MM-DD")
+            : "";
           end_date = values.date_range[1]
-            ? values.date_range[1].format('YYYY-MM-DD')
-            : '';
+            ? values.date_range[1].format("YYYY-MM-DD")
+            : "";
         }
 
         // 개별 시작일/종료일 처리 (RangePicker 직접 접근 시)
@@ -143,7 +143,7 @@ const useDashboardData = (userRole = 'USER') => {
         // 시작일이 종료일보다 늦은 경우 교체
         if (dayjs(start_date).isAfter(dayjs(end_date))) {
           [start_date, end_date] = [end_date, start_date];
-          message.info('시작일이 종료일보다 늦어 자동으로 조정되었습니다.');
+          message.info("시작일이 종료일보다 늦어 자동으로 조정되었습니다.");
         }
 
         // 검색 파라미터 업데이트
@@ -171,8 +171,8 @@ const useDashboardData = (userRole = 'USER') => {
         setSearchParams(newParams);
         updateURL(newParams);
       } catch (error) {
-        console.error('검색 처리 오류:', error);
-        message.error('검색 처리 중 오류가 발생했습니다.');
+        console.error("검색 처리 오류:", error);
+        message.error("검색 처리 중 오류가 발생했습니다.");
       }
     },
     [searchParams, updateURL]
@@ -204,7 +204,7 @@ const useDashboardData = (userRole = 'USER') => {
   // API 호출 함수
   const fetchData = useCallback(async () => {
     return await safeApiCall(() => fetchDashboards(searchParams), {
-      context: '대시보드 데이터 조회',
+      context: "대시보드 데이터 조회",
       showErrorMessage: true,
     });
   }, [searchParams]);
@@ -215,7 +215,7 @@ const useDashboardData = (userRole = 'USER') => {
     isLoading,
     isError,
     refetch,
-  } = useQuery(['dashboards', searchParams], fetchData, {
+  } = useQuery(["dashboards", searchParams], fetchData, {
     keepPreviousData: true,
     refetchOnWindowFocus: false,
     staleTime: 1000 * 30, // 30초 동안 데이터 유지
@@ -237,9 +237,9 @@ const useDashboardData = (userRole = 'USER') => {
     }
 
     return {
-      statuses: getUniqueFilterOptions(dashboards, 'status'),
-      departments: getUniqueFilterOptions(dashboards, 'department'),
-      warehouses: getUniqueFilterOptions(dashboards, 'warehouse'),
+      statuses: getUniqueFilterOptions(dashboards, "status"),
+      departments: getUniqueFilterOptions(dashboards, "department"),
+      warehouses: getUniqueFilterOptions(dashboards, "warehouse"),
     };
   }, [dashboards]);
 
@@ -251,7 +251,7 @@ const useDashboardData = (userRole = 'USER') => {
 
     try {
       let minDate = dayjs();
-      let maxDate = dayjs('2000-01-01');
+      let maxDate = dayjs("2000-01-01");
 
       dashboards.forEach((item) => {
         if (item.eta) {
@@ -264,11 +264,11 @@ const useDashboardData = (userRole = 'USER') => {
       });
 
       return {
-        min: minDate.format('YYYY-MM-DD'),
-        max: maxDate.format('YYYY-MM-DD'),
+        min: minDate.format("YYYY-MM-DD"),
+        max: maxDate.format("YYYY-MM-DD"),
       };
     } catch (error) {
-      console.error('날짜 범위 계산 오류:', error);
+      console.error("날짜 범위 계산 오류:", error);
       return { min: getOneWeekAgo(), max: getCurrentDate() };
     }
   }, [dashboards]);
@@ -280,12 +280,32 @@ const useDashboardData = (userRole = 'USER') => {
     refetch,
     totalItems,
     searchParams,
+    setSearchParams,
     filterOptions,
     handleSearch,
     handleDateRangeChange,
     handlePaginationChange,
     updateURL,
     dateRange,
+    setDateRange: (range) => {
+      // range는 [시작일, 종료일] 형태의 배열
+      if (Array.isArray(range) && range.length === 2) {
+        const start_date = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : "";
+        const end_date = range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : "";
+
+        // 검색 파라미터 업데이트 (날짜만 변경)
+        handleSearch({
+          start_date,
+          end_date,
+        });
+      } else if (range === null || range.length === 0) {
+        // 날짜 범위 초기화 (빈 배열 또는 null인 경우)
+        handleSearch({
+          start_date: "",
+          end_date: "",
+        });
+      }
+    },
   };
 };
 

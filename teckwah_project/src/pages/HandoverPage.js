@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PageHeader from '../components/PageHeader';
 import {
   Card,
   Button,
@@ -444,6 +445,8 @@ const HandoverPage = () => {
 
   return (
     <div className="handover-page">
+      <PageHeader title="인수인계" />
+      
       <Card>
         <Row gutter={[16, 16]} className="handover-header">
           <Col xs={24} md={16}>

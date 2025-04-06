@@ -1,7 +1,7 @@
 // src/components/Sidebar.js
-import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Space, Typography } from 'antd';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { Layout, Menu, Avatar, Tooltip, Divider } from "antd";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   DashboardOutlined,
   FileTextOutlined,
@@ -11,11 +11,10 @@ import {
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
-} from '@ant-design/icons';
-import { logout } from '../utils/api';
+} from "@ant-design/icons";
+import { logout } from "../utils/api";
 
 const { Sider } = Layout;
-const { Text } = Typography;
 
 const Sidebar = ({ userData, setAuth }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -34,16 +33,16 @@ const Sidebar = ({ userData, setAuth }) => {
     handleResize();
 
     // 리사이즈 이벤트 리스너 등록
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     // 컴포넌트 언마운트 시 이벤트 리스너 제거
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
-  // 사용자 권한 확인 (직접 확인으로 변경)
-  const isAdminUser = userData?.user_role === 'ADMIN';
+  // 사용자 권한 확인
+  const isAdminUser = userData?.user_role === "ADMIN";
 
   // 사이드바 토글 핸들러
   const toggleCollapsed = () => {
@@ -54,11 +53,11 @@ const Sidebar = ({ userData, setAuth }) => {
   const handleLogout = async () => {
     try {
       await logout();
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
       setAuth(false);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
@@ -67,10 +66,10 @@ const Sidebar = ({ userData, setAuth }) => {
     // 공통 메뉴 아이템 (인수인계는 모든 사용자 공통)
     const commonItems = [
       {
-        key: 'handover',
+        key: "handover",
         icon: <FileTextOutlined />,
-        label: '인수인계',
-        onClick: () => navigate('/handover'),
+        label: "인수인계",
+        onClick: () => navigate("/handover"),
       },
     ];
 
@@ -78,16 +77,16 @@ const Sidebar = ({ userData, setAuth }) => {
     if (isAdminUser) {
       return [
         {
-          key: 'admin',
+          key: "admin",
           icon: <SettingOutlined />,
-          label: 'TMS',
-          onClick: () => navigate('/admin'),
+          label: "TMS",
+          onClick: () => navigate("/admin"),
         },
         {
-          key: 'users',
+          key: "users",
           icon: <TeamOutlined />,
-          label: '사용자 관리',
-          onClick: () => navigate('/admin/users'),
+          label: "사용자 관리",
+          onClick: () => navigate("/admin/users"),
         },
         ...commonItems,
       ];
@@ -96,10 +95,10 @@ const Sidebar = ({ userData, setAuth }) => {
     // User 전용 메뉴
     return [
       {
-        key: 'dashboard',
+        key: "dashboard",
         icon: <DashboardOutlined />,
-        label: 'TMS',
-        onClick: () => navigate('/dashboard'),
+        label: "TMS",
+        onClick: () => navigate("/dashboard"),
       },
       ...commonItems,
     ];
@@ -108,69 +107,66 @@ const Sidebar = ({ userData, setAuth }) => {
   // 현재 선택된 메뉴 항목 결정
   const getSelectedKey = () => {
     const path = location.pathname;
-    if (path.includes('/dashboard')) return 'dashboard';
-    if (path.includes('/handover')) return 'handover';
-    if (path.includes('/admin/users')) return 'users';
-    if (path.includes('/admin')) return 'admin';
-    return '';
+    if (path.includes("/dashboard")) return "dashboard";
+    if (path.includes("/handover")) return "handover";
+    if (path.includes("/admin/users")) return "users";
+    if (path.includes("/admin")) return "admin";
+    return "";
   };
-
-  // 사용자 메뉴 항목
-  const userMenuItems = [
-    {
-      label: '로그아웃',
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      onClick: handleLogout,
-    },
-  ];
 
   return (
     <Sider
       collapsible
       collapsed={collapsed}
-      onCollapse={toggleCollapsed}
       trigger={null}
       theme="light"
       width={220}
       className="site-sidebar"
       breakpoint="lg"
-      collapsedWidth={window.innerWidth < 576 ? 0 : 80}
+      collapsedWidth={window.innerWidth < 576 ? 0 : 64}
     >
-      <div className="logo">
-        <img src="/logo.png" alt="Logo" className="logo-image" />
-        {!collapsed && <span className="logo-text">TMS System</span>}
+      <div className="sidebar-logo">
+        <div className="logo-container">
+          <img src="/logo.png" alt="Logo" className="logo-image" />
+          {/* 로고 옆 텍스트 제거 */}
+        </div>
+        <div className="trigger-icon" onClick={toggleCollapsed}>
+          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        </div>
       </div>
 
       <Menu
-        theme="light"
         mode="inline"
         selectedKeys={[getSelectedKey()]}
         items={getMenuItems()}
+        className="sidebar-menu"
       />
 
-      <div className="sidebar-user-info">
-        <Dropdown
-          menu={{ items: userMenuItems }}
-          placement="topRight"
-          trigger={['click']}
-        >
-          <Space className="user-dropdown">
-            <Avatar icon={<UserOutlined />} size="small" />
-            {!collapsed && (
-              <div className="user-info">
-                <Text className="user-name">{userData?.user_id || 'User'}</Text>
-                <Text className="user-dept">
-                  {userData?.user_department || 'No Department'}
-                </Text>
-              </div>
-            )}
-          </Space>
-        </Dropdown>
-      </div>
+      <div className="sidebar-footer">
+        <div className="user-profile">
+          <Avatar
+            size={collapsed ? "small" : "default"}
+            icon={<UserOutlined />}
+          />
 
-      <div className="sidebar-trigger" onClick={toggleCollapsed}>
-        {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          {!collapsed && (
+            <div className="user-info">
+              <div className="user-name">{userData?.user_id || "사용자"}</div>
+              <div className="user-role">
+                {userData?.user_department || "-"}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Divider style={{ margin: "8px 0" }} />
+
+        <Tooltip title={collapsed ? "로그아웃" : ""} placement="right">
+          <div className="logout-button" onClick={handleLogout}>
+            <LogoutOutlined />
+            {!collapsed && <span className="logout-text">로그아웃</span>}
+          </div>
+        </Tooltip>
       </div>
     </Sider>
   );

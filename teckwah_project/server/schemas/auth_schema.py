@@ -50,7 +50,7 @@ class TokenData(BaseModel):
     user_id: str
     department: str
     role: str
-    exp: int
+    exp: Optional[int] = None
 
 
 class RefreshTokenRequest(BaseModel):

@@ -1,43 +1,37 @@
 // src/index.js
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from 'antd';
-import koKR from 'antd/lib/locale/ko_KR';
-import App from './App';
-import './public/global.css';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { ConfigProvider } from "antd";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import koKR from "antd/lib/locale/ko_KR";
+import App from "./App";
+import { themeVariables } from "./styles/themeConfig";
+import "./public/global.css";
 
-// Antd 테마 커스텀 설정
-const theme = {
-  token: {
-    colorPrimary: '#1890ff',
-    colorBgBase: '#ffffff',
-    colorBgContainer: '#ffffff',
-    colorBorder: '#e8e8e8',
-    borderRadius: 4,
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-  },
-};
-
+// 전역 API 쿼리 클라이언트 설정
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: false,
       refetchOnWindowFocus: false,
+      retry: 0,
+      staleTime: 5 * 60 * 1000, // 5분
     },
   },
 });
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+// 앱 루트 생성
+const root = ReactDOM.createRoot(document.getElementById("root"));
+
+// 애플리케이션 랜더링
 root.render(
-  <QueryClientProvider client={queryClient}>
-    <ConfigProvider locale={koKR} theme={theme}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ConfigProvider>
-  </QueryClientProvider>
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <ConfigProvider theme={{ token: themeVariables }} locale={koKR}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ConfigProvider>
+    </QueryClientProvider>
+  </React.StrictMode>
 );

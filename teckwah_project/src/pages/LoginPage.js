@@ -8,7 +8,7 @@ import {
   message,
   Typography,
   Alert,
-  Space,
+  Spin,
 } from "antd";
 import { UserOutlined, LockOutlined, ReloadOutlined } from "@ant-design/icons";
 import { loginUser } from "../utils/authHelpers";
@@ -22,7 +22,6 @@ const LoginPage = ({ setAuth, setUserData }) => {
   const navigate = useNavigate();
 
   const onFinish = async (values) => {
-    // 이전 오류 메시지 초기화
     setLoginError(null);
     setLoading(true);
 
@@ -30,8 +29,11 @@ const LoginPage = ({ setAuth, setUserData }) => {
       const response = await loginUser(values);
 
       if (response && response.success) {
-        // 성공 메시지는 한 번만 표시
-        message.success("로그인에 성공했습니다");
+        message.success({
+          content: "로그인에 성공했습니다",
+          key: "login-success",
+        });
+
         setAuth(true);
         if (response.user && setUserData) {
           setUserData(response.user);
@@ -45,14 +47,12 @@ const LoginPage = ({ setAuth, setUserData }) => {
           navigate("/dashboard");
         }
       } else {
-        // 로그인 실패 - 오류 메시지 설정 (Alert 컴포넌트로 표시)
         setLoginError({
           message: response.message || "로그인에 실패했습니다",
           type: response.errorType || "error",
         });
       }
     } catch (error) {
-      // 예상치 못한 오류 (이 부분은 정상적으로는 실행되지 않아야 함)
       console.error("로그인 처리 중 예상치 못한 오류:", error);
       setLoginError({
         message:
@@ -64,78 +64,82 @@ const LoginPage = ({ setAuth, setUserData }) => {
     }
   };
 
-  // 새로고침 처리 함수
   const handleRefresh = () => {
     window.location.reload();
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        background: "#f0f2f5",
-      }}
-    >
-      <Card style={{ width: 400, boxShadow: "0 4px 8px rgba(0,0,0,0.1)" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <Title level={3}>배송 실시간 관제 시스템</Title>
-        </div>
+    <div className="login-page">
+      <div className="login-container">
+        <Card className="login-card">
+          <div className="login-logo-container">
+            <img src="/logo.png" alt="Teckwah Logo" className="login-logo" />
+          </div>
 
-        {loginError && (
-          <Alert
-            message={loginError.message}
-            type={loginError.type}
-            showIcon
-            style={{ marginBottom: 16 }}
-            action={
-              <Button
-                size="small"
-                type="text"
-                icon={<ReloadOutlined />}
-                onClick={handleRefresh}
-                title="새로고침"
-              />
-            }
-          />
-        )}
-
-        <Form
-          name="login"
-          initialValues={{ remember: true }}
-          onFinish={onFinish}
-          size="large"
-        >
-          <Form.Item
-            name="user_id"
-            rules={[{ required: true, message: "아이디를 입력해주세요" }]}
-          >
-            <Input prefix={<UserOutlined />} placeholder="아이디" />
-          </Form.Item>
-
-          <Form.Item
-            name="password"
-            rules={[{ required: true, message: "비밀번호를 입력해주세요" }]}
-          >
-            <Input.Password prefix={<LockOutlined />} placeholder="비밀번호" />
-          </Form.Item>
-
-          <Form.Item>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <Button type="primary" htmlType="submit" loading={loading} block>
-                로그인
-              </Button>
-              {loginError && (
-                <Button icon={<ReloadOutlined />} onClick={handleRefresh} block>
+          {loginError && (
+            <Alert
+              message={loginError.message}
+              type={loginError.type}
+              showIcon
+              className="login-alert"
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<ReloadOutlined />}
+                  onClick={handleRefresh}
+                >
                   새로고침
                 </Button>
-              )}
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
+              }
+            />
+          )}
+
+          <Form
+            name="login"
+            initialValues={{ remember: true }}
+            onFinish={onFinish}
+            className="login-form"
+          >
+            <Form.Item
+              name="user_id"
+              rules={[{ required: true, message: "아이디를 입력해주세요" }]}
+            >
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="아이디"
+                autoComplete="username"
+                size="large"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: "비밀번호를 입력해주세요" }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="비밀번호"
+                autoComplete="current-password"
+                size="large"
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                block
+                size="large"
+                className="login-button"
+              >
+                로그인
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </div>
     </div>
   );
 };
