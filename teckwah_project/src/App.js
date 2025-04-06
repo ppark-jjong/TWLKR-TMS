@@ -1,14 +1,14 @@
 // src/App.js
 import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { 
-  Layout, 
-  message, 
-  Button, 
-  notification, 
-  ConfigProvider, 
+import {
+  Layout,
+  message,
+  Button,
+  notification,
+  ConfigProvider,
   Spin,
-  Typography
+  Typography,
 } from "antd";
 import { isAuthenticated } from "./utils/authHelpers";
 import LoginPage from "./pages/LoginPage";
@@ -24,6 +24,9 @@ import { themeVariables } from "./styles/themeConfig";
 const { Content } = Layout;
 const { Text } = Typography;
 
+// 탭 제목 변경
+document.title = "Teckwah TMS";
+
 // 전역 오류 핸들러 설정
 window.onerror = function (message, source, lineno, colno, error) {
   console.error("전역 오류 발생:", { message, source, lineno, colno, error });
@@ -33,18 +36,22 @@ window.onerror = function (message, source, lineno, colno, error) {
     console.error("Stack trace:", error.stack);
   }
 
+  // 고유한 키를 사용하여 중복 알림 방지
+  const errorKey = `${source}-${lineno}-${colno}`;
+
   // 사용자에게 알림으로 오류 정보 표시 (자동 닫힘)
   notification.error({
+    key: errorKey,
     message: "오류가 발생했습니다",
-    description:
-      "일시적인 문제가 발생했습니다. 계속 발생하면 새로고침을 해보세요.",
+    description: "일시적인 문제가 발생했습니다. 새로고침을 해보세요.",
     duration: 5, // 5초 후 자동으로 닫힘
     btn: (
       <Button
         type="primary"
-        size="small"
+        size="middle"
         icon={<ReloadOutlined />}
         onClick={() => window.location.reload()}
+        style={{ marginTop: "8px" }}
       >
         새로고침
       </Button>
@@ -57,10 +64,16 @@ window.onerror = function (message, source, lineno, colno, error) {
 // 로딩 컴포넌트
 const LoadingScreen = ({ message }) => (
   <div className="login-loading-container">
-    <div style={{ textAlign: 'center' }}>
-      <img src="/logo.png" alt="Teckwah Logo" style={{ height: 60, marginBottom: 24 }} />
+    <div style={{ textAlign: "center" }}>
+      <img
+        src="/logo.png"
+        alt="Teckwah Logo"
+        style={{ height: 60, marginBottom: 24 }}
+      />
       <Spin size="large" />
-      <Text style={{ display: 'block', marginTop: 16 }}>{message || '로딩 중...'}</Text>
+      <Text style={{ display: "block", marginTop: 16 }}>
+        {message || "로딩 중..."}
+      </Text>
     </div>
   </div>
 );
@@ -117,7 +130,7 @@ const AuthWrapper = ({ children }) => {
 
   // 인증되지 않은 경우 로그인 페이지로 리다이렉트
   if (!isAuth) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth/login" replace />;
   }
 
   return children;
@@ -135,7 +148,7 @@ function App() {
         const { isAuth, userData } = isAuthenticated();
         setAuth(isAuth);
         setUserData(userData);
-        
+
         // 약간의 지연을 줘서 로딩 애니메이션이 자연스럽게 보이도록 함
         setTimeout(() => {
           setLoading(false);
@@ -163,13 +176,31 @@ function App() {
       <ErrorBoundary>
         <div className="app">
           <Routes>
-            {/* 로그인 페이지 */}
+            {/* 기본 경로 - 인증 상태에 따라 적절한 페이지로 리디렉션 */}
             <Route
-              path="/login"
+              path="/"
               element={
                 auth ? (
                   <Navigate
-                    to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
+                    to={
+                      userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"
+                    }
+                  />
+                ) : (
+                  <Navigate to="/auth/login" />
+                )
+              }
+            />
+
+            {/* 로그인 페이지 - '/auth/login'으로 경로 변경 */}
+            <Route
+              path="/auth/login"
+              element={
+                auth ? (
+                  <Navigate
+                    to={
+                      userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"
+                    }
                   />
                 ) : (
                   <LoginPage setAuth={setAuth} setUserData={setUserData} />
@@ -177,9 +208,15 @@ function App() {
               }
             />
 
+            {/* 이전 로그인 경로도 유지 (리디렉션) */}
+            <Route
+              path="/login"
+              element={<Navigate to="/auth/login" replace />}
+            />
+
             {/* 대시보드 페이지 (일반 사용자) */}
             <Route
-              path="/dashboard"
+              path="/dashboard/*"
               element={
                 <AuthWrapper>
                   <Layout className="main-layout">
@@ -202,7 +239,7 @@ function App() {
 
             {/* 관리자 페이지 (관리자 전용) */}
             <Route
-              path="/admin"
+              path="/admin/*"
               element={
                 <AuthWrapper>
                   <Layout className="main-layout">
@@ -223,30 +260,7 @@ function App() {
               }
             />
 
-            {/* 사용자 관리 페이지 (관리자 전용) */}
-            <Route
-              path="/admin/users"
-              element={
-                <AuthWrapper>
-                  <Layout className="main-layout">
-                    <Sidebar userData={userData} setAuth={setAuth} />
-                    <Layout className="site-layout">
-                      <Content className="content-wrapper">
-                        <ErrorBoundary>
-                          <ProtectedRoute
-                            element={<AdminPage activeTab="users" />}
-                            allowedRoles={["ADMIN"]}
-                            userData={userData}
-                          />
-                        </ErrorBoundary>
-                      </Content>
-                    </Layout>
-                  </Layout>
-                </AuthWrapper>
-              }
-            />
-
-            {/* 인수인계 페이지 (공통) */}
+            {/* 인수인계 페이지 */}
             <Route
               path="/handover"
               element={
@@ -261,18 +275,6 @@ function App() {
                       </Content>
                     </Layout>
                   </Layout>
-                </AuthWrapper>
-              }
-            />
-
-            {/* 메인 페이지 리다이렉트 (권한에 따라) */}
-            <Route
-              path="/"
-              element={
-                <AuthWrapper>
-                  <Navigate
-                    to={userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"}
-                  />
                 </AuthWrapper>
               }
             />
