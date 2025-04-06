@@ -42,7 +42,7 @@
           <ul>
             <li class="menu-item active" data-page="dashboard">
               <i class="fa-solid fa-chart-line"></i>
-              <span>TMS</span>
+              <span>TMS 대시보드</span>
             </li>
             <li class="menu-item" data-page="handover">
               <i class="fa-solid fa-right-left"></i>
@@ -74,31 +74,41 @@
             <!-- 요약 카드 영역 -->
             <div class="summary-cards">
               <div class="summary-card">
-                <div class="summary-icon bg-blue">
+                <div class="summary-icon" style="background-color: #f9f0ff; color: var(--type-delivery);">
                   <i class="fa-solid fa-boxes-stacked"></i>
                 </div>
                 <div class="summary-data">
-                  <p class="summary-label">총 배송 건수</p>
+                  <p class="summary-label">배송 건수</p>
                   <h3 class="summary-value" id="totalOrders">0건</h3>
                 </div>
               </div>
               
               <div class="summary-card">
-                <div class="summary-icon bg-orange">
+                <div class="summary-icon" style="background-color: #fff7e6; color: var(--type-pickup);">
                   <i class="fa-solid fa-truck-fast"></i>
                 </div>
                 <div class="summary-data">
-                  <p class="summary-label">진행 중 배송</p>
+                  <p class="summary-label">회수 건수</p>
                   <h3 class="summary-value" id="inProgressOrders">0건</h3>
                 </div>
               </div>
               
               <div class="summary-card">
-                <div class="summary-icon bg-green">
+                <div class="summary-icon" style="background-color: #fffbe6; color: var(--status-progress);">
+                  <i class="fa-solid fa-spinner"></i>
+                </div>
+                <div class="summary-data">
+                  <p class="summary-label">진행 (배송+회수)</p>
+                  <h3 class="summary-value" id="progressOrders">0건</h3>
+                </div>
+              </div>
+              
+              <div class="summary-card">
+                <div class="summary-icon" style="background-color: #f6ffed; color: var(--status-complete);">
                   <i class="fa-solid fa-check-circle"></i>
                 </div>
                 <div class="summary-data">
-                  <p class="summary-label">완료된 배송</p>
+                  <p class="summary-label">완료 (배송+회수)</p>
                   <h3 class="summary-value" id="completedOrders">0건</h3>
                 </div>
               </div>
@@ -112,6 +122,9 @@
                 <div class="card-actions">
                   <button class="btn primary-btn" id="refreshBtn">
                     <i class="fa-solid fa-arrows-rotate"></i> 새로고침
+                  </button>
+                  <button class="btn primary-btn" id="changeStatusBtn">
+                    <i class="fa-solid fa-exchange-alt"></i> 상태 변경
                   </button>
                   <button class="btn primary-btn" id="assignBtn">
                     <i class="fa-solid fa-truck"></i> 배차 처리
@@ -178,6 +191,9 @@
                     </div>
                     
                     <div class="filter-actions">
+                      <button class="btn primary-btn" id="applyFilterBtn">
+                        <i class="fa-solid fa-filter"></i> 필터 적용
+                      </button>
                       <button class="btn secondary-btn" id="resetBtn">
                         <i class="fa-solid fa-rotate-left"></i> 초기화
                       </button>
@@ -375,7 +391,7 @@
   <!-- 모달 컴포넌트들 -->
   <!-- 상태 변경 모달 -->
   <div class="modal" id="statusModal">
-    <div class="modal-content">
+    <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3>상태 변경</h3>
         <button class="close-btn" data-modal="statusModal">
@@ -415,7 +431,7 @@
   
   <!-- 배차 처리 모달 -->
   <div class="modal" id="assignModal">
-    <div class="modal-content">
+    <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3>배차 처리</h3>
         <button class="close-btn" data-modal="assignModal">
@@ -423,21 +439,26 @@
         </button>
       </div>
       <div class="modal-body">
-        <p id="selectedCount">0개 항목 선택됨</p>
+        <div class="alert-message" style="background-color: #f6ffed; border: 1px solid #b7eb8f; color: #52c41a; padding: 10px 16px; border-radius: 4px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+          <i class="fa-solid fa-truck-fast" style="font-size: 1.2rem;"></i>
+          <p id="selectedCount" style="margin: 0; font-weight: 500;">0개 항목 선택됨</p>
+        </div>
+        
         <form id="assignForm">
           <div class="form-group">
-            <label for="driverSelect">배송기사</label>
-            <select id="driverSelect" class="select-field" required>
-              <option value="">선택하세요</option>
-            </select>
+            <label for="driverName">배송기사 이름</label>
+            <input type="text" id="driverName" class="input-field" required placeholder="기사 이름을 입력하세요">
           </div>
-          <div class="form-group">
-            <label for="driverContact">연락처</label>
-            <input type="text" id="driverContact" class="input-field" readonly>
-          </div>
-          <div class="form-group">
-            <label for="vehicleInfo">차량정보</label>
-            <input type="text" id="vehicleInfo" class="input-field" readonly>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="driverContact">연락처</label>
+              <input type="text" id="driverContact" class="input-field" placeholder="예: 010-1234-5678">
+            </div>
+            <div class="form-group">
+              <label for="vehicleInfo">차량정보</label>
+              <input type="text" id="vehicleInfo" class="input-field" placeholder="예: 트럭 (서울 1234)">
+            </div>
           </div>
         </form>
       </div>
@@ -450,25 +471,27 @@
   
   <!-- 상세 정보 모달 -->
   <div class="modal" id="detailModal">
-    <div class="modal-content modal-lg">
+    <div class="modal-content modal-xl">
       <div class="modal-header">
         <h3>주문 상세 정보</h3>
         <button class="close-btn" data-modal="detailModal">
           <i class="fa-solid fa-times"></i>
         </button>
       </div>
-      <div class="modal-body">
-        <div class="detail-card">
+      <div class="modal-body" style="padding: 0;">
+        <div class="detail-card" style="padding: 24px;">
           <div class="detail-section">
             <h4>주문 정보</h4>
             <div class="detail-grid">
               <div class="detail-item">
                 <p class="detail-label">주문번호</p>
                 <p class="detail-value" id="detailOrderNo">-</p>
+                <input type="text" class="input-field detail-edit-input" id="editDetailOrderNo" style="display:none;">
               </div>
               <div class="detail-item">
                 <p class="detail-label">고객</p>
                 <p class="detail-value" id="detailCustomer">-</p>
+                <input type="text" class="input-field detail-edit-input" id="editDetailCustomer" style="display:none;">
               </div>
               <div class="detail-item">
                 <p class="detail-label">유형</p>
@@ -478,23 +501,21 @@
                 <p class="detail-label">상태</p>
                 <div class="detail-value detail-status-container">
                   <span class="status-badge" id="detailStatus">-</span>
-                  <select id="detailNewStatus" class="select-field detail-status-select">
-                    <option value="">상태 변경</option>
-                    <option value="PENDING">대기</option>
-                    <option value="IN_PROGRESS">진행</option>
-                    <option value="COMPLETE">완료</option>
-                    <option value="ISSUE">이슈</option>
-                    <option value="CANCEL">취소</option>
-                  </select>
                 </div>
               </div>
               <div class="detail-item">
                 <p class="detail-label">부서</p>
                 <p class="detail-value" id="detailDepartment">-</p>
+                <select class="select-field detail-edit-input" id="editDetailDepartment" style="display:none;">
+                  <option value="CS">CS</option>
+                  <option value="HES">HES</option>
+                  <option value="LENOVO">LENOVO</option>
+                </select>
               </div>
               <div class="detail-item">
                 <p class="detail-label">창고</p>
                 <p class="detail-value" id="detailWarehouse">-</p>
+                <input type="text" class="input-field detail-edit-input" id="editDetailWarehouse" style="display:none;">
               </div>
             </div>
           </div>
@@ -503,7 +524,7 @@
             <h4>배송 정보</h4>
             <div class="detail-grid">
               <div class="detail-item">
-                <p class="detail-label">ETA</p>
+                <p class="detail-label">ETA (예상 도착 시간)</p>
                 <p class="detail-value" id="detailEta">-</p>
               </div>
               <div class="detail-item">
@@ -526,15 +547,37 @@
           </div>
           
           <div class="detail-section">
+            <h4>시간 정보</h4>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <p class="detail-label">생성 시간 (create_time)</p>
+                <p class="detail-value" id="detailCreateTime">-</p>
+              </div>
+              <div class="detail-item">
+                <p class="detail-label">출발 시간 (depart_time)</p>
+                <p class="detail-value" id="detailDepartTime">-</p>
+              </div>
+              <div class="detail-item">
+                <p class="detail-label">완료 시간 (complete_time)</p>
+                <p class="detail-value" id="detailCompleteTime">-</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="detail-section">
             <h4>추가 정보</h4>
             <div class="detail-grid">
               <div class="detail-item">
-                <p class="detail-label">등록일시</p>
-                <p class="detail-value" id="detailCreatedAt">-</p>
+                <p class="detail-label">SLA</p>
+                <p class="detail-value" id="detailSla">-</p>
               </div>
               <div class="detail-item">
-                <p class="detail-label">수정일시</p>
-                <p class="detail-value" id="detailUpdatedAt">-</p>
+                <p class="detail-label">마지막 업데이트</p>
+                <p class="detail-value" id="detailUpdateAt">-</p>
+              </div>
+              <div class="detail-item">
+                <p class="detail-label">업데이트한 사용자</p>
+                <p class="detail-value" id="detailUpdatedBy">-</p>
               </div>
               <div class="detail-item detail-wide">
                 <p class="detail-label">비고</p>
@@ -546,7 +589,8 @@
       </div>
       <div class="modal-footer">
         <button class="btn secondary-btn" data-modal="detailModal">닫기</button>
-        <button class="btn primary-btn" id="saveDetailStatusBtn">상태 저장</button>
+        <button class="btn primary-btn" id="editDetailBtn">정보 수정</button>
+        <button class="btn primary-btn" id="saveDetailBtn" style="display:none;">저장</button>
       </div>
     </div>
   </div>
@@ -582,7 +626,7 @@
   
   <!-- 신규 등록 모달 -->
   <div class="modal" id="newOrderModal">
-    <div class="modal-content modal-lg">
+    <div class="modal-content modal-xl">
       <div class="modal-header">
         <h3>신규 주문 등록</h3>
         <button class="close-btn" data-modal="newOrderModal">
@@ -626,7 +670,7 @@
           
           <div class="form-row">
             <div class="form-group">
-              <label for="newEta">ETA</label>
+              <label for="newEta">ETA (예상 도착 시간)</label>
               <input type="datetime-local" id="newEta" class="input-field" required>
             </div>
             <div class="form-group">
@@ -637,6 +681,16 @@
                 <option value="COMPLETE">완료</option>
                 <option value="ISSUE">이슈</option>
                 <option value="CANCEL">취소</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="newSla">SLA</label>
+              <select id="newSla" class="select-field" required>
+                <option value="4HR(24X7)">4HR(24X7)</option>
+                <option value="3HR(24X7)">3HR(24X7)</option>
+                <option value="PO4(24X7)">PO4(24X7)</option>
+                <option value="N4(NBD)">N4(NBD)</option>
+                <option value="Standard">Standard</option>
               </select>
             </div>
           </div>
@@ -714,6 +768,56 @@
       <div class="modal-footer">
         <button class="btn secondary-btn" data-modal="newHandoverModal">취소</button>
         <button class="btn primary-btn" id="saveNewHandoverBtn">등록</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 상태 일괄 변경 모달 -->
+  <div class="modal" id="batchStatusModal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h3>상태 일괄 변경</h3>
+        <button class="close-btn" data-modal="batchStatusModal">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert-message" style="background-color: #e6f7ff; border: 1px solid #91d5ff; color: #1890ff; padding: 10px 16px; border-radius: 4px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+          <i class="fa-solid fa-exchange-alt" style="font-size: 1.2rem;"></i>
+          <p id="batchSelectedCount" style="margin: 0; font-weight: 500;">0개 항목 선택됨</p>
+        </div>
+        
+        <form id="batchStatusForm">
+          <div class="form-group">
+            <label for="batchNewStatus">새 상태</label>
+            <select id="batchNewStatus" class="select-field" required>
+              <option value="">선택하세요</option>
+              <option value="PENDING">대기</option>
+              <option value="IN_PROGRESS">진행</option>
+              <option value="COMPLETE">완료</option>
+              <option value="ISSUE">이슈</option>
+              <option value="CANCEL">취소</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="batchStatusRemark">비고</label>
+            <textarea id="batchStatusRemark" class="textarea-field" rows="4" placeholder="상태 변경 사유 등을 입력하세요"></textarea>
+          </div>
+          
+          <div class="status-info" style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+            <p style="margin-bottom: 8px; font-weight: 500;">상태 변경 시 자동 기록 정보</p>
+            <ul style="padding-left: 16px; margin: 0;">
+              <li>대기 → 진행: depart_time 자동 기록</li>
+              <li>진행 → 완료/이슈: complete_time 자동 기록</li>
+              <li>모든 변경: update_at 및 updated_by 자동 기록</li>
+            </ul>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn secondary-btn" data-modal="batchStatusModal">취소</button>
+        <button class="btn primary-btn" id="saveBatchStatusBtn">상태 변경</button>
       </div>
     </div>
   </div>
