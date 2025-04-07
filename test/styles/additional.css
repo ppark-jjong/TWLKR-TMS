@@ -1,0 +1,184 @@
+/* 추가 스타일 - 페이지 표시 관련 */
+.content-container {
+  width: 100%;
+  display: block;
+}
+
+.page-section {
+  width: 100%;
+  display: block;
+}
+
+/* 모바일 화면 대응 */
+@media screen and (max-width: 768px) {
+  .main-content {
+    margin-left: 60px;
+    width: calc(100% - 60px);
+    padding: 15px;
+  }
+}
+
+/* 페이지 요소 강제 표시용 스타일 */
+#visualizationPage, #handoverPage {
+  height: auto !important;
+  min-height: 300px !important;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background-color: #f0f2f5 !important;
+  padding: 0 !important;
+  overflow: auto !important;
+}
+
+/* 페이지가 active일 때만 표시 */
+#visualizationPage:not([style*="display: block"]), 
+#handoverPage:not([style*="display: block"]) {
+  display: none !important;
+}
+
+/* 필수 차트 요소 스타일 */
+.chart-container {
+  width: 100% !important;
+  padding: 20px !important;
+  background-color: white !important;
+  border-radius: 6px !important;
+  height: 400px !important;
+  margin: 20px auto !important;
+  display: block !important;
+  border: 1px solid #eaeaea;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* 차트 내부 캔버스 스타일 */
+.chart-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 360px !important;
+  display: block !important;
+}
+
+/* 메뉴 아이템 로딩 상태 표시 */
+.menu-item.loading {
+  opacity: 0.7;
+  pointer-events: none;
+  position: relative;
+}
+
+.menu-item.loading::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(24, 144, 255, 0.3);
+  border-top-color: #1890ff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 인수인계 카드 개선 */
+.handover-card-container {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  gap: 20px !important;
+  padding: 20px !important;
+  min-height: 200px !important;
+  background-color: #f9f9f9 !important;
+  border-radius: 8px !important;
+}
+
+/* 인수인계 카드가 없을 때 표시할 메시지 */
+.empty-message {
+  grid-column: 1 / -1 !important;
+  text-align: center !important;
+  padding: 50px 0 !important;
+  color: #999 !important;
+  font-size: 1.1rem !important;
+  background-color: white !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 로고 스타일 수정 */
+.logo {
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  margin: 15px auto;
+  object-fit: contain;
+  display: block;
+}
+
+/* 기본 페이지 스타일 강화 */
+.page-section {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 400px !important;
+  position: relative !important;
+  z-index: 5 !important; /* z-index 증가 */
+  background-color: #f0f2f5 !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+}
+
+/* 메인 컨텐츠 컨테이너 스타일 수정 */
+.main-content {
+  position: relative !important;
+  z-index: 1 !important;
+  overflow: visible !important;
+}
+
+/* 콘텐츠 컨테이너 스타일 수정 */
+.content-container {
+  overflow: visible !important;
+  position: relative !important;
+  z-index: 2 !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 600px !important;
+  background-color: #f0f2f5 !important;
+}
+
+/* 활성화된 페이지 스타일 */
+.active-page {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 10 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 500px !important;
+  background-color: #f0f2f5 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 임시 디버깅 스타일 - 문제 해결을 위한 시각적 디버깅 */
+#visualizationPage, #handoverPage {
+  border: 5px solid red !important;
+}
+.main-card {
+  border: 3px solid blue !important;
+}
+
+/* 메인 카드 스타일 개선 */
+.main-card {
+  width: 100% !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+  background-color: white !important;
+  margin-bottom: 20px !important;
+  display: block !important;
+  min-height: 300px !important;
+}

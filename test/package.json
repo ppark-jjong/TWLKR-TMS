@@ -4,7 +4,7 @@
   "description": "Teckwah Dashboard Prototype",
   "main": "index.js",
   "scripts": {
-    "start": "http-server -p 8080",
+    "start": "http-server -a 127.0.0.1 -p 8080 -c-1",
     "build": "echo \"No build step required for this prototype. Use 'npm start' to run the server.\""
   },
   "dependencies": {

@@ -30,8 +30,8 @@ class DashboardCreate(BaseModel):
     postal_code: str         # 우편번호
     address: str             # 주소
     customer: str            # 고객명
-    contact: Optional[str]   # 연락처 (선택)
-    remark: Optional[str]    # 메모 (선택)
+    contact: Optional[str]   # 받는 사람_연락처
+    remark: Optional[str]    # 메모
 
 
 

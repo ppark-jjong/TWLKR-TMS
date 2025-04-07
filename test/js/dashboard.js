@@ -10,6 +10,7 @@ class DashboardPage {
     this.filters = {};
     this.selectedItems = new Set();
     this.currentDetailId = null;
+    this.allFilteredData = []; // 필터링된 모든 데이터를 저장할 변수 추가 (페이지네이션 적용 전)
     
     // 대시보드 요소
     this.elements = {
@@ -36,8 +37,8 @@ class DashboardPage {
       cancelCount: document.getElementById('cancelCount'),
       
       // 필터 요소
-      startDate: document.getElementById('startDate'),
-      endDate: document.getElementById('endDate'),
+      startDate: document.getElementById('quickStartDate'),
+      endDate: document.getElementById('quickEndDate'),
       dateRangeLabel: document.getElementById('dateRangeLabel'),
       statusFilter: document.getElementById('statusFilter'),
       departmentFilter: document.getElementById('departmentFilter'),
@@ -50,7 +51,6 @@ class DashboardPage {
       selectedCount: document.getElementById('selectedCount'),
       driverSelect: document.getElementById('driverSelect'),
       driverContact: document.getElementById('driverContact'),
-      vehicleInfo: document.getElementById('vehicleInfo'),
       saveStatusBtn: document.getElementById('saveStatusBtn'),
       saveAssignBtn: document.getElementById('saveAssignBtn'),
       saveNewOrderBtn: document.getElementById('saveNewOrderBtn'),
@@ -71,10 +71,6 @@ class DashboardPage {
     // 검색 이벤트
     this.elements.searchBtn.addEventListener('click', this.handleSearchByKeyword.bind(this));
     this.elements.resetBtn.addEventListener('click', this.resetFilters.bind(this));
-    
-    // 날짜 필터 변경 이벤트 - 즉시 적용
-    this.elements.startDate.addEventListener('change', this.handleDateChange.bind(this));
-    this.elements.endDate.addEventListener('change', this.handleDateChange.bind(this));
     
     // 빠른 날짜 조회 이벤트
     const quickDateBtn = document.getElementById('quickDateBtn');
@@ -186,10 +182,6 @@ class DashboardPage {
       return;
     }
     
-    // 메인 날짜 필터에도 값 설정
-    this.elements.startDate.value = startDate;
-    this.elements.endDate.value = endDate;
-    
     // 필터 적용
     this.filters.startDate = startDate;
     this.filters.endDate = endDate;
@@ -233,10 +225,6 @@ class DashboardPage {
     // 창고 옵션 설정
     domUtils.populateSelect('warehouseFilter', options.warehouses);
     domUtils.populateSelect('newWarehouse', options.warehouses, null, null, false);
-    
-    // 드라이버 옵션 설정
-    const drivers = dataManager.getDrivers();
-    domUtils.populateSelect('driverSelect', drivers, 'driver_id', 'name', false);
   }
   
   /**
@@ -282,49 +270,6 @@ class DashboardPage {
   }
   
   /**
-   * 날짜 변경 핸들러 - 즉시 필터링 적용
-   */
-  handleDateChange() {
-    // 시작일과 종료일 가져오기
-    const startDate = this.elements.startDate.value;
-    const endDate = this.elements.endDate.value;
-    
-    // 날짜 입력 여부 확인
-    if (!startDate || !endDate) {
-      return; // 둘 중 하나라도 없으면 처리하지 않음
-    }
-    
-    // 유효성 검사
-    if (startDate && endDate) {
-      // 시작일이 종료일보다 늦을 경우 조정
-      if (new Date(startDate) > new Date(endDate)) {
-        messageUtils.warning('시작일은 종료일보다 이전이어야 합니다.');
-        // 종료일을 시작일로 설정
-        this.elements.endDate.value = startDate;
-      }
-    }
-    
-    // 필터에 적용
-    this.filters.startDate = startDate;
-    this.filters.endDate = endDate;
-    
-    // 날짜 범위 표시
-    const startFormatted = dateUtils.formatDate(new Date(startDate));
-    const endFormatted = dateUtils.formatDate(new Date(endDate));
-    
-    // 날짜 범위 정보 표시
-    if (this.elements.dateRangeLabel) {
-      this.elements.dateRangeLabel.innerHTML = `기간 (${startFormatted} ~ ${endFormatted})`;
-    }
-    
-    // 다른 필터는 유지하면서 날짜만 변경하여 데이터 새로고침
-    this.currentPage = 1;
-    this.refreshData();
-    
-    console.log(`날짜 필터 적용: ${startDate} ~ ${endDate} (ETA 기준)`);
-  }
-  
-  /**
    * 상태 필터 적용 - 상태, 부서, 창고 필터만 적용 (날짜는 이미 적용된 상태)
    */
   applyStateFilters() {
@@ -356,9 +301,6 @@ class DashboardPage {
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - 1);
     this.elements.startDate.value = dateUtils.formatDate(startDate);
-    
-    // 먼저 날짜 변경 이벤트 발생시켜 날짜 관련 라벨 업데이트
-    this.handleDateChange();
     
     // 나머지 필터 초기화 및 데이터 새로고침
     this.currentPage = 1;
@@ -457,7 +399,8 @@ class DashboardPage {
       this.currentPage++;
     }
     
-    this.refreshData();
+    // 페이지네이션 적용 (요약 업데이트 없이)
+    this.applyPagination();
   }
   
   /**
@@ -491,34 +434,49 @@ class DashboardPage {
   }
 
   /**
-   * 데이터 새로고침
+   * 데이터 새로고침 - 필터 적용 및 요약 정보 업데이트
    */
   refreshData() {
     this.setFilters();
     
-    // 데이터 조회
+    // 데이터 조회 - 전체 필터링된 데이터 가져오기
     const result = dataManager.getDashboards(
       this.filters,
-      this.currentPage,
-      this.pageSize
+      1, // 페이지는 1로 설정
+      1000 // 대용량 데이터일 경우 상한을 둠
     );
     
-    // 결과 저장
-    this.dashboards = result.items;
+    // 전체 필터링된 데이터 저장 - 요약 정보에 사용
+    this.allFilteredData = result.items;
     this.totalItems = result.totalItems;
-    this.totalPages = result.totalPages;
+    this.totalPages = Math.ceil(this.totalItems / this.pageSize);
+    
+    // 필터링된 전체 데이터를 기준으로 요약 정보 업데이트
+    this.updateSummary();
     
     // 선택 항목 초기화
     this.selectedItems.clear();
     this.elements.selectAll.checked = false;
     
-    // 데이터 렌더링
-    this.renderTable();
-    this.renderPagination();
-    this.updateSummary();
+    // 페이지네이션 적용 - 현재 페이지에 해당하는 데이터만 표시
+    this.applyPagination();
     
     // 버튼 상태 업데이트
     this.updateActionButtons();
+  }
+  
+  /**
+   * 페이지네이션 적용 - 테이블 렌더링만 수행
+   */
+  applyPagination() {
+    // 현재 페이지에 해당하는 데이터만 가져오기
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const endIndex = startIndex + this.pageSize;
+    this.dashboards = this.allFilteredData.slice(startIndex, endIndex);
+    
+    // 데이터 렌더링
+    this.renderTable();
+    this.renderPagination();
   }
   
   /**
@@ -612,19 +570,16 @@ class DashboardPage {
   
   /**
    * 요약 정보 업데이트
-   * 날짜 필터링 기간 내 데이터에 대해서만 계산
+   * 전체 필터링된 데이터를 기준으로 계산 (페이지네이션 적용 전)
    */
   updateSummary() {
-    // 상태별 카운트 조회
-    const counts = dataManager.getStatusCounts();
-    
-    // 필터링된 데이터 기준으로 계산
-    const deliveryCount = this.dashboards.filter(item => item.type === 'DELIVERY').length;
-    const pickupCount = this.dashboards.filter(item => item.type === 'PICKUP').length;
+    // 필터링된 전체 데이터(this.allFilteredData)를 기준으로 계산
+    const deliveryCount = this.allFilteredData.filter(item => item.type === 'DELIVERY').length;
+    const pickupCount = this.allFilteredData.filter(item => item.type === 'PICKUP').length;
     
     // 진행, 완료 상태 건수 계산
-    const progressCount = this.dashboards.filter(item => item.delivery_status === 'IN_PROGRESS').length;
-    const completeCount = this.dashboards.filter(item => item.delivery_status === 'COMPLETE').length;
+    const progressCount = this.allFilteredData.filter(item => item.delivery_status === 'IN_PROGRESS').length;
+    const completeCount = this.allFilteredData.filter(item => item.delivery_status === 'COMPLETE').length;
     
     // 요약 카드 업데이트
     this.elements.totalOrders.textContent = deliveryCount + '건';
@@ -654,7 +609,6 @@ class DashboardPage {
     document.getElementById('statusItemId').value = dashboard.dashboard_id;
     document.getElementById('currentStatus').value = statusUtils.getStatusText(dashboard.delivery_status);
     document.getElementById('newStatus').value = '';
-    document.getElementById('statusRemark').value = dashboard.remark || '';
     
     // 모달 표시
     modalUtils.openModal('statusModal');
@@ -690,13 +644,12 @@ class DashboardPage {
     document.getElementById('detailContact').textContent = dashboard.driver_contact || '-';
     document.getElementById('detailAddress').textContent = dashboard.address;
     document.getElementById('detailPostalCode').textContent = dashboard.postal_code;
-    document.getElementById('detailRemark').textContent = dashboard.remark || '-';
+    document.getElementById('detailRemark').textContent = dashboard.memo || '-';
+    document.getElementById('detailSla').textContent = dashboard.sla || '-';
     
-    // 추가된 필드
-    document.getElementById('detailCreateTime').textContent = dashboard.create_time || '-';
+    // 시간 정보
     document.getElementById('detailDepartTime').textContent = dashboard.depart_time || '-';
     document.getElementById('detailCompleteTime').textContent = dashboard.complete_time || '-';
-    document.getElementById('detailSla').textContent = dashboard.sla || '-';
     document.getElementById('detailUpdateAt').textContent = dashboard.update_at || '-';
     document.getElementById('detailUpdatedBy').textContent = dashboard.updated_by || 'System';
     
@@ -715,6 +668,13 @@ class DashboardPage {
       editCustomerField.style.display = 'none';
     }
     
+    // 유형
+    const editTypeField = document.getElementById('editDetailType');
+    if (editTypeField) {
+      editTypeField.value = dashboard.type;
+      editTypeField.style.display = 'none';
+    }
+    
     // 부서
     const editDepartmentField = document.getElementById('editDetailDepartment');
     if (editDepartmentField) {
@@ -727,6 +687,54 @@ class DashboardPage {
     if (editWarehouseField) {
       editWarehouseField.value = dashboard.warehouse;
       editWarehouseField.style.display = 'none';
+    }
+    
+    // SLA
+    const editSlaField = document.getElementById('editDetailSla');
+    if (editSlaField) {
+      editSlaField.value = dashboard.sla || 'Standard';
+      editSlaField.style.display = 'none';
+    }
+    
+    // ETA
+    const editEtaField = document.getElementById('editDetailEta');
+    if (editEtaField) {
+      // DateTime-Local 형식으로 변환 (yyyy-MM-ddTHH:mm)
+      const etaDate = new Date(dashboard.eta);
+      if (!isNaN(etaDate.getTime())) {
+        editEtaField.value = dateUtils.formatDateTimeForInput(etaDate);
+      } else {
+        editEtaField.value = '';
+      }
+      editEtaField.style.display = 'none';
+    }
+    
+    // 연락처
+    const editContactField = document.getElementById('editDetailContact');
+    if (editContactField) {
+      editContactField.value = dashboard.contact || '';
+      editContactField.style.display = 'none';
+    }
+    
+    // 주소
+    const editAddressField = document.getElementById('editDetailAddress');
+    if (editAddressField) {
+      editAddressField.value = dashboard.address || '';
+      editAddressField.style.display = 'none';
+    }
+    
+    // 우편번호
+    const editPostalCodeField = document.getElementById('editDetailPostalCode');
+    if (editPostalCodeField) {
+      editPostalCodeField.value = dashboard.postal_code || '';
+      editPostalCodeField.style.display = 'none';
+    }
+    
+    // 비고
+    const editRemarkField = document.getElementById('editDetailRemark');
+    if (editRemarkField) {
+      editRemarkField.value = dashboard.memo || '';
+      editRemarkField.style.display = 'none';
     }
     
     // 편집 모드 끄기
@@ -795,8 +803,15 @@ class DashboardPage {
       // 수정된 값 가져오기
       const newOrderNo = document.getElementById('editDetailOrderNo').value;
       const newCustomer = document.getElementById('editDetailCustomer').value;
+      const newType = document.getElementById('editDetailType').value;
       const newDepartment = document.getElementById('editDetailDepartment').value;
       const newWarehouse = document.getElementById('editDetailWarehouse').value;
+      const newSla = document.getElementById('editDetailSla').value;
+      const newEta = document.getElementById('editDetailEta').value;
+      const newContact = document.getElementById('editDetailContact').value;
+      const newAddress = document.getElementById('editDetailAddress').value;
+      const newPostalCode = document.getElementById('editDetailPostalCode').value;
+      const newMemo = document.getElementById('editDetailRemark').value;
       
       // 유효성 검사
       if (!newOrderNo || !newCustomer) {
@@ -807,16 +822,39 @@ class DashboardPage {
       // 데이터 업데이트
       dashboard.order_no = newOrderNo;
       dashboard.customer = newCustomer;
+      dashboard.type = newType;
       dashboard.department = newDepartment;
       dashboard.warehouse = newWarehouse;
+      dashboard.sla = newSla;
+      
+      // ETA 업데이트 (datetime-local 형식에서 변환)
+      if (newEta) {
+        const etaDate = new Date(newEta);
+        dashboard.eta = dateUtils.formatDateTime(etaDate);
+        dashboard.eta_date = etaDate;
+      }
+      
+      dashboard.contact = newContact;
+      dashboard.address = newAddress;
+      dashboard.postal_code = newPostalCode;
+      dashboard.memo = newMemo;
+      
+      // 업데이트 메타데이터
       dashboard.update_at = dateUtils.getCurrentDateTime();
       dashboard.updated_by = 'CSAdmin'; // 현재 로그인한 사용자
       
       // 화면 업데이트
       document.getElementById('detailOrderNo').textContent = newOrderNo;
       document.getElementById('detailCustomer').textContent = newCustomer;
+      document.getElementById('detailType').textContent = newType === 'DELIVERY' ? '배송' : '회수';
       document.getElementById('detailDepartment').textContent = newDepartment;
       document.getElementById('detailWarehouse').textContent = newWarehouse;
+      document.getElementById('detailSla').textContent = newSla;
+      document.getElementById('detailEta').textContent = dashboard.eta;
+      document.getElementById('detailContact').textContent = newContact || '-';
+      document.getElementById('detailAddress').textContent = newAddress;
+      document.getElementById('detailPostalCode').textContent = newPostalCode;
+      document.getElementById('detailRemark').textContent = newMemo || '-';
       document.getElementById('detailUpdateAt').textContent = dashboard.update_at;
       document.getElementById('detailUpdatedBy').textContent = dashboard.updated_by;
       
@@ -847,9 +885,8 @@ class DashboardPage {
     // 선택된 항목 개수 표시
     document.getElementById('batchSelectedCount').textContent = `${this.selectedItems.size}개 항목 선택됨`;
     
-    // 상태 및 비고란 초기화
+    // 상태 초기화
     document.getElementById('batchNewStatus').value = '';
-    document.getElementById('batchStatusRemark').value = '';
     
     // 모달 열기
     modalUtils.openModal('batchStatusModal');
@@ -865,7 +902,6 @@ class DashboardPage {
     }
     
     const newStatus = document.getElementById('batchNewStatus').value;
-    const remark = document.getElementById('batchStatusRemark').value;
     
     if (!newStatus) {
       messageUtils.warning('새 상태를 선택해주세요.');
@@ -898,11 +934,6 @@ class DashboardPage {
           // 메타데이터 업데이트
           dashboard.update_at = now;
           dashboard.updated_by = 'CSAdmin'; // 현재 로그인한 사용자
-          
-          // 비고 업데이트
-          if (remark) {
-            dashboard.remark = remark;
-          }
           
           updatedCount++;
         }
@@ -940,13 +971,10 @@ class DashboardPage {
     // 배차 입력 필드 초기화
     document.getElementById('driverName').value = '';
     document.getElementById('driverContact').value = '';
-    document.getElementById('vehicleInfo').value = '';
     
     // 모달 표시
     modalUtils.openModal('assignModal');
   }
-  
-  // 드라이버 선택 핸들러 함수는 제거
   
   /**
    * 상태 변경 제출 핸들러
@@ -954,7 +982,6 @@ class DashboardPage {
   handleStatusSubmit() {
     const id = parseInt(document.getElementById('statusItemId').value);
     const newStatus = document.getElementById('newStatus').value;
-    const remark = document.getElementById('statusRemark').value;
     
     if (!newStatus) {
       messageUtils.warning('새 상태를 선택해주세요.');
@@ -963,7 +990,7 @@ class DashboardPage {
     
     try {
       // 상태 변경 처리
-      const updatedDashboard = dataManager.updateDashboardStatus(id, newStatus, remark);
+      const updatedDashboard = dataManager.updateDashboardStatus(id, newStatus);
       
       if (updatedDashboard) {
         modalUtils.closeModal('statusModal');
@@ -984,7 +1011,6 @@ class DashboardPage {
   handleAssignSubmit() {
     const driverName = document.getElementById('driverName').value;
     const driverContact = document.getElementById('driverContact').value;
-    const vehicleInfo = document.getElementById('vehicleInfo').value;
     
     if (!driverName) {
       messageUtils.warning('배송기사 이름을 입력해주세요.');
@@ -1001,7 +1027,6 @@ class DashboardPage {
         if (dashboard) {
           dashboard.driver_name = driverName;
           dashboard.driver_contact = driverContact || '';
-          dashboard.vehicle_info = vehicleInfo || '';
           
           // 상태가 대기일 경우에만 진행으로 변경
           if (dashboard.delivery_status === 'PENDING') {
@@ -1053,7 +1078,7 @@ class DashboardPage {
       order_no: document.getElementById('newOrderNo').value,
       customer: document.getElementById('newCustomer').value,
       type: document.getElementById('newType').value,
-      delivery_status: document.getElementById('newStatus').value,
+      delivery_status: 'PENDING', // 항상 대기 상태로 자동 설정
       department: document.getElementById('newDepartment').value,
       warehouse: document.getElementById('newWarehouse').value,
       eta: document.getElementById('newEta').value.replace('T', ' '),
@@ -1061,7 +1086,7 @@ class DashboardPage {
       driver_contact: '',
       address: document.getElementById('newAddress').value,
       postal_code: document.getElementById('newPostalCode').value,
-      remark: document.getElementById('newRemark').value,
+      memo: document.getElementById('newRemark').value,
       create_time: now,
       update_at: now,
       updated_by: 'CSAdmin',

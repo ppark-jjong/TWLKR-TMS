@@ -4,6 +4,8 @@
 
 class VisualizationPage {
   constructor() {
+    console.log('VisualizationPage 인스턴스 생성 중...');
+    
     // 상태 초기화
     this.currentChart = null;
     this.departmentCharts = {
@@ -38,40 +40,75 @@ class VisualizationPage {
     
     // 이벤트 핸들러 바인딩
     this.bindEvents();
+    
+    console.log('VisualizationPage 인스턴스 생성 완료');
   }
   
   /**
    * 이벤트 핸들러 바인딩
    */
   bindEvents() {
-    // 필터 적용 버튼
-    this.elements.applyFilterBtn.addEventListener('click', this.applyFilters.bind(this));
-    
-    // 새로고침 버튼
-    this.elements.refreshBtn.addEventListener('click', this.refreshData.bind(this));
-    
-    // 날짜 입력 이벤트
-    this.elements.startDate.addEventListener('change', this.updateDateLabel.bind(this));
-    this.elements.endDate.addEventListener('change', this.updateDateLabel.bind(this));
-    
-    // 차트 타입 변경 이벤트
-    this.elements.chartTypeSelect.addEventListener('change', () => {
-      this.currentChartType = this.elements.chartTypeSelect.value;
-      this.toggleChartContainers(this.currentChartType);
-      this.refreshData();
-    });
+    try {
+      console.log('시각화 페이지 이벤트 핸들러 바인딩 중...');
+      
+      // 필터 적용 버튼
+      if (this.elements.applyFilterBtn) {
+        this.elements.applyFilterBtn.addEventListener('click', this.applyFilters.bind(this));
+      } else {
+        console.warn('applyFilterBtn 요소를 찾을 수 없습니다.');
+      }
+      
+      // 새로고침 버튼
+      if (this.elements.refreshBtn) {
+        this.elements.refreshBtn.addEventListener('click', this.refreshData.bind(this));
+      } else {
+        console.warn('refreshBtn 요소를 찾을 수 없습니다.');
+      }
+      
+      // 날짜 입력 이벤트
+      if (this.elements.startDate && this.elements.endDate) {
+        this.elements.startDate.addEventListener('change', this.updateDateLabel.bind(this));
+        this.elements.endDate.addEventListener('change', this.updateDateLabel.bind(this));
+      } else {
+        console.warn('날짜 입력 요소를 찾을 수 없습니다.');
+      }
+      
+      // 차트 타입 변경 이벤트
+      if (this.elements.chartTypeSelect) {
+        this.elements.chartTypeSelect.addEventListener('change', () => {
+          this.currentChartType = this.elements.chartTypeSelect.value;
+          this.toggleChartContainers(this.currentChartType);
+          this.refreshData();
+        });
+      } else {
+        console.warn('chartTypeSelect 요소를 찾을 수 없습니다.');
+      }
+      
+      console.log('시각화 페이지 이벤트 핸들러 바인딩 완료');
+    } catch (error) {
+      console.error('시각화 페이지 이벤트 핸들러 바인딩 오류:', error);
+    }
   }
   
   /**
    * 차트 컨테이너 전환
    */
   toggleChartContainers(chartType) {
-    if (chartType === 'dept-status') {
-      this.elements.mainChartContainer.style.display = 'none';
-      this.elements.departmentChartsContainer.style.display = 'block';
-    } else {
-      this.elements.mainChartContainer.style.display = 'block';
-      this.elements.departmentChartsContainer.style.display = 'none';
+    try {
+      if (this.elements.mainChartContainer && this.elements.departmentChartsContainer) {
+        if (chartType === 'dept-status') {
+          this.elements.mainChartContainer.style.display = 'none';
+          this.elements.departmentChartsContainer.style.display = 'block';
+        } else {
+          this.elements.mainChartContainer.style.display = 'block';
+          this.elements.departmentChartsContainer.style.display = 'none';
+        }
+        console.log(`차트 컨테이너 전환 완료: ${chartType}`);
+      } else {
+        console.error('차트 컨테이너 요소를 찾을 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('차트 컨테이너 전환 오류:', error);
     }
   }
   
@@ -80,30 +117,45 @@ class VisualizationPage {
    */
   async init() {
     try {
+      console.log('시각화 페이지 초기화 중...');
+      
       // 초기 날짜 범위 설정
       const today = dateUtils.getCurrentDate();
-      this.elements.endDate.value = today;
+      if (this.elements.endDate) {
+        this.elements.endDate.value = today;
+      }
       
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 14); // 기본 2주 데이터
-      this.elements.startDate.value = dateUtils.formatDate(startDate);
+      if (this.elements.startDate) {
+        this.elements.startDate.value = dateUtils.formatDate(startDate);
+      }
       
       // 날짜 라벨 업데이트
       this.updateDateLabel();
       
       // 데이터 로드
-      await dataManager.loadData();
+      if (!dataManager.isLoaded) {
+        console.log('데이터 매니저 로드 중...');
+        await dataManager.loadData();
+      }
+      
       this.dashboardData = dataManager.dashboards;
       
       // 데이터 분석 및 로깅
       this.analyzeAndLogData();
       
       // 차트 타입 초기화
-      this.currentChartType = this.elements.chartTypeSelect.value || 'time';
+      if (this.elements.chartTypeSelect) {
+        this.currentChartType = this.elements.chartTypeSelect.value || 'time';
+      }
+      
       this.toggleChartContainers(this.currentChartType);
       
       // 차트 생성
       this.refreshData();
+      
+      console.log('시각화 페이지 초기화 완료');
       
     } catch (error) {
       console.error('시각화 페이지 초기화 오류:', error);
@@ -115,71 +167,82 @@ class VisualizationPage {
    * 데이터 분석 및 로깅
    */
   analyzeAndLogData() {
-    if (!this.dashboardData || this.dashboardData.length === 0) {
-      console.warn('분석할 데이터가 없습니다.');
-      return;
-    }
-    
-    console.log(`총 데이터 항목 수: ${this.dashboardData.length}`);
-    
-    // create_time 필드 분석
-    const createTimeTypes = {};
-    const createTimeSamples = {};
-    
-    this.dashboardData.slice(0, 10).forEach((item, index) => {
-      const type = typeof item.create_time;
-      createTimeTypes[type] = (createTimeTypes[type] || 0) + 1;
-      
-      // 타입별 샘플 데이터 저장
-      if (!createTimeSamples[type]) {
-        createTimeSamples[type] = item.create_time;
+    try {
+      if (!this.dashboardData || this.dashboardData.length === 0) {
+        console.warn('분석할 데이터가 없습니다.');
+        return;
       }
       
-      console.log(`데이터 ${index+1}: create_time=${item.create_time}, 타입=${type}, create_time_date=${item.create_time_date}`);
-    });
-    
-    console.log('create_time 필드 타입 분포:', createTimeTypes);
-    console.log('create_time 필드 타입별 샘플:', createTimeSamples);
-    
-    // 부서 필드 분석
-    const departments = {};
-    this.dashboardData.forEach(item => {
-      departments[item.department] = (departments[item.department] || 0) + 1;
-    });
-    
-    console.log('부서별 데이터 분포:', departments);
-    
-    // 상태 필드 분석
-    const statuses = {};
-    this.dashboardData.forEach(item => {
-      statuses[item.delivery_status] = (statuses[item.delivery_status] || 0) + 1;
-    });
-    
-    console.log('상태별 데이터 분포:', statuses);
+      console.log(`총 데이터 항목 수: ${this.dashboardData.length}`);
+      
+      // create_time 필드 분석
+      const createTimeTypes = {};
+      const createTimeSamples = {};
+      
+      this.dashboardData.slice(0, 10).forEach((item, index) => {
+        const type = typeof item.create_time;
+        createTimeTypes[type] = (createTimeTypes[type] || 0) + 1;
+        
+        // 타입별 샘플 데이터 저장
+        if (!createTimeSamples[type]) {
+          createTimeSamples[type] = item.create_time;
+        }
+        
+        console.log(`데이터 ${index+1}: create_time=${item.create_time}, 타입=${type}, create_time_date=${item.create_time_date}`);
+      });
+      
+      console.log('create_time 필드 타입 분포:', createTimeTypes);
+      console.log('create_time 필드 타입별 샘플:', createTimeSamples);
+      
+      // 부서 필드 분석
+      const departments = {};
+      this.dashboardData.forEach(item => {
+        departments[item.department] = (departments[item.department] || 0) + 1;
+      });
+      
+      console.log('부서별 데이터 분포:', departments);
+      
+      // 상태 필드 분석
+      const statuses = {};
+      this.dashboardData.forEach(item => {
+        statuses[item.delivery_status] = (statuses[item.delivery_status] || 0) + 1;
+      });
+      
+      console.log('상태별 데이터 분포:', statuses);
+    } catch (error) {
+      console.error('데이터 분석 오류:', error);
+    }
   }
   
   /**
    * 날짜 라벨 업데이트
    */
   updateDateLabel() {
-    const startDate = this.elements.startDate.value;
-    const endDate = this.elements.endDate.value;
-    
-    if (startDate && endDate) {
-      // 시작일이 종료일보다 늦을 경우 조정
-      if (new Date(startDate) > new Date(endDate)) {
-        messageUtils.warning('시작일은 종료일보다 이전이어야 합니다.');
-        // 종료일을 시작일로 설정
-        this.elements.endDate.value = startDate;
+    try {
+      if (!this.elements.startDate || !this.elements.endDate || !this.elements.dateRangeLabel) {
+        console.warn('날짜 라벨 업데이트를 위한 요소가 없습니다.');
+        return;
       }
       
-      // 날짜 라벨 업데이트
-      const startFormatted = dateUtils.formatDate(new Date(startDate));
-      const endFormatted = dateUtils.formatDate(new Date(endDate));
+      const startDate = this.elements.startDate.value;
+      const endDate = this.elements.endDate.value;
       
-      if (this.elements.dateRangeLabel) {
+      if (startDate && endDate) {
+        // 시작일이 종료일보다 늦을 경우 조정
+        if (new Date(startDate) > new Date(endDate)) {
+          messageUtils.warning('시작일은 종료일보다 이전이어야 합니다.');
+          // 종료일을 시작일로 설정
+          this.elements.endDate.value = startDate;
+        }
+        
+        // 날짜 라벨 업데이트
+        const startFormatted = dateUtils.formatDate(new Date(startDate));
+        const endFormatted = dateUtils.formatDate(new Date(endDate));
+        
         this.elements.dateRangeLabel.textContent = `${startFormatted} ~ ${endFormatted}`;
       }
+    } catch (error) {
+      console.error('날짜 라벨 업데이트 오류:', error);
     }
   }
   
@@ -194,18 +257,27 @@ class VisualizationPage {
    * 데이터 새로고침 및 차트 업데이트
    */
   refreshData() {
-    // 필터 값 가져오기
-    const filters = this.getFilters();
-    
-    // 차트 타입에 따라 다른 처리
-    if (this.currentChartType === 'time') {
-      // 시간대별 주문 접수 차트
-      this.processedData = this.processTimeData(filters);
-      this.updateTimeChart();
-    } else if (this.currentChartType === 'dept-status') {
-      // 부서별 배송 상태 분포 차트
-      this.processedData = this.processDepartmentStatusData(filters);
-      this.updateDepartmentStatusCharts();
+    try {
+      console.log('시각화 데이터 새로고침 중...');
+      
+      // 필터 값 가져오기
+      const filters = this.getFilters();
+      
+      // 차트 타입에 따라 다른 처리
+      if (this.currentChartType === 'time') {
+        // 시간대별 주문 접수 차트
+        this.processedData = this.processTimeData(filters);
+        this.updateTimeChart();
+      } else if (this.currentChartType === 'dept-status') {
+        // 부서별 배송 상태 분포 차트
+        this.processedData = this.processDepartmentStatusData(filters);
+        this.updateDepartmentStatusCharts();
+      }
+      
+      console.log('시각화 데이터 새로고침 완료');
+    } catch (error) {
+      console.error('시각화 데이터 새로고침 오류:', error);
+      messageUtils.error('시각화 데이터를 새로고침하는 중 오류가 발생했습니다.');
     }
   }
   
@@ -213,11 +285,13 @@ class VisualizationPage {
    * 필터 값 가져오기
    */
   getFilters() {
-    return {
-      startDate: this.elements.startDate.value,
-      endDate: this.elements.endDate.value,
-      department: this.elements.departmentFilter.value
+    const filters = {
+      startDate: this.elements.startDate ? this.elements.startDate.value : null,
+      endDate: this.elements.endDate ? this.elements.endDate.value : null,
+      department: this.elements.departmentFilter ? this.elements.departmentFilter.value : null
     };
+    
+    return filters;
   }
   
   /**
@@ -231,351 +305,360 @@ class VisualizationPage {
    * 데이터 필터링 함수 - eta 기준 날짜와 부서 필터
    */
   filterData(filters) {
-    let filteredData = [...this.dashboardData];
-    
-    // 날짜 필터링 (eta 기준으로 변경)
-    if (filters.startDate && filters.endDate) {
-      const startDate = new Date(filters.startDate);
-      startDate.setHours(0, 0, 0, 0);
+    try {
+      let filteredData = [...this.dashboardData];
       
-      const endDate = new Date(filters.endDate);
-      endDate.setHours(23, 59, 59, 999);
-      
-      console.log(`날짜 범위 필터 (ETA 기준): ${startDate.toISOString()} ~ ${endDate.toISOString()}`);
-      
-      // 필터링 전 데이터 수
-      const beforeCount = filteredData.length;
-      
-      filteredData = filteredData.filter(item => {
-        // eta_date가 Date 객체인 경우
-        if (item.eta_date instanceof Date) {
-          return item.eta_date >= startDate && item.eta_date <= endDate;
-        }
+      // 날짜 필터링 (eta 기준으로 변경)
+      if (filters.startDate && filters.endDate) {
+        const startDate = new Date(filters.startDate);
+        startDate.setHours(0, 0, 0, 0);
         
-        // eta 문자열이 있는 경우
-        if (item.eta && typeof item.eta === 'string') {
-          try {
-            const etaDate = new Date(item.eta.replace(' ', 'T'));
-            if (!isNaN(etaDate.getTime())) {
-              return etaDate >= startDate && etaDate <= endDate;
-            }
-          } catch (error) {
-            console.warn('ETA 날짜 변환 오류:', item.eta, error);
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        
+        console.log(`날짜 범위 필터 (ETA 기준): ${startDate.toISOString()} ~ ${endDate.toISOString()}`);
+        
+        // 필터링 전 데이터 수
+        const beforeCount = filteredData.length;
+        
+        filteredData = filteredData.filter(item => {
+          let etaDate = null;
+          
+          // 1. eta_date가 Date 객체인 경우
+          if (item.eta_date instanceof Date && !isNaN(item.eta_date.getTime())) {
+            etaDate = item.eta_date;
           }
-        }
+          // 2. eta 문자열에서 Date 변환 시도
+          else if (item.eta && typeof item.eta === 'string') {
+            try {
+              // ISO 형식 (T 포함)
+              if (item.eta.includes('T')) {
+                etaDate = new Date(item.eta);
+              } 
+              // YYYY-MM-DD HH:MM 형식
+              else if (item.eta.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/)) {
+                etaDate = new Date(item.eta.replace(' ', 'T'));
+              }
+              // 그 외 형식
+              else {
+                etaDate = new Date(item.eta);
+              }
+              
+              // 유효하지 않은 날짜는 null 처리
+              if (isNaN(etaDate.getTime())) {
+                etaDate = null;
+              }
+            } catch (error) {
+              console.warn('ETA 날짜 변환 오류:', item.eta, error);
+              etaDate = null;
+            }
+          }
+          
+          // 날짜가 유효하고 범위 내에 있을 경우 true 반환
+          if (etaDate && !isNaN(etaDate.getTime())) {
+            return etaDate >= startDate && etaDate <= endDate;
+          }
+          
+          // 기본적으로 필터에서 제외
+          return false;
+        });
         
-        return false;
-      });
+        // 필터링 후 데이터 수
+        const afterCount = filteredData.length;
+        console.log(`ETA 날짜 필터링 결과: ${beforeCount}개 → ${afterCount}개 (${beforeCount - afterCount}개 필터링됨)`);
+        
+        console.log(`날짜 필터링 후 데이터 수: ${filteredData.length}`);
+      }
       
-      // 필터링 후 데이터 수
-      const afterCount = filteredData.length;
-      console.log(`ETA 날짜 필터링 결과: ${beforeCount}개 → ${afterCount}개 (${beforeCount - afterCount}개 필터링됨)`);
+      // 부서 필터링
+      if (filters.department) {
+        filteredData = filteredData.filter(item => item.department === filters.department);
+        console.log(`부서 필터링 후 데이터 수: ${filteredData.length}`);
+      }
       
-      console.log(`날짜 필터링 후 데이터 수: ${filteredData.length}`);
+      return filteredData;
+    } catch (error) {
+      console.error('데이터 필터링 오류:', error);
+      return [...this.dashboardData];  // 오류 시 원본 데이터 반환
     }
-    
-    // 부서 필터링
-    if (filters.department) {
-      filteredData = filteredData.filter(item => item.department === filters.department);
-      console.log(`부서 필터링 후 데이터 수: ${filteredData.length}`);
-    }
-    
-    return filteredData;
   }
   
   /**
    * 데이터 처리 - 시간대별 집계 (한국 시간 기준, eta 기준)
    */
   processTimeData(filters) {
-    // 데이터 필터링
-    const filteredData = this.filterData(filters);
-    
-    // 시간대별 집계 (9시~18시: 1시간 단위, 18시~9시: 한 묶음)
-    const timeSlots = {
-      '09:00 - 10:00': 0,
-      '10:00 - 11:00': 0,
-      '11:00 - 12:00': 0,
-      '12:00 - 13:00': 0,
-      '13:00 - 14:00': 0,
-      '14:00 - 15:00': 0,
-      '15:00 - 16:00': 0,
-      '16:00 - 17:00': 0,
-      '17:00 - 18:00': 0,
-      '18:00 - 09:00': 0
-    };
-    
-    let totalCount = 0;
-    let processedCount = 0;
-    let errorCount = 0;
-    
-    // 각 주문의 ETA 시간을 확인하여 해당 시간대에 카운트 증가
-    filteredData.forEach((item, index) => {
-      try {
-        // ETA 시간 사용 (요청에 따라 create_time에서 eta로 변경)
-        let etaTime;
-        
-        // Date 객체인 경우
-        if (item.eta_date instanceof Date) {
-          etaTime = item.eta_date;
+    try {
+      // 데이터 필터링
+      const filteredData = this.filterData(filters);
+      
+      // 시간대별 집계 (9시~18시: 1시간 단위, 18시~9시: 한 묶음)
+      const timeSlots = {
+        '09:00 - 10:00': 0,
+        '10:00 - 11:00': 0,
+        '11:00 - 12:00': 0,
+        '12:00 - 13:00': 0,
+        '13:00 - 14:00': 0,
+        '14:00 - 15:00': 0,
+        '15:00 - 16:00': 0,
+        '16:00 - 17:00': 0,
+        '17:00 - 18:00': 0,
+        '18:00 - 09:00': 0
+      };
+      
+      let totalCount = 0;
+      let processedCount = 0;
+      let errorCount = 0;
+      
+      // 각 주문의 ETA 시간을 확인하여 해당 시간대에 카운트 증가
+      filteredData.forEach((item, index) => {
+        try {
+          // ETA 시간 사용 (요청에 따라 create_time에서 eta로 변경)
+          let etaTime;
+          
+          // Date 객체인 경우
+          if (item.eta_date instanceof Date && !isNaN(item.eta_date.getTime())) {
+            etaTime = item.eta_date;
+          }
+          // eta 문자열인 경우
+          else if (item.eta && typeof item.eta === 'string') {
+            try {
+              // ISO 형식 (T 포함)
+              if (item.eta.includes('T')) {
+                etaTime = new Date(item.eta);
+              }
+              // YYYY-MM-DD HH:MM 형식
+              else if (item.eta.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/)) {
+                etaTime = new Date(item.eta.replace(' ', 'T'));
+              }
+              // 그 외 형식
+              else {
+                etaTime = new Date(item.eta);
+              }
+              
+              // 유효하지 않은 날짜는 null 처리
+              if (isNaN(etaTime.getTime())) {
+                etaTime = null;
+              }
+            } catch (error) {
+              console.warn('ETA 시간 변환 오류:', item.eta, error);
+              etaTime = null;
+            }
+          }
+          
+          // 유효한 날짜인지 확인
+          if (!etaTime || isNaN(etaTime.getTime())) {
+            return;
+          }
+          
+          // 한국 시간 기준
+          const hours = etaTime.getHours();
+          
+          // 시간대 결정 
+          let timeSlot;
+          if (hours >= 9 && hours < 18) {
+            // 09:00-18:00: 1시간 단위
+            timeSlot = `${String(hours).padStart(2, '0')}:00 - ${String(hours + 1).padStart(2, '0')}:00`;
+          } else {
+            // 18:00-09:00: 하나의 단위
+            timeSlot = '18:00 - 09:00';
+          }
+          
+          // 해당 시간대 카운트 증가
+          if (timeSlots.hasOwnProperty(timeSlot)) {
+            timeSlots[timeSlot]++;
+            totalCount++;
+            processedCount++;
+          }
+          
+          // 디버깅: 처음 5개 항목 로깅
+          if (index < 5) {
+            console.log(`항목 ${index+1}: eta=${item.eta}, 변환된 시간=${etaTime}, 시간대=${timeSlot}`);
+          }
+        } catch (error) {
+          errorCount++;
+          console.error(`항목 처리 중 오류 발생:`, error);
         }
-        // eta 문자열인 경우
-        else if (item.eta && typeof item.eta === 'string') {
-          etaTime = new Date(item.eta.replace(' ', 'T'));
-        }
-        
-        // 유효한 날짜인지 확인
-        if (!etaTime || isNaN(etaTime.getTime())) {
-          return;
-        }
-        
-        // 한국 시간 기준
-        const hours = etaTime.getHours();
-        
-        // 시간대 결정 
-        let timeSlot;
-        if (hours >= 9 && hours < 18) {
-          // 09:00-18:00: 1시간 단위
-          timeSlot = `${String(hours).padStart(2, '0')}:00 - ${String(hours + 1).padStart(2, '0')}:00`;
-        } else {
-          // 18:00-09:00: 하나의 단위
-          timeSlot = '18:00 - 09:00';
-        }
-        
-        // 해당 시간대 카운트 증가
-        if (timeSlots.hasOwnProperty(timeSlot)) {
-          timeSlots[timeSlot]++;
-          totalCount++;
-          processedCount++;
-        }
-        
-        // 디버깅: 처음 5개 항목 로깅
-        if (index < 5) {
-          console.log(`항목 ${index+1}: eta=${item.eta}, 변환된 시간=${etaTime}, 시간대=${timeSlot}`);
-        }
-      } catch (error) {
-        errorCount++;
-        console.error(`항목 처리 중 오류 발생:`, error);
-      }
-    });
-    
-    console.log(`처리된 항목 수: ${processedCount}, 오류 발생 항목 수: ${errorCount}`);
-    
-    // 결과 형식 변환 (카운트가 있는 시간대만)
-    const result = Object.entries(timeSlots)
-      .filter(([_, count]) => count > 0)
-      .map(([timeSlot, count]) => {
-        return {
-          label: timeSlot,
-          count,
-          percentage: totalCount > 0 ? (count / totalCount * 100).toFixed(1) + '%' : '0.0%'
-        };
       });
-    
-    return result;
+      
+      console.log(`처리된 항목 수: ${processedCount}, 오류 발생 항목 수: ${errorCount}`);
+      
+      // 결과 형식 변환 (카운트가 있는 시간대만)
+      const result = Object.entries(timeSlots)
+        .filter(([_, count]) => count > 0)
+        .map(([timeSlot, count]) => {
+          return {
+            label: timeSlot,
+            count,
+            percentage: totalCount > 0 ? (count / totalCount * 100).toFixed(1) + '%' : '0.0%'
+          };
+        });
+      
+      return result;
+    } catch (error) {
+      console.error('시간대별 데이터 처리 오류:', error);
+      return [];  // 오류 시 빈 배열 반환
+    }
   }
   
   /**
    * 부서별 배송 상태 데이터 처리
    */
   processDepartmentStatusData(filters) {
-    // 데이터 필터링
-    const filteredData = this.filterData(filters);
-    
-    // 전체 부서 카운트 보관용 객체
-    const allDeptData = {
-      'CS': { total: 0 },
-      'HES': { total: 0 },
-      'LENOVO': { total: 0 }
-    };
-    
-    // 상태별 카운트 데이터 객체
-    const statusData = {
-      'CS': {},
-      'HES': {},
-      'LENOVO': {}
-    };
-    
-    // 실제 존재하는 상태 유형 (ASSIGNED 제외)
-    const statusTypes = ['PENDING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL'];
-    
-    // 상태 초기화
-    statusTypes.forEach(status => {
-      statusData['CS'][status] = 0;
-      statusData['HES'][status] = 0;
-      statusData['LENOVO'][status] = 0;
-    });
-    
-    // 데이터 집계
-    filteredData.forEach(item => {
-      const dept = item.department;
-      const status = item.delivery_status;
+    try {
+      // 데이터 필터링
+      const filteredData = this.filterData(filters);
       
-      if (dept && statusTypes.includes(status)) {
-        if (dept === 'CS' || dept === 'HES' || dept === 'LENOVO') {
-          statusData[dept][status]++;
-          allDeptData[dept].total++;
+      // 전체 부서 카운트 보관용 객체
+      const allDeptData = {
+        'CS': { total: 0 },
+        'HES': { total: 0 },
+        'LENOVO': { total: 0 }
+      };
+      
+      // 상태별 카운트 데이터 객체
+      const statusData = {
+        'CS': {},
+        'HES': {},
+        'LENOVO': {}
+      };
+      
+      // 실제 존재하는 상태 유형 (ASSIGNED 제외)
+      const statusTypes = ['PENDING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL'];
+      
+      // 상태 초기화
+      statusTypes.forEach(status => {
+        statusData['CS'][status] = 0;
+        statusData['HES'][status] = 0;
+        statusData['LENOVO'][status] = 0;
+      });
+      
+      // 데이터 집계
+      filteredData.forEach(item => {
+        const dept = item.department;
+        const status = item.delivery_status;
+        
+        if (dept && statusTypes.includes(status)) {
+          if (dept === 'CS' || dept === 'HES' || dept === 'LENOVO') {
+            statusData[dept][status]++;
+            allDeptData[dept].total++;
+          }
         }
-      }
-    });
-    
-    return {
-      allDeptData,
-      statusData
-    };
+      });
+      
+      return {
+        allDeptData,
+        statusData
+      };
+    } catch (error) {
+      console.error('부서별 상태 데이터 처리 오류:', error);
+      return {
+        allDeptData: { 'CS': { total: 0 }, 'HES': { total: 0 }, 'LENOVO': { total: 0 } },
+        statusData: { 'CS': {}, 'HES': {}, 'LENOVO': {} }
+      };
+    }
   }
   
   /**
    * 시간대별 차트 업데이트
    */
   updateTimeChart() {
-    // 기존 차트가 있으면 파괴
-    if (this.currentChart) {
-      this.currentChart.destroy();
-    }
-    
-    // 차트 데이터 준비
-    const chartData = this.processedData;
-    const labels = chartData.map(item => item.label);
-    const data = chartData.map(item => item.count);
-    
-    // 부서 필터에 따른 배경색 설정
-    const department = this.elements.departmentFilter.value;
-    let backgroundColor;
-    
-    switch (department) {
-      case 'CS':
-        backgroundColor = 'rgba(54, 162, 235, 0.6)'; // 파란색
-        break;
-      case 'HES':
-        backgroundColor = 'rgba(255, 159, 64, 0.6)'; // 주황색
-        break;
-      case 'LENOVO':
-        backgroundColor = 'rgba(153, 102, 255, 0.6)'; // 보라색
-        break;
-      default:
-        backgroundColor = 'rgba(75, 192, 192, 0.6)'; // 청록색
-    }
-    
-    // 새 차트 생성
-    const ctx = this.elements.chartCanvas.getContext('2d');
-    this.currentChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: '주문 건수',
-          data: data,
-          backgroundColor: backgroundColor,
-          borderColor: backgroundColor.replace('0.6', '1'),
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
+    try {
+      // 차트 캔버스 요소 확인
+      if (!this.elements.chartCanvas) {
+        console.error('차트 캔버스 요소를 찾을 수 없습니다.');
+        return;
+      }
+      
+      // 차트 라이브러리(Chart.js) 확인
+      if (typeof Chart === 'undefined') {
+        console.error('Chart 라이브러리가 로드되지 않았습니다.');
+        return;
+      }
+      
+      // 기존 차트가 있으면 파괴
+      if (this.currentChart) {
+        this.currentChart.destroy();
+      }
+      
+      // 차트 데이터 준비
+      const chartData = this.processedData;
+      
+      // 데이터가 없을 경우 메시지 표시
+      if (!chartData || chartData.length === 0) {
+        // 빈 차트 표시
+        const ctx = this.elements.chartCanvas.getContext('2d');
+        this.currentChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['데이터 없음'],
+            datasets: [{
+              label: '데이터 없음',
+              data: [0],
+              backgroundColor: 'rgba(200, 200, 200, 0.6)',
+              borderColor: 'rgba(200, 200, 200, 1)',
+              borderWidth: 1
+            }]
           },
-          title: {
-            display: true,
-            text: '시간대별 배송 건수 (ETA 기준)'
-          },
-          tooltip: {
-            callbacks: {
-              afterLabel: function(context) {
-                const percentage = context.dataset.data[context.dataIndex] / data.reduce((a, b) => a + b, 0) * 100;
-                return `비율: ${percentage.toFixed(1)}%`;
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              title: {
+                display: true,
+                text: '시간대별 배송 건수 - 데이터 없음'
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: '주문 건수'
+                }
               }
             }
           }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: '주문 건수'
-            }
-          },
-          x: {
-            title: {
-              display: true,
-              text: '시간대'
-            }
-          }
-        }
-      }
-    });
-  }
-  
-  /**
-   * 부서별 배송 상태 차트 업데이트
-   */
-  updateDepartmentStatusCharts() {
-    // 기존 차트 파괴
-    Object.keys(this.departmentCharts).forEach(key => {
-      if (this.departmentCharts[key]) {
-        this.departmentCharts[key].destroy();
-        this.departmentCharts[key] = null;
-      }
-    });
-    
-    const { statusData } = this.processedData;
-    
-    // 상태별 색상 매핑
-    const statusColors = {
-      'PENDING': 'rgba(255, 205, 86, 0.6)', // 노란색
-      'IN_PROGRESS': 'rgba(0, 123, 255, 0.6)', // 진한 파란색
-      'COMPLETE': 'rgba(75, 192, 192, 0.6)', // 녹색
-      'ISSUE': 'rgba(255, 99, 132, 0.6)', // 빨간색
-      'CANCEL': 'rgba(201, 203, 207, 0.6)' // 회색
-    };
-    
-    const statusLabels = {
-      'PENDING': '대기',
-      'IN_PROGRESS': '진행',
-      'COMPLETE': '완료',
-      'ISSUE': '이슈',
-      'CANCEL': '취소'
-    };
-    
-    // 부서별 차트 생성 함수
-    const createDeptChart = (canvasId, deptName, statusCounts) => {
-      const canvas = document.getElementById(canvasId);
-      if (!canvas) return null;
-      
-      const ctx = canvas.getContext('2d');
-      
-      // 차트 데이터 준비
-      const labels = [];
-      const data = [];
-      const backgroundColor = [];
-      
-      // 상태별로 데이터 추가 (0이 아닌 상태만)
-      Object.entries(statusCounts).forEach(([status, count]) => {
-        if (count > 0) {
-          labels.push(statusLabels[status] || status);
-          data.push(count);
-          backgroundColor.push(statusColors[status] || 'rgba(153, 102, 255, 0.6)');
-        }
-      });
-      
-      // 데이터가 없으면 "데이터 없음" 표시
-      if (data.length === 0) {
-        labels.push('데이터 없음');
-        data.push(1);
-        backgroundColor.push('rgba(200, 200, 200, 0.6)');
+        });
+        
+        messageUtils.info('선택한 기간에 해당하는 데이터가 없습니다.');
+        return;
       }
       
-      return new Chart(ctx, {
-        type: 'pie',
+      const labels = chartData.map(item => item.label);
+      const data = chartData.map(item => item.count);
+      
+      // 부서 필터에 따른 배경색 설정
+      const department = this.elements.departmentFilter.value;
+      let backgroundColor;
+      
+      switch (department) {
+        case 'CS':
+          backgroundColor = 'rgba(54, 162, 235, 0.6)'; // 파란색
+          break;
+        case 'HES':
+          backgroundColor = 'rgba(255, 159, 64, 0.6)'; // 주황색
+          break;
+        case 'LENOVO':
+          backgroundColor = 'rgba(153, 102, 255, 0.6)'; // 보라색
+          break;
+        default:
+          backgroundColor = 'rgba(75, 192, 192, 0.6)'; // 청록색
+      }
+      
+      // 새 차트 생성
+      const ctx = this.elements.chartCanvas.getContext('2d');
+      this.currentChart = new Chart(ctx, {
+        type: 'bar',
         data: {
           labels: labels,
           datasets: [{
+            label: '주문 건수',
             data: data,
             backgroundColor: backgroundColor,
-            borderColor: backgroundColor.map(color => color.replace('0.6', '1')),
+            borderColor: backgroundColor.replace('0.6', '1'),
             borderWidth: 1
           }]
         },
@@ -584,63 +667,276 @@ class VisualizationPage {
           maintainAspectRatio: false,
           plugins: {
             legend: {
-              position: 'right',
-              labels: {
-                font: {
-                  size: 11
-                }
-              }
+              position: 'top',
             },
             title: {
-              display: false
+              display: true,
+              text: '시간대별 배송 건수 (ETA 기준)'
             },
             tooltip: {
               callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.raw || 0;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = ((value / total) * 100).toFixed(1);
-                  return `${label}: ${value}건 (${percentage}%)`;
+                afterLabel: function(context) {
+                  const percentage = context.dataset.data[context.dataIndex] / data.reduce((a, b) => a + b, 0) * 100;
+                  return `비율: ${percentage.toFixed(1)}%`;
                 }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '주문 건수'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: '시간대'
               }
             }
           }
         }
       });
-    };
-    
-    // 각 부서 차트 생성
-    this.departmentCharts.cs = createDeptChart('csChart', 'CS', statusData['CS']);
-    this.departmentCharts.hes = createDeptChart('hesChart', 'HES', statusData['HES']);
-    this.departmentCharts.lenovo = createDeptChart('lenovoChart', 'LENOVO', statusData['LENOVO']);
-    
-    // 전체 부서 비교 차트 생성
-    const allDeptCanvas = document.getElementById('allDeptChart');
-    if (allDeptCanvas) {
-      const allDeptCtx = allDeptCanvas.getContext('2d');
+    } catch (error) {
+      console.error('시간대별 차트 업데이트 오류:', error);
+      messageUtils.error('차트를 업데이트하는 중 오류가 발생했습니다.');
+    }
+  }
+  
+  /**
+   * 부서별 배송 상태 차트 업데이트
+   */
+  updateDepartmentStatusCharts() {
+    try {
+      // 차트 라이브러리 확인
+      if (typeof Chart === 'undefined') {
+        console.error('Chart 라이브러리가 로드되지 않았습니다.');
+        return;
+      }
       
-      // 각 부서의 총 건수 계산
-      const csTotalCount = Object.values(statusData['CS']).reduce((sum, count) => sum + count, 0);
-      const hesTotalCount = Object.values(statusData['HES']).reduce((sum, count) => sum + count, 0);
-      const lenovoTotalCount = Object.values(statusData['LENOVO']).reduce((sum, count) => sum + count, 0);
+      // 차트 캔버스 요소 확인
+      if (!this.elements.csChartCanvas || 
+          !this.elements.hesChartCanvas || 
+          !this.elements.lenovoChartCanvas || 
+          !this.elements.allDeptChartCanvas) {
+        console.error('부서별 차트 캔버스 요소가 없습니다.');
+        return;
+      }
       
-      this.departmentCharts.all = new Chart(allDeptCtx, {
-        type: 'doughnut',
+      // 기존 차트 파괴
+      Object.keys(this.departmentCharts).forEach(key => {
+        if (this.departmentCharts[key]) {
+          this.departmentCharts[key].destroy();
+          this.departmentCharts[key] = null;
+        }
+      });
+      
+      // 데이터 확인
+      if (!this.processedData || !this.processedData.statusData) {
+        // 빈 데이터로 차트 생성
+        this.createEmptyDepartmentCharts();
+        return;
+      }
+      
+      const { statusData } = this.processedData;
+      
+      // 상태별 색상 매핑
+      const statusColors = {
+        'PENDING': 'rgba(255, 205, 86, 0.6)', // 노란색
+        'IN_PROGRESS': 'rgba(0, 123, 255, 0.6)', // 진한 파란색
+        'COMPLETE': 'rgba(75, 192, 192, 0.6)', // 녹색
+        'ISSUE': 'rgba(255, 99, 132, 0.6)', // 빨간색
+        'CANCEL': 'rgba(201, 203, 207, 0.6)' // 회색
+      };
+      
+      const statusLabels = {
+        'PENDING': '대기',
+        'IN_PROGRESS': '진행',
+        'COMPLETE': '완료',
+        'ISSUE': '이슈',
+        'CANCEL': '취소'
+      };
+      
+      // 부서별 차트 생성 함수
+      const createDeptChart = (canvasId, deptName, statusCounts) => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return null;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // 차트 데이터 준비
+        const labels = [];
+        const data = [];
+        const backgroundColor = [];
+        
+        // 상태별로 데이터 추가 (0이 아닌 상태만)
+        Object.entries(statusCounts).forEach(([status, count]) => {
+          if (count > 0) {
+            labels.push(statusLabels[status] || status);
+            data.push(count);
+            backgroundColor.push(statusColors[status] || 'rgba(153, 102, 255, 0.6)');
+          }
+        });
+        
+        // 데이터가 없으면 "데이터 없음" 표시
+        if (data.length === 0) {
+          labels.push('데이터 없음');
+          data.push(1);
+          backgroundColor.push('rgba(200, 200, 200, 0.6)');
+        }
+        
+        return new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: backgroundColor,
+              borderColor: backgroundColor.map(color => color.replace('0.6', '1')),
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  font: {
+                    size: 11
+                  }
+                }
+              },
+              title: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.raw || 0;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${label}: ${value}건 (${percentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      };
+      
+      // 각 부서 차트 생성
+      this.departmentCharts.cs = createDeptChart('csChart', 'CS', statusData['CS']);
+      this.departmentCharts.hes = createDeptChart('hesChart', 'HES', statusData['HES']);
+      this.departmentCharts.lenovo = createDeptChart('lenovoChart', 'LENOVO', statusData['LENOVO']);
+      
+      // 전체 부서 비교 차트 생성
+      const allDeptCanvas = document.getElementById('allDeptChart');
+      if (allDeptCanvas) {
+        const allDeptCtx = allDeptCanvas.getContext('2d');
+        
+        // 각 부서의 총 건수 계산
+        const csTotalCount = Object.values(statusData['CS']).reduce((sum, count) => sum + count, 0);
+        const hesTotalCount = Object.values(statusData['HES']).reduce((sum, count) => sum + count, 0);
+        const lenovoTotalCount = Object.values(statusData['LENOVO']).reduce((sum, count) => sum + count, 0);
+        
+        // 모든 부서 데이터가 0인 경우 빈 차트 표시
+        if (csTotalCount === 0 && hesTotalCount === 0 && lenovoTotalCount === 0) {
+          this.departmentCharts.all = new Chart(allDeptCtx, {
+            type: 'doughnut',
+            data: {
+              labels: ['데이터 없음'],
+              datasets: [{
+                data: [1],
+                backgroundColor: ['rgba(200, 200, 200, 0.6)'],
+                borderColor: ['rgba(200, 200, 200, 1)'],
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'right'
+                },
+                title: {
+                  display: false
+                }
+              }
+            }
+          });
+          
+          return;
+        }
+        
+        this.departmentCharts.all = new Chart(allDeptCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['CS', 'HES', 'LENOVO'],
+            datasets: [{
+              data: [csTotalCount, hesTotalCount, lenovoTotalCount],
+              backgroundColor: [
+                'rgba(54, 162, 235, 0.6)', // CS - 파란색
+                'rgba(255, 159, 64, 0.6)', // HES - 주황색
+                'rgba(153, 102, 255, 0.6)'  // LENOVO - 보라색
+              ],
+              borderColor: [
+                'rgba(54, 162, 235, 1)',
+                'rgba(255, 159, 64, 1)',
+                'rgba(153, 102, 255, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right'
+              },
+              title: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.raw || 0;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                    return `${label}: ${value}건 (${percentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('부서별 상태 차트 업데이트 오류:', error);
+      messageUtils.error('부서별 차트를 업데이트하는 중 오류가 발생했습니다.');
+    }
+  }
+  
+  /**
+   * 빈 부서별 차트 생성
+   */
+  createEmptyDepartmentCharts() {
+    try {
+      const emptyChartOptions = {
+        type: 'pie',
         data: {
-          labels: ['CS', 'HES', 'LENOVO'],
+          labels: ['데이터 없음'],
           datasets: [{
-            data: [csTotalCount, hesTotalCount, lenovoTotalCount],
-            backgroundColor: [
-              'rgba(54, 162, 235, 0.6)', // CS - 파란색
-              'rgba(255, 159, 64, 0.6)', // HES - 주황색
-              'rgba(153, 102, 255, 0.6)'  // LENOVO - 보라색
-            ],
-            borderColor: [
-              'rgba(54, 162, 235, 1)',
-              'rgba(255, 159, 64, 1)',
-              'rgba(153, 102, 255, 1)'
-            ],
+            data: [1],
+            backgroundColor: ['rgba(200, 200, 200, 0.6)'],
+            borderColor: ['rgba(200, 200, 200, 1)'],
             borderWidth: 1
           }]
         },
@@ -653,24 +949,42 @@ class VisualizationPage {
             },
             title: {
               display: false
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.raw || 0;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                  return `${label}: ${value}건 (${percentage}%)`;
-                }
-              }
             }
           }
         }
-      });
+      };
+      
+      // CS 차트
+      if (this.elements.csChartCanvas) {
+        const csCtx = this.elements.csChartCanvas.getContext('2d');
+        this.departmentCharts.cs = new Chart(csCtx, emptyChartOptions);
+      }
+      
+      // HES 차트
+      if (this.elements.hesChartCanvas) {
+        const hesCtx = this.elements.hesChartCanvas.getContext('2d');
+        this.departmentCharts.hes = new Chart(hesCtx, emptyChartOptions);
+      }
+      
+      // LENOVO 차트
+      if (this.elements.lenovoChartCanvas) {
+        const lenovoCtx = this.elements.lenovoChartCanvas.getContext('2d');
+        this.departmentCharts.lenovo = new Chart(lenovoCtx, emptyChartOptions);
+      }
+      
+      // 전체 부서 차트
+      if (this.elements.allDeptChartCanvas) {
+        const allDeptCtx = this.elements.allDeptChartCanvas.getContext('2d');
+        this.departmentCharts.all = new Chart(allDeptCtx, emptyChartOptions);
+      }
+      
+      // 데이터 없음 메시지 표시
+      messageUtils.info('선택한 기간에 해당하는 데이터가 없습니다.');
+    } catch (error) {
+      console.error('빈 부서별 차트 생성 오류:', error);
     }
   }
 }
 
 // 시각화 페이지 인스턴스
-const visualizationPage = new VisualizationPage();
+window.visualizationPage = new VisualizationPage();

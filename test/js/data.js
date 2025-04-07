@@ -22,227 +22,10 @@ class DataManager {
     }
     
     this.loadingPromise = new Promise((resolve, reject) => {
-      // JSON 데이터를 바로 로드 (Excel 파일 대체)
-      fetch('dashboard_data.json')
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Excel 데이터 로드 실패');
-          }
-          return response.arrayBuffer();
-        })
-        .then(buffer => {
-          try {
-            // XLSX가 전역 변수로 제대로 로드되었는지 확인
-            if (typeof XLSX === 'undefined') {
-              console.error('XLSX 라이브러리가 로드되지 않았습니다.');
-              throw new Error('XLSX 라이브러리가 로드되지 않았습니다.');
-            }
-            
-            // Excel 파일 읽기
-            const workbook = XLSX.read(buffer, {
-              type: 'array',
-              cellDates: true,
-              cellStyles: true,
-              cellNF: true,
-              dateNF: 'yyyy-mm-dd hh:mm'
-            });
-            console.log('Excel 워크북 로드됨:', workbook.SheetNames);
-            
-            // 'dashboard' 시트 읽기 (분석 결과 확인된 실제 시트명)
-            if (workbook.SheetNames.includes('dashboard')) {
-              const dashboardSheet = workbook.Sheets['dashboard'];
-              const rawData = XLSX.utils.sheet_to_json(dashboardSheet, {
-                raw: false,
-                dateNF: 'yyyy-mm-dd hh:mm',
-                defval: ''
-              });
-              console.log('대시보드 원본 데이터 로드됨:', rawData.length);
-              
-              // 날짜 형식 변환 함수
-              const formatDate = (date) => {
-                if (!date) return '';
-                
-                try {
-                  // JavaScript Date 객체인 경우
-                  if (date instanceof Date) {
-                    return date.toISOString().split('T')[0] + ' ' +
-                           date.toTimeString().split(' ')[0].substring(0, 5);
-                  }
-                  
-                  // 숫자인 경우 Excel 날짜로 처리
-                  if (typeof date === 'number') {
-                    const jsDate = dateUtils.excelDateToDate(date);
-                    if (jsDate) {
-                      return jsDate.toISOString().split('T')[0] + ' ' +
-                             jsDate.toTimeString().split(' ')[0].substring(0, 5);
-                    }
-                  }
-                  
-                  // 문자열인 경우 그대로 반환
-                  return String(date);
-                } catch (error) {
-                  console.warn('날짜 형식 변환 오류:', date, error);
-                  return String(date);
-                }
-              };
-              
-              // Utils에서 Excel 날짜 변환 함수 사용
-              // 중복 선언 제거하고 바로 dateUtils 함수 사용 - 이 부분에서 오류 발생
-              // const excelDateToJSDate = dateUtils.excelDateToDate;
-              
-              /**
-               * 날짜를 문자열로 포맷하는 함수
-               */
-              const formatDateString = (date) => {
-                if (!date) return '';
-                
-                try {
-                  const year = date.getFullYear();
-                  const month = String(date.getMonth() + 1).padStart(2, '0');
-                  const day = String(date.getDate()).padStart(2, '0');
-                  const hours = String(date.getHours()).padStart(2, '0');
-                  const minutes = String(date.getMinutes()).padStart(2, '0');
-                  
-                  return `${year}-${month}-${day} ${hours}:${minutes}`;
-                } catch (e) {
-                  console.warn('날짜 포맷 변환 실패:', date, e);
-                  return '';
-                }
-              };
-              
-              // 데이터 변환 - 필드명 매핑 및 필터링
-              this.dashboards = rawData.map((row, index) => {
-                // === 날짜 필드 변환 - 통일된 형식으로 처리 ===
-                
-                // 날짜 변환 공통 함수 정의
-                const parseDate = (dateValue) => {
-                  if (!dateValue) return null;
-                  
-                  try {
-                    // 이미 Date 객체인 경우
-                    if (dateValue instanceof Date) return dateValue;
-                    
-                    // 숫자인 경우 Excel 날짜로 변환
-                    if (typeof dateValue === 'number') {
-                      return dateUtils.excelDateToDate(dateValue);
-                    }
-                    
-                    // 문자열인 경우
-                    if (typeof dateValue === 'string') {
-                      // 날짜 패턴 확인 및 포맷 변환
-                      if (dateValue.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/)) {
-                        return new Date(dateValue.replace(' ', 'T'));
-                      }
-                      
-                      // 다른 날짜 형식 처리
-                      return new Date(dateValue);
-                    }
-                  } catch (e) {
-                    console.warn('날짜 변환 실패:', dateValue, e);
-                  }
-                  
-                  return null;
-                };
-                
-                // 주요 날짜 필드 통합 변환
-                const etaDate = parseDate(row.eta);
-                const createTimeDate = parseDate(row.create_time);
-                const updateTimeDate = parseDate(row.update_at);
-                const departTimeDate = parseDate(row.depart_time); 
-                const completeTimeDate = parseDate(row.complete_time);
-                
-                // 모든 날짜를 동일한 형식의 문자열로 포맷팅 (yyyy-MM-dd HH:mm)
-                const etaFormatted = etaDate ? formatDateString(etaDate) : '';
-                const createTime = createTimeDate ? formatDateString(createTimeDate) : '';
-                const updateTime = updateTimeDate ? formatDateString(updateTimeDate) : createTime;
-                const departTime = departTimeDate ? formatDateString(departTimeDate) : '';
-                const completeTime = completeTimeDate ? formatDateString(completeTimeDate) : '';
-                
-                // 디버깅: 처음 5개 항목 로깅
-                if (index < 5) {
-                  console.log(`항목 ${index+1}:`);
-                  console.log(`  - create_time: ${row.create_time}, 변환=${createTime}, 타입=${typeof row.create_time}`);
-                  console.log(`  - eta: ${row.eta}, 변환=${etaFormatted}, 타입=${typeof row.eta}`);
-                  console.log(`  - 날짜 데이터 정합성: create_time_date는 ${createTimeDate instanceof Date ? '유효' : '유효하지 않음'}`);
-                  console.log(`  - 날짜 데이터 정합성: eta_date는 ${etaDate instanceof Date ? '유효' : '유효하지 않음'}`);
-                }
-                
-                // 변환된 데이터 반환
-                return {
-                  dashboard_id: index + 1, // dashboard_id가 null인 경우가 있어 인덱스 기반으로 생성
-                  order_no: row.order_no || '',
-                  customer: row.customer || '',
-                  type: row.type || 'DELIVERY',
-                  delivery_status: row.status || 'PENDING',
-                  department: row.department ? 
-                    (row.department === 'CS' || row.department === 'HES' || row.department === 'LENOVO' 
-                      ? row.department
-                      : 'CS') 
-                    : 'CS', // 요구사항에 맞게 필터링
-                  warehouse: '서울', // 요구사항에 따라 모두 서울로 통일
-                  sla: row.sla || '',
-                  eta: etaFormatted,
-                  eta_date: etaDate, // 필터링을 위한 Date 객체 저장
-                  depart_time: departTime,
-                  depart_time_date: departTimeDate,
-                  complete_time: completeTime,
-                  complete_time_date: completeTimeDate,
-                  driver_name: row.driver_name || '',
-                  driver_contact: row.driver_contact || '',
-                  address: row.address || '',
-                  postal_code: row.postal_code || '',
-                  city: row.city || '',
-                  district: row.district || '',
-                  region: row.region || '',
-                  created_at: createTime,
-                  updated_at: updateTime,
-                  remark: row.remark || '',
-                  contact: row.contact || '',
-                  // 원본 날짜 값과 변환된 날짜 객체 추가 - 모든 날짜 필드 관리
-                  create_time: row.create_time, // 원본 값 유지
-                  create_time_date: createTimeDate, // 변환된 Date 객체
-                  update_at: row.update_at, // 원본 값 유지
-                  update_at_date: updateTimeDate // 변환된 Date 객체
-                };
-              });
-              
-              console.log('대시보드 데이터 변환 완료:', this.dashboards.length);
-            } else {
-              console.error('dashboard 시트를 찾을 수 없습니다.');
-              throw new Error('필요한 시트가 없습니다.');
-            }
-            
-            // drivers와 handovers는 요구사항에 따라 JSON 데이터 또는 기본 데이터 사용
-            this.createDefaultDriversData();
-            this.handovers = []; // handovers는 빈 배열로 시작
-            
-            this.isLoaded = true;
-            
-            // 필터 옵션 초기화
-            this.initFilterOptions();
-            
-            console.log('Excel 데이터 로드 완료:', {
-              dashboards: this.dashboards.length,
-              drivers: this.drivers.length,
-              handovers: this.handovers.length
-            });
-            
-            resolve({ dashboards: this.dashboards, drivers: this.drivers, handovers: this.handovers });
-          } catch (error) {
-            console.error('Excel 파싱 오류:', error);
-            // Excel 파싱 오류 시 JSON 데이터 로드 시도
-            this.loadJsonData()
-              .then(resolve)
-              .catch(reject);
-          }
-        })
-        .catch(error => {
-          console.error('Excel 데이터 로드 오류:', error);
-          // Excel 로드 실패 시 JSON 데이터 로드 시도
-          this.loadJsonData()
-            .then(resolve)
-            .catch(reject);
-        });
+      // JSON 데이터만 로드 (Excel 파일 로직 제거됨)
+      this.loadJsonData()
+        .then(resolve)
+        .catch(reject);
     });
     
     return this.loadingPromise;
@@ -325,7 +108,7 @@ class DataManager {
                 ? row.department 
                 : 'CS') 
               : 'CS',
-            warehouse: '서울', // 요구사항에 따라 모두 서울로 통일
+            warehouse: row.warehouse || '서울', // 요구사항에 맞는 기본값
             sla: row.sla || '',
             eta: etaFormatted,
             eta_date: etaDate,
@@ -342,7 +125,7 @@ class DataManager {
             region: row.region || '',
             created_at: createTime,
             updated_at: updateTime,
-            remark: row.remark || '',
+            memo: row.remark || '', // 비고를 메모로 명칭 변경
             contact: row.contact || '',
             // 날짜 객체 저장 (필터링용)
             create_time_date: createTimeDate,
@@ -453,7 +236,7 @@ class DataManager {
         postal_code: "06234",
         created_at: "2025-04-05 09:30",
         updated_at: "2025-04-05 09:30",
-        remark: "빠른 배송 요청"
+        memo: "빠른 배송 요청" // 비고를 메모로 명칭 변경
       },
       {
         dashboard_id: 2,
@@ -462,7 +245,7 @@ class DataManager {
         type: "DELIVERY",
         delivery_status: "ASSIGNED",
         department: "HES",
-        warehouse: "서울",
+        warehouse: "부산",
         eta: "2025-04-11 10:00",
         driver_name: "김기사",
         driver_contact: "010-1234-5678",
@@ -470,7 +253,7 @@ class DataManager {
         postal_code: "06123",
         created_at: "2025-04-05 10:15",
         updated_at: "2025-04-05 11:30",
-        remark: "대형 냉장고 배송"
+        memo: "대형 냉장고 배송" // 비고를 메모로 명칭 변경
       },
       {
         dashboard_id: 3,
@@ -479,7 +262,7 @@ class DataManager {
         type: "PICKUP",
         delivery_status: "IN_PROGRESS",
         department: "LENOVO",
-        warehouse: "서울",
+        warehouse: "광주",
         eta: "2025-04-10 16:30",
         driver_name: "박배송",
         driver_contact: "010-9876-5432",
@@ -487,7 +270,7 @@ class DataManager {
         postal_code: "18469",
         created_at: "2025-04-04 14:20",
         updated_at: "2025-04-05 09:15",
-        remark: ""
+        memo: "" // 비고를 메모로 명칭 변경
       },
       {
         dashboard_id: 4,
@@ -496,7 +279,7 @@ class DataManager {
         type: "DELIVERY",
         delivery_status: "COMPLETE",
         department: "CS",
-        warehouse: "서울",
+        warehouse: "대전",
         eta: "2025-04-08 11:00",
         driver_name: "이운송",
         driver_contact: "010-5555-7777",
@@ -504,7 +287,7 @@ class DataManager {
         postal_code: "13561",
         created_at: "2025-04-03 09:00",
         updated_at: "2025-04-05 12:30",
-        remark: "배송 완료"
+        memo: "배송 완료" // 비고를 메모로 명칭 변경
       },
       {
         dashboard_id: 5,
@@ -521,7 +304,7 @@ class DataManager {
         postal_code: "63309",
         created_at: "2025-04-04 11:30",
         updated_at: "2025-04-05 14:00",
-        remark: "주소지 오류로 배송 지연"
+        memo: "주소지 오류로 배송 지연" // 비고를 메모로 명칭 변경
       },
       {
         dashboard_id: 6,
@@ -530,7 +313,7 @@ class DataManager {
         type: "PICKUP",
         delivery_status: "CANCEL",
         department: "LENOVO",
-        warehouse: "서울",
+        warehouse: "부산",
         eta: "2025-04-12 09:00",
         driver_name: "",
         driver_contact: "",
@@ -538,7 +321,7 @@ class DataManager {
         postal_code: "17336",
         created_at: "2025-04-06 08:30",
         updated_at: "2025-04-06 08:30",
-        remark: "고객 요청으로 취소"
+        memo: "고객 요청으로 취소" // 비고를 메모로 명칭 변경
       }
     ];
     
@@ -554,11 +337,10 @@ class DataManager {
    */
   initFilterOptions() {
     this.departments = new Set();
-    this.warehouses = new Set();
+    this.warehouses = new Set(['서울', '부산', '광주', '대전']); // 창고 옵션 고정 추가
     
     this.dashboards.forEach(dashboard => {
       if (dashboard.department) this.departments.add(dashboard.department);
-      if (dashboard.warehouse) this.warehouses.add(dashboard.warehouse);
     });
   }
   
@@ -705,15 +487,15 @@ class DataManager {
   /**
    * 대시보드 상태 변경
    */
-  updateDashboardStatus(id, newStatus, remark) {
+  updateDashboardStatus(id, newStatus, memo) {
     const dashboard = this.getDashboardById(id);
     if (!dashboard) return null;
     
     dashboard.delivery_status = newStatus;
     dashboard.updated_at = this.getCurrentDateTime();
     
-    if (remark) {
-      dashboard.remark = remark;
+    if (memo) {
+      dashboard.memo = memo; // 비고를 메모로 명칭 변경
     }
     
     return dashboard;
