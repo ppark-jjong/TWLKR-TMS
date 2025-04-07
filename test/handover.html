@@ -175,6 +175,32 @@
       min-height: 150px;
       resize: vertical;
     }
+    
+    /* 로딩 표시 */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      font-size: 1.2rem;
+      color: #1890ff;
+    }
+    
+    .loading-spinner {
+      margin-right: 10px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -235,7 +261,7 @@
         <div id="content-container" class="content-container">
           <!-- 인수인계 페이지 -->
           <div class="page-section" id="handoverPage">
-            <div class="main-card">
+            <div class="main-card" style="position: relative;">
               <div class="card-header">
                 <h2>인수인계 목록</h2>
                 <div class="card-actions">
@@ -299,6 +325,12 @@
                 <button class="page-btn" data-page="next" style="border-radius: 0 4px 4px 0;">
                   <i class="fa-solid fa-chevron-right"></i>
                 </button>
+              </div>
+              
+              <!-- 로딩 오버레이 -->
+              <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                <i class="fa-solid fa-spinner loading-spinner"></i>
+                <span>데이터를 불러오는 중...</span>
               </div>
             </div>
           </div>
@@ -424,8 +456,7 @@
     </div>
   </div>
   
-  <!-- JavaScript 파일 -->
-  <script src="js/utils.js"></script>
+  <!-- JavaScript -->
   <script>
   // 메시지 유틸리티
   const messageUtils = {
@@ -484,6 +515,17 @@
     
     info(message, duration = 3000) {
       this.showMessage(message, 'info', duration);
+    }
+  };
+
+  // 로딩 표시기 제어
+  const loadingUtils = {
+    show() {
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    },
+    
+    hide() {
+      document.getElementById('loadingOverlay').style.display = 'none';
     }
   };
 
@@ -610,10 +652,9 @@
     }
   };
 
-  // 인수인계 데이터 로드 함수
-  function loadHandoverData() {
-    // 샘플 데이터
-    const sampleData = [
+  // 모의 DB
+  let DB = {
+    handovers: [
       {
         id: 'H001',
         title: '신규 배송 업체 인수인계 사항',
@@ -652,17 +693,120 @@
           { user: '김철수', date: '2025-03-03 18:05' },
           { user: '이영수', date: '2025-03-04 09:20' }
         ]
+      },
+      {
+        id: 'H004',
+        title: '안전 관련 긴급 주의사항',
+        category: '안전',
+        priority: 'URGENT',
+        content: '창고 적재 시 안전 관련 긴급 주의사항입니다.\n\n최근 창고 B동 3층에서 적재 작업 중 사고가 발생하여 다음과 같이 안전 조치를 강화합니다.\n\n1. 지게차 작업 시 반드시 안전모 착용\n2. 적재 높이 5단 이상 금지\n3. 무거운 물품은 반드시 2인 1조로 이동\n4. 작업 전 안전 브리핑 5분 실시\n\n위 사항을, 작업 시작 전 반드시 확인하시고, 미준수 인원 발견 시 즉시 작업 중단 및 관리자에게 보고해 주시기 바랍니다. 안전이 최우선입니다.',
+        author: '안전관리자',
+        date: '2025-03-06 09:00',
+        confirmations: [
+          { user: '김철수', date: '2025-03-06 09:15' },
+          { user: '이영수', date: '2025-03-06 09:20' },
+          { user: '박영희', date: '2025-03-06 09:30' },
+          { user: '홍길동', date: '2025-03-06 10:00' }
+        ]
       }
-    ];
+    ],
+    currentUser: 'CSAdmin'
+  };
+
+  // 변수 선언
+  let filteredHandovers = []; // 현재 필터링된 인수인계 목록
+  let currentPage = 1; // 현재 페이지
+  let pageSize = 8; // 페이지당 표시 항목 수
+
+  // 인수인계 데이터 로드
+  function loadHandoverData() {
+    loadingUtils.show();
     
+    // 실제 구현에서는 API 호출이 들어가겠지만, 
+    // 여기서는 모의 데이터를 사용해 setTimeout으로 API 호출 지연 시뮬레이션
+    setTimeout(() => {
+      filteredHandovers = [...DB.handovers];
+      displayHandovers(filteredHandovers);
+      loadingUtils.hide();
+    }, 500);
+  }
+  
+  // 필터 적용
+  function applyFilters() {
+    const category = document.getElementById('handoverCategoryFilter').value;
+    const priority = document.getElementById('handoverPriorityFilter').value;
+    const keyword = document.getElementById('handoverSearchInput').value.toLowerCase();
+    
+    loadingUtils.show();
+    
+    setTimeout(() => {
+      let results = [...DB.handovers];
+      
+      if (category) {
+        results = results.filter(item => item.category === category);
+      }
+      
+      if (priority) {
+        results = results.filter(item => item.priority === priority);
+      }
+      
+      if (keyword) {
+        results = results.filter(item => 
+          item.title.toLowerCase().includes(keyword) || 
+          item.content.toLowerCase().includes(keyword)
+        );
+      }
+      
+      filteredHandovers = results;
+      displayHandovers(results);
+      loadingUtils.hide();
+      
+      // 적용된 필터 텍스트 구성
+      const filters = [];
+      if (category) filters.push(`카테고리: ${category}`);
+      if (priority) filters.push(`우선순위: ${priorityUtils.getPriorityText(priority)}`);
+      if (keyword) filters.push(`검색어: "${keyword}"`);
+      
+      const filterText = filters.length > 0 
+        ? `필터 (${filters.join(', ')}) 적용되었습니다.` 
+        : '모든 인수인계 내용을 표시합니다.';
+      
+      messageUtils.success(`${results.length}건의 인수인계가 로드되었습니다. ${filterText}`);
+    }, 500);
+  }
+  
+  // 인수인계 카드 표시
+  function displayHandovers(handovers) {
     const cardContainer = document.getElementById('handoverCardContainer');
     if (!cardContainer) return;
+    
+    // 페이지네이션 계산
+    const totalPages = Math.ceil(handovers.length / pageSize);
+    currentPage = Math.min(currentPage, totalPages || 1);
+    
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, handovers.length);
+    const pageHandovers = handovers.slice(startIndex, endIndex);
     
     // 컨테이너 비우기
     cardContainer.innerHTML = '';
     
+    // 데이터가 없는 경우
+    if (pageHandovers.length === 0) {
+      const emptyMessage = document.createElement('div');
+      emptyMessage.style.padding = '40px 0';
+      emptyMessage.style.textAlign = 'center';
+      emptyMessage.style.color = '#999';
+      emptyMessage.innerHTML = '<i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 10px;"></i><p>조회된 인수인계 내용이 없습니다.</p>';
+      cardContainer.appendChild(emptyMessage);
+      
+      // 페이지네이션 업데이트
+      document.getElementById('handoverPageInfo').textContent = '0 / 0';
+      return;
+    }
+    
     // 카드 추가
-    sampleData.forEach(item => {
+    pageHandovers.forEach(item => {
       const card = document.createElement('div');
       card.className = 'handover-card';
       card.setAttribute('data-id', item.id);
@@ -694,6 +838,19 @@
       
       cardContainer.appendChild(card);
     });
+    
+    // 페이지네이션 업데이트
+    document.getElementById('handoverPageInfo').textContent = `${currentPage} / ${totalPages}`;
+    
+    // 페이지네이션 버튼 상태 업데이트
+    const prevBtn = document.querySelector('.page-btn[data-page="prev"]');
+    const nextBtn = document.querySelector('.page-btn[data-page="next"]');
+    
+    prevBtn.disabled = currentPage <= 1;
+    prevBtn.style.opacity = currentPage <= 1 ? 0.5 : 1;
+    
+    nextBtn.disabled = currentPage >= totalPages;
+    nextBtn.style.opacity = currentPage >= totalPages ? 0.5 : 1;
   }
   
   // 인수인계 상세 정보 표시
@@ -729,11 +886,67 @@
       confirmationList.appendChild(li);
     }
     
+    // 현재 사용자가 이미 확인했는지 체크
+    const alreadyConfirmed = handover.confirmations && 
+                             handover.confirmations.some(conf => conf.user === DB.currentUser);
+    
+    // 확인 버튼 상태 설정
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.disabled = alreadyConfirmed;
+    confirmBtn.style.opacity = alreadyConfirmed ? 0.5 : 1;
+    confirmBtn.innerHTML = alreadyConfirmed ? 
+      '<i class="fa-solid fa-check"></i> 확인 완료' : 
+      '<i class="fa-solid fa-check"></i> 확인 처리';
+    
     // 모달 열기
     modalUtils.openModal('handoverDetailModal');
   }
   
-  // 인수인계 등록하기
+  // 인수인계 확인 처리
+  function confirmHandover() {
+    const title = document.getElementById('detailTitle').textContent;
+    const handover = DB.handovers.find(item => item.title === title);
+    
+    if (!handover) {
+      messageUtils.error('인수인계 정보를 찾을 수 없습니다.');
+      return;
+    }
+    
+    // 이미 확인한 경우
+    if (handover.confirmations && handover.confirmations.some(conf => conf.user === DB.currentUser)) {
+      messageUtils.info('이미 확인 처리되었습니다.');
+      return;
+    }
+    
+    // 확인 처리
+    const now = new Date();
+    const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (!handover.confirmations) {
+      handover.confirmations = [];
+    }
+    
+    handover.confirmations.push({
+      user: DB.currentUser,
+      date: dateString
+    });
+    
+    // UI 업데이트
+    const confirmationList = document.getElementById('confirmationList');
+    const li = document.createElement('li');
+    li.textContent = `${DB.currentUser} (${dateString})`;
+    confirmationList.appendChild(li);
+    
+    // 버튼 비활성화
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = 0.5;
+    confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> 확인 완료';
+    
+    messageUtils.success('인수인계 확인이 처리되었습니다.');
+  }
+  
+  // 인수인계 등록
   function submitNewHandover() {
     const title = document.getElementById('handoverTitle').value;
     const category = document.getElementById('handoverCategory').value;
@@ -750,8 +963,29 @@
       return;
     }
     
+    // 새 인수인계 객체 생성
+    const now = new Date();
+    const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    const newHandover = {
+      id: `H${String(DB.handovers.length + 1).padStart(3, '0')}`,
+      title,
+      category,
+      priority,
+      content,
+      author: DB.currentUser,
+      date: dateString,
+      confirmations: []
+    };
+    
+    // DB에 추가
+    DB.handovers.unshift(newHandover);
+    
     // 모달 닫기
     modalUtils.closeModal('newHandoverModal');
+    
+    // 데이터 다시 로드
+    loadHandoverData();
     
     // 성공 메시지
     messageUtils.success('인수인계가 등록되었습니다.');
@@ -761,9 +995,6 @@
     document.getElementById('handoverContent').value = '';
     document.getElementById('handoverCategory').value = '배송';
     document.getElementById('handoverPriority').value = 'MEDIUM';
-    
-    // 데이터 새로고침
-    loadHandoverData();
   }
   
   // 페이지 초기화
@@ -771,8 +1002,24 @@
     // 모달 초기화
     modalUtils.initModals();
     
-    // 데이터 로드
+    // 초기 데이터 로드
     loadHandoverData();
+    
+    // 페이지 네비게이션 이벤트
+    const pageButtons = document.querySelectorAll('.page-btn');
+    pageButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const direction = this.getAttribute('data-page');
+        
+        if (direction === 'prev' && currentPage > 1) {
+          currentPage--;
+        } else if (direction === 'next' && currentPage < Math.ceil(filteredHandovers.length / pageSize)) {
+          currentPage++;
+        }
+        
+        displayHandovers(filteredHandovers);
+      });
+    });
     
     // 로그아웃 버튼 이벤트
     const logoutBtn = document.getElementById('logoutBtn');
@@ -796,10 +1043,17 @@
       });
     }
     
-    // 신규 등록 버튼 이벤트
+    // 인수인계 등록 버튼 이벤트
     const newHandoverBtn = document.getElementById('newHandoverBtn');
     if (newHandoverBtn) {
       newHandoverBtn.addEventListener('click', function() {
+        // 폼 초기화
+        document.getElementById('handoverTitle').value = '';
+        document.getElementById('handoverContent').value = '';
+        document.getElementById('handoverCategory').value = '배송';
+        document.getElementById('handoverPriority').value = 'MEDIUM';
+        
+        // 모달 열기
         modalUtils.openModal('newHandoverModal');
       });
     }
@@ -813,10 +1067,7 @@
     // 인수인계 확인 처리 버튼
     const confirmBtn = document.getElementById('confirmBtn');
     if (confirmBtn) {
-      confirmBtn.addEventListener('click', function() {
-        messageUtils.success('인수인계 확인이 처리되었습니다.');
-        modalUtils.closeModal('handoverDetailModal');
-      });
+      confirmBtn.addEventListener('click', confirmHandover);
     }
     
     // 인수인계 수정 버튼
@@ -827,35 +1078,31 @@
       });
     }
     
-    // 필터 변경 이벤트
+    // 카테고리 필터 변경 이벤트
     const categoryFilter = document.getElementById('handoverCategoryFilter');
-    const priorityFilter = document.getElementById('handoverPriorityFilter');
-    
     if (categoryFilter) {
-      categoryFilter.addEventListener('change', function() {
-        const category = this.value;
-        messageUtils.info(`카테고리 필터: ${category || '전체'}`);
-      });
+      categoryFilter.addEventListener('change', applyFilters);
     }
     
+    // 우선순위 필터 변경 이벤트
+    const priorityFilter = document.getElementById('handoverPriorityFilter');
     if (priorityFilter) {
-      priorityFilter.addEventListener('change', function() {
-        const priority = this.value;
-        messageUtils.info(`우선순위 필터: ${priority ? priorityUtils.getPriorityText(priority) : '전체'}`);
-      });
+      priorityFilter.addEventListener('change', applyFilters);
     }
     
     // 검색 버튼 이벤트
     const searchBtn = document.getElementById('handoverSearchBtn');
     if (searchBtn) {
-      searchBtn.addEventListener('click', function() {
-        const keyword = document.getElementById('handoverSearchInput').value;
-        if (!keyword) {
-          messageUtils.warning('검색어를 입력해주세요.');
-          return;
+      searchBtn.addEventListener('click', applyFilters);
+    }
+    
+    // 검색창 엔터 키 이벤트
+    const searchInput = document.getElementById('handoverSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          applyFilters();
         }
-        
-        messageUtils.info(`"${keyword}" 검색 결과입니다.`);
       });
     }
   });

@@ -60,6 +60,34 @@
       flex-wrap: wrap;
     }
     
+    .date-range-label {
+      margin-right: 10px;
+      font-size: 0.9rem;
+      color: #666;
+      font-weight: 500;
+    }
+    
+    .date-input-group {
+      display: flex;
+      align-items: center;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      overflow: hidden;
+      background-color: white;
+    }
+    
+    .date-input {
+      border: none;
+      padding: 8px 12px;
+      outline: none;
+      font-size: 0.9rem;
+    }
+    
+    .date-separator {
+      color: #666;
+      padding: 0 5px;
+    }
+    
     .status-badge {
       display: inline-block;
       padding: 2px 8px;
@@ -171,6 +199,47 @@
     .status-change-modal .modal-content {
       max-width: 400px;
     }
+    
+    /* 데이터 테이블 행 스타일 */
+    .data-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .data-table tbody tr:hover {
+      background-color: #f5f5f5;
+    }
+    
+    /* 체크박스 셀은 클릭 이벤트 전파 방지 */
+    .checkbox-cell {
+      cursor: default;
+    }
+    
+    /* 로딩 표시 */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      font-size: 1.2rem;
+      color: #1890ff;
+    }
+    
+    .loading-spinner {
+      margin-right: 10px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -231,15 +300,19 @@
         <div id="content-container" class="content-container">
           <!-- 대시보드 페이지 -->
           <div class="page-section" id="dashboardPage">
-            <div class="main-card">
+            <div class="main-card" style="position: relative;">
               <div class="card-header date-filter-header">
                 <div class="date-period-container">
                   <h2 style="margin-right: 20px;">배송 관리</h2>
                   <div class="period-select-container" style="display: flex; align-items: center;">
-                    <input type="date" id="quickStartDate" class="date-input" style="margin-right: 5px;">
-                    <span class="date-separator">~</span>
-                    <input type="date" id="quickEndDate" class="date-input" style="margin-left: 5px; margin-right: 10px;">
-                    <button class="btn primary-btn" id="quickDateBtn">
+                    <!-- 개선된 날짜 필터 디자인 -->
+                    <span class="date-range-label">ETA 기간:</span>
+                    <div class="date-input-group">
+                      <input type="date" id="quickStartDate" class="date-input">
+                      <span class="date-separator">~</span>
+                      <input type="date" id="quickEndDate" class="date-input">
+                    </div>
+                    <button class="btn primary-btn" id="quickDateBtn" style="margin-left: 10px;">
                       <i class="fa-solid fa-search"></i> 조회
                     </button>
                   </div>
@@ -410,6 +483,12 @@
                   </select>
                 </div>
               </div>
+              
+              <!-- 로딩 오버레이 -->
+              <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                <i class="fa-solid fa-spinner loading-spinner"></i>
+                <span>데이터를 불러오는 중...</span>
+              </div>
             </div>
           </div>
         </div>
@@ -455,6 +534,14 @@
               <span class="detail-label">창고</span>
               <span class="detail-value" id="detailWarehouse">-</span>
             </div>
+            <div class="detail-item">
+              <span class="detail-label">서비스 수준 계약(SLA)</span>
+              <span class="detail-value" id="detailSla">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">우편번호</span>
+              <span class="detail-value" id="detailPostalCode">-</span>
+            </div>
           </div>
         </div>
         
@@ -467,16 +554,28 @@
               <span class="detail-value" id="detailEta">-</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">배송기사</span>
+              <span class="detail-label">생성 시간</span>
+              <span class="detail-value" id="detailCreateTime">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">출발 시간</span>
+              <span class="detail-value" id="detailDepartTime">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">완료 시간</span>
+              <span class="detail-value" id="detailCompleteTime">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">배송기사 ID</span>
               <span class="detail-value" id="detailDriver">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">배송기사 연락처</span>
+              <span class="detail-value" id="detailDriverContact">-</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">배송주소</span>
               <span class="detail-value" id="detailAddress">-</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">수령자</span>
-              <span class="detail-value" id="detailRecipient">-</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">연락처</span>
@@ -490,6 +589,21 @@
           <div class="section-title">메모</div>
           <div class="detail-item">
             <span class="detail-value" id="detailMemo">-</span>
+          </div>
+        </div>
+        
+        <!-- 업데이트 정보 섹션 -->
+        <div class="order-detail-section">
+          <div class="section-title">업데이트 정보</div>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">마지막 업데이트 시간</span>
+              <span class="detail-value" id="detailUpdateAt">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">업데이트한 사용자</span>
+              <span class="detail-value" id="detailUpdatedBy">-</span>
+            </div>
           </div>
         </div>
       </div>
@@ -546,7 +660,6 @@
   </div>
   
   <!-- JavaScript 파일 -->
-  <script src="js/utils.js"></script>
   <script>
   // 메시지 유틸리티
   const messageUtils = {
@@ -608,7 +721,7 @@
     }
   };
 
-  // 상태 유틸
+  // 상태 유틸리티
   const statusUtils = {
     // 상태 텍스트 매핑
     statusText: {
@@ -701,97 +814,272 @@
     }
   };
 
-  // 대시보드 데이터 로드 함수
-  function loadDashboardData() {
-    // 샘플 데이터
-    const sampleData = [
-      { id: 'ORD-001', customer: '삼성전자', type: '배송', status: 'PENDING', department: 'CS', warehouse: '김포', eta: '2025-03-10', driver: '김기사', address: '서울시 강남구 테헤란로 123', recipient: '박수신', contact: '010-1234-5678', memo: '문 앞에 놓아주세요.' },
-      { id: 'ORD-002', customer: 'LG전자', type: '배송', status: 'IN_PROGRESS', department: 'HES', warehouse: '인천', eta: '2025-03-11', driver: '이기사', address: '경기도 수원시 영통구 삼성로 456', recipient: '김수신', contact: '010-2345-6789', memo: '경비실에 맡겨주세요.' },
-      { id: 'ORD-003', customer: '현대', type: '회수', status: 'COMPLETE', department: 'LENOVO', warehouse: '부산', eta: '2025-03-09', driver: '박기사', address: '부산시 해운대구 마린시티 789', recipient: '최수신', contact: '010-3456-7890', memo: '17시 이후에만 수령 가능합니다.' },
-      { id: 'ORD-004', customer: '기아', type: '배송', status: 'ISSUE', department: 'CS', warehouse: '광주', eta: '2025-03-12', driver: '최기사', address: '광주시 서구 상무대로 101', recipient: '정수신', contact: '010-4567-8901', memo: '포장 손상 주의.' },
-      { id: 'ORD-005', customer: 'SK하이닉스', type: '회수', status: 'CANCEL', department: 'HES', warehouse: '김포', eta: '2025-03-08', driver: '정기사', address: '경기도 이천시 부발읍 SK로 345', recipient: '이수신', contact: '010-5678-9012', memo: '취소된 주문입니다.' }
-    ];
+  // 모의 DB
+  let DB = {
+    orders: [
+      { id: 'ORD-001', customer: '삼성전자', type: '배송', status: 'PENDING', department: 'CS', warehouse: '김포', eta: '2025-03-10', createTime: '2025-03-05', driver: '김기사', address: '서울시 강남구 테헤란로 123', recipient: '박수신', contact: '010-1234-5678', memo: '문 앞에 놓아주세요.' },
+      { id: 'ORD-002', customer: 'LG전자', type: '배송', status: 'IN_PROGRESS', department: 'HES', warehouse: '인천', eta: '2025-03-11', createTime: '2025-03-06', driver: '이기사', address: '경기도 수원시 영통구 삼성로 456', recipient: '김수신', contact: '010-2345-6789', memo: '경비실에 맡겨주세요.' },
+      { id: 'ORD-003', customer: '현대', type: '회수', status: 'COMPLETE', department: 'LENOVO', warehouse: '부산', eta: '2025-03-09', createTime: '2025-03-04', driver: '박기사', address: '부산시 해운대구 마린시티 789', recipient: '최수신', contact: '010-3456-7890', memo: '17시 이후에만 수령 가능합니다.' },
+      { id: 'ORD-004', customer: '기아', type: '배송', status: 'ISSUE', department: 'CS', warehouse: '광주', eta: '2025-03-12', createTime: '2025-03-07', driver: '최기사', address: '광주시 서구 상무대로 101', recipient: '정수신', contact: '010-4567-8901', memo: '포장 손상 주의.' },
+      { id: 'ORD-005', customer: 'SK하이닉스', type: '회수', status: 'CANCEL', department: 'HES', warehouse: '김포', eta: '2025-03-08', createTime: '2025-03-03', driver: '정기사', address: '경기도 이천시 부발읍 SK로 345', recipient: '이수신', contact: '010-5678-9012', memo: '취소된 주문입니다.' },
+      { id: 'ORD-006', customer: '네이버', type: '배송', status: 'PENDING', department: 'CS', warehouse: '김포', eta: '2025-03-13', createTime: '2025-03-08', driver: '강기사', address: '경기도 성남시 분당구 불정로 6', recipient: '한수신', contact: '010-6789-0123', memo: '문앞 배송' },
+      { id: 'ORD-007', customer: '카카오', type: '배송', status: 'IN_PROGRESS', department: 'HES', warehouse: '인천', eta: '2025-03-14', createTime: '2025-03-09', driver: '고기사', address: '제주특별자치도 제주시 첨단로 242', recipient: '임수신', contact: '010-7890-1234', memo: '부재시 경비실' },
+      { id: 'ORD-008', customer: '쿠팡', type: '회수', status: 'PENDING', department: 'LENOVO', warehouse: '부산', eta: '2025-03-15', createTime: '2025-03-10', driver: '배기사', address: '서울시 송파구 송파대로 570', recipient: '성수신', contact: '010-8901-2345', memo: '재포장 필요' }
+    ]
+  };
+
+  // 변수 선언
+  let filteredOrders = []; // 현재 필터링된 주문 목록
+  let currentPage = 1; // 현재 페이지
+  let pageSize = 10; // 페이지당 표시 항목 수
+  
+  // 로딩 표시기 제어
+  const loadingUtils = {
+    show() {
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    },
     
+    hide() {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+  };
+  
+  // 날짜 문자열 비교 함수
+  function isDateInRange(dateStr, startDateStr, endDateStr) {
+    const date = new Date(dateStr);
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+    
+    // 날짜 범위에 시간을 포함시키기 위해 종료일의 시간을 23:59:59로 설정
+    endDate.setHours(23, 59, 59, 999);
+    
+    return date >= startDate && date <= endDate;
+  }
+  
+  // 주문 데이터 불러오기 (ETA 날짜 기준으로 필터링)
+  function loadOrdersByDateRange(startDate, endDate) {
+    loadingUtils.show();
+    
+    // 실제 구현에서는 API 호출이 들어가겠지만, 
+    // 여기서는 모의 데이터를 사용해 setTimeout으로 API 호출 지연 시뮬레이션
+    setTimeout(() => {
+      // ETA를 기준으로 날짜 범위 필터링
+      filteredOrders = DB.orders.filter(order => 
+        isDateInRange(order.eta, startDate, endDate)
+      );
+      
+      displayOrders(filteredOrders);
+      updateSummaryCards(filteredOrders);
+      loadingUtils.hide();
+      
+      messageUtils.success(`ETA 기간 (${startDate} ~ ${endDate})으로 ${filteredOrders.length}건의 데이터를 조회했습니다.`);
+    }, 500); // 0.5초 지연
+  }
+  
+  // 주문번호로 검색
+  function searchByOrderId(keyword) {
+    if (!keyword.trim()) {
+      messageUtils.warning('검색어를 입력해주세요.');
+      return;
+    }
+    
+    loadingUtils.show();
+    
+    // 주문번호에 대한 전체 DB 검색 (대소문자 무시)
+    setTimeout(() => {
+      const results = DB.orders.filter(order => 
+        order.id.toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      filteredOrders = results;
+      displayOrders(results);
+      updateSummaryCards(results);
+      loadingUtils.hide();
+      
+      if (results.length > 0) {
+        messageUtils.success(`'${keyword}' 검색 결과: ${results.length}건의 주문을 찾았습니다.`);
+      } else {
+        messageUtils.info(`'${keyword}'에 대한 검색 결과가 없습니다.`);
+      }
+    }, 500);
+  }
+  
+  // 필터 적용
+  function applyFilters() {
+    const status = document.getElementById('statusFilter').value;
+    const department = document.getElementById('departmentFilter').value;
+    const warehouse = document.getElementById('warehouseFilter').value;
+    
+    // 이미 날짜로 필터링된 결과에서 추가 필터 적용
+    let results = [...filteredOrders];
+    
+    if (status) {
+      results = results.filter(order => order.status === status);
+    }
+    
+    if (department) {
+      results = results.filter(order => order.department === department);
+    }
+    
+    if (warehouse) {
+      results = results.filter(order => order.warehouse === warehouse);
+    }
+    
+    displayOrders(results);
+    updateSummaryCards(results);
+    
+    // 적용된 필터 개수 계산
+    const filterCount = [status, department, warehouse].filter(Boolean).length;
+    messageUtils.success(`${filterCount}개의 필터가 적용되었습니다. (${results.length}건 표시)`);
+  }
+  
+  // 필터 초기화
+  function resetFilters() {
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('departmentFilter').value = '';
+    document.getElementById('warehouseFilter').value = '';
+    
+    // 날짜 범위는 유지하면서 전체 데이터 다시 표시
+    displayOrders(filteredOrders);
+    updateSummaryCards(filteredOrders);
+    
+    messageUtils.info('필터가 초기화되었습니다.');
+  }
+  
+  // 주문 테이블 표시
+  function displayOrders(orders) {
     const tableBody = document.getElementById('dashboardTableBody');
     if (!tableBody) return;
+    
+    // 페이지네이션 계산
+    const totalPages = Math.ceil(orders.length / pageSize);
+    currentPage = Math.min(currentPage, totalPages || 1);
+    
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, orders.length);
+    const pageOrders = orders.slice(startIndex, endIndex);
     
     // 테이블 비우기
     tableBody.innerHTML = '';
     
+    // 데이터가 없는 경우
+    if (pageOrders.length === 0) {
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 10;
+      emptyCell.className = 'empty-table';
+      emptyCell.textContent = '조회된 데이터가 없습니다.';
+      emptyRow.appendChild(emptyCell);
+      tableBody.appendChild(emptyRow);
+      
+      // 페이지네이션 업데이트
+      document.getElementById('pageInfo').textContent = '0 / 0';
+      return;
+    }
+    
     // 데이터 추가
-    sampleData.forEach(item => {
+    pageOrders.forEach(order => {
       const row = document.createElement('tr');
-      row.setAttribute('data-id', item.id);
+      row.setAttribute('data-id', order.id);
       
       // 체크박스
       const checkCell = document.createElement('td');
       checkCell.className = 'checkbox-cell';
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.value = item.id;
+      checkbox.value = order.id;
       checkbox.className = 'row-checkbox';
+      
+      // 체크박스 클릭 시 행 선택 전파 방지
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+      
       checkCell.appendChild(checkbox);
       row.appendChild(checkCell);
       
       // 주문번호
       const idCell = document.createElement('td');
-      idCell.textContent = item.id;
+      idCell.textContent = order.id;
       row.appendChild(idCell);
       
       // 고객
       const customerCell = document.createElement('td');
-      customerCell.textContent = item.customer;
+      customerCell.textContent = order.customer;
       row.appendChild(customerCell);
       
       // 유형
       const typeCell = document.createElement('td');
-      typeCell.textContent = item.type;
+      typeCell.textContent = order.type;
       row.appendChild(typeCell);
       
       // 상태
       const statusCell = document.createElement('td');
       const statusBadge = document.createElement('span');
-      statusBadge.className = 'status-badge ' + statusUtils.getStatusClass(item.status);
-      statusBadge.textContent = statusUtils.getStatusText(item.status);
+      statusBadge.className = 'status-badge ' + statusUtils.getStatusClass(order.status);
+      statusBadge.textContent = statusUtils.getStatusText(order.status);
       statusCell.appendChild(statusBadge);
       row.appendChild(statusCell);
       
       // 부서
       const deptCell = document.createElement('td');
-      deptCell.textContent = item.department;
+      deptCell.textContent = order.department;
       row.appendChild(deptCell);
       
       // 창고
       const warehouseCell = document.createElement('td');
-      warehouseCell.textContent = item.warehouse;
+      warehouseCell.textContent = order.warehouse;
       row.appendChild(warehouseCell);
       
       // ETA
       const etaCell = document.createElement('td');
-      etaCell.textContent = item.eta;
+      etaCell.textContent = order.eta;
       row.appendChild(etaCell);
       
       // 배송기사
       const driverCell = document.createElement('td');
-      driverCell.textContent = item.driver;
+      driverCell.textContent = order.driver;
       row.appendChild(driverCell);
       
       // 행 클릭 이벤트 (상세 정보 모달 표시)
-      row.addEventListener('click', (e) => {
-        // 체크박스 클릭 시 이벤트 전파 방지
-        if (e.target.type === 'checkbox') return;
-        
-        showOrderDetail(item);
+      row.addEventListener('click', () => {
+        showOrderDetail(order);
       });
       
       tableBody.appendChild(row);
     });
     
-    // 요약 정보 업데이트
-    document.getElementById('totalOrders').textContent = '3건';
-    document.getElementById('inProgressOrders').textContent = '2건';
-    document.getElementById('progressOrders').textContent = '1건';
-    document.getElementById('completedOrders').textContent = '1건';
+    // 페이지네이션 업데이트
+    document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+    
+    // 페이지네이션 버튼 상태 업데이트
+    const prevBtn = document.querySelector('.page-btn[data-page="prev"]');
+    const nextBtn = document.querySelector('.page-btn[data-page="next"]');
+    
+    prevBtn.disabled = currentPage <= 1;
+    prevBtn.style.opacity = currentPage <= 1 ? 0.5 : 1;
+    
+    nextBtn.disabled = currentPage >= totalPages;
+    nextBtn.style.opacity = currentPage >= totalPages ? 0.5 : 1;
+  }
+  
+  // 요약 카드 업데이트
+  function updateSummaryCards(orders) {
+    // 배송 건수 (유형이 '배송'인 주문 수)
+    const deliveryCount = orders.filter(order => order.type === '배송').length;
+    document.getElementById('totalOrders').textContent = `${deliveryCount}건`;
+    
+    // 회수 건수 (유형이 '회수'인 주문 수)
+    const pickupCount = orders.filter(order => order.type === '회수').length;
+    document.getElementById('inProgressOrders').textContent = `${pickupCount}건`;
+    
+    // 진행 건수 (상태가 'IN_PROGRESS'인 주문 수)
+    const progressCount = orders.filter(order => order.status === 'IN_PROGRESS').length;
+    document.getElementById('progressOrders').textContent = `${progressCount}건`;
+    
+    // 완료 건수 (상태가 'COMPLETE'인 주문 수)
+    const completeCount = orders.filter(order => order.status === 'COMPLETE').length;
+    document.getElementById('completedOrders').textContent = `${completeCount}건`;
   }
   
   // 주문 상세 정보 표시
@@ -840,8 +1128,22 @@
     const checkedRows = document.querySelectorAll('.row-checkbox:checked');
     const selectedIds = Array.from(checkedRows).map(checkbox => checkbox.value);
     
+    // 실제 상태 변경 (모의 DB 업데이트)
+    selectedIds.forEach(id => {
+      const order = DB.orders.find(order => order.id === id);
+      if (order) {
+        order.status = newStatus;
+        if (note) {
+          order.memo = note + '\n\n' + (order.memo || '');
+        }
+      }
+    });
+    
     // 모달 닫기
     modalUtils.closeModal('statusChangeModal');
+    
+    // 현재 필터로 데이터 다시 로드
+    applyFilters();
     
     // 성공 메시지
     messageUtils.success(`${selectedIds.length}건의 주문 상태가 '${statusUtils.getStatusText(newStatus)}'(으)로 변경되었습니다.`);
@@ -865,6 +1167,8 @@
     
     document.getElementById('quickStartDate').value = startDateStr;
     document.getElementById('quickEndDate').value = endDate;
+    
+    return { startDate: startDateStr, endDate };
   }
   
   // 페이지 초기화
@@ -872,16 +1176,40 @@
     // 모달 초기화
     modalUtils.initModals();
     
-    // 기본 날짜 설정
-    setDefaultDates();
+    // 기본 날짜 설정 및 초기 데이터 로드
+    const { startDate, endDate } = setDefaultDates();
+    loadOrdersByDateRange(startDate, endDate);
     
-    // 데이터 로드
-    loadDashboardData();
+    // 페이지 사이즈 변경 이벤트
+    const pageSizeSelector = document.getElementById('pageSize');
+    if (pageSizeSelector) {
+      pageSizeSelector.addEventListener('change', function() {
+        pageSize = parseInt(this.value);
+        currentPage = 1; // 페이지 크기 변경 시 첫 페이지로 이동
+        displayOrders(filteredOrders);
+      });
+    }
+    
+    // 페이지 네비게이션 이벤트
+    const pageButtons = document.querySelectorAll('.page-btn');
+    pageButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const direction = this.getAttribute('data-page');
+        
+        if (direction === 'prev' && currentPage > 1) {
+          currentPage--;
+        } else if (direction === 'next' && currentPage < Math.ceil(filteredOrders.length / pageSize)) {
+          currentPage++;
+        }
+        
+        displayOrders(filteredOrders);
+      });
+    });
     
     // 전체 선택 체크박스 이벤트
     const selectAllCheckbox = document.getElementById('selectAll');
     if (selectAllCheckbox) {
-      selectAllCheckbox.addEventListener('change', function() {
+      selectAllCheckbox.addEventListener('click', function(e) {
         const isChecked = this.checked;
         document.querySelectorAll('.row-checkbox').forEach(checkbox => {
           checkbox.checked = isChecked;
@@ -906,33 +1234,27 @@
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) {
       refreshBtn.addEventListener('click', function() {
-        loadDashboardData();
-        messageUtils.success('대시보드가 새로고침되었습니다.');
+        const startDate = document.getElementById('quickStartDate').value;
+        const endDate = document.getElementById('quickEndDate').value;
+        
+        if (startDate && endDate) {
+          loadOrdersByDateRange(startDate, endDate);
+        } else {
+          messageUtils.warning('시작일과 종료일을 모두 입력해주세요.');
+        }
       });
     }
     
     // 필터 적용 버튼
     const applyFilterBtn = document.getElementById('applyFilterBtn');
     if (applyFilterBtn) {
-      applyFilterBtn.addEventListener('click', function() {
-        const status = document.getElementById('statusFilter').value;
-        const department = document.getElementById('departmentFilter').value;
-        const warehouse = document.getElementById('warehouseFilter').value;
-        
-        messageUtils.success('필터가 적용되었습니다.');
-      });
+      applyFilterBtn.addEventListener('click', applyFilters);
     }
     
     // 리셋 버튼
     const resetBtn = document.getElementById('resetBtn');
     if (resetBtn) {
-      resetBtn.addEventListener('click', function() {
-        document.getElementById('statusFilter').value = '';
-        document.getElementById('departmentFilter').value = '';
-        document.getElementById('warehouseFilter').value = '';
-        
-        messageUtils.info('필터가 초기화되었습니다.');
-      });
+      resetBtn.addEventListener('click', resetFilters);
     }
     
     // 상태 변경 버튼
@@ -979,15 +1301,25 @@
           return;
         }
         
-        if (confirm('선택한 주문을 삭제하시겠습니까?')) {
-          messageUtils.success(`${checkedRows.length}건의 주문이 삭제되었습니다.`);
+        if (confirm(`선택한 ${checkedRows.length}건의 주문을 삭제하시겠습니까?`)) {
+          const selectedIds = Array.from(checkedRows).map(checkbox => checkbox.value);
           
-          // 선택 항목 초기화
-          document.querySelectorAll('.row-checkbox:checked').forEach(checkbox => {
-            checkbox.checked = false;
+          // 모의 DB에서 삭제
+          selectedIds.forEach(id => {
+            const index = DB.orders.findIndex(order => order.id === id);
+            if (index !== -1) {
+              DB.orders.splice(index, 1);
+            }
           });
           
-          document.getElementById('selectAll').checked = false;
+          // 현재 필터링된 목록에서도 삭제
+          filteredOrders = filteredOrders.filter(order => !selectedIds.includes(order.id));
+          
+          // 테이블 업데이트
+          displayOrders(filteredOrders);
+          updateSummaryCards(filteredOrders);
+          
+          messageUtils.success(`${selectedIds.length}건의 주문이 삭제되었습니다.`);
         }
       });
     }
@@ -997,12 +1329,17 @@
     if (searchBtn) {
       searchBtn.addEventListener('click', function() {
         const keyword = document.getElementById('searchKeyword').value;
-        if (!keyword) {
-          messageUtils.warning('검색어를 입력해주세요.');
-          return;
+        searchByOrderId(keyword);
+      });
+    }
+    
+    // 검색창 엔터 키 이벤트
+    const searchInput = document.getElementById('searchKeyword');
+    if (searchInput) {
+      searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          searchByOrderId(this.value);
         }
-        
-        messageUtils.info(`"${keyword}" 검색 결과입니다.`);
       });
     }
     
@@ -1018,7 +1355,7 @@
           return;
         }
         
-        messageUtils.info(`${startDate} ~ ${endDate} 기간의 데이터를 조회합니다.`);
+        loadOrdersByDateRange(startDate, endDate);
       });
     }
     
