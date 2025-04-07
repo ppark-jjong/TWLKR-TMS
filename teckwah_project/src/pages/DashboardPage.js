@@ -29,13 +29,14 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { DatePicker } from "antd";
-import moment from "moment";
+import dayjs from "dayjs";
 import axios from "axios";
 import { useQuery } from "react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 
 // 공통 훅 가져오기
 import useDashboardBase from "../hooks/useDashboardBase";
+import { formatDate, getDateRange } from "../utils/dateUtils";
 
 // 공통 컴포넌트 가져오기
 import StatusChangeModal from "../components/StatusChangeModal";
@@ -98,11 +99,11 @@ const DashboardPage = () => {
   // URL 쿼리 파라미터 파싱
   const queryParams = new URLSearchParams(location.search);
   const initialStartDate = queryParams.get("startDate")
-    ? moment(queryParams.get("startDate"))
-    : moment().subtract(7, "days");
+    ? dayjs(queryParams.get("startDate"))
+    : dayjs().subtract(7, "days");
   const initialEndDate = queryParams.get("endDate")
-    ? moment(queryParams.get("endDate"))
-    : moment();
+    ? dayjs(queryParams.get("endDate"))
+    : dayjs();
 
   // 상태 관리
   const [dateRange, setDateRange] = useState([
@@ -258,7 +259,7 @@ const DashboardPage = () => {
 
   // 날짜 범위 변경 핸들러
   const onDateRangeChange = (dates) => {
-    setDateRange(dates || [moment().subtract(7, "days"), moment()]);
+    setDateRange(dates || [dayjs().subtract(7, "days"), dayjs()]);
     // 페이지 리셋
     setTableParams({
       ...tableParams,
@@ -353,17 +354,15 @@ const DashboardPage = () => {
       title: "ETA",
       dataIndex: "eta",
       key: "eta",
-      render: (text) => (text ? moment(text).format("YYYY-MM-DD HH:mm") : "-"),
       sorter: true,
-      sortDirections: ["descend", "ascend"],
+      render: (text) => (text ? formatDate(text, "YYYY-MM-DD HH:mm") : "-"),
     },
     {
       title: "생성일",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (text) => moment(text).format("YYYY-MM-DD HH:mm"),
+      dataIndex: "created_at",
+      key: "created_at",
       sorter: true,
-      sortDirections: ["descend", "ascend"],
+      render: (text) => formatDate(text, "YYYY-MM-DD HH:mm"),
     },
     {
       title: "액션",
@@ -719,7 +718,7 @@ const DashboardPage = () => {
       <div style={{ textAlign: "right", marginTop: "8px" }}>
         <Text type="secondary">
           <SyncOutlined /> 마지막 업데이트:{" "}
-          {moment().format("YYYY-MM-DD HH:mm:ss")}
+          {formatDate(new Date(), "YYYY-MM-DD HH:mm:ss")}
           {isLoading && <span> (새로고침 중...)</span>}
         </Text>
       </div>

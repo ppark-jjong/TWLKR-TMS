@@ -132,7 +132,15 @@ document.addEventListener('DOMContentLoaded', function() {
       try {
         // 모든 필요한 객체가 로드되었는지 확인
         if (typeof dataManager === 'undefined') {
-          throw new Error('dataManager 객체가 정의되지 않았습니다.');
+          console.error('dataManager 객체가 정의되지 않았습니다.');
+          
+          // 오류가 발생한 경우 DataManager 클래스가 있는지 확인하고 인스턴스 생성 시도
+          if (typeof DataManager !== 'undefined') {
+            window.dataManager = new DataManager();
+            console.log('dataManager 객체를 자동으로 생성했습니다.');
+          } else {
+            throw new Error('DataManager 클래스가 로드되지 않았습니다.');
+          }
         }
         
         // 앱 초기화
@@ -141,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('앱 초기화 오류:', innerError);
         alert('애플리케이션을 초기화하는 중 오류가 발생했습니다: ' + innerError.message);
       }
-    }, 100); // 100ms 지연
+    }, 300); // 지연 시간을 300ms로 늘림
     
   } catch (error) {
     console.error('앱 로드 오류:', error);

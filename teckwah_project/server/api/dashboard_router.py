@@ -300,3 +300,51 @@ async def delete_dashboards(
         success=True,
         message=message,
     )
+
+
+@router.get("/visualization", response_model=ApiResponse)
+@error_handler("대시보드 시각화 데이터 조회")
+async def get_visualization_data(
+    chart_type: str = Query("time", description="차트 유형 (time: 시간대별, status: 상태별, department: 부서별)"),
+    start_date: Optional[str] = Query(None, description="시작일 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="종료일 (YYYY-MM-DD)"),
+    department: Optional[str] = Query(None, description="부서 필터 (CS, HES, LENOVO)"),
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+    service: DashboardService = Depends(get_dashboard_service),
+):
+    """
+    대시보드 시각화 데이터를 조회하는 API
+    
+    - chart_type: 시각화 차트 유형 (time, status, department)
+    - start_date/end_date: 조회 기간 (ETA 기준)
+    - department: 부서별 필터링
+    """
+    
+    # 유효한 차트 타입 확인
+    valid_chart_types = ["time", "status", "department"]
+    if chart_type not in valid_chart_types:
+        raise ValidationException(f"유효하지 않은 차트 타입입니다. 가능한 값: {', '.join(valid_chart_types)}")
+    
+    # 필터 구성
+    filters = {}
+    if department:
+        filters["department"] = department
+    
+    try:
+        # 서비스 메서드 호출하여 데이터 조회
+        data = service.get_visualization_data(
+            chart_type=chart_type,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters
+        )
+        
+        return ApiResponse(
+            success=True,
+            message="시각화 데이터를 성공적으로 조회했습니다",
+            data=data
+        )
+    except Exception as e:
+        # error_handler 데코레이터에서 처리
+        raise e

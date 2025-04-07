@@ -15,6 +15,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
 import HandoverPage from "./pages/HandoverPage";
+import VisualizationPage from "./pages/VisualizationPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -271,6 +272,25 @@ function App() {
                       <Content className="content-wrapper">
                         <ErrorBoundary>
                           <HandoverPage />
+                        </ErrorBoundary>
+                      </Content>
+                    </Layout>
+                  </Layout>
+                </AuthWrapper>
+              }
+            />
+
+            {/* 시각화 페이지 */}
+            <Route
+              path="/visualization"
+              element={
+                <AuthWrapper>
+                  <Layout className="main-layout">
+                    <Sidebar userData={userData} setAuth={setAuth} />
+                    <Layout className="site-layout">
+                      <Content className="content-wrapper">
+                        <ErrorBoundary>
+                          <VisualizationPage />
                         </ErrorBoundary>
                       </Content>
                     </Layout>
