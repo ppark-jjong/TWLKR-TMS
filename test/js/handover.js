@@ -1,442 +1,534 @@
 /**
- * 인수인계 페이지 관련 기능
+ * 인수인계 페이지 모듈
  */
+const HandoverPage = {
+  // 페이지 상태 관리
+  state: {
+    // 공지사항 상태
+    notice: {
+      currentPage: 1,
+      pageSize: 10,
+      totalPages: 1,
+      currentData: [],
+      filteredData: [],
+    },
+    // 인수인계 상태
+    handover: {
+      currentPage: 1,
+      pageSize: 10,
+      totalPages: 1,
+      currentData: [],
+      filteredData: [],
+    },
+    // 현재 활성화된 탭
+    activeTab: 'notice-section',
+    // 현재 편집 중인 인수인계 ID
+    editingHandoverId: null,
+    // 모달이 수정 모드인지 여부
+    isEditMode: false,
+  },
 
-class HandoverPage {
-  constructor() {
-    // 인수인계 데이터 로컬 스토리지 키
-    this.LOCAL_STORAGE_KEY = 'teckwah_handovers';
-    
-    // 요소
-    this.elements = {
-      handoverTableBody: document.getElementById('handoverTableBody'),
-      refreshHandoverBtn: document.getElementById('refreshHandoverBtn'),
-      newHandoverBtn: document.getElementById('newHandoverBtn'),
-      saveNewHandoverBtn: document.getElementById('saveNewHandoverBtn'),
-      handoverCardContainer: document.querySelector('.handover-card-container')
-    };
-    
-    // 이벤트 핸들러 바인딩
-    this.bindEvents();
-  }
-  
   /**
-   * 이벤트 핸들러 바인딩
+   * 페이지 초기화
    */
-  bindEvents() {
-    try {
-      // 버튼 이벤트
-      if (this.elements.refreshHandoverBtn) {
-        this.elements.refreshHandoverBtn.addEventListener('click', this.refreshData.bind(this));
-      }
-      
-      if (this.elements.newHandoverBtn) {
-        this.elements.newHandoverBtn.addEventListener('click', () => modalUtils.openModal('newHandoverModal'));
-      }
-      
-      if (this.elements.saveNewHandoverBtn) {
-        this.elements.saveNewHandoverBtn.addEventListener('click', this.handleNewHandoverSubmit.bind(this));
-      }
-      
-      console.log('인수인계 페이지 이벤트 핸들러 등록 완료');
-    } catch (error) {
-      console.error('인수인계 페이지 이벤트 핸들러 등록 오류:', error);
-    }
-  }
-  
-  /**
-   * 초기화
-   */
-  async init() {
-    try {
-      console.log('인수인계 페이지 초기화 중...');
-      
-      // 데이터가 이미 로드되어 있지 않으면 로드
-      if (!dataManager.isLoaded) {
-        console.log('데이터 매니저 로드 중...');
-        await dataManager.loadData();
-      }
-      
-      // 로컬 스토리지에서 인수인계 데이터 로드
-      this.loadHandoversFromLocalStorage();
-      
-      // 데이터 렌더링
-      this.refreshData();
-      
-      console.log('인수인계 페이지 초기화 완료');
-      
-    } catch (error) {
-      console.error('인수인계 초기화 오류:', error);
-      messageUtils.error('인수인계 목록을 초기화하는 중 오류가 발생했습니다.');
-    }
-  }
-  
-  /**
-   * 로컬 스토리지에서 인수인계 데이터 로드
-   */
-  loadHandoversFromLocalStorage() {
-    try {
-      // 로컬 스토리지에서 데이터 가져오기
-      const savedHandovers = localStorage.getItem(this.LOCAL_STORAGE_KEY);
-      
-      if (savedHandovers) {
-        // 데이터 파싱 및 dataManager에 설정
-        const handovers = JSON.parse(savedHandovers);
-        
-        // 유효성 검사
-        if (Array.isArray(handovers)) {
-          // dataManager의 인수인계 배열 설정
-          dataManager.handovers = handovers;
-          console.log('로컬 스토리지에서 인수인계 데이터 로드됨:', handovers.length);
-        } else {
-          console.warn('로컬 스토리지에서 잘못된 형식의 인수인계 데이터가 발견되었습니다.');
-          // 빈 배열로 초기화
-          dataManager.handovers = [];
-          // 로컬 스토리지에서 삭제
-          localStorage.removeItem(this.LOCAL_STORAGE_KEY);
-        }
-      } else {
-        // 저장된 데이터가 없으면 빈 배열로 초기화
-        console.log('로컬 스토리지에 인수인계 데이터가 없습니다. 빈 배열로 시작합니다.');
-        dataManager.handovers = [];
-      }
-    } catch (error) {
-      console.error('로컬 스토리지에서 인수인계 데이터 로드 오류:', error);
-      // 오류 발생 시 빈 배열로 초기화
-      dataManager.handovers = [];
-    }
-  }
-  
-  /**
-   * 로컬 스토리지에 인수인계 데이터 저장
-   */
-  saveHandoversToLocalStorage() {
-    try {
-      // 인수인계 데이터 가져오기
-      const handovers = dataManager.getHandovers();
-      
-      // 로컬 스토리지에 저장
-      localStorage.setItem(this.LOCAL_STORAGE_KEY, JSON.stringify(handovers));
-      
-      console.log('인수인계 데이터가 로컬 스토리지에 저장되었습니다:', handovers.length);
-    } catch (error) {
-      console.error('로컬 스토리지에 인수인계 데이터 저장 오류:', error);
-    }
-  }
-  
-  /**
-   * 데이터 새로고침
-   */
-  refreshData() {
-    try {
-      // 데이터 조회
-      const handovers = dataManager.getHandovers();
-      
-      // 카드 형식으로 데이터 렌더링
-      this.renderCards(handovers);
-      
-      // 테이블도 렌더링 (필요 시 전환 가능)
-      if (this.elements.handoverTableBody) {
-        this.renderTable(handovers);
-      }
-      
-      console.log('인수인계 데이터 렌더링 완료:', handovers.length);
-    } catch (error) {
-      console.error('인수인계 데이터 새로고침 오류:', error);
-    }
-  }
-  
-  /**
-   * 카드 형식으로 렌더링
-   */
-  renderCards(handovers) {
-    try {
-      // 카드 컨테이너 요소 확인
-      if (!this.elements.handoverCardContainer) {
-        console.error('인수인계 카드 컨테이너 요소를 찾을 수 없습니다.');
-        return;
-      }
-      
-      // 기존 카드 제거
-      this.elements.handoverCardContainer.innerHTML = '';
-      
-      // 데이터가 없을 경우
-      if (handovers.length === 0) {
-        const emptyMessage = document.createElement('div');
-        emptyMessage.className = 'empty-message';
-        emptyMessage.style.textAlign = 'center';
-        emptyMessage.style.padding = '40px 0';
-        emptyMessage.style.color = '#999';
-        emptyMessage.style.fontSize = '1.1rem';
-        emptyMessage.innerHTML = '<i class="fa-solid fa-inbox" style="font-size: 3rem; margin-bottom: 15px; color: #ccc;"></i><p>인수인계 데이터가 없습니다.</p>';
-        
-        this.elements.handoverCardContainer.appendChild(emptyMessage);
-        return;
-      }
-      
-      // 최신순으로 정렬
-      const sortedHandovers = [...handovers].sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return dateB - dateA;
+  init: function () {
+    console.log('인수인계 페이지 초기화...');
+
+    // 이벤트 리스너 등록
+    this.registerEventListeners();
+
+    // 데이터 로드되었으면 테이블 업데이트
+    if (TMS.store.isDataLoaded) {
+      this.updateLists();
+    } else {
+      // 데이터 로드 대기
+      document.addEventListener('tms:dataLoaded', () => {
+        this.updateLists();
       });
-      
-      // 카드 생성 및 추가
-      sortedHandovers.forEach(item => {
-        // 우선순위에 따른 스타일
-        const priorityClass = statusUtils.getPriorityClass(item.priority);
-        const priorityText = statusUtils.getPriorityText(item.priority);
-        
-        // 카테고리 스타일 설정
-        let categoryBgColor = '#e6f7ff';
-        let categoryColor = '#1890ff';
-        
-        switch(item.category) {
-          case '배송':
-            categoryBgColor = '#e6f7ff';
-            categoryColor = '#1890ff';
-            break;
-          case '야간근무':
-            categoryBgColor = '#f9f0ff';
-            categoryColor = '#722ed1';
-            break;
-          case '안전':
-            categoryBgColor = '#fff7e6';
-            categoryColor = '#fa8c16';
-            break;
-          case '일반':
-            categoryBgColor = '#f9f9f9';
-            categoryColor = '#5a5a5a';
-            break;
-        }
-        
-        // 카드 생성
-        const card = document.createElement('div');
-        card.className = 'handover-card';
-        card.style.backgroundColor = 'white';
-        card.style.borderRadius = '8px';
-        card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
-        card.style.padding = '16px';
-        card.style.cursor = 'pointer';
-        card.style.transition = 'transform 0.2s, box-shadow 0.2s';
-        
-        // 호버 효과 추가
-        card.addEventListener('mouseenter', () => {
-          card.style.transform = 'translateY(-3px)';
-          card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
-        });
-        
-        card.addEventListener('mouseleave', () => {
-          card.style.transform = 'translateY(0)';
-          card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
-        });
-        
-        // 클릭 이벤트 - 상세 정보 표시
-        card.addEventListener('click', () => {
-          this.showHandoverDetail(item.handover_id);
-        });
-        
-        // 카드 내용 구성
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-            <span class="category-badge" style="background-color: ${categoryBgColor}; color: ${categoryColor}; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem;">${item.category}</span>
-            <span class="priority-badge ${priorityClass}" style="border-radius: 12px; padding: 2px 8px; font-size: 0.8rem;">${priorityText}</span>
-          </div>
-          <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #333; font-weight: 600;">${item.title}</h4>
-          <p style="margin: 0 0 15px 0; color: #666; font-size: 0.9rem; height: 60px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-            ${item.content}
-          </p>
-          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #999;">
-            <span>${item.created_by}</span>
-            <span>${item.created_at}</span>
-          </div>
-        `;
-        
-        this.elements.handoverCardContainer.appendChild(card);
-      });
-    } catch (error) {
-      console.error('인수인계 카드 렌더링 오류:', error);
     }
-  }
-  
+
+    // 데이터 변경 이벤트 리스닝
+    document.addEventListener('tms:handoverDataChanged', () => {
+      this.updateLists();
+    });
+  },
+
+  /**
+   * 이벤트 리스너 등록
+   */
+  registerEventListeners: function () {
+    // 탭 전환
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.addEventListener('click', this.handleTabChange.bind(this));
+    });
+
+    // 액션 버튼
+    document
+      .getElementById('refreshHandoverBtn')
+      .addEventListener('click', this.refreshData.bind(this));
+    document
+      .getElementById('newHandoverBtn')
+      .addEventListener('click', this.openNewHandoverModal.bind(this));
+
+    // 페이지네이션 - 공지사항
+    document
+      .querySelectorAll('.page-btn[data-section="notice"]')
+      .forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const direction = e.currentTarget.getAttribute('data-page');
+          this.handlePageChange(direction, 'notice');
+        });
+      });
+
+    // 페이지네이션 - 인수인계
+    document
+      .querySelectorAll('.page-btn[data-section="handover"]')
+      .forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const direction = e.currentTarget.getAttribute('data-page');
+          this.handlePageChange(direction, 'handover');
+        });
+      });
+
+    // 모달 버튼
+    document
+      .getElementById('submitHandoverBtn')
+      .addEventListener('click', this.handleSubmitHandover.bind(this));
+    document
+      .getElementById('editHandoverBtn')
+      .addEventListener('click', this.openEditModal.bind(this));
+  },
+
+  /**
+   * 탭 변경 처리
+   */
+  handleTabChange: function (e) {
+    const tabName = e.currentTarget.getAttribute('data-tab');
+
+    // 모든 탭에서 active 클래스 제거
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.classList.remove('active');
+    });
+
+    // 클릭한 탭에 active 클래스 추가
+    e.currentTarget.classList.add('active');
+
+    // 모든 컨텐츠 섹션 숨기기
+    document.querySelectorAll('.content-section').forEach((section) => {
+      section.classList.remove('active');
+    });
+
+    // 해당 탭의 컨텐츠 섹션 표시
+    document.getElementById(tabName).classList.add('active');
+
+    // 현재 활성화된 탭 상태 저장
+    this.state.activeTab = tabName;
+  },
+
+  /**
+   * 모든 목록 업데이트
+   */
+  updateLists: function () {
+    // 데이터 필터링
+    this.filterData();
+
+    // 공지사항 목록 업데이트
+    this.updateCurrentPageData('notice');
+    this.renderTable('notice');
+    this.updatePagination('notice');
+
+    // 인수인계 목록 업데이트
+    this.updateCurrentPageData('handover');
+    this.renderTable('handover');
+    this.updatePagination('handover');
+  },
+
+  /**
+   * 데이터 필터링
+   */
+  filterData: function () {
+    // 전체 데이터 가져오기
+    const allData = TMS.getHandoverData();
+
+    // 최신순 정렬
+    allData.sort((a, b) => {
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    // 공지사항 필터링
+    this.state.notice.filteredData = allData.filter(
+      (item) => item.is_notice === true
+    );
+
+    // 인수인계 필터링
+    this.state.handover.filteredData = allData.filter(
+      (item) => item.is_notice === false
+    );
+  },
+
+  /**
+   * 현재 페이지 데이터 업데이트
+   */
+  updateCurrentPageData: function (section) {
+    const state = this.state[section];
+    const start = (state.currentPage - 1) * state.pageSize;
+    const end = start + state.pageSize;
+
+    state.currentData = state.filteredData.slice(start, end);
+    state.totalPages =
+      Math.ceil(state.filteredData.length / state.pageSize) || 1;
+
+    // 페이지가 범위를 벗어나면 첫 페이지로
+    if (state.currentPage > state.totalPages) {
+      state.currentPage = 1;
+      this.updateCurrentPageData(section);
+    }
+  },
+
   /**
    * 테이블 렌더링
    */
-  renderTable(handovers) {
-    try {
-      // 테이블 바디 확인
-      if (!this.elements.handoverTableBody) {
-        console.error('인수인계 테이블 바디 요소를 찾을 수 없습니다.');
-        return;
-      }
-      
-      // 기존 내용 제거
-      this.elements.handoverTableBody.innerHTML = '';
-      
-      // 데이터가 없을 경우
-      if (handovers.length === 0) {
-        const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = `<td colspan="6" class="empty-table">인수인계 데이터가 없습니다.</td>`;
-        this.elements.handoverTableBody.appendChild(emptyRow);
-        return;
-      }
-      
-      // 최신순으로 정렬
-      const sortedHandovers = [...handovers].sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return dateB - dateA;
-      });
-      
-      // 행 추가
-      sortedHandovers.forEach(item => {
-        const row = document.createElement('tr');
-        
-        // 우선순위에 따른 스타일
-        const priorityClass = statusUtils.getPriorityClass(item.priority);
-        const priorityText = statusUtils.getPriorityText(item.priority);
-        
-        row.innerHTML = `
-          <td>${item.title}</td>
-          <td><span class="category-badge">${item.category}</span></td>
-          <td><span class="priority-badge ${priorityClass}">${priorityText}</span></td>
-          <td>${item.created_by}</td>
-          <td>${item.created_at}</td>
-          <td>
-            <button class="btn secondary-btn btn-sm detail-btn" data-id="${item.handover_id}">
-              상세보기
-            </button>
-            <button class="btn danger-btn btn-sm delete-btn" data-id="${item.handover_id}">
-              삭제
-            </button>
-          </td>
-        `;
-        
-        // 상세보기 버튼 이벤트
-        const detailBtn = row.querySelector('.detail-btn');
-        detailBtn.addEventListener('click', () => {
-          this.showHandoverDetail(item.handover_id);
-        });
-        
-        // 삭제 버튼 이벤트
-        const deleteBtn = row.querySelector('.delete-btn');
-        deleteBtn.addEventListener('click', () => {
-          this.deleteHandover(item.handover_id);
-        });
-        
-        this.elements.handoverTableBody.appendChild(row);
-      });
-    } catch (error) {
-      console.error('인수인계 테이블 렌더링 오류:', error);
-    }
-  }
-  
-  /**
-   * 인수인계 상세 정보 표시
-   */
-  showHandoverDetail(id) {
-    try {
-      const handover = dataManager.getHandoverById(id);
-      if (!handover) {
-        messageUtils.error('인수인계 정보를 찾을 수 없습니다.');
-        return;
-      }
-      
-      // 우선순위에 따른 스타일
-      const priorityClass = statusUtils.getPriorityClass(handover.priority);
-      const priorityText = statusUtils.getPriorityText(handover.priority);
-      
-      // 상세 정보 채우기
-      document.getElementById('handoverDetailTitle').textContent = handover.title;
-      document.getElementById('handoverDetailCategory').textContent = handover.category;
-      document.getElementById('handoverDetailPriority').textContent = priorityText;
-      document.getElementById('handoverDetailPriority').className = `priority-badge ${priorityClass}`;
-      document.getElementById('handoverDetailAuthor').textContent = handover.created_by;
-      document.getElementById('handoverDetailDate').textContent = handover.created_at;
-      document.getElementById('handoverDetailContent').textContent = handover.content;
-      
-      // 모달 표시
-      modalUtils.openModal('handoverDetailModal');
-    } catch (error) {
-      console.error('인수인계 상세 정보 표시 오류:', error);
-      messageUtils.error('인수인계 상세 정보를 표시하는 중 오류가 발생했습니다.');
-    }
-  }
-  
-  /**
-   * 인수인계 삭제
-   */
-  deleteHandover(id) {
-    try {
-      if (confirm('정말로 이 인수인계를 삭제하시겠습니까?')) {
-        // 데이터 관리자로부터 인수인계 삭제
-        const handover = dataManager.getHandoverById(id);
-        
-        if (!handover) {
-          messageUtils.error('삭제할 인수인계 정보를 찾을 수 없습니다.');
-          return;
-        }
-        
-        // 삭제할 항목 제거 (직접 배열 수정)
-        dataManager.handovers = dataManager.handovers.filter(item => item.handover_id !== id);
-        
-        // 로컬 스토리지 업데이트
-        this.saveHandoversToLocalStorage();
-        
-        // 성공 메시지 표시
-        messageUtils.success('인수인계가 삭제되었습니다.');
-        
-        // 목록 새로고침
-        this.refreshData();
-      }
-    } catch (error) {
-      console.error('인수인계 삭제 오류:', error);
-      messageUtils.error('인수인계를 삭제하는 중 오류가 발생했습니다.');
-    }
-  }
-  
-  /**
-   * 신규 인수인계 등록 제출 핸들러
-   */
-  handleNewHandoverSubmit() {
-    try {
-      const form = document.getElementById('newHandoverForm');
-      
-      // 폼 유효성 검사
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-      }
-      
-      const newHandoverData = {
-        title: document.getElementById('handoverTitle').value,
-        category: document.getElementById('handoverCategory').value,
-        priority: document.getElementById('handoverPriority').value,
-        content: document.getElementById('handoverContent').value
-      };
-      
-      // 신규 인수인계 등록
-      const newHandover = dataManager.addHandover(newHandoverData);
-      
-      if (newHandover) {
-        // 로컬 스토리지 업데이트
-        this.saveHandoversToLocalStorage();
-        
-        modalUtils.closeModal('newHandoverModal');
-        messageUtils.success('인수인계가 등록되었습니다.');
-        this.refreshData();
-        
-        // 폼 초기화
-        form.reset();
-      } else {
-        messageUtils.error('인수인계 등록에 실패했습니다.');
-      }
-    } catch (error) {
-      console.error('인수인계 등록 오류:', error);
-      messageUtils.error('인수인계 등록 중 오류가 발생했습니다.');
-    }
-  }
-}
+  renderTable: function (section) {
+    const tableId =
+      section === 'notice' ? 'noticeTableBody' : 'handoverTableBody';
+    const tableBody = document.getElementById(tableId);
+    const state = this.state[section];
 
-// 인수인계 페이지 인스턴스
-window.handoverPage = new HandoverPage();
+    // 테이블 내용 초기화
+    tableBody.innerHTML = '';
+
+    // 데이터가 없는 경우
+    if (state.currentData.length === 0) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = `<td colspan="4" class="empty-table">조회된 ${
+        section === 'notice' ? '공지사항' : '인수인계'
+      }이 없습니다.</td>`;
+      tableBody.appendChild(emptyRow);
+      return;
+    }
+
+    // 행 추가
+    state.currentData.forEach((item) => {
+      const row = document.createElement('tr');
+      row.setAttribute('data-id', item.handover_id);
+
+      // 작성자 셀
+      const authorCell = document.createElement('td');
+      authorCell.textContent = item.created_by;
+      row.appendChild(authorCell);
+
+      // 작성일시 셀
+      const dateCell = document.createElement('td');
+      dateCell.textContent = this.formatDateString(item.created_at);
+      row.appendChild(dateCell);
+
+      // 제목 셀
+      const titleCell = document.createElement('td');
+      titleCell.className = 'title-cell';
+      const titleText = document.createElement('span');
+      titleText.className = 'text-ellipsis';
+      titleText.textContent = item.title;
+      titleCell.appendChild(titleText);
+      row.appendChild(titleCell);
+
+      // 내용 셀
+      const contentCell = document.createElement('td');
+      contentCell.className = 'content-cell';
+      const contentText = document.createElement('span');
+      contentText.className = 'text-ellipsis';
+      contentText.textContent = item.content.replace(/\n/g, ' '); // 줄바꿈 제거
+      contentCell.appendChild(contentText);
+      row.appendChild(contentCell);
+
+      // 클릭 이벤트 리스너
+      row.addEventListener('click', () => {
+        this.openDetailModal(item.handover_id);
+      });
+
+      tableBody.appendChild(row);
+    });
+  },
+
+  /**
+   * 날짜 문자열 포맷팅
+   */
+  formatDateString: function (dateStr) {
+    if (!dateStr) return '';
+
+    try {
+      const date = new Date(dateStr.replace(' ', 'T'));
+      return date.toLocaleDateString('ko-KR');
+    } catch (e) {
+      return dateStr;
+    }
+  },
+
+  /**
+   * 페이지네이션 업데이트
+   */
+  updatePagination: function (section) {
+    const state = this.state[section];
+    const infoId = section === 'notice' ? 'noticePageInfo' : 'handoverPageInfo';
+
+    document.getElementById(
+      infoId
+    ).textContent = `${state.currentPage} / ${state.totalPages}`;
+  },
+
+  /**
+   * 페이지 변경 처리
+   */
+  handlePageChange: function (direction, section) {
+    const state = this.state[section];
+
+    if (direction === 'prev' && state.currentPage > 1) {
+      state.currentPage--;
+    } else if (direction === 'next' && state.currentPage < state.totalPages) {
+      state.currentPage++;
+    }
+
+    this.updateCurrentPageData(section);
+    this.renderTable(section);
+    this.updatePagination(section);
+  },
+
+  /**
+   * 데이터 새로고침 처리
+   */
+  refreshData: function () {
+    // 인수인계 데이터 다시 로드
+    TMS.initHandoverData();
+    // 화면 업데이트는 이벤트로 자동 처리
+
+    messageUtils.success('목록이 새로고침되었습니다.');
+  },
+
+  /**
+   * 상세 모달 열기
+   */
+  openDetailModal: function (handoverId) {
+    const item = TMS.getHandoverItemById(handoverId);
+
+    if (!item) {
+      messageUtils.error('정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 모달 제목 설정
+    const modalTitle = item.is_notice
+      ? '공지사항 상세 정보'
+      : '인수인계 상세 정보';
+    document.getElementById('detailTitle').textContent = modalTitle;
+
+    // 모달 데이터 채우기
+    document.getElementById('detailPriority').parentElement.style.display =
+      'none'; // 우선순위 항목 숨김
+    document.getElementById('detailAuthor').textContent = item.created_by;
+
+    // 날짜 포맷팅
+    const dateStr = item.created_at;
+    const dateDisplay = dateStr ? this.formatDateString(dateStr) : '-';
+    document.getElementById('detailDate').textContent = dateDisplay;
+
+    // 공지여부
+    document.getElementById('detailIsNotice').textContent = item.is_notice
+      ? '예'
+      : '아니오';
+
+    // 내용
+    document.getElementById('detailContent').textContent = item.content || '-';
+
+    // 선택된 인수인계 ID 저장
+    this.selectedHandoverId = handoverId;
+
+    // 모달 열기
+    modalUtils.openModal('handoverDetailModal');
+
+    // 수정 버튼 권한 체크 (본인이 작성한 경우만 수정 가능)
+    const currentUser = TMS.store.userData.userName;
+    const editBtn = document.getElementById('editHandoverBtn');
+
+    if (currentUser === item.created_by) {
+      editBtn.style.display = 'inline-block';
+    } else {
+      editBtn.style.display = 'none';
+    }
+  },
+
+  /**
+   * 수정 모달 열기
+   */
+  openEditModal: function () {
+    const handoverId = this.selectedHandoverId;
+    if (!handoverId) return;
+
+    const item = TMS.getHandoverItemById(handoverId);
+    if (!item) return;
+
+    // 모달 제목 변경
+    document.getElementById('handoverModalTitle').textContent = '인수인계 수정';
+    document.getElementById('submitBtnText').textContent = '수정하기';
+
+    // ID를 hidden 필드에 저장
+    document.getElementById('handoverId').value = handoverId;
+
+    // 폼 필드에 데이터 채우기
+    document.getElementById('handoverTitle').value = item.title;
+    document.getElementById('handoverContent').value = item.content;
+
+    // 공지 여부 설정
+    document.getElementById('isNotice').checked = item.is_notice;
+
+    // 수정 모드로 설정
+    this.state.isEditMode = true;
+
+    // 상세 모달 닫기 및 수정 모달 열기
+    modalUtils.closeModal('handoverDetailModal');
+    modalUtils.openModal('newHandoverModal');
+  },
+
+  /**
+   * 인수인계 등록 모달 열기
+   */
+  openNewHandoverModal: function () {
+    // 모달 제목 변경
+    document.getElementById('handoverModalTitle').textContent = '인수인계 등록';
+    document.getElementById('submitBtnText').textContent = '등록하기';
+
+    // 입력 필드 초기화
+    document.getElementById('handoverId').value = '';
+    document.getElementById('handoverTitle').value = '';
+    document.getElementById('handoverContent').value = '';
+    document.getElementById('isNotice').checked = false;
+
+    // 신규 등록 모드로 설정
+    this.state.isEditMode = false;
+
+    // 모달 열기
+    modalUtils.openModal('newHandoverModal');
+  },
+
+  /**
+   * 인수인계 등록/수정 처리
+   */
+  handleSubmitHandover: function () {
+    // 입력 값 가져오기
+    const handoverId = document.getElementById('handoverId').value.trim();
+    const title = document.getElementById('handoverTitle').value.trim();
+    const content = document.getElementById('handoverContent').value.trim();
+    const isNotice = document.getElementById('isNotice').checked;
+
+    // 필수 필드 확인
+    if (!title || !content) {
+      messageUtils.warning('제목과 내용을 입력해주세요.');
+      return;
+    }
+
+    if (this.state.isEditMode) {
+      // 수정 로직
+      this.updateHandoverItem(handoverId, {
+        title,
+        content,
+        is_notice: isNotice,
+      });
+    } else {
+      // 신규 등록 로직
+      this.createNewHandover({
+        title,
+        content,
+        is_notice: isNotice,
+      });
+    }
+
+    // 모달 닫기
+    modalUtils.closeModal('newHandoverModal');
+  },
+
+  /**
+   * 새 인수인계 생성
+   */
+  createNewHandover: function (data) {
+    // 데이터 생성
+    const newHandover = {
+      handover_id: 'H' + Date.now(),
+      title: data.title,
+      content: data.content,
+      is_notice: data.is_notice,
+      created_by: TMS.store.userData.userName,
+      created_at: new Date().toISOString(),
+    };
+
+    // 스토어에 추가
+    if (!TMS.store.handoverData) {
+      TMS.store.handoverData = [];
+    }
+
+    TMS.store.handoverData.push(newHandover);
+
+    // 변경 이벤트 발생
+    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
+
+    // 성공 메시지
+    messageUtils.success(
+      `${data.is_notice ? '공지사항' : '인수인계'}이 등록되었습니다.`
+    );
+
+    // 공지사항일 경우 공지 탭으로 전환
+    if (data.is_notice && this.state.activeTab !== 'notice-section') {
+      document.querySelector('.tab[data-tab="notice-section"]').click();
+    }
+    // 인수인계일 경우 인수인계 탭으로 전환
+    else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
+      document.querySelector('.tab[data-tab="handover-section"]').click();
+    }
+  },
+
+  /**
+   * 인수인계 항목 수정
+   */
+  updateHandoverItem: function (handoverId, data) {
+    // 기존 데이터 가져오기
+    const index = TMS.store.handoverData.findIndex(
+      (item) => item.handover_id === handoverId
+    );
+
+    if (index === -1) {
+      messageUtils.error('수정할 항목을 찾을 수 없습니다.');
+      return false;
+    }
+
+    // 기존 데이터 복사 및 수정
+    const updatedItem = {
+      ...TMS.store.handoverData[index],
+      title: data.title,
+      content: data.content,
+      is_notice: data.is_notice,
+    };
+
+    // 데이터 업데이트
+    TMS.store.handoverData[index] = updatedItem;
+
+    // 변경 이벤트 발생
+    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
+
+    // 성공 메시지
+    messageUtils.success('정보가 수정되었습니다.');
+
+    // 공지여부가 변경된 경우 해당 탭으로 전환
+    if (data.is_notice && this.state.activeTab !== 'notice-section') {
+      document.querySelector('.tab[data-tab="notice-section"]').click();
+    } else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
+      document.querySelector('.tab[data-tab="handover-section"]').click();
+    }
+
+    return true;
+  },
+};
+
+// 전역 객체에 페이지 모듈 할당
+window.HandoverPage = HandoverPage;
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function () {
+  HandoverPage.init();
+});

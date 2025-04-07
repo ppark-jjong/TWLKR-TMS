@@ -1,1111 +1,452 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TeckwahTMS - 인수인계</title>
-  
-  <!-- 파비콘 -->
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon">
-  
-  <!-- Ant Design CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/antd@5.11.0/dist/reset.css">
-  
-  <!-- 사용자 정의 CSS -->
-  <link rel="stylesheet" href="styles/simple.css">
-  
-  <!-- 폰트 어썸 -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-  
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-  
-  <style>
-    /* 인수인계 페이지 추가 스타일 */
-    .handover-card-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-      padding: 20px;
-    }
-    
-    .handover-card {
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      padding: 16px;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    
-    .handover-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    }
-    
-    .category-badge {
-      background-color: #e6f7ff;
-      color: #1890ff;
-      border-radius: 12px;
-      padding: 2px 8px;
-      font-size: 0.8rem;
-    }
-    
-    .priority-badge {
-      border-radius: 12px;
-      padding: 2px 8px;
-      font-size: 0.8rem;
-    }
-    
-    .priority-low {
-      background-color: #f5f5f5;
-      color: #595959;
-    }
-    
-    .priority-medium {
-      background-color: #e6f7ff;
-      color: #1890ff;
-    }
-    
-    .priority-high {
-      background-color: #fff7e6;
-      color: #fa8c16;
-    }
-    
-    .priority-urgent {
-      background-color: #fff1f0;
-      color: #f5222d;
-    }
-    
-    /* 모달 스타일 */
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .modal.active {
-      display: flex;
-    }
-    
-    .modal-content {
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      width: 80%;
-      max-width: 800px;
-      max-height: 90vh;
-      overflow-y: auto;
-      position: relative;
-    }
-    
-    .modal-header {
-      padding: 16px 24px;
-      border-bottom: 1px solid #f0f0f0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .modal-body {
-      padding: 24px;
-    }
-    
-    .modal-footer {
-      padding: 16px 24px;
-      border-top: 1px solid #f0f0f0;
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-    
-    .close-modal {
-      background: none;
-      border: none;
-      font-size: 1.2rem;
-      cursor: pointer;
-      color: #999;
-    }
-    
-    .handover-detail-section {
-      margin-bottom: 20px;
-    }
-    
-    .section-title {
-      font-size: 1.1rem;
-      font-weight: 500;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #f0f0f0;
-      color: #333;
-    }
-    
-    .handover-text {
-      white-space: pre-line;
-      line-height: 1.5;
-      color: #333;
-    }
-    
-    .new-handover-form .form-group {
-      margin-bottom: 16px;
-    }
-    
-    .new-handover-form label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 0.9rem;
-      color: #666;
-    }
-    
-    .new-handover-form .input-field,
-    .new-handover-form .select-field,
-    .new-handover-form .textarea-field {
-      width: 100%;
-    }
-    
-    .new-handover-form .textarea-field {
-      min-height: 150px;
-      resize: vertical;
-    }
-    
-    /* 로딩 표시 */
-    .loading-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(255, 255, 255, 0.7);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 50;
-      font-size: 1.2rem;
-      color: #1890ff;
-    }
-    
-    .loading-spinner {
-      margin-right: 10px;
-      animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
-</head>
-<body>
-  <div id="app" class="app">
-    <!-- 레이아웃 -->
-    <div class="main-layout">
-      <!-- 사이드바 -->
-      <aside id="sidebar" class="sidebar">
-        <img class="logo" src="assets/logo.png" alt="로고" style="width: 100%; max-width: 200px; margin: 15px auto; display: block;">
-        <div class="logo-container" style="align-content: center;">
-          <h1>TWLKR-TMS</h1>
-        </div>
-        
-        <div class="user-info">
-          <div class="avatar">
-            <i class="fa-solid fa-user"></i>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeckwahTMS - 인수인계 & 공지사항</title>
+
+    <!-- 파비콘 -->
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon" />
+
+    <!-- Ant Design CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/antd@5.11.0/dist/reset.css"
+    />
+
+    <!-- 사용자 정의 CSS -->
+    <link rel="stylesheet" href="styles/additional.css" />
+
+    <!-- 폰트 어썸 -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+    <style>
+      .tab-container {
+        display: flex;
+        border-bottom: 1px solid #e8e8e8;
+        margin-bottom: 20px;
+      }
+
+      .tab {
+        padding: 12px 24px;
+        cursor: pointer;
+        font-weight: 500;
+        position: relative;
+        transition: all 0.3s;
+      }
+
+      .tab.active {
+        color: var(--primary-color);
+      }
+
+      .tab.active:after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background-color: var(--primary-color);
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+        display: flex;
+        align-items: center;
+      }
+
+      .section-title i {
+        margin-right: 8px;
+        color: var(--primary-color);
+      }
+
+      .notice-indicator {
+        display: inline-block;
+        padding: 2px 8px;
+        background-color: #e6f7ff;
+        color: #1890ff;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        margin-left: 8px;
+      }
+
+      .handover-section {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+
+      /* 페이지 내용이 표시되는/숨겨지는 스타일 */
+      .content-section {
+        display: none;
+      }
+
+      .content-section.active {
+        display: block;
+      }
+
+      tr {
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      tr:hover {
+        background-color: #f5f5f5;
+      }
+
+      .text-ellipsis {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+      }
+
+      /* 제목 너비 제한 */
+      .title-cell {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 내용 너비 제한 */
+      .content-cell {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <!-- 레이아웃 -->
+      <div class="main-layout">
+        <!-- 사이드바 -->
+        <aside id="sidebar" class="sidebar">
+          <img
+            class="logo"
+            src="assets/logo.png"
+            alt="로고"
+            style="
+              width: 100%;
+              max-width: 200px;
+              margin: 15px auto;
+              display: block;
+            "
+          />
+          <div class="logo-container" style="align-content: center">
+            <h1>TWLKR-TMS</h1>
           </div>
-          <div class="user-details">
-            <p class="user-name">CSAdmin</p>
-            <p class="user-role">CS</p>
+
+          <div class="user-info">
+            <div class="avatar">
+              <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="user-details">
+              <p class="user-name">CSAdmin</p>
+              <p class="user-role">CS</p>
+            </div>
           </div>
-        </div>
-        
-        <nav class="menu">
-          <ul>
-            <li class="menu-item">
-              <a href="dashboard.html">
-                <i class="fa-solid fa-chart-line"></i>
-                <span>TMS</span>
-              </a>
-            </li>
-            <li class="menu-item active">
-              <a href="handover.html">
-                <i class="fa-solid fa-right-left"></i>
-                <span>Work-Notice</span>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="visualization.html">
-                <i class="fa-solid fa-chart-bar"></i>
-                <span>Visualization</span>
-              </a>
-            </li>
-          </ul>
-        </nav>
-        
-        <div class="logout-container">
-          <button id="logoutBtn" class="logout-btn">
-            <i class="fa-solid fa-right-from-bracket"></i>
-            <span>로그아웃</span>
-          </button>
-        </div>
-      </aside>
-      
-      <!-- 메인 컨텐츠 -->
-      <main class="main-content">
-        <!-- 컨텐츠 영역 -->
-        <div id="content-container" class="content-container">
-          <!-- 인수인계 페이지 -->
-          <div class="page-section" id="handoverPage">
-            <div class="main-card" style="position: relative;">
-              <div class="card-header">
-                <h2>인수인계 목록</h2>
-                <div class="card-actions">
-                  <button class="btn primary-btn" id="refreshHandoverBtn">
-                    <i class="fa-solid fa-arrows-rotate"></i> 새로고침
-                  </button>
-                  <button class="btn primary-btn" id="newHandoverBtn">
-                    <i class="fa-solid fa-plus"></i> 인수인계 등록
-                  </button>
+
+          <nav class="menu">
+            <ul>
+              <li class="menu-item">
+                <a href="index.html">
+                  <i class="fa-solid fa-chart-line"></i>
+                  <span>TMS</span>
+                </a>
+              </li>
+              <li class="menu-item active">
+                <a href="handover.html">
+                  <i class="fa-solid fa-right-left"></i>
+                  <span>Work-Notice</span>
+                </a>
+              </li>
+              <li class="menu-item">
+                <a href="visualization.html">
+                  <i class="fa-solid fa-chart-bar"></i>
+                  <span>Visualization</span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <div class="logout-container">
+            <button id="logoutBtn" class="logout-btn">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span>로그아웃</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- 메인 컨텐츠 -->
+        <main class="main-content">
+          <!-- 컨텐츠 영역 -->
+          <div id="content-container" class="content-container">
+            <!-- 인수인계 페이지 -->
+            <div class="page-section" id="handoverPage">
+              <div class="main-card">
+                <div class="card-header">
+                  <h2>인수인계 & 공지사항</h2>
+                  <div class="card-actions">
+                    <button class="btn primary-btn" id="refreshHandoverBtn">
+                      <i class="fa-solid fa-arrows-rotate"></i> 새로고침
+                    </button>
+                    <button class="btn primary-btn" id="newHandoverBtn">
+                      <i class="fa-solid fa-plus"></i> 신규 등록
+                    </button>
+                  </div>
                 </div>
-              </div>
-              
-              <!-- 인수인계 필터 영역 -->
-              <div class="handover-filter" style="padding: 16px 20px; border-bottom: 1px solid #f0f2f5; background-color: #fafafa;">
-                <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
-                  <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
-                    <label for="handoverCategoryFilter" style="margin-bottom: 6px; display: block; font-size: 0.9rem; color: #666;">카테고리</label>
-                    <select id="handoverCategoryFilter" class="select-field" style="width: 100%;">
-                      <option value="">전체</option>
-                      <option value="배송">배송</option>
-                      <option value="야간근무">야간근무</option>
-                      <option value="안전">안전</option>
-                      <option value="일반">일반</option>
-                    </select>
+
+                <!-- 탭 메뉴 -->
+                <div class="tab-container">
+                  <div class="tab active" data-tab="notice-section">
+                    <i class="fa-solid fa-bullhorn"></i> 공지사항
                   </div>
-                  
-                  <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
-                    <label for="handoverPriorityFilter" style="margin-bottom: 6px; display: block; font-size: 0.9rem; color: #666;">우선순위</label>
-                    <select id="handoverPriorityFilter" class="select-field" style="width: 100%;">
-                      <option value="">전체</option>
-                      <option value="LOW">낮음</option>
-                      <option value="MEDIUM">중간</option>
-                      <option value="HIGH">높음</option>
-                      <option value="URGENT">긴급</option>
-                    </select>
+                  <div class="tab" data-tab="handover-section">
+                    <i class="fa-solid fa-right-left"></i> 인수인계
                   </div>
-                  
-                  <div class="form-group" style="margin-bottom: 0; flex-grow: 1; min-width: 250px;">
-                    <label for="handoverSearchInput" style="margin-bottom: 6px; display: block; font-size: 0.9rem; color: #666;">검색어</label>
-                    <div style="display: flex;">
-                      <input type="text" id="handoverSearchInput" class="input-field" placeholder="제목 또는 내용 검색" style="flex-grow: 1;">
-                      <button class="btn primary-btn" id="handoverSearchBtn" style="margin-left: 8px;">
-                        <i class="fa-solid fa-search"></i> 검색
+                </div>
+
+                <!-- 공지사항 섹션 -->
+                <div class="content-section active" id="notice-section">
+                  <div class="handover-section">
+                    <div class="section-header">
+                      <h3 class="section-title">
+                        <i class="fa-solid fa-bullhorn"></i> 공지사항
+                      </h3>
+                    </div>
+
+                    <div class="table-container">
+                      <table class="data-table" id="noticeTable">
+                        <thead>
+                          <tr>
+                            <th width="100">작성자</th>
+                            <th width="120">작성일시</th>
+                            <th width="200">제목</th>
+                            <th>내용</th>
+                          </tr>
+                        </thead>
+                        <tbody id="noticeTableBody">
+                          <tr>
+                            <td colspan="4" class="empty-table">
+                              데이터를 불러오는 중...
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- 페이지네이션 영역 -->
+                    <div class="pagination">
+                      <button
+                        class="page-btn"
+                        data-page="prev"
+                        data-section="notice"
+                      >
+                        <i class="fa-solid fa-chevron-left"></i>
+                      </button>
+                      <span class="page-info" id="noticePageInfo">1 / 1</span>
+                      <button
+                        class="page-btn"
+                        data-page="next"
+                        data-section="notice"
+                      >
+                        <i class="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 인수인계 섹션 -->
+                <div class="content-section" id="handover-section">
+                  <div class="handover-section">
+                    <div class="section-header">
+                      <h3 class="section-title">
+                        <i class="fa-solid fa-right-left"></i> 인수인계
+                      </h3>
+                    </div>
+
+                    <div class="table-container">
+                      <table class="data-table" id="handoverTable">
+                        <thead>
+                          <tr>
+                            <th width="100">작성자</th>
+                            <th width="120">작성일시</th>
+                            <th width="200">제목</th>
+                            <th>내용</th>
+                          </tr>
+                        </thead>
+                        <tbody id="handoverTableBody">
+                          <tr>
+                            <td colspan="4" class="empty-table">
+                              데이터를 불러오는 중...
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- 페이지네이션 영역 -->
+                    <div class="pagination">
+                      <button
+                        class="page-btn"
+                        data-page="prev"
+                        data-section="handover"
+                      >
+                        <i class="fa-solid fa-chevron-left"></i>
+                      </button>
+                      <span class="page-info" id="handoverPageInfo">1 / 1</span>
+                      <button
+                        class="page-btn"
+                        data-page="next"
+                        data-section="handover"
+                      >
+                        <i class="fa-solid fa-chevron-right"></i>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
-              
-              <!-- 인수인계 카드형 목록 -->
-              <div class="handover-card-container" id="handoverCardContainer">
-                <!-- 카드는 JavaScript로 동적 생성 -->
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- 모달: 인수인계 상세 정보 -->
+    <div id="handoverDetailModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="detailTitle">인수인계 상세 정보</h3>
+          <button class="close-modal" data-modal="handoverDetailModal">
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="handover-detail-section">
+            <div class="section-title">기본 정보</div>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">작성자</span>
+                <span class="detail-value" id="detailAuthor"></span>
               </div>
-              
-              <!-- 페이지네이션 영역 -->
-              <div class="pagination" style="padding: 16px 20px; display: flex; justify-content: center; border-top: 1px solid #f0f2f5;">
-                <button class="page-btn" data-page="prev" style="border-radius: 4px 0 0 4px;">
-                  <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                <span class="page-info" id="handoverPageInfo" style="padding: 0 16px; display: flex; align-items: center;">1 / 1</span>
-                <button class="page-btn" data-page="next" style="border-radius: 0 4px 4px 0;">
-                  <i class="fa-solid fa-chevron-right"></i>
-                </button>
+              <div class="detail-item">
+                <span class="detail-label">작성일시</span>
+                <span class="detail-value" id="detailDate"></span>
               </div>
-              
-              <!-- 로딩 오버레이 -->
-              <div id="loadingOverlay" class="loading-overlay" style="display: none;">
-                <i class="fa-solid fa-spinner loading-spinner"></i>
-                <span>데이터를 불러오는 중...</span>
+              <div class="detail-item">
+                <span class="detail-label">공지여부</span>
+                <span class="detail-value" id="detailIsNotice"></span>
               </div>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
-  </div>
-  
-  <!-- 모달: 인수인계 상세 정보 -->
-  <div id="handoverDetailModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="detailTitle">인수인계 상세 정보</h3>
-        <button class="close-modal" data-modal="handoverDetailModal">
-          <i class="fa-solid fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="handover-detail-section">
-          <div class="section-title">기본 정보</div>
-          <div class="detail-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
-            <div style="display: flex; flex-direction: column;">
-              <span style="color: #666; font-size: 0.9rem;">카테고리</span>
-              <span id="detailCategory" style="margin-top: 4px; font-size: 0.95rem;"></span>
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <span style="color: #666; font-size: 0.9rem;">우선순위</span>
-              <span id="detailPriority" style="margin-top: 4px; font-size: 0.95rem;"></span>
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <span style="color: #666; font-size: 0.9rem;">작성자</span>
-              <span id="detailAuthor" style="margin-top: 4px; font-size: 0.95rem;"></span>
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <span style="color: #666; font-size: 0.9rem;">작성일시</span>
-              <span id="detailDate" style="margin-top: 4px; font-size: 0.95rem;"></span>
-            </div>
+
+          <div class="handover-detail-section">
+            <div class="section-title">내용</div>
+            <div class="detail-value handover-text" id="detailContent"></div>
           </div>
         </div>
-        
-        <div class="handover-detail-section">
-          <div class="section-title">내용</div>
-          <div class="handover-text" id="detailContent"></div>
+        <div class="modal-footer">
+          <button class="btn secondary-btn" data-modal="handoverDetailModal">
+            닫기
+          </button>
+          <button class="btn primary-btn" id="editHandoverBtn">
+            <i class="fa-solid fa-edit"></i> 수정
+          </button>
         </div>
-        
-        <div class="handover-detail-section">
-          <div class="section-title">확인자 현황</div>
-          <div id="detailConfirmations">
-            <ul id="confirmationList" style="padding-left: 20px;"></ul>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn secondary-btn" data-modal="handoverDetailModal">닫기</button>
-        <button class="btn primary-btn" id="confirmBtn">
-          <i class="fa-solid fa-check"></i> 확인 처리
-        </button>
-        <button class="btn primary-btn" id="editHandoverBtn">
-          <i class="fa-solid fa-edit"></i> 수정
-        </button>
       </div>
     </div>
-  </div>
-  
-  <!-- 모달: 인수인계 등록 -->
-  <div id="newHandoverModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>인수인계 등록</h3>
-        <button class="close-modal" data-modal="newHandoverModal">
-          <i class="fa-solid fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form class="new-handover-form">
-          <div class="form-group">
-            <label for="handoverTitle">제목</label>
-            <input type="text" id="handoverTitle" class="input-field" placeholder="인수인계 제목을 입력하세요">
-          </div>
-          
-          <div style="display: flex; gap: 16px;">
-            <div class="form-group" style="flex: 1;">
-              <label for="handoverCategory">카테고리</label>
-              <select id="handoverCategory" class="select-field">
-                <option value="배송">배송</option>
-                <option value="야간근무">야간근무</option>
-                <option value="안전">안전</option>
-                <option value="일반">일반</option>
-              </select>
+
+    <!-- 모달: 인수인계 등록/수정 -->
+    <div id="newHandoverModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="handoverModalTitle">인수인계 등록</h3>
+          <button class="close-modal" data-modal="newHandoverModal">
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form class="new-handover-form">
+            <input type="hidden" id="handoverId" value="" />
+            <div class="form-group">
+              <label for="handoverTitle">제목</label>
+              <input
+                type="text"
+                id="handoverTitle"
+                class="input-field"
+                placeholder="인수인계 제목을 입력하세요"
+              />
             </div>
-            
-            <div class="form-group" style="flex: 1;">
-              <label for="handoverPriority">우선순위</label>
-              <select id="handoverPriority" class="select-field">
-                <option value="LOW">낮음</option>
-                <option value="MEDIUM" selected>중간</option>
-                <option value="HIGH">높음</option>
-                <option value="URGENT">긴급</option>
-              </select>
+
+            <div class="form-group">
+              <label for="isNotice">공지여부</label>
+              <div>
+                <label class="checkbox-container">
+                  <input type="checkbox" id="isNotice" />
+                  <span class="checkbox-label">공지사항으로 등록</span>
+                </label>
+              </div>
             </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="handoverContent">내용</label>
-            <textarea id="handoverContent" class="textarea-field" placeholder="인수인계 내용을 자세히 입력하세요"></textarea>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button class="btn secondary-btn" data-modal="newHandoverModal">취소</button>
-        <button class="btn primary-btn" id="submitHandoverBtn">
-          <i class="fa-solid fa-paper-plane"></i> 등록하기
-        </button>
+
+            <div class="form-group">
+              <label for="handoverContent">내용</label>
+              <textarea
+                id="handoverContent"
+                class="textarea-field"
+                placeholder="인수인계 내용을 자세히 입력하세요"
+                rows="8"
+              ></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary-btn" data-modal="newHandoverModal">
+            취소
+          </button>
+          <button class="btn primary-btn" id="submitHandoverBtn">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span id="submitBtnText">등록하기</span>
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  
-  <!-- 메시지 팝업 컴포넌트 -->
-  <div id="messagePopup" class="message-popup">
-    <div class="message-content">
-      <i class="fa-solid message-icon"></i>
-      <span class="message-text"></span>
+
+    <!-- 메시지 팝업 컴포넌트 -->
+    <div id="messagePopup" class="message-popup">
+      <div class="message-content">
+        <i class="fa-solid message-icon"></i>
+        <span class="message-text"></span>
+      </div>
     </div>
-  </div>
-  
-  <!-- JavaScript -->
-  <script>
-  // 메시지 유틸리티
-  const messageUtils = {
-    showMessage(message, type = 'info', duration = 3000) {
-      const messageEl = document.getElementById('messagePopup');
-      if (!messageEl) return;
-      
-      const messageText = messageEl.querySelector('.message-text');
-      const messageIcon = messageEl.querySelector('.message-icon');
-      
-      // 타입에 따른 아이콘과 클래스 설정
-      let iconClass = 'fa-info-circle';
-      messageEl.className = 'message-popup';
-      
-      if (type === 'success') {
-        iconClass = 'fa-check-circle';
-        messageEl.classList.add('message-success');
-      } else if (type === 'error') {
-        iconClass = 'fa-times-circle';
-        messageEl.classList.add('message-error');
-      } else if (type === 'warning') {
-        iconClass = 'fa-exclamation-triangle';
-        messageEl.classList.add('message-warning');
-      } else {
-        messageEl.classList.add('message-info');
-      }
-      
-      // 아이콘 및 메시지 설정
-      messageIcon.className = `fa-solid ${iconClass} message-icon`;
-      messageText.textContent = message;
-      
-      // 메시지 표시
-      messageEl.classList.add('active');
-      
-      // 타이머 설정
-      if (this.messageTimer) {
-        clearTimeout(this.messageTimer);
-      }
-      
-      this.messageTimer = setTimeout(() => {
-        messageEl.classList.remove('active');
-      }, duration);
-    },
-    
-    success(message, duration = 3000) {
-      this.showMessage(message, 'success', duration);
-    },
-    
-    error(message, duration = 3000) {
-      this.showMessage(message, 'error', duration);
-    },
-    
-    warning(message, duration = 3000) {
-      this.showMessage(message, 'warning', duration);
-    },
-    
-    info(message, duration = 3000) {
-      this.showMessage(message, 'info', duration);
-    }
-  };
 
-  // 로딩 표시기 제어
-  const loadingUtils = {
-    show() {
-      document.getElementById('loadingOverlay').style.display = 'flex';
-    },
-    
-    hide() {
-      document.getElementById('loadingOverlay').style.display = 'none';
-    }
-  };
-
-  // 모달 제어 유틸
-  const modalUtils = {
-    /**
-     * 모달 열기
-     */
-    openModal(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) {
-        modal.classList.add('active');
-      }
-    },
-    
-    /**
-     * 모달 닫기
-     */
-    closeModal(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) {
-        modal.classList.remove('active');
-      }
-    },
-    
-    /**
-     * 모든 모달 닫기
-     */
-    closeAllModals() {
-      const modals = document.querySelectorAll('.modal');
-      modals.forEach(modal => {
-        modal.classList.remove('active');
-      });
-    },
-    
-    /**
-     * 모달 초기화 (모든 모달에 닫기 이벤트 추가)
-     */
-    initModals() {
-      // 모달 닫기 버튼에 이벤트 리스너 추가
-      const closeButtons = document.querySelectorAll('[data-modal]');
-      closeButtons.forEach(button => {
-        button.addEventListener('click', () => {
-          const modalId = button.getAttribute('data-modal');
-          this.closeModal(modalId);
-        });
-      });
-      
-      // 모달 바깥 영역 클릭 시 닫기
-      const modals = document.querySelectorAll('.modal');
-      modals.forEach(modal => {
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) {
-            modal.classList.remove('active');
-          }
-        });
-      });
-    }
-  };
-
-  // 우선순위 유틸
-  const priorityUtils = {
-    // 우선순위 텍스트 매핑
-    priorityText: {
-      'LOW': '낮음',
-      'MEDIUM': '중간',
-      'HIGH': '높음',
-      'URGENT': '긴급'
-    },
-    
-    // 우선순위 클래스 매핑
-    priorityClasses: {
-      'LOW': 'priority-low',
-      'MEDIUM': 'priority-medium',
-      'HIGH': 'priority-high',
-      'URGENT': 'priority-urgent'
-    },
-    
-    /**
-     * 우선순위에 따른 텍스트 반환
-     */
-    getPriorityText(priority) {
-      return this.priorityText[priority] || priority;
-    },
-    
-    /**
-     * 우선순위에 따른 클래스 반환
-     */
-    getPriorityClass(priority) {
-      return this.priorityClasses[priority] || 'priority-medium';
-    }
-  };
-
-  // 카테고리 유틸
-  const categoryUtils = {
-    // 카테고리 배경색 매핑
-    categoryBgColors: {
-      '배송': '#e6f7ff',
-      '야간근무': '#f9f0ff',
-      '안전': '#fff1f0',
-      '일반': '#f2f2f2'
-    },
-    
-    // 카테고리 텍스트색 매핑
-    categoryTextColors: {
-      '배송': '#1890ff',
-      '야간근무': '#722ed1',
-      '안전': '#f5222d',
-      '일반': '#5a5a5a'
-    },
-    
-    /**
-     * 카테고리에 따른 배경색 반환
-     */
-    getCategoryBgColor(category) {
-      return this.categoryBgColors[category] || '#f2f2f2';
-    },
-    
-    /**
-     * 카테고리에 따른 텍스트색 반환
-     */
-    getCategoryTextColor(category) {
-      return this.categoryTextColors[category] || '#5a5a5a';
-    }
-  };
-
-  // 모의 DB
-  let DB = {
-    handovers: [
-      {
-        id: 'H001',
-        title: '신규 배송 업체 인수인계 사항',
-        category: '배송',
-        priority: 'HIGH',
-        content: '대한통운에서 로젠으로 배송 업체가 변경됨에 따른 인수인계 사항입니다.\n\n특이사항으로는 업체 담당자가 변경되었으며, 신규 담당자의 연락처는 다음과 같습니다.\n- 이름: 김담당\n- 연락처: 010-1234-5678\n\n변경된 배송 업체의 픽업 시간은 오후 4시이며, 당일 오후 2시까지 시스템에 등록된 주문건에 한해 당일 픽업이 가능합니다. 이후 등록된 주문건은 익일 픽업으로 처리됩니다.\n\n또한, 배송비 정산은 월 1회(익월 5일) 진행되며, 정산 내역은 엑셀 파일로 공유될 예정입니다.',
-        author: '홍길동',
-        date: '2025-03-05 14:30',
-        confirmations: [
-          { user: '김철수', date: '2025-03-05 15:20' },
-          { user: '박영희', date: '2025-03-05 16:15' }
-        ]
-      },
-      {
-        id: 'H002',
-        title: '야간 근무 인수인계 사항',
-        category: '야간근무',
-        priority: 'MEDIUM',
-        content: '오늘 야간 근무 시 특이사항으로 창고 3번 구역 냉동고 온도 점검이 필요합니다.\n\n현재 온도계 상 -15도를 유지하고 있으나, 점검 후 -18도로 조정해 주시기 바랍니다. 온도 조정은 냉동고 우측 디지털 패널에서 가능합니다.\n\n또한 배송 지연된 건들 중에서 다음 주문건은 오전 9시까지 반드시 출고되어야 합니다.\n- 주문번호: ORD-20250304-123\n- 고객명: 삼성전자 수원사업장\n- 담당자 연락처: 010-9876-5432\n\n야간 근무 중 특이사항 발생 시 당직 관리자(010-1111-2222)에게 연락 바랍니다.',
-        author: '김철수',
-        date: '2025-03-04 22:15',
-        confirmations: [
-          { user: '이영수', date: '2025-03-05 08:10' }
-        ]
-      },
-      {
-        id: 'H003',
-        title: '주간 미팅 내용 공유',
-        category: '일반',
-        priority: 'MEDIUM',
-        content: '오늘 진행된 주간 미팅에서 결정된 사항들입니다.\n\n1. 신규 배송 차량 2대 도입 예정 (4월 중순)\n2. 다음주부터 신규 경로 최적화 시스템 테스트 시작\n3. 창고 관리 인원 1명 추가 채용 예정\n4. 월별 성과 보고서 양식 변경 (새 양식은 공유 드라이브에 업로드 예정)\n\n특히, 신규 경로 최적화 시스템은 기존 시스템과 병행하여 사용하고, 4월 말까지 두 시스템의 결과를 비교 분석할 예정입니다. 테스트 기간 동안 발견된 문제점이나 개선사항은 팀장에게 보고해 주시기 바랍니다.',
-        author: '박영희',
-        date: '2025-03-03 17:15',
-        confirmations: [
-          { user: '홍길동', date: '2025-03-03 17:30' },
-          { user: '김철수', date: '2025-03-03 18:05' },
-          { user: '이영수', date: '2025-03-04 09:20' }
-        ]
-      },
-      {
-        id: 'H004',
-        title: '안전 관련 긴급 주의사항',
-        category: '안전',
-        priority: 'URGENT',
-        content: '창고 적재 시 안전 관련 긴급 주의사항입니다.\n\n최근 창고 B동 3층에서 적재 작업 중 사고가 발생하여 다음과 같이 안전 조치를 강화합니다.\n\n1. 지게차 작업 시 반드시 안전모 착용\n2. 적재 높이 5단 이상 금지\n3. 무거운 물품은 반드시 2인 1조로 이동\n4. 작업 전 안전 브리핑 5분 실시\n\n위 사항을, 작업 시작 전 반드시 확인하시고, 미준수 인원 발견 시 즉시 작업 중단 및 관리자에게 보고해 주시기 바랍니다. 안전이 최우선입니다.',
-        author: '안전관리자',
-        date: '2025-03-06 09:00',
-        confirmations: [
-          { user: '김철수', date: '2025-03-06 09:15' },
-          { user: '이영수', date: '2025-03-06 09:20' },
-          { user: '박영희', date: '2025-03-06 09:30' },
-          { user: '홍길동', date: '2025-03-06 10:00' }
-        ]
-      }
-    ],
-    currentUser: 'CSAdmin'
-  };
-
-  // 변수 선언
-  let filteredHandovers = []; // 현재 필터링된 인수인계 목록
-  let currentPage = 1; // 현재 페이지
-  let pageSize = 8; // 페이지당 표시 항목 수
-
-  // 인수인계 데이터 로드
-  function loadHandoverData() {
-    loadingUtils.show();
-    
-    // 실제 구현에서는 API 호출이 들어가겠지만, 
-    // 여기서는 모의 데이터를 사용해 setTimeout으로 API 호출 지연 시뮬레이션
-    setTimeout(() => {
-      filteredHandovers = [...DB.handovers];
-      displayHandovers(filteredHandovers);
-      loadingUtils.hide();
-    }, 500);
-  }
-  
-  // 필터 적용
-  function applyFilters() {
-    const category = document.getElementById('handoverCategoryFilter').value;
-    const priority = document.getElementById('handoverPriorityFilter').value;
-    const keyword = document.getElementById('handoverSearchInput').value.toLowerCase();
-    
-    loadingUtils.show();
-    
-    setTimeout(() => {
-      let results = [...DB.handovers];
-      
-      if (category) {
-        results = results.filter(item => item.category === category);
-      }
-      
-      if (priority) {
-        results = results.filter(item => item.priority === priority);
-      }
-      
-      if (keyword) {
-        results = results.filter(item => 
-          item.title.toLowerCase().includes(keyword) || 
-          item.content.toLowerCase().includes(keyword)
-        );
-      }
-      
-      filteredHandovers = results;
-      displayHandovers(results);
-      loadingUtils.hide();
-      
-      // 적용된 필터 텍스트 구성
-      const filters = [];
-      if (category) filters.push(`카테고리: ${category}`);
-      if (priority) filters.push(`우선순위: ${priorityUtils.getPriorityText(priority)}`);
-      if (keyword) filters.push(`검색어: "${keyword}"`);
-      
-      const filterText = filters.length > 0 
-        ? `필터 (${filters.join(', ')}) 적용되었습니다.` 
-        : '모든 인수인계 내용을 표시합니다.';
-      
-      messageUtils.success(`${results.length}건의 인수인계가 로드되었습니다. ${filterText}`);
-    }, 500);
-  }
-  
-  // 인수인계 카드 표시
-  function displayHandovers(handovers) {
-    const cardContainer = document.getElementById('handoverCardContainer');
-    if (!cardContainer) return;
-    
-    // 페이지네이션 계산
-    const totalPages = Math.ceil(handovers.length / pageSize);
-    currentPage = Math.min(currentPage, totalPages || 1);
-    
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, handovers.length);
-    const pageHandovers = handovers.slice(startIndex, endIndex);
-    
-    // 컨테이너 비우기
-    cardContainer.innerHTML = '';
-    
-    // 데이터가 없는 경우
-    if (pageHandovers.length === 0) {
-      const emptyMessage = document.createElement('div');
-      emptyMessage.style.padding = '40px 0';
-      emptyMessage.style.textAlign = 'center';
-      emptyMessage.style.color = '#999';
-      emptyMessage.innerHTML = '<i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 10px;"></i><p>조회된 인수인계 내용이 없습니다.</p>';
-      cardContainer.appendChild(emptyMessage);
-      
-      // 페이지네이션 업데이트
-      document.getElementById('handoverPageInfo').textContent = '0 / 0';
-      return;
-    }
-    
-    // 카드 추가
-    pageHandovers.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'handover-card';
-      card.setAttribute('data-id', item.id);
-      
-      // 카드 내용 생성
-      card.innerHTML = `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-          <span class="category-badge" style="background-color: ${categoryUtils.getCategoryBgColor(item.category)}; color: ${categoryUtils.getCategoryTextColor(item.category)};">
-            ${item.category}
-          </span>
-          <span class="priority-badge ${priorityUtils.getPriorityClass(item.priority)}">
-            ${priorityUtils.getPriorityText(item.priority)}
-          </span>
-        </div>
-        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #333; font-weight: 600;">${item.title}</h4>
-        <p style="margin: 0 0 15px 0; color: #666; font-size: 0.9rem; height: 60px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-          ${item.content}
-        </p>
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #999;">
-          <span>${item.author}</span>
-          <span>${item.date}</span>
-        </div>
-      `;
-      
-      // 카드 클릭 이벤트 (상세 정보 모달 표시)
-      card.addEventListener('click', () => {
-        showHandoverDetail(item);
-      });
-      
-      cardContainer.appendChild(card);
-    });
-    
-    // 페이지네이션 업데이트
-    document.getElementById('handoverPageInfo').textContent = `${currentPage} / ${totalPages}`;
-    
-    // 페이지네이션 버튼 상태 업데이트
-    const prevBtn = document.querySelector('.page-btn[data-page="prev"]');
-    const nextBtn = document.querySelector('.page-btn[data-page="next"]');
-    
-    prevBtn.disabled = currentPage <= 1;
-    prevBtn.style.opacity = currentPage <= 1 ? 0.5 : 1;
-    
-    nextBtn.disabled = currentPage >= totalPages;
-    nextBtn.style.opacity = currentPage >= totalPages ? 0.5 : 1;
-  }
-  
-  // 인수인계 상세 정보 표시
-  function showHandoverDetail(handover) {
-    // 모달에 데이터 채우기
-    document.getElementById('detailTitle').textContent = handover.title;
-    
-    const categoryEl = document.getElementById('detailCategory');
-    categoryEl.textContent = handover.category;
-    categoryEl.style.color = categoryUtils.getCategoryTextColor(handover.category);
-    
-    const priorityEl = document.getElementById('detailPriority');
-    priorityEl.textContent = priorityUtils.getPriorityText(handover.priority);
-    priorityEl.className = priorityUtils.getPriorityClass(handover.priority);
-    
-    document.getElementById('detailAuthor').textContent = handover.author;
-    document.getElementById('detailDate').textContent = handover.date;
-    document.getElementById('detailContent').textContent = handover.content;
-    
-    // 확인자 목록
-    const confirmationList = document.getElementById('confirmationList');
-    confirmationList.innerHTML = '';
-    
-    if (handover.confirmations && handover.confirmations.length > 0) {
-      handover.confirmations.forEach(confirmation => {
-        const li = document.createElement('li');
-        li.textContent = `${confirmation.user} (${confirmation.date})`;
-        confirmationList.appendChild(li);
-      });
-    } else {
-      const li = document.createElement('li');
-      li.textContent = '확인자 없음';
-      confirmationList.appendChild(li);
-    }
-    
-    // 현재 사용자가 이미 확인했는지 체크
-    const alreadyConfirmed = handover.confirmations && 
-                             handover.confirmations.some(conf => conf.user === DB.currentUser);
-    
-    // 확인 버튼 상태 설정
-    const confirmBtn = document.getElementById('confirmBtn');
-    confirmBtn.disabled = alreadyConfirmed;
-    confirmBtn.style.opacity = alreadyConfirmed ? 0.5 : 1;
-    confirmBtn.innerHTML = alreadyConfirmed ? 
-      '<i class="fa-solid fa-check"></i> 확인 완료' : 
-      '<i class="fa-solid fa-check"></i> 확인 처리';
-    
-    // 모달 열기
-    modalUtils.openModal('handoverDetailModal');
-  }
-  
-  // 인수인계 확인 처리
-  function confirmHandover() {
-    const title = document.getElementById('detailTitle').textContent;
-    const handover = DB.handovers.find(item => item.title === title);
-    
-    if (!handover) {
-      messageUtils.error('인수인계 정보를 찾을 수 없습니다.');
-      return;
-    }
-    
-    // 이미 확인한 경우
-    if (handover.confirmations && handover.confirmations.some(conf => conf.user === DB.currentUser)) {
-      messageUtils.info('이미 확인 처리되었습니다.');
-      return;
-    }
-    
-    // 확인 처리
-    const now = new Date();
-    const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    if (!handover.confirmations) {
-      handover.confirmations = [];
-    }
-    
-    handover.confirmations.push({
-      user: DB.currentUser,
-      date: dateString
-    });
-    
-    // UI 업데이트
-    const confirmationList = document.getElementById('confirmationList');
-    const li = document.createElement('li');
-    li.textContent = `${DB.currentUser} (${dateString})`;
-    confirmationList.appendChild(li);
-    
-    // 버튼 비활성화
-    const confirmBtn = document.getElementById('confirmBtn');
-    confirmBtn.disabled = true;
-    confirmBtn.style.opacity = 0.5;
-    confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> 확인 완료';
-    
-    messageUtils.success('인수인계 확인이 처리되었습니다.');
-  }
-  
-  // 인수인계 등록
-  function submitNewHandover() {
-    const title = document.getElementById('handoverTitle').value;
-    const category = document.getElementById('handoverCategory').value;
-    const priority = document.getElementById('handoverPriority').value;
-    const content = document.getElementById('handoverContent').value;
-    
-    if (!title) {
-      messageUtils.warning('제목을 입력해주세요.');
-      return;
-    }
-    
-    if (!content) {
-      messageUtils.warning('내용을 입력해주세요.');
-      return;
-    }
-    
-    // 새 인수인계 객체 생성
-    const now = new Date();
-    const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    const newHandover = {
-      id: `H${String(DB.handovers.length + 1).padStart(3, '0')}`,
-      title,
-      category,
-      priority,
-      content,
-      author: DB.currentUser,
-      date: dateString,
-      confirmations: []
-    };
-    
-    // DB에 추가
-    DB.handovers.unshift(newHandover);
-    
-    // 모달 닫기
-    modalUtils.closeModal('newHandoverModal');
-    
-    // 데이터 다시 로드
-    loadHandoverData();
-    
-    // 성공 메시지
-    messageUtils.success('인수인계가 등록되었습니다.');
-    
-    // 폼 초기화
-    document.getElementById('handoverTitle').value = '';
-    document.getElementById('handoverContent').value = '';
-    document.getElementById('handoverCategory').value = '배송';
-    document.getElementById('handoverPriority').value = 'MEDIUM';
-  }
-  
-  // 페이지 초기화
-  document.addEventListener('DOMContentLoaded', function() {
-    // 모달 초기화
-    modalUtils.initModals();
-    
-    // 초기 데이터 로드
-    loadHandoverData();
-    
-    // 페이지 네비게이션 이벤트
-    const pageButtons = document.querySelectorAll('.page-btn');
-    pageButtons.forEach(button => {
-      button.addEventListener('click', function() {
-        const direction = this.getAttribute('data-page');
-        
-        if (direction === 'prev' && currentPage > 1) {
-          currentPage--;
-        } else if (direction === 'next' && currentPage < Math.ceil(filteredHandovers.length / pageSize)) {
-          currentPage++;
-        }
-        
-        displayHandovers(filteredHandovers);
-      });
-    });
-    
-    // 로그아웃 버튼 이벤트
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', function() {
-        if (confirm('로그아웃 하시겠습니까?')) {
-          messageUtils.info('로그아웃되었습니다.');
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        }
-      });
-    }
-    
-    // 새로고침 버튼 이벤트
-    const refreshBtn = document.getElementById('refreshHandoverBtn');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', function() {
-        loadHandoverData();
-        messageUtils.success('인수인계 목록이 새로고침되었습니다.');
-      });
-    }
-    
-    // 인수인계 등록 버튼 이벤트
-    const newHandoverBtn = document.getElementById('newHandoverBtn');
-    if (newHandoverBtn) {
-      newHandoverBtn.addEventListener('click', function() {
-        // 폼 초기화
-        document.getElementById('handoverTitle').value = '';
-        document.getElementById('handoverContent').value = '';
-        document.getElementById('handoverCategory').value = '배송';
-        document.getElementById('handoverPriority').value = 'MEDIUM';
-        
-        // 모달 열기
-        modalUtils.openModal('newHandoverModal');
-      });
-    }
-    
-    // 인수인계 등록 제출 버튼
-    const submitHandoverBtn = document.getElementById('submitHandoverBtn');
-    if (submitHandoverBtn) {
-      submitHandoverBtn.addEventListener('click', submitNewHandover);
-    }
-    
-    // 인수인계 확인 처리 버튼
-    const confirmBtn = document.getElementById('confirmBtn');
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', confirmHandover);
-    }
-    
-    // 인수인계 수정 버튼
-    const editHandoverBtn = document.getElementById('editHandoverBtn');
-    if (editHandoverBtn) {
-      editHandoverBtn.addEventListener('click', function() {
-        messageUtils.info('인수인계 수정 기능은 추후 구현 예정입니다.');
-      });
-    }
-    
-    // 카테고리 필터 변경 이벤트
-    const categoryFilter = document.getElementById('handoverCategoryFilter');
-    if (categoryFilter) {
-      categoryFilter.addEventListener('change', applyFilters);
-    }
-    
-    // 우선순위 필터 변경 이벤트
-    const priorityFilter = document.getElementById('handoverPriorityFilter');
-    if (priorityFilter) {
-      priorityFilter.addEventListener('change', applyFilters);
-    }
-    
-    // 검색 버튼 이벤트
-    const searchBtn = document.getElementById('handoverSearchBtn');
-    if (searchBtn) {
-      searchBtn.addEventListener('click', applyFilters);
-    }
-    
-    // 검색창 엔터 키 이벤트
-    const searchInput = document.getElementById('handoverSearchInput');
-    if (searchInput) {
-      searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-          applyFilters();
-        }
-      });
-    }
-  });
-  </script>
-</body>
+    <!-- JavaScript 파일 -->
+    <script src="js/utils.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/handover.js"></script>
+  </body>
 </html>
