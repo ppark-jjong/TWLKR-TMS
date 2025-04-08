@@ -138,6 +138,59 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+
+      /* 테이블 레이아웃 설정 */
+      .data-table {
+        table-layout: fixed !important;
+        width: 100% !important;
+      }
+
+      /* 테이블 너비 설정 */
+      .data-table th:nth-child(1) {
+        width: 80px !important;
+      }
+
+      .data-table th:nth-child(2) {
+        width: 100px !important;
+      }
+
+      .data-table th:nth-child(3) {
+        width: 180px !important;
+      }
+
+      .data-table th:nth-child(4) {
+        width: auto !important;
+      }
+
+      /* 테이블 셀 너비 제한 */
+      .data-table td:nth-child(1) {
+        width: 80px !important;
+        max-width: 80px !important;
+      }
+
+      .data-table td:nth-child(2) {
+        width: 100px !important;
+        max-width: 100px !important;
+      }
+
+      /* 제목 너비 제한 */
+      .title-cell,
+      .data-table td:nth-child(3) {
+        width: 180px !important;
+        max-width: 180px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 내용 너비 제한 */
+      .content-cell,
+      .data-table td:nth-child(4) {
+        width: auto !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
     </style>
   </head>
   <body>
@@ -235,9 +288,9 @@
                       <table class="data-table" id="noticeTable">
                         <thead>
                           <tr>
-                            <th width="80">작성자</th>
-                            <th width="100">작성일시</th>
-                            <th width="180">제목</th>
+                            <th style="width: 80px">작성자</th>
+                            <th style="width: 100px">작성일시</th>
+                            <th style="width: 180px">제목</th>
                             <th>내용</th>
                           </tr>
                         </thead>
@@ -279,9 +332,9 @@
                       <table class="data-table" id="handoverTable">
                         <thead>
                           <tr>
-                            <th width="80">작성자</th>
-                            <th width="100">작성일시</th>
-                            <th width="180">제목</th>
+                            <th style="width: 80px">작성자</th>
+                            <th style="width: 100px">작성일시</th>
+                            <th style="width: 180px">제목</th>
                             <th>내용</th>
                           </tr>
                         </thead>
@@ -321,128 +374,5 @@
         </main>
       </div>
     </div>
-
-    <!-- 모달: 인수인계 상세 정보 -->
-    <div id="handoverDetailModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 id="detailTitle">인수인계 상세 정보</h3>
-          <button class="close-modal" data-modal="handoverDetailModal">
-            <i class="fa-solid fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="handover-detail-section">
-            <div class="section-title">기본 정보</div>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">제목</span>
-                <span class="detail-value" id="detailTitle2"></span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">작성자</span>
-                <span class="detail-value" id="detailAuthor"></span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">작성일시</span>
-                <span class="detail-value" id="detailDate"></span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">공지여부</span>
-                <span class="detail-value" id="detailIsNotice"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="handover-detail-section">
-            <div class="section-title">내용</div>
-            <div class="detail-value handover-text" id="detailContent"></div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button
-            class="btn danger-btn"
-            id="deleteHandoverBtn"
-            style="margin-right: auto"
-          >
-            <i class="fa-solid fa-trash"></i> 삭제
-          </button>
-          <button class="btn secondary-btn" data-modal="handoverDetailModal">
-            닫기
-          </button>
-          <button class="btn primary-btn" id="editHandoverBtn">
-            <i class="fa-solid fa-edit"></i> 수정
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 모달: 인수인계 등록/수정 -->
-    <div id="newHandoverModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 id="handoverModalTitle">인수인계 등록</h3>
-          <button class="close-modal" data-modal="newHandoverModal">
-            <i class="fa-solid fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form class="new-handover-form">
-            <input type="hidden" id="handoverId" value="" />
-            <div class="form-group">
-              <label for="handoverTitle">제목</label>
-              <input
-                type="text"
-                id="handoverTitle"
-                class="input-field"
-                placeholder="인수인계 제목을 입력하세요"
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="isNotice">공지여부</label>
-              <div>
-                <label class="checkbox-container">
-                  <input type="checkbox" id="isNotice" />
-                  <span class="checkbox-label">공지사항으로 등록</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="handoverContent">내용</label>
-              <textarea
-                id="handoverContent"
-                class="textarea-field"
-                placeholder="인수인계 내용을 자세히 입력하세요"
-                rows="8"
-              ></textarea>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button class="btn secondary-btn" data-modal="newHandoverModal">
-            취소
-          </button>
-          <button class="btn primary-btn" id="submitHandoverBtn">
-            <i class="fa-solid fa-paper-plane"></i>
-            <span id="submitBtnText">등록하기</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 메시지 팝업 컴포넌트 -->
-    <div id="messagePopup" class="message-popup">
-      <div class="message-content">
-        <i class="fa-solid message-icon"></i>
-        <span class="message-text"></span>
-      </div>
-    </div>
-
-    <!-- JavaScript 파일 -->
-    <script src="js/utils.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/handover.js"></script>
   </body>
 </html>
