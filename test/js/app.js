@@ -63,8 +63,18 @@ const TMS = {
       userDisplayRole.textContent = this.store.userData.userRole;
     }
 
+    // 데이터 관리 기능 초기화
+    this.initDataManagement();
+
     // 모달 초기화
     modalUtils.initModals();
+  },
+
+  /**
+   * 데이터 관리 기능 초기화
+   */
+  initDataManagement: function () {
+    // 데이터 초기화 기능 삭제
   },
 
   /**
@@ -100,6 +110,34 @@ const TMS = {
    */
   loadDashboardData: async function () {
     try {
+      // 1. 먼저 localStorage에서 데이터 확인
+      const savedData = localStorage.getItem('tms_dashboard_data');
+
+      if (savedData) {
+        try {
+          const parsedData = JSON.parse(savedData);
+          if (
+            parsedData &&
+            parsedData.dashboard &&
+            Array.isArray(parsedData.dashboard)
+          ) {
+            console.log('localStorage에서 대시보드 데이터 로드 성공');
+            this.store.dashboardData = parsedData.dashboard;
+            console.log(
+              `대시보드 데이터 ${this.store.dashboardData.length}건 로드 완료`
+            );
+
+            // 데이터가 변경되었음을 알리는 이벤트
+            document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
+            return;
+          }
+        } catch (localStorageError) {
+          console.warn('localStorage 데이터 파싱 오류:', localStorageError);
+        }
+      }
+
+      // 2. localStorage에 데이터가 없거나 유효하지 않은 경우 JSON 파일 로드
+      console.log('JSON 파일에서 대시보드 데이터 로드 시도...');
       const response = await fetch('dashboard_data.json');
 
       if (!response.ok) {
@@ -132,8 +170,11 @@ const TMS = {
         });
 
         console.log(
-          `대시보드 데이터 ${this.store.dashboardData.length}건 로드 완료`
+          `JSON 파일에서 대시보드 데이터 ${this.store.dashboardData.length}건 로드 완료`
         );
+
+        // JSON에서 로드한 데이터를 localStorage에도 저장하여 다음에 사용할 수 있게 함
+        this.saveDashboardData();
 
         // 데이터가 변경되었음을 알리는 이벤트
         document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
@@ -312,46 +353,52 @@ const TMS = {
   },
 
   /**
-   * 대시보드 아이템 상세 정보 가져오기
+   * 대시보드 항목을 ID로 가져오기
    */
   getDashboardItemById: function (orderId) {
-    if (!this.store.dashboardData) {
+    if (!this.store.dashboardData || !orderId) {
       return null;
     }
 
-    return this.store.dashboardData.find(
-      (item) => String(item.order_no) === String(orderId)
+    return (
+      this.store.dashboardData.find((item) => item.order_no === orderId) || null
     );
   },
 
   /**
-   * 대시보드 데이터 업데이트
+   * 대시보드 항목 업데이트
    */
   updateDashboardItem: function (orderId, updateData) {
-    if (!this.store.dashboardData) {
+    if (!this.store.dashboardData || !orderId) {
       return false;
     }
 
     const index = this.store.dashboardData.findIndex(
-      (item) => String(item.order_no) === String(orderId)
+      (item) => item.order_no === orderId
     );
 
     if (index === -1) {
+      console.warn(`주문 ID '${orderId}'를 찾을 수 없습니다.`);
       return false;
     }
 
-    // 데이터 업데이트
-    this.store.dashboardData[index] = {
-      ...this.store.dashboardData[index],
-      ...updateData,
-      update_at: new Date().toISOString(),
-      updated_by: this.store.userData.userName,
-    };
+    try {
+      // 기존 데이터에 업데이트 적용
+      this.store.dashboardData[index] = {
+        ...this.store.dashboardData[index],
+        ...updateData,
+        update_at: new Date().toISOString(),
+        updated_by: this.store.userData.userName,
+      };
 
-    // 변경 이벤트 발생
-    document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
+      // 변경 이벤트 발생
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
 
-    return true;
+      return true;
+    } catch (error) {
+      console.error('대시보드 항목 업데이트 실패:', error);
+      return false;
+    }
   },
 
   /**
@@ -440,6 +487,100 @@ const TMS = {
     document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
 
     return newHandover;
+  },
+
+  /**
+   * 대시보드 데이터 저장 함수
+   * 변경된 데이터를 localStorage에 저장하여 지속성 유지
+   */
+  saveDashboardData: function () {
+    try {
+      console.log('대시보드 데이터 저장 중...');
+
+      // 저장할 데이터 구조 생성
+      const saveData = {
+        dashboard: this.store.dashboardData,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      // 데이터를 JSON 문자열로 변환
+      const jsonData = JSON.stringify(saveData, null, 2);
+
+      // localStorage에 저장
+      localStorage.setItem('tms_dashboard_data', jsonData);
+
+      console.log(
+        '대시보드 데이터 저장 완료:',
+        `${this.store.dashboardData.length}건`
+      );
+
+      // 데이터가 저장되었음을 알리는 이벤트 발생
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataSaved'));
+
+      return true;
+    } catch (error) {
+      console.error('대시보드 데이터 저장 실패:', error);
+      messageUtils.error('데이터를 저장하는 중 오류가 발생했습니다.');
+      return false;
+    }
+  },
+
+  /**
+   * 데이터 업데이트 함수
+   * 대시보드 데이터 수정 후 저장
+   */
+  updateDashboardData: function (updatedItems) {
+    if (!Array.isArray(updatedItems) && updatedItems) {
+      // 단일 아이템인 경우 배열로 변환
+      updatedItems = [updatedItems];
+    }
+
+    if (!updatedItems || updatedItems.length === 0) {
+      console.warn('업데이트할 데이터가 없습니다.');
+      return false;
+    }
+
+    // 데이터가 아직 로드되지 않은 경우
+    if (!this.store.dashboardData) {
+      console.warn('대시보드 데이터가 아직 로드되지 않았습니다.');
+      return false;
+    }
+
+    try {
+      // 각 업데이트 항목 처리
+      updatedItems.forEach((item) => {
+        const index = this.store.dashboardData.findIndex(
+          (existing) => existing.order_no === item.order_no
+        );
+
+        if (index !== -1) {
+          // 기존 항목 업데이트
+          this.store.dashboardData[index] = {
+            ...this.store.dashboardData[index],
+            ...item,
+            updated_at: new Date().toISOString(),
+          };
+        } else {
+          // 새 항목 추가
+          this.store.dashboardData.push({
+            ...item,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      });
+
+      // 데이터 저장 - 즉시 localStorage에 저장하여 지속성 보장
+      this.saveDashboardData();
+
+      // 데이터가 변경되었음을 알리는 이벤트
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
+
+      return true;
+    } catch (error) {
+      console.error('대시보드 데이터 업데이트 실패:', error);
+      return false;
+    }
   },
 };
 

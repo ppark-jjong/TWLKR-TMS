@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TeckwahTMS - 인수인계 & 공지사항</title>
+    <title>TeckwahTMS</title>
 
     <!-- 파비콘 -->
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
@@ -210,7 +210,14 @@
             <div class="page-section" id="handoverPage">
               <div class="main-card">
                 <div class="card-header">
-                  <h2>인수인계 & 공지사항</h2>
+                  <div class="tab-container" style="margin-right: auto">
+                    <div class="tab active" data-tab="notice-section">
+                      <i class="fa-solid fa-bullhorn"></i> 공지사항
+                    </div>
+                    <div class="tab" data-tab="handover-section">
+                      <i class="fa-solid fa-right-left"></i> 인수인계
+                    </div>
+                  </div>
                   <div class="card-actions">
                     <button class="btn primary-btn" id="refreshHandoverBtn">
                       <i class="fa-solid fa-arrows-rotate"></i> 새로고침
@@ -221,25 +228,9 @@
                   </div>
                 </div>
 
-                <!-- 탭 메뉴 -->
-                <div class="tab-container">
-                  <div class="tab active" data-tab="notice-section">
-                    <i class="fa-solid fa-bullhorn"></i> 공지사항
-                  </div>
-                  <div class="tab" data-tab="handover-section">
-                    <i class="fa-solid fa-right-left"></i> 인수인계
-                  </div>
-                </div>
-
                 <!-- 공지사항 섹션 -->
                 <div class="content-section active" id="notice-section">
                   <div class="handover-section">
-                    <div class="section-header">
-                      <h3 class="section-title">
-                        <i class="fa-solid fa-bullhorn"></i> 공지사항
-                      </h3>
-                    </div>
-
                     <div class="table-container">
                       <table class="data-table" id="noticeTable">
                         <thead>
@@ -284,12 +275,6 @@
                 <!-- 인수인계 섹션 -->
                 <div class="content-section" id="handover-section">
                   <div class="handover-section">
-                    <div class="section-header">
-                      <h3 class="section-title">
-                        <i class="fa-solid fa-right-left"></i> 인수인계
-                      </h3>
-                    </div>
-
                     <div class="table-container">
                       <table class="data-table" id="handoverTable">
                         <thead>

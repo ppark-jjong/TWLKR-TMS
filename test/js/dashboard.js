@@ -176,7 +176,93 @@ const DashboardPage = {
    * 필터링된 데이터 업데이트
    */
   updateFilteredData: function () {
-    this.state.filteredData = TMS.getDashboardData(this.state.filters);
+    console.log('필터링 시작:', this.state.filters);
+
+    // 원본 데이터 복사
+    let filteredData = [...TMS.store.dashboardData];
+    console.log(`필터링 전 전체 데이터: ${filteredData.length}건`);
+
+    // 날짜 필터 적용
+    if (this.state.filters.startDate && this.state.filters.endDate) {
+      const startDate = new Date(this.state.filters.startDate);
+      const endDate = new Date(this.state.filters.endDate);
+      endDate.setHours(23, 59, 59, 999); // 종료일을 해당일 끝까지 포함
+
+      console.log(
+        `날짜 필터 적용: ${startDate.toISOString()} ~ ${endDate.toISOString()}`
+      );
+
+      filteredData = filteredData.filter((item) => {
+        if (!item.eta) {
+          return false;
+        }
+
+        const etaDate = new Date(item.eta);
+        if (isNaN(etaDate.getTime())) {
+          console.log(
+            `날짜 변환 실패: ${item.eta}, 주문번호: ${item.order_no}`
+          );
+          return false;
+        }
+
+        return etaDate >= startDate && etaDate <= endDate;
+      });
+
+      console.log(`날짜 필터 후 데이터: ${filteredData.length}건`);
+    }
+
+    // 상태 필터 적용
+    if (this.state.filters.status) {
+      console.log(`상태 필터 적용: ${this.state.filters.status}`);
+      filteredData = filteredData.filter(
+        (item) => item.status === this.state.filters.status
+      );
+      console.log(`상태 필터 후 데이터: ${filteredData.length}건`);
+    }
+
+    // 부서 필터 적용
+    if (this.state.filters.department) {
+      console.log(`부서 필터 적용: ${this.state.filters.department}`);
+      filteredData = filteredData.filter(
+        (item) => item.department === this.state.filters.department
+      );
+      console.log(`부서 필터 후 데이터: ${filteredData.length}건`);
+    }
+
+    // 창고 필터 적용
+    if (this.state.filters.warehouse) {
+      console.log(`창고 필터 적용: ${this.state.filters.warehouse}`);
+      filteredData = filteredData.filter(
+        (item) => item.warehouse === this.state.filters.warehouse
+      );
+      console.log(`창고 필터 후 데이터: ${filteredData.length}건`);
+    }
+
+    // 키워드 검색 적용
+    if (this.state.filters.keyword) {
+      const keyword = this.state.filters.keyword.toLowerCase();
+      console.log(`키워드 검색 적용: ${keyword}`);
+
+      filteredData = filteredData.filter((item) => {
+        const orderNo = String(item.order_no).toLowerCase();
+        return orderNo.includes(keyword);
+      });
+
+      console.log(`키워드 검색 후 데이터: ${filteredData.length}건`);
+    }
+
+    this.state.filteredData = filteredData;
+    console.log(`최종 필터링된 데이터: ${this.state.filteredData.length}건`);
+
+    // ETA 오름차순으로 정렬
+    this.state.filteredData.sort((a, b) => {
+      // ETA가 없는 경우 맨 뒤로 정렬
+      if (!a.eta) return 1;
+      if (!b.eta) return -1;
+
+      // ETA 날짜 기준 오름차순 정렬
+      return new Date(a.eta) - new Date(b.eta);
+    });
   },
 
   /**
@@ -200,7 +286,7 @@ const DashboardPage = {
 
     // 상태별 카운트
     const progressOrders = this.state.filteredData.filter(
-      (item) => item.status === 'IN_PROGRESS' || item.status === 'ASSIGNED'
+      (item) => item.status === 'IN_PROGRESS'
     ).length;
     const completedOrders = this.state.filteredData.filter(
       (item) => item.status === 'COMPLETE'
@@ -251,7 +337,6 @@ const DashboardPage = {
       const statusClassMap = {
         PENDING: 'status-pending',
         IN_PROGRESS: 'status-progress',
-        ASSIGNED: 'status-progress',
         COMPLETE: 'status-complete',
         ISSUE: 'status-issue',
         CANCEL: 'status-cancel',
@@ -512,6 +597,7 @@ const DashboardPage = {
       return;
     }
 
+    console.log(`날짜 필터 적용: ${startDate} ~ ${endDate}`);
     this.state.filters.startDate = startDate;
     this.state.filters.endDate = endDate;
 
@@ -634,6 +720,7 @@ const DashboardPage = {
 
     // 상태 변경 처리
     let successCount = 0;
+    const updatedItems = [];
 
     this.state.selectedItems.forEach((orderId) => {
       // 현재 주문 상태 확인
@@ -660,8 +747,12 @@ const DashboardPage = {
 
       if (result) {
         successCount++;
+        updatedItems.push({ ...orderItem, ...updateData });
       }
     });
+
+    // JSON DB에 저장
+    TMS.updateDashboardData(updatedItems);
 
     // 모달 닫기
     modalUtils.closeModal('statusChangeModal');
@@ -742,12 +833,29 @@ const DashboardPage = {
       return;
     }
 
+    // 기존 주문 정보 가져오기
+    const orderItem = TMS.getDashboardItemById(this.selectedOrderForAssign);
+    if (!orderItem) {
+      messageUtils.error('주문 정보를 찾을 수 없습니다.');
+      return;
+    }
+
     // 배차 처리 - 상태 변경 없이 기사 정보만 업데이트
-    const result = TMS.updateDashboardItem(this.selectedOrderForAssign, {
+    const updateData = {
       driver_name: driverName,
       driver_contact: driverContact || null,
       depart_time: new Date().toISOString(),
-    });
+    };
+
+    const result = TMS.updateDashboardItem(
+      this.selectedOrderForAssign,
+      updateData
+    );
+
+    // JSON DB에 저장
+    if (result) {
+      TMS.updateDashboardData({ ...orderItem, ...updateData });
+    }
 
     // 모달 닫기
     modalUtils.closeModal('assignDriverModal');
@@ -872,6 +980,9 @@ const DashboardPage = {
     // 배열에 추가
     TMS.store.dashboardData.push(newOrder);
 
+    // JSON DB에 저장
+    TMS.updateDashboardData(newOrder);
+
     // 모달 닫기
     modalUtils.closeModal('newOrderModal');
 
@@ -906,6 +1017,9 @@ const DashboardPage = {
       (item) => !this.state.selectedItems.includes(item.order_no)
     );
 
+    // JSON DB에 저장
+    TMS.saveDashboardData();
+
     // 변경 이벤트 발생 (자동 업데이트 트리거)
     document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
 
@@ -916,7 +1030,7 @@ const DashboardPage = {
   },
 
   /**
-   * 주문 수정 처리
+   * 주문 수정 모달 열기
    */
   handleEdit: function () {
     const orderId = document.getElementById('detailOrderId').textContent;
@@ -924,8 +1038,149 @@ const DashboardPage = {
       return;
     }
 
-    messageUtils.info('주문 수정 기능이 준비 중입니다.');
+    // 주문 정보 가져오기
+    const orderItem = TMS.getDashboardItemById(orderId);
+    if (!orderItem) {
+      messageUtils.error('주문 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 모달 필드 초기화
+    document.getElementById('editOrderId').value = orderItem.order_no;
+    document.getElementById('editOrderNo').value = orderItem.order_no;
+    document.getElementById('editType').value = orderItem.type || 'DELIVERY';
+    document.getElementById('editDepartment').value =
+      orderItem.department || 'CS';
+    document.getElementById('editWarehouse').value =
+      orderItem.warehouse || 'SEOUL';
+    document.getElementById('editSla').value = orderItem.sla || '4HR(24X7)';
+    document.getElementById('editStatus').value = orderItem.status || 'PENDING';
+
+    // ETA 날짜 변환 (datetime-local 형식으로)
+    if (orderItem.eta) {
+      const etaDate = new Date(orderItem.eta);
+      const year = etaDate.getFullYear();
+      const month = String(etaDate.getMonth() + 1).padStart(2, '0');
+      const day = String(etaDate.getDate()).padStart(2, '0');
+      const hours = String(etaDate.getHours()).padStart(2, '0');
+      const minutes = String(etaDate.getMinutes()).padStart(2, '0');
+
+      document.getElementById(
+        'editEta'
+      ).value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    } else {
+      document.getElementById('editEta').value = '';
+    }
+
+    document.getElementById('editPostalCode').value =
+      orderItem.postal_code || '';
+    document.getElementById('editCustomer').value = orderItem.customer || '';
+    document.getElementById('editAddress').value = orderItem.address || '';
+    document.getElementById('editContact').value = orderItem.contact || '';
+    document.getElementById('editRemark').value = orderItem.remark || '';
+
+    // 상세 모달 닫기
     modalUtils.closeModal('orderDetailModal');
+
+    // 편집 모달 열기
+    modalUtils.openModal('editOrderModal');
+
+    // 저장 버튼 이벤트 리스너 (한 번만 추가)
+    if (!this.editOrderEventRegistered) {
+      document
+        .getElementById('confirmEditOrderBtn')
+        .addEventListener('click', this.confirmEditOrder.bind(this));
+      this.editOrderEventRegistered = true;
+    }
+  },
+
+  /**
+   * 주문 수정 저장 처리
+   */
+  confirmEditOrder: function () {
+    // 폼 데이터 가져오기
+    const orderId = document.getElementById('editOrderId').value;
+
+    // 값 유효성 검사
+    const type = document.getElementById('editType').value;
+    const warehouse = document.getElementById('editWarehouse').value;
+    const sla = document.getElementById('editSla').value;
+    const eta = document.getElementById('editEta').value;
+    const postalCode = document.getElementById('editPostalCode').value.trim();
+    const customer = document.getElementById('editCustomer').value.trim();
+    const address = document.getElementById('editAddress').value.trim();
+    const contact = document.getElementById('editContact').value.trim();
+    const remark = document.getElementById('editRemark').value.trim();
+    const status = document.getElementById('editStatus').value;
+
+    // 필수 필드 확인
+    if (
+      !type ||
+      !warehouse ||
+      !sla ||
+      !eta ||
+      !postalCode ||
+      !customer ||
+      !address
+    ) {
+      messageUtils.warning('필수 입력 항목을 모두 입력해주세요.');
+      return;
+    }
+
+    // 기존 주문 정보 가져오기
+    const orderItem = TMS.getDashboardItemById(orderId);
+    if (!orderItem) {
+      messageUtils.error('주문 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 업데이트 데이터 준비
+    const updateData = {
+      type: type,
+      warehouse: warehouse,
+      sla: sla,
+      eta: new Date(eta).toISOString(),
+      postal_code: postalCode,
+      address: address,
+      customer: customer,
+      contact: contact || null,
+      remark: remark || null,
+      status: status,
+    };
+
+    // 상태가 변경되었을 경우 추가 필드 업데이트
+    if (status !== orderItem.status) {
+      // 진행 상태로 변경할 때 출발 시간 자동 설정 (만약 없는 경우)
+      if (status === 'IN_PROGRESS' && !orderItem.depart_time) {
+        updateData.depart_time = new Date().toISOString();
+      }
+
+      // 완료 또는 이슈 상태로 변경할 때 완료 시간 자동 설정
+      if (
+        (status === 'COMPLETE' || status === 'ISSUE') &&
+        !orderItem.complete_time
+      ) {
+        updateData.complete_time = new Date().toISOString();
+      }
+    }
+
+    // 주문 정보 업데이트
+    const result = TMS.updateDashboardItem(orderId, updateData);
+
+    // JSON DB에 저장
+    if (result) {
+      TMS.updateDashboardData({ ...orderItem, ...updateData });
+    }
+
+    // 모달 닫기
+    modalUtils.closeModal('editOrderModal');
+
+    // 결과 알림
+    if (result) {
+      messageUtils.success('주문 정보가 성공적으로 수정되었습니다.');
+    } else {
+      messageUtils.error('주문 정보 수정에 실패했습니다.');
+    }
   },
 };
 

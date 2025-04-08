@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TeckwahTMS - 대시보드</title>
+    <title>TeckwahTMS</title>
 
     <!-- 파비콘 -->
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
@@ -383,7 +383,6 @@
               <div class="main-card" style="position: relative">
                 <div class="card-header date-filter-header">
                   <div class="date-period-container">
-                    <h2 style="margin-right: 20px">배송 관리</h2>
                     <div
                       class="period-select-container"
                       style="display: flex; align-items: center"
@@ -570,7 +569,14 @@
                 </div>
 
                 <!-- 데이터 테이블 -->
-                <div class="table-container">
+                <div
+                  class="table-container"
+                  style="
+                    max-height: 500px;
+                    overflow-y: auto;
+                    position: relative;
+                  "
+                >
                   <table class="data-table" id="dashboardTable">
                     <thead>
                       <tr>
@@ -694,9 +700,7 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label for="newSla"
-                  >서비스 수준 계약(SLA) <span class="required">*</span></label
-                >
+                <label for="newSla">SLA <span class="required">*</span></label>
                 <input
                   type="text"
                   id="newSla"
@@ -706,9 +710,7 @@
                 />
               </div>
               <div class="form-group">
-                <label for="newEta"
-                  >예상 도착 시간(ETA) <span class="required">*</span></label
-                >
+                <label for="newEta">ETA <span class="required">*</span></label>
                 <input
                   type="datetime-local"
                   id="newEta"
@@ -830,7 +832,7 @@
                 <span class="detail-value" id="detailWarehouse">-</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">서비스 수준 계약(SLA)</span>
+                <span class="detail-label">SLA</span>
                 <span class="detail-value" id="detailSla">-</span>
               </div>
               <div class="detail-item">
@@ -845,7 +847,7 @@
             <div class="section-title">배송 정보</div>
             <div class="detail-grid">
               <div class="detail-item">
-                <span class="detail-label">예상 도착 시간 (ETA)</span>
+                <span class="detail-label">ETA</span>
                 <span class="detail-value" id="detailEta">-</span>
               </div>
               <div class="detail-item">
@@ -993,6 +995,184 @@
       <div class="message-content">
         <i class="fa-solid message-icon"></i>
         <span class="message-text"></span>
+      </div>
+    </div>
+
+    <!-- 주문 수정 모달 -->
+    <div class="modal fade" id="editOrderModal" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">주문 정보 수정</h5>
+            <button
+              type="button"
+              class="close"
+              data-dismiss="modal"
+              aria-label="Close"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <form id="editOrderForm">
+              <input type="hidden" id="editOrderId" name="orderId" />
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label for="editOrderNo">주문번호</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="editOrderNo"
+                    name="orderNo"
+                    readonly
+                  />
+                  <small class="form-text text-muted"
+                    >주문번호는 변경할 수 없습니다.</small
+                  >
+                </div>
+                <div class="form-group col-md-6">
+                  <label for="editType">배송 유형</label>
+                  <select class="form-control" id="editType" name="type">
+                    <option value="DELIVERY">배송</option>
+                    <option value="PICKUP">회수</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label for="editDepartment">부서</label>
+                  <select
+                    class="form-control"
+                    id="editDepartment"
+                    name="department"
+                    disabled
+                  >
+                    <option value="CS">CS</option>
+                    <option value="HES">HES</option>
+                    <option value="LENOVO">LENOVO</option>
+                  </select>
+                  <small class="form-text text-muted"
+                    >부서는 변경할 수 없습니다.</small
+                  >
+                </div>
+                <div class="form-group col-md-6">
+                  <label for="editWarehouse">창고</label>
+                  <select
+                    class="form-control"
+                    id="editWarehouse"
+                    name="warehouse"
+                  >
+                    <option value="SEOUL">서울</option>
+                    <option value="BUSAN">부산</option>
+                    <option value="GWANGJU">광주</option>
+                    <option value="DAEJEON">대전</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label for="editSla">SLA</label>
+                  <select class="form-control" id="editSla" name="sla">
+                    <option value="4HR(24X7)">4HR(24X7)</option>
+                    <option value="4HR(5X9)">4HR(5X9)</option>
+                    <option value="NBD(5X9)">NBD(5X9)</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-6">
+                  <label for="editEta">ETA</label>
+                  <input
+                    type="datetime-local"
+                    class="form-control"
+                    id="editEta"
+                    name="eta"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label for="editPostalCode">우편번호</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="editPostalCode"
+                    name="postalCode"
+                  />
+                </div>
+                <div class="form-group col-md-6">
+                  <label for="editCustomer">고객명</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="editCustomer"
+                    name="customer"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="editAddress">주소</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="editAddress"
+                  name="address"
+                />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label for="editContact">연락처</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="editContact"
+                    name="contact"
+                  />
+                </div>
+                <div class="form-group col-md-6">
+                  <label for="editStatus">현재 상태</label>
+                  <select class="form-control" id="editStatus" name="status">
+                    <option value="PENDING">대기</option>
+                    <option value="IN_PROGRESS">진행중</option>
+                    <option value="COMPLETE">완료</option>
+                    <option value="ISSUE">이슈</option>
+                    <option value="CANCEL">취소</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="editRemark">메모</label>
+                <textarea
+                  class="form-control"
+                  id="editRemark"
+                  name="remark"
+                  rows="3"
+                ></textarea>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-dismiss="modal"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="confirmEditOrderBtn"
+            >
+              저장
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
