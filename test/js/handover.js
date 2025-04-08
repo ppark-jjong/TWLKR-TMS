@@ -34,22 +34,40 @@ const HandoverPage = {
   init: function () {
     console.log('인수인계 페이지 초기화...');
 
+    // 모달 관련 상태 초기화
+    this.selectedHandoverId = null;
+    this.state.isEditMode = false;
+
     // 이벤트 리스너 등록
     this.registerEventListeners();
 
     // 데이터 로드되었으면 테이블 업데이트
-    if (TMS.store.isDataLoaded) {
+    if (DataManager.isDataLoaded()) {
       this.updateLists();
     } else {
       // 데이터 로드 대기
-      document.addEventListener('tms:dataLoaded', () => {
+      document.addEventListener('data:loaded', () => {
         this.updateLists();
       });
     }
 
     // 데이터 변경 이벤트 리스닝
-    document.addEventListener('tms:handoverDataChanged', () => {
+    document.addEventListener('data:handoverChanged', () => {
       this.updateLists();
+    });
+    
+    // 모달 이벤트 리스닝
+    document.addEventListener('modal:opened', (e) => {
+      console.log(`모달 열림: ${e.detail.modalId}`);
+    });
+    
+    document.addEventListener('modal:closed', (e) => {
+      console.log(`모달 닫힘: ${e.detail.modalId}`);
+      
+      // 모달이 닫힐 때 수정 모드 상태 초기화
+      if (e.detail.modalId === 'newHandoverModal') {
+        this.state.isEditMode = false;
+      }
     });
   },
 
@@ -57,10 +75,9 @@ const HandoverPage = {
    * 이벤트 리스너 등록
    */
   registerEventListeners: function () {
-    // 탭 전환
-    document.querySelectorAll('.tab').forEach((tab) => {
-      tab.addEventListener('click', this.handleTabChange.bind(this));
-    });
+    // 체크박스 이벤트 리스너 등록
+    document.getElementById('showNoticeCheck').addEventListener('change', this.toggleSectionVisibility.bind(this));
+    document.getElementById('showHandoverCheck').addEventListener('change', this.toggleSectionVisibility.bind(this));
 
     // 액션 버튼
     document
@@ -100,32 +117,55 @@ const HandoverPage = {
     document
       .getElementById('deleteHandoverBtn')
       .addEventListener('click', this.confirmDeleteHandover.bind(this));
+
+    // 테이블 행 이벤트 설정
+    DOMUtils.setupTableRowEvents(
+      document.getElementById('noticeTable'),
+      this.openDetailModal.bind(this)
+    );
+    DOMUtils.setupTableRowEvents(
+      document.getElementById('handoverTable'),
+      this.openDetailModal.bind(this)
+    );
   },
 
   /**
-   * 탭 변경 처리
+   * 섹션 가시성 토글
    */
-  handleTabChange: function (e) {
-    const tabName = e.currentTarget.getAttribute('data-tab');
-
-    // 모든 탭에서 active 클래스 제거
-    document.querySelectorAll('.tab').forEach((tab) => {
-      tab.classList.remove('active');
-    });
-
-    // 클릭한 탭에 active 클래스 추가
-    e.currentTarget.classList.add('active');
-
-    // 모든 컨텐츠 섹션 숨기기
-    document.querySelectorAll('.content-section').forEach((section) => {
-      section.classList.remove('active');
-    });
-
-    // 해당 탭의 컨텐츠 섹션 표시
-    document.getElementById(tabName).classList.add('active');
-
-    // 현재 활성화된 탭 상태 저장
-    this.state.activeTab = tabName;
+  toggleSectionVisibility: function() {
+    const showNotice = document.getElementById('showNoticeCheck').checked;
+    const showHandover = document.getElementById('showHandoverCheck').checked;
+    
+    // 공지사항 섹션 토글
+    if (showNotice) {
+      document.getElementById('notice-section').style.display = 'block';
+    } else {
+      document.getElementById('notice-section').style.display = 'none';
+    }
+    
+    // 인수인계 섹션 토글
+    if (showHandover) {
+      document.getElementById('handover-section').style.display = 'block';
+    } else {
+      document.getElementById('handover-section').style.display = 'none';
+    }
+    
+    // 최소한 하나의 섹션은 보이도록 함
+    if (!showNotice && !showHandover) {
+      document.getElementById('showHandoverCheck').checked = true;
+      document.getElementById('handover-section').style.display = 'block';
+      MessageManager.warning('최소한 하나의 섹션은 표시되어야 합니다.');
+    }
+    
+    // 레이아웃 조정 - 한 섹션만 보일 때 높이 조정
+    if (showNotice && !showHandover) {
+      document.getElementById('notice-section').style.flex = '1';
+    } else if (!showNotice && showHandover) {
+      document.getElementById('handover-section').style.flex = '1';
+    } else {
+      document.getElementById('notice-section').style.flex = '0 0 30%';
+      document.getElementById('handover-section').style.flex = '1';
+    }
   },
 
   /**
@@ -151,7 +191,7 @@ const HandoverPage = {
    */
   filterData: function () {
     // 전체 데이터 가져오기
-    const allData = TMS.getHandoverData();
+    const allData = DataManager.getHandoverData();
 
     // 최신순 정렬
     allData.sort((a, b) => {
@@ -165,7 +205,7 @@ const HandoverPage = {
 
     // 인수인계 필터링
     this.state.handover.filteredData = allData.filter(
-      (item) => item.is_notice === false
+      (item) => item.is_notice !== true
     );
   },
 
@@ -243,11 +283,6 @@ const HandoverPage = {
       contentCell.appendChild(contentText);
       row.appendChild(contentCell);
 
-      // 클릭 이벤트 리스너
-      row.addEventListener('click', () => {
-        this.openDetailModal(item.handover_id);
-      });
-
       tableBody.appendChild(row);
     });
   },
@@ -300,20 +335,20 @@ const HandoverPage = {
    */
   refreshData: function () {
     // 인수인계 데이터 다시 로드
-    TMS.initHandoverData();
+    DataManager.loadHandoverData();
     // 화면 업데이트는 이벤트로 자동 처리
 
-    messageUtils.success('목록이 새로고침되었습니다.');
+    MessageManager.success('목록이 새로고침되었습니다.');
   },
 
   /**
    * 상세 모달 열기
    */
   openDetailModal: function (handoverId) {
-    const item = TMS.getHandoverItemById(handoverId);
+    const item = DataManager.getHandoverItemById(handoverId);
 
     if (!item) {
-      messageUtils.error('정보를 찾을 수 없습니다.');
+      MessageManager.error('정보를 찾을 수 없습니다.');
       return;
     }
 
@@ -345,10 +380,11 @@ const HandoverPage = {
     this.selectedHandoverId = handoverId;
 
     // 모달 열기
-    modalUtils.openModal('handoverDetailModal');
+    ModalManager.openModal('handoverDetailModal');
 
     // 권한 체크 (본인이 작성한 경우만 수정/삭제 가능)
-    const currentUser = TMS.store.userData.userName;
+    const userData = DataManager.getUserData();
+    const currentUser = userData.userName;
     const editBtn = document.getElementById('editHandoverBtn');
     const deleteBtn = document.getElementById('deleteHandoverBtn');
 
@@ -364,7 +400,7 @@ const HandoverPage = {
     const handoverId = this.selectedHandoverId;
     if (!handoverId) return;
 
-    const item = TMS.getHandoverItemById(handoverId);
+    const item = DataManager.getHandoverItemById(handoverId);
     if (!item) return;
 
     // 모달 제목 변경
@@ -385,8 +421,8 @@ const HandoverPage = {
     this.state.isEditMode = true;
 
     // 상세 모달 닫기 및 수정 모달 열기
-    modalUtils.closeModal('handoverDetailModal');
-    modalUtils.openModal('newHandoverModal');
+    ModalManager.closeModal('handoverDetailModal');
+    ModalManager.openModal('newHandoverModal');
   },
 
   /**
@@ -407,7 +443,7 @@ const HandoverPage = {
     this.state.isEditMode = false;
 
     // 모달 열기
-    modalUtils.openModal('newHandoverModal');
+    ModalManager.openModal('newHandoverModal');
   },
 
   /**
@@ -422,7 +458,7 @@ const HandoverPage = {
 
     // 필수 필드 확인
     if (!title || !content) {
-      messageUtils.warning('제목과 내용을 입력해주세요.');
+      MessageManager.warning('제목과 내용을 입력해주세요.');
       return;
     }
 
@@ -443,45 +479,32 @@ const HandoverPage = {
     }
 
     // 모달 닫기
-    modalUtils.closeModal('newHandoverModal');
+    ModalManager.closeModal('newHandoverModal');
   },
 
   /**
    * 새 인수인계 생성
    */
   createNewHandover: function (data) {
-    // 데이터 생성
-    const newHandover = {
-      handover_id: 'H' + Date.now(),
-      title: data.title,
-      content: data.content,
-      is_notice: data.is_notice,
-      created_by: TMS.store.userData.userName,
-      created_at: new Date().toISOString(),
-    };
-
-    // 스토어에 추가
-    if (!TMS.store.handoverData) {
-      TMS.store.handoverData = [];
-    }
-
-    TMS.store.handoverData.push(newHandover);
-
-    // 변경 이벤트 발생
-    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
+    // DataManager를 통해 추가
+    const result = DataManager.addHandoverItem(data);
 
     // 성공 메시지
-    messageUtils.success(
-      `${data.is_notice ? '공지사항' : '인수인계'}이 등록되었습니다.`
-    );
+    if (result) {
+      MessageManager.success(
+        `${data.is_notice ? '공지사항' : '인수인계'}이 등록되었습니다.`
+      );
 
-    // 공지사항일 경우 공지 탭으로 전환
-    if (data.is_notice && this.state.activeTab !== 'notice-section') {
-      document.querySelector('.tab[data-tab="notice-section"]').click();
-    }
-    // 인수인계일 경우 인수인계 탭으로 전환
-    else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
-      document.querySelector('.tab[data-tab="handover-section"]').click();
+      // 공지사항일 경우 공지 탭으로 전환
+      if (data.is_notice && this.state.activeTab !== 'notice-section') {
+        document.querySelector('.tab[data-tab="notice-section"]').click();
+      }
+      // 인수인계일 경우 인수인계 탭으로 전환
+      else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
+        document.querySelector('.tab[data-tab="handover-section"]').click();
+      }
+    } else {
+      MessageManager.error('등록에 실패했습니다.');
     }
   },
 
@@ -489,41 +512,22 @@ const HandoverPage = {
    * 인수인계 항목 수정
    */
   updateHandoverItem: function (handoverId, data) {
-    // 기존 데이터 가져오기
-    const index = TMS.store.handoverData.findIndex(
-      (item) => item.handover_id === handoverId
-    );
-
-    if (index === -1) {
-      messageUtils.error('수정할 항목을 찾을 수 없습니다.');
-      return false;
-    }
-
-    // 기존 데이터 복사 및 수정
-    const updatedItem = {
-      ...TMS.store.handoverData[index],
-      title: data.title,
-      content: data.content,
-      is_notice: data.is_notice,
-    };
-
-    // 데이터 업데이트
-    TMS.store.handoverData[index] = updatedItem;
-
-    // 변경 이벤트 발생
-    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
+    // DataManager를 통해 업데이트
+    const result = DataManager.updateHandoverItem(handoverId, data);
 
     // 성공 메시지
-    messageUtils.success('정보가 수정되었습니다.');
+    if (result) {
+      MessageManager.success('정보가 수정되었습니다.');
 
-    // 공지여부가 변경된 경우 해당 탭으로 전환
-    if (data.is_notice && this.state.activeTab !== 'notice-section') {
-      document.querySelector('.tab[data-tab="notice-section"]').click();
-    } else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
-      document.querySelector('.tab[data-tab="handover-section"]').click();
+      // 공지여부가 변경된 경우 해당 탭으로 전환
+      if (data.is_notice && this.state.activeTab !== 'notice-section') {
+        document.querySelector('.tab[data-tab="notice-section"]').click();
+      } else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
+        document.querySelector('.tab[data-tab="handover-section"]').click();
+      }
+    } else {
+      MessageManager.error('수정에 실패했습니다.');
     }
-
-    return true;
   },
 
   /**
@@ -533,9 +537,9 @@ const HandoverPage = {
     const handoverId = this.selectedHandoverId;
     if (!handoverId) return;
 
-    const item = TMS.getHandoverItemById(handoverId);
+    const item = DataManager.getHandoverItemById(handoverId);
     if (!item) {
-      messageUtils.error('삭제할 항목을 찾을 수 없습니다.');
+      MessageManager.error('삭제할 항목을 찾을 수 없습니다.');
       return;
     }
 
@@ -555,38 +559,23 @@ const HandoverPage = {
    * 인수인계 항목 삭제
    */
   deleteHandoverItem: function (handoverId) {
-    // 기존 데이터 가져오기
-    const index = TMS.store.handoverData.findIndex(
-      (item) => item.handover_id === handoverId
-    );
-
-    if (index === -1) {
-      messageUtils.error('삭제할 항목을 찾을 수 없습니다.');
-      return false;
-    }
-
-    // 데이터 삭제
-    const deletedItem = TMS.store.handoverData.splice(index, 1)[0];
+    // DataManager를 통해 삭제
+    const item = DataManager.getHandoverItemById(handoverId);
+    const result = DataManager.deleteHandoverItem(handoverId);
 
     // 모달 닫기
-    modalUtils.closeModal('handoverDetailModal');
-
-    // 변경 이벤트 발생
-    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
+    ModalManager.closeModal('handoverDetailModal');
 
     // 성공 메시지
-    messageUtils.success(
-      `${deletedItem.is_notice ? '공지사항' : '인수인계'}이 삭제되었습니다.`
-    );
-
-    return true;
-  },
+    if (result) {
+      MessageManager.success(
+        `${item.is_notice ? '공지사항' : '인수인계'}이 삭제되었습니다.`
+      );
+    } else {
+      MessageManager.error('삭제에 실패했습니다.');
+    }
+  }
 };
 
 // 전역 객체에 페이지 모듈 할당
 window.HandoverPage = HandoverPage;
-
-// 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', function () {
-  HandoverPage.init();
-});

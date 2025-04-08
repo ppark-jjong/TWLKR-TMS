@@ -251,6 +251,14 @@ const modalUtils = {
     const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.add('active');
+      // 모달이 열렸을 때 body에 스크롤 방지 클래스 추가
+      document.body.style.overflow = 'hidden';
+      
+      // z-index를 높게 설정하여 다른 요소들보다 위에 표시
+      modal.style.zIndex = '1000';
+      
+      // 모달 열릴 때 배경 클릭 이벤트 추가
+      this._setupModalOverlay(modal);
     }
   },
   
@@ -261,6 +269,19 @@ const modalUtils = {
     const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.remove('active');
+      
+      // 모달 닫을 때 이벤트 리스너 제거
+      const overlay = modal.querySelector('.modal-overlay');
+      if (overlay) {
+        overlay.removeEventListener('click', this._overlayClickHandler);
+      }
+      
+      // 다른 활성화된 모달이 있는지 확인
+      const activeModals = document.querySelectorAll('.modal.active');
+      if (activeModals.length === 0) {
+        // 모달이 없으면 body 스크롤 복원
+        document.body.style.overflow = '';
+      }
     }
   },
   
@@ -271,13 +292,24 @@ const modalUtils = {
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
       modal.classList.remove('active');
+      
+      // 모달 닫을 때 이벤트 리스너 제거
+      const overlay = modal.querySelector('.modal-overlay');
+      if (overlay) {
+        overlay.removeEventListener('click', this._overlayClickHandler);
+      }
     });
+    
+    // body 스크롤 복원
+    document.body.style.overflow = '';
   },
   
   /**
    * 모달 초기화 (모든 모달에 닫기 이벤트 추가)
    */
   initModals() {
+    console.log('모달 초기화 중...');
+    
     // 모달 닫기 버튼에 이벤트 리스너 추가
     const closeButtons = document.querySelectorAll('[data-modal]');
     closeButtons.forEach(button => {
@@ -287,16 +319,78 @@ const modalUtils = {
       });
     });
     
-    // 모달 바깥 영역 클릭 시 닫기
+    // 모든 모달에 오버레이 클릭 이벤트 초기 설정
     const modals = document.querySelectorAll('.modal');
+    console.log(`${modals.length}개 모달 초기화`);
+    
     modals.forEach(modal => {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          modal.classList.remove('active');
+      // 오버레이 요소 검사 및 필요시 생성
+      let overlay = modal.querySelector('.modal-overlay');
+      if (!overlay) {
+        console.log(`모달 ${modal.id}에 오버레이 요소 추가`);
+        overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        modal.prepend(overlay);
+        
+        // 모달 컨테이너가 없는 경우 추가
+        if (!modal.querySelector('.modal-container')) {
+          const container = document.createElement('div');
+          container.className = 'modal-container';
+          
+          // 모달 컨텐츠를 컨테이너로 이동
+          const content = modal.querySelector('.modal-content');
+          if (content) {
+            content.parentNode.removeChild(content);
+            container.appendChild(content);
+          }
+          
+          modal.appendChild(container);
+        }
+      }
+      
+      // 모달 콘텐츠에 클릭 이벤트 전파 방지 추가
+      const modalContent = modal.querySelector('.modal-content');
+      if (modalContent) {
+        modalContent.addEventListener('click', (e) => {
+          e.stopPropagation(); // 모달 내부 클릭이 overlay로 전파되지 않도록 함
+        });
+      }
+      
+      // 오버레이에 클릭 이벤트 추가
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          this.closeModal(modal.id);
         }
       });
     });
-  }
+    
+    console.log('모달 초기화 완료');
+  },
+  
+  /**
+   * 모달 오버레이 설정
+   * @private
+   */
+  _setupModalOverlay(modal) {
+    const overlay = modal.querySelector('.modal-overlay');
+    if (!overlay) return;
+    
+    // 이전 이벤트 리스너 제거 및 새 이벤트 리스너 추가
+    overlay.removeEventListener('click', this._overlayClickHandler);
+    
+    this._overlayClickHandler = (e) => {
+      // 오버레이에서만 이벤트 발생하도록 확인
+      if (e.target === overlay) {
+        const modalId = modal.id;
+        this.closeModal(modalId);
+      }
+    };
+    
+    overlay.addEventListener('click', this._overlayClickHandler);
+  },
+  
+  // 오버레이 클릭 핸들러 저장
+  _overlayClickHandler: null
 };
 
 // 데이터 관리자

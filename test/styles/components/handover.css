@@ -1,0 +1,205 @@
+/* 인수인계 페이지 스타일 */
+.tab-container {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: 500;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.tab.active {
+  color: var(--primary-color);
+}
+
+.tab.active:after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--primary-color);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.section-title i {
+  margin-right: 8px;
+  color: var(--primary-color);
+}
+
+.notice-indicator {
+  display: inline-block;
+  padding: 2px 8px;
+  background-color: #e6f7ff;
+  color: #1890ff;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 8px;
+}
+
+.handover-section {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* 페이지 내용이 표시되는/숨겨지는 스타일 */
+.content-section {
+  display: none;
+}
+
+.content-section.active {
+  display: block;
+}
+
+/* 테이블 스타일 */
+.data-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.title-cell {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-cell {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 텍스트 줄임표 */
+.text-ellipsis {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* 테이블 열 너비 설정 */
+.data-table th:nth-child(1) {
+  width: 80px !important;
+}
+
+.data-table th:nth-child(2) {
+  width: 100px !important;
+}
+
+.data-table th:nth-child(3) {
+  width: 180px !important;
+}
+
+.data-table th:nth-child(4) {
+  width: auto !important;
+}
+
+.data-table td:nth-child(1) {
+  width: 80px !important;
+  max-width: 80px !important;
+}
+
+.data-table td:nth-child(2) {
+  width: 100px !important;
+  max-width: 100px !important;
+}
+
+.data-table td:nth-child(3) {
+  width: 180px !important;
+  max-width: 180px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table td:nth-child(4) {
+  width: auto !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 인수인계 폼 스타일 */
+.handover-form {
+  width: 100%;
+}
+
+.handover-form .form-group {
+  margin-bottom: 16px;
+}
+
+.handover-form label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.handover-form .required {
+  color: #f5222d;
+}
+
+.handover-form .checkbox-group {
+  display: flex;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.handover-form .checkbox-group label {
+  margin-bottom: 0;
+  margin-left: 8px;
+}
+
+.handover-form .input-field {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  transition: border-color 0.3s;
+}
+
+.handover-form .text-area {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  transition: border-color 0.3s;
+  resize: vertical;
+}
+
+.handover-form .input-field:focus,
+.handover-form .text-area:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}

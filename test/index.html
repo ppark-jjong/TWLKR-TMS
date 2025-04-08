@@ -16,7 +16,8 @@
     />
 
     <!-- 사용자 정의 CSS -->
-    <link rel="stylesheet" href="styles/additional.css" />
+    <link rel="stylesheet" href="styles/font.css" />
+    <link rel="stylesheet" href="styles/main.css" />
 
     <!-- 폰트 어썸 -->
     <link
@@ -136,14 +137,33 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
         z-index: 100;
-        align-items: center;
-        justify-content: center;
       }
 
       .modal.active {
+        display: block;
+      }
+      
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 101;
+      }
+      
+      .modal-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 102;
         display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
       }
 
       .modal-content {
@@ -155,6 +175,7 @@
         max-height: 90vh;
         overflow-y: auto;
         position: relative;
+        z-index: 103;
       }
 
       .modal-header {
@@ -318,21 +339,6 @@
       <div class="main-layout">
         <!-- 사이드바 -->
         <aside id="sidebar" class="sidebar">
-          <img
-            class="logo"
-            src="assets/logo.png"
-            alt="로고"
-            style="
-              width: 100%;
-              max-width: 200px;
-              margin: 15px auto;
-              display: block;
-            "
-          />
-          <div class="logo-container" style="align-content: center">
-            <h1>TWLKR-TMS</h1>
-          </div>
-
           <div class="user-info">
             <div class="avatar">
               <i class="fa-solid fa-user"></i>
@@ -366,6 +372,21 @@
             </ul>
           </nav>
 
+          <div class="logo-container" style="margin-top: auto; padding: 15px 0;">
+            <img
+              class="logo"
+              src="assets/logo.png"
+              alt="로고"
+              style="
+                width: 100%;
+                max-width: 160px;
+                margin: 0 auto;
+                display: block;
+              "
+            />
+            <h2 style="text-align: center; margin-top: 10px; font-size: 1.2rem;">TWLKR-TMS</h2>
+          </div>
+
           <div class="logout-container">
             <button id="logoutBtn" class="logout-btn">
               <i class="fa-solid fa-right-from-bracket"></i>
@@ -376,6 +397,12 @@
 
         <!-- 메인 컨텐츠 -->
         <main class="main-content">
+          <!-- 상단 로고 추가 -->
+          <div class="top-logo" style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center;">
+            <span style="font-size: 0.8rem; font-weight: 500; margin-right: 5px;">TWLKR-TMS</span>
+            <img src="assets/logo.png" alt="로고" style="height: 24px; width: auto;">
+          </div>
+          
           <!-- 컨텐츠 영역 -->
           <div id="content-container" class="content-container">
             <!-- 대시보드 페이지 -->
@@ -408,6 +435,13 @@
                         style="margin-left: 10px"
                       >
                         <i class="fa-solid fa-search"></i> 조회
+                      </button>
+                      <button
+                        class="btn secondary-btn"
+                        id="todayBtn"
+                        style="margin-left: 5px"
+                      >
+                        <i class="fa-solid fa-calendar-day"></i> Today
                       </button>
                     </div>
                   </div>
@@ -540,6 +574,38 @@
                       <h3 class="summary-value" id="completedOrders">0건</h3>
                     </div>
                   </div>
+                  
+                  <div class="summary-card">
+                    <div
+                      class="summary-icon"
+                      style="
+                        background-color: #e6f7ff;
+                        color: var(--status-pending);
+                      "
+                    >
+                      <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <div class="summary-data">
+                      <p class="summary-label">대기 건수</p>
+                      <h3 class="summary-value" id="pendingOrders">0건</h3>
+                    </div>
+                  </div>
+                  
+                  <div class="summary-card">
+                    <div
+                      class="summary-icon"
+                      style="
+                        background-color: #fff2e8;
+                        color: var(--status-etc);
+                      "
+                    >
+                      <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div class="summary-data">
+                      <p class="summary-label">기타 (취소+이슈)</p>
+                      <h3 class="summary-value" id="etcOrders">0건</h3>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- 카드 액션 버튼 - summary-card 아래로 이동 -->
@@ -595,7 +661,7 @@
                     </thead>
                     <tbody id="dashboardTableBody">
                       <tr>
-                        <td colspan="10" class="empty-table">
+                        <td colspan="9" class="empty-table">
                           데이터를 불러오는 중...
                         </td>
                       </tr>
@@ -641,7 +707,9 @@
 
     <!-- 모달: 신규 배송 등록 -->
     <div id="newOrderModal" class="modal">
-      <div class="modal-content">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
         <div class="modal-header">
           <h3>신규 배송 등록</h3>
           <button class="close-modal" data-modal="newOrderModal">
@@ -816,7 +884,9 @@
 
     <!-- 모달: 상세 정보 -->
     <div id="orderDetailModal" class="modal">
-      <div class="modal-content">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
         <div class="modal-header">
           <h3>주문 상세 정보</h3>
           <button class="close-modal" data-modal="orderDetailModal">
@@ -938,7 +1008,9 @@
 
     <!-- 모달: 배차 처리 -->
     <div id="assignDriverModal" class="modal">
-      <div class="modal-content">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
         <div class="modal-header">
           <h3>배차 처리</h3>
           <button class="close-modal" data-modal="assignDriverModal">
@@ -979,7 +1051,9 @@
 
     <!-- 모달: 상태 변경 -->
     <div id="statusChangeModal" class="modal status-change-modal">
-      <div class="modal-content">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
         <div class="modal-header">
           <h3>주문 상태 변경</h3>
           <button class="close-modal" data-modal="statusChangeModal">
@@ -1021,7 +1095,9 @@
 
     <!-- 주문 수정 모달 -->
     <div id="editOrderModal" class="modal">
-      <div class="modal-content">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
         <div class="modal-header">
           <h3>주문 정보 수정</h3>
           <button class="close-modal" data-modal="editOrderModal">
@@ -1189,8 +1265,11 @@
       </div>
     </div>
 
-    <!-- 공통 JavaScript 파일 -->
-    <script src="js/utils.js"></script>
+    <!-- 공통 JavaScript 모듈 -->
+    <script src="js/modules/utils.js"></script>
+    <script src="js/modules/modal.js"></script>
+    <script src="js/modules/message.js"></script>
+    <script src="js/modules/data.js"></script>
     <script src="js/app.js"></script>
 
     <!-- 페이지별 JavaScript 파일 -->

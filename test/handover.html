@@ -16,7 +16,8 @@
     />
 
     <!-- 사용자 정의 CSS -->
-    <link rel="stylesheet" href="styles/additional.css" />
+    <link rel="stylesheet" href="styles/font.css" />
+    <link rel="stylesheet" href="styles/main.css" />
 
     <!-- 폰트 어썸 -->
     <link
@@ -191,6 +192,148 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+
+      /* 모달 스타일 */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        width: 80%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+      }
+
+      .modal-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-body {
+        padding: 24px;
+      }
+
+      .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .close-modal {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: #999;
+      }
+
+      /* 상세 모달 스타일 */
+      .detail-title {
+        font-size: 1.5rem;
+        margin-top: 0;
+        margin-bottom: 16px;
+        color: #333;
+      }
+
+      .detail-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 20px;
+        color: #666;
+        font-size: 0.9rem;
+      }
+
+      .meta-item i {
+        margin-right: 6px;
+        color: var(--primary-color);
+      }
+
+      .detail-content {
+        border-top: 1px solid #f0f0f0;
+        padding-top: 16px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      /* 폼 스타일 */
+      .handover-form {
+        width: 100%;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      .required {
+        color: #f5222d;
+      }
+
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        margin-top: 16px;
+      }
+
+      .checkbox-group label {
+        margin-bottom: 0;
+        margin-left: 8px;
+      }
+
+      .input-field {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        transition: border-color 0.3s;
+      }
+
+      .text-area {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        transition: border-color 0.3s;
+        resize: vertical;
+      }
+
+      .input-field:focus,
+      .text-area:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+      }
     </style>
   </head>
   <body>
@@ -199,21 +342,6 @@
       <div class="main-layout">
         <!-- 사이드바 -->
         <aside id="sidebar" class="sidebar">
-          <img
-            class="logo"
-            src="assets/logo.png"
-            alt="로고"
-            style="
-              width: 100%;
-              max-width: 200px;
-              margin: 15px auto;
-              display: block;
-            "
-          />
-          <div class="logo-container" style="align-content: center">
-            <h1>TWLKR-TMS</h1>
-          </div>
-
           <div class="user-info">
             <div class="avatar">
               <i class="fa-solid fa-user"></i>
@@ -247,6 +375,21 @@
             </ul>
           </nav>
 
+          <div class="logo-container" style="margin-top: auto; padding: 15px 0;">
+            <img
+              class="logo"
+              src="assets/logo.png"
+              alt="로고"
+              style="
+                width: 100%;
+                max-width: 160px;
+                margin: 0 auto;
+                display: block;
+              "
+            />
+            <h2 style="text-align: center; margin-top: 10px; font-size: 1.2rem;">TWLKR-TMS</h2>
+          </div>
+
           <div class="logout-container">
             <button id="logoutBtn" class="logout-btn">
               <i class="fa-solid fa-right-from-bracket"></i>
@@ -257,21 +400,31 @@
 
         <!-- 메인 컨텐츠 -->
         <main class="main-content">
+          <!-- 상단 로고 추가 -->
+          <div class="top-logo" style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center;">
+            <span style="font-size: 0.8rem; font-weight: 500; margin-right: 5px;">TWLKR-TMS</span>
+            <img src="assets/logo.png" alt="로고" style="height: 24px; width: auto;">
+          </div>
+          
           <!-- 컨텐츠 영역 -->
           <div id="content-container" class="content-container">
             <!-- 인수인계 페이지 -->
             <div class="page-section" id="handoverPage">
               <div class="main-card">
                 <div class="card-header">
-                  <div class="tab-container" style="margin-right: auto">
-                    <div class="tab active" data-tab="notice-section">
-                      <i class="fa-solid fa-bullhorn"></i> 공지사항
-                    </div>
-                    <div class="tab" data-tab="handover-section">
-                      <i class="fa-solid fa-right-left"></i> 인수인계
-                    </div>
+                  <div class="section-title">
+                    <i class="fa-solid fa-bullhorn"></i> 업무 공지 및 인수인계
                   </div>
                   <div class="card-actions">
+                    <div class="filter-section" style="display: flex; align-items: center; margin-right: 15px;">
+                      <label style="margin-right: 10px;">표시 항목:</label>
+                      <label style="margin-right: 10px;">
+                        <input type="checkbox" id="showNoticeCheck" checked> 공지사항
+                      </label>
+                      <label>
+                        <input type="checkbox" id="showHandoverCheck" checked> 인수인계
+                      </label>
+                    </div>
                     <button class="btn primary-btn" id="refreshHandoverBtn">
                       <i class="fa-solid fa-arrows-rotate"></i> 새로고침
                     </button>
@@ -282,89 +435,84 @@
                 </div>
 
                 <!-- 공지사항 섹션 -->
-                <div class="content-section active" id="notice-section">
-                  <div class="handover-section">
-                    <div class="table-container">
-                      <table class="data-table" id="noticeTable">
-                        <thead>
-                          <tr>
-                            <th style="width: 80px">작성자</th>
-                            <th style="width: 100px">작성일시</th>
-                            <th style="width: 180px">제목</th>
-                            <th>내용</th>
-                          </tr>
-                        </thead>
-                        <tbody id="noticeTableBody">
-                          <tr>
-                            <td colspan="4" class="empty-table">
-                              데이터를 불러오는 중...
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                <div class="combined-sections" style="display: flex; flex-direction: column; height: calc(100vh - 200px);">
+                  <!-- 공지사항 섹션 - 30% 높이 -->
+                  <div id="notice-section" style="flex: 0 0 30%; overflow: auto; margin-bottom: 15px;">
+                    <div class="section-header">
+                      <h3 class="section-title">
+                        <i class="fa-solid fa-bullhorn"></i> 공지사항
+                      </h3>
                     </div>
-
-                    <!-- 페이지네이션 영역 -->
-                    <div class="pagination">
-                      <button
-                        class="page-btn"
-                        data-page="prev"
-                        data-section="notice"
-                      >
-                        <i class="fa-solid fa-chevron-left"></i>
-                      </button>
-                      <span class="page-info" id="noticePageInfo">1 / 1</span>
-                      <button
-                        class="page-btn"
-                        data-page="next"
-                        data-section="notice"
-                      >
-                        <i class="fa-solid fa-chevron-right"></i>
-                      </button>
+                    <div class="handover-section" style="margin-bottom: 10px;">
+                      <div class="table-container">
+                        <table class="data-table" id="noticeTable">
+                          <thead>
+                            <tr>
+                              <th style="width: 80px">작성자</th>
+                              <th style="width: 100px">작성일시</th>
+                              <th style="width: 180px">제목</th>
+                              <th>내용</th>
+                            </tr>
+                          </thead>
+                          <tbody id="noticeTableBody">
+                            <tr>
+                              <td colspan="4" class="empty-table">
+                                데이터를 불러오는 중...
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <!-- 페이지네이션 영역 -->
+                      <div class="pagination">
+                        <button class="page-btn" data-page="prev" data-section="notice">
+                          <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="page-info" id="noticePageInfo">1 / 1</span>
+                        <button class="page-btn" data-page="next" data-section="notice">
+                          <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                <!-- 인수인계 섹션 -->
-                <div class="content-section" id="handover-section">
-                  <div class="handover-section">
-                    <div class="table-container">
-                      <table class="data-table" id="handoverTable">
-                        <thead>
-                          <tr>
-                            <th style="width: 80px">작성자</th>
-                            <th style="width: 100px">작성일시</th>
-                            <th style="width: 180px">제목</th>
-                            <th>내용</th>
-                          </tr>
-                        </thead>
-                        <tbody id="handoverTableBody">
-                          <tr>
-                            <td colspan="4" class="empty-table">
-                              데이터를 불러오는 중...
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  
+                  <!-- 인수인계 섹션 - 70% 높이 -->
+                  <div id="handover-section" style="flex: 1; overflow: auto;">
+                    <div class="section-header">
+                      <h3 class="section-title">
+                        <i class="fa-solid fa-right-left"></i> 인수인계
+                      </h3>
                     </div>
-
-                    <!-- 페이지네이션 영역 -->
-                    <div class="pagination">
-                      <button
-                        class="page-btn"
-                        data-page="prev"
-                        data-section="handover"
-                      >
-                        <i class="fa-solid fa-chevron-left"></i>
-                      </button>
-                      <span class="page-info" id="handoverPageInfo">1 / 1</span>
-                      <button
-                        class="page-btn"
-                        data-page="next"
-                        data-section="handover"
-                      >
-                        <i class="fa-solid fa-chevron-right"></i>
-                      </button>
+                    <div class="handover-section">
+                      <div class="table-container">
+                        <table class="data-table" id="handoverTable">
+                          <thead>
+                            <tr>
+                              <th style="width: 80px">작성자</th>
+                              <th style="width: 100px">작성일시</th>
+                              <th style="width: 180px">제목</th>
+                              <th>내용</th>
+                            </tr>
+                          </thead>
+                          <tbody id="handoverTableBody">
+                            <tr>
+                              <td colspan="4" class="empty-table">
+                                데이터를 불러오는 중...
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <!-- 페이지네이션 영역 -->
+                      <div class="pagination">
+                        <button class="page-btn" data-page="prev" data-section="handover">
+                          <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="page-info" id="handoverPageInfo">1 / 1</span>
+                        <button class="page-btn" data-page="next" data-section="handover">
+                          <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -374,5 +522,112 @@
         </main>
       </div>
     </div>
+    <!-- 메시지 팝업 컴포넌트 -->
+    <div id="messagePopup" class="message-popup">
+      <div class="message-content">
+        <i class="fa-solid message-icon"></i>
+        <span class="message-text"></span>
+      </div>
+    </div>
+
+    <!-- 인수인계 상세 보기 모달 -->
+    <div id="handoverDetailModal" class="modal">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="detailTitle">인수인계 상세 정보</h3>
+          <button class="close-modal" data-modal="handoverDetailModal">
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-section">
+            <h4 id="detailTitle2" class="detail-title">제목</h4>
+            <div class="detail-meta">
+              <span class="meta-item">
+                <i class="fa-solid fa-user"></i>
+                <span id="detailAuthor">작성자</span>
+              </span>
+              <span class="meta-item">
+                <i class="fa-solid fa-calendar"></i>
+                <span id="detailDate">작성일</span>
+              </span>
+              <span class="meta-item">
+                <i class="fa-solid fa-bullhorn"></i>
+                공지여부: <span id="detailIsNotice">아니오</span>
+              </span>
+            </div>
+            <div class="detail-content">
+              <p id="detailContent">내용</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary-btn" data-modal="handoverDetailModal">
+            닫기
+          </button>
+          <button class="btn primary-btn" id="editHandoverBtn">
+            <i class="fa-solid fa-edit"></i> 수정
+          </button>
+          <button class="btn danger-btn" id="deleteHandoverBtn">
+            <i class="fa-solid fa-trash"></i> 삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 인수인계 등록/수정 모달 -->
+    <div id="newHandoverModal" class="modal">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="handoverModalTitle">인수인계 등록</h3>
+          <button class="close-modal" data-modal="newHandoverModal">
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form class="handover-form">
+            <input type="hidden" id="handoverId">
+            
+            <div class="form-group">
+              <label for="handoverTitle">제목 <span class="required">*</span></label>
+              <input type="text" id="handoverTitle" class="input-field" placeholder="제목을 입력하세요">
+            </div>
+            
+            <div class="form-group">
+              <label for="handoverContent">내용 <span class="required">*</span></label>
+              <textarea id="handoverContent" class="text-area" rows="5" placeholder="내용을 입력하세요"></textarea>
+            </div>
+            
+            <div class="form-group checkbox-group">
+              <input type="checkbox" id="isNotice" class="checkbox">
+              <label for="isNotice">공지사항으로 등록</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary-btn" data-modal="newHandoverModal">
+            취소
+          </button>
+          <button class="btn primary-btn" id="submitHandoverBtn">
+            <i class="fa-solid fa-check"></i> 
+            <span id="submitBtnText">등록하기</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 공통 JavaScript 모듈 -->
+    <script src="js/modules/utils.js"></script>
+    <script src="js/modules/modal.js"></script>
+    <script src="js/modules/message.js"></script>
+    <script src="js/modules/data.js"></script>
+    <script src="js/app.js"></script>
+
+    <!-- 페이지별 JavaScript 파일 -->
+    <script src="js/handover.js"></script>
   </body>
 </html>

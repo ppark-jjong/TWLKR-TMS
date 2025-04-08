@@ -15,7 +15,7 @@ const VisualizationPage = {
   state: {
     startDate: '',
     endDate: '',
-    chartType: 'time',
+    chartType: '',
     department: '',
     filteredData: [],
   },
@@ -26,27 +26,38 @@ const VisualizationPage = {
   init: function () {
     console.log('시각화 페이지 초기화...');
 
-    // 날짜 필터 초기화
-    this.initDateFilter();
+    // 날짜 필터 초기화 - 현재 날짜 기준 지난 주 데이터
+    this.initLastWeekDateFilter();
 
     // 이벤트 리스너 등록
     this.registerEventListeners();
 
+    // 필터 레이아웃 개선 - 모든 필터를 한 줄에 배치
+    this.optimizeFilterLayout();
+
+    // 페이지 접근 시 시간별 접수량을 기본으로 자동 선택 및 차트 표시
+    setTimeout(() => {
+      document.getElementById('vizChartType').value = 'time';
+      this.handleChartTypeChange({ target: { value: 'time' } });
+      this.showFilterStep('time');
+      this.applyFilters();
+    }, 500);
+    
     // 데이터 로드되었는지 확인
-    if (TMS.store.isDataLoaded) {
+    if (DataManager.isDataLoaded()) {
       console.log('데이터가 이미 로드되어 있습니다.');
       this.logDataStats();
     } else {
       console.log('데이터 로드 대기 중...');
       // 데이터 로드 대기
-      document.addEventListener('tms:dataLoaded', () => {
+      document.addEventListener('data:loaded', () => {
         console.log('데이터 로드 이벤트 수신');
         this.logDataStats();
       });
     }
 
     // 데이터 변경 이벤트 리스닝
-    document.addEventListener('tms:dashboardDataChanged', () => {
+    document.addEventListener('data:dashboardChanged', () => {
       console.log('대시보드 데이터 변경 이벤트 수신');
       this.logDataStats();
     });
@@ -57,26 +68,56 @@ const VisualizationPage = {
       const loadingDiv = document.createElement('div');
       loadingDiv.className = 'chart-loading';
       loadingDiv.innerHTML = `
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-        <div class="ms-2">차트 로딩 중...</div>
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span>차트를 불러오는 중...</span>
       `;
       loadingDiv.style.display = 'none';
       container.appendChild(loadingDiv);
     });
+  },
+  
+  /**
+   * 필터 레이아웃 최적화 - 모든 필터를 한 줄에 배치
+   */
+  optimizeFilterLayout: function() {
+    // 필터 영역 컨테이너를 찾아 스타일 변경
+    const filterStep = document.getElementById('filterStep');
+    if (filterStep) {
+      filterStep.style.display = 'flex';
+      filterStep.style.flexDirection = 'row';
+      filterStep.style.alignItems = 'center';
+      filterStep.style.flexWrap = 'wrap';
+      filterStep.style.gap = '20px';
+      filterStep.style.marginBottom = '20px';
+      
+      // 필터 항목들을 가로 정렬로 변경
+      const filterItems = filterStep.querySelectorAll('.filter-item');
+      filterItems.forEach(item => {
+        item.style.marginBottom = '0';
+        item.style.display = 'flex';
+        item.style.alignItems = 'center';
+        item.style.gap = '10px';
+      });
+      
+      // 적용 버튼 위치 조정
+      const applyBtn = document.getElementById('applyVizFilterBtn');
+      if (applyBtn) {
+        applyBtn.style.marginLeft = 'auto';
+      }
+    }
   },
 
   /**
    * 데이터 통계 로깅
    */
   logDataStats: function () {
-    if (!TMS.store.dashboardData) {
+    const dashboardData = DataManager.getDashboardData();
+    if (!dashboardData || dashboardData.length === 0) {
       console.log('대시보드 데이터가 없습니다.');
       return;
     }
 
-    console.log(`대시보드 데이터: ${TMS.store.dashboardData.length}건`);
+    console.log(`대시보드 데이터: ${dashboardData.length}건`);
 
     // 시각화 유형 자동 선택 방지를 위해 자동 초기화하지 않음
     // 사용자가 직접 시각화 유형부터 선택하도록 안내
@@ -143,24 +184,33 @@ const VisualizationPage = {
   },
 
   /**
-   * 날짜 필터 초기화
+   * 지난 주 날짜 필터 초기화 (현재 기준 지난 주 월요일부터 일요일까지)
    */
-  initDateFilter: function () {
+  initLastWeekDateFilter: function () {
     const today = new Date();
-    const endDateStr = dateUtils.formatDate(today);
-
-    // 30일 전
-    const startDate = new Date();
-    startDate.setDate(today.getDate() - 30);
-    const startDateStr = dateUtils.formatDate(startDate);
-
+    const currentDay = today.getDay(); // 0(일요일)부터 6(토요일)
+    
+    // 지난 주 일요일 계산 (현재 날짜에서 현재 요일 + 7 일 빼기)
+    const lastSunday = new Date(today);
+    lastSunday.setDate(today.getDate() - currentDay - 7);
+    
+    // 지난 주 월요일 계산 (지난 주 일요일에서 6일 빼기)
+    const lastMonday = new Date(lastSunday);
+    lastMonday.setDate(lastSunday.getDate() - 6);
+    
+    // 포맷팅
+    const startDateStr = DateUtils.formatDate(lastMonday);
+    const endDateStr = DateUtils.formatDate(lastSunday);
+    
     // 초기값 설정
     document.getElementById('vizStartDate').value = startDateStr;
     document.getElementById('vizEndDate').value = endDateStr;
-
+    
     // 상태 업데이트
     this.state.startDate = startDateStr;
     this.state.endDate = endDateStr;
+    
+    console.log(`지난 주 날짜 필터 설정: ${startDateStr} ~ ${endDateStr}`);
   },
 
   /**
@@ -203,17 +253,17 @@ const VisualizationPage = {
 
     // 필수 입력값 검증
     if (!chartType) {
-      messageUtils.warning('시각화 유형을 선택해주세요.');
+      MessageManager.warning('시각화 유형을 선택해주세요.');
       return;
     }
 
     if (!startDate || !endDate) {
-      messageUtils.warning('시작일과 종료일을 모두 입력해주세요.');
+      MessageManager.warning('시작일과 종료일을 모두 입력해주세요.');
       return;
     }
 
     // 로딩 표시
-    this.showLoading(chartType, department);
+    this.showLoading(chartType);
 
     // 상태 업데이트
     this.state.chartType = chartType;
@@ -254,7 +304,7 @@ const VisualizationPage = {
         this.hideLoading();
       } catch (error) {
         console.error('차트 업데이트 오류:', error);
-        this.handleChartError(chartType, department, error.message);
+        this.handleChartError(chartType, error.message);
       }
     }, 300);
   },
@@ -262,31 +312,20 @@ const VisualizationPage = {
   /**
    * 로딩 표시
    */
-  showLoading: function (chartType, department) {
-    console.log('로딩 표시:', chartType, department);
+  showLoading: function (chartType) {
+    console.log('로딩 표시:', chartType);
 
     if (chartType === 'time') {
       document.querySelector(
         '#mainChartContainer .chart-loading'
       ).style.display = 'flex';
     } else if (chartType === 'dept-status') {
-      if (department) {
-        // 특정 부서 차트만 로딩 표시
-        const chartSelector = `#${department.toLowerCase()}Chart .chart-loading`;
-        const chartLoading = document.querySelector(chartSelector);
-        if (chartLoading) {
-          chartLoading.style.display = 'flex';
-        } else {
-          console.warn(`로딩 요소를 찾을 수 없습니다: ${chartSelector}`);
-        }
-      } else {
-        // 모든 부서 차트 로딩 표시
-        document
-          .querySelectorAll('.department-chart .chart-loading')
-          .forEach((el) => {
-            el.style.display = 'flex';
-          });
-      }
+      // 모든 부서 차트 로딩 표시
+      document
+        .querySelectorAll('.department-chart .chart-loading')
+        .forEach((el) => {
+          el.style.display = 'flex';
+        });
     }
   },
 
@@ -302,7 +341,7 @@ const VisualizationPage = {
   /**
    * 차트 에러 처리
    */
-  handleChartError: function (chartType, department, errorMessage) {
+  handleChartError: function (chartType, errorMessage) {
     this.hideLoading();
 
     const errorHTML = `
@@ -322,35 +361,19 @@ const VisualizationPage = {
         container.appendChild(errorDiv);
       }
     } else if (chartType === 'dept-status') {
-      if (department) {
-        // 특정 부서 차트 에러 표시
-        const container = document.getElementById(
-          `${department.toLowerCase()}Chart`
-        );
-        if (container) {
-          const errorDiv =
-            container.querySelector('.chart-error') ||
-            document.createElement('div');
-          errorDiv.innerHTML = errorHTML;
-          if (!container.querySelector('.chart-error')) {
-            container.appendChild(errorDiv);
-          }
+      // 모든 부서 차트 에러 표시
+      document.querySelectorAll('.department-chart').forEach((container) => {
+        const errorDiv =
+          container.querySelector('.chart-error') ||
+          document.createElement('div');
+        errorDiv.innerHTML = errorHTML;
+        if (!container.querySelector('.chart-error')) {
+          container.appendChild(errorDiv);
         }
-      } else {
-        // 모든 부서 차트 에러 표시
-        document.querySelectorAll('.department-chart').forEach((container) => {
-          const errorDiv =
-            container.querySelector('.chart-error') ||
-            document.createElement('div');
-          errorDiv.innerHTML = errorHTML;
-          if (!container.querySelector('.chart-error')) {
-            container.appendChild(errorDiv);
-          }
-        });
-      }
+      });
     }
 
-    messageUtils.error('차트 생성 중 오류가 발생했습니다.');
+    MessageManager.error('차트 생성 중 오류가 발생했습니다.');
   },
 
   /**
@@ -371,18 +394,19 @@ const VisualizationPage = {
   filterData: function () {
     console.log('데이터 필터링 시작...');
 
-    if (!TMS.store.dashboardData || !Array.isArray(TMS.store.dashboardData)) {
+    // 데이터 매니저로 데이터 가져오기
+    const dashboardData = DataManager.getDashboardData();
+    if (!dashboardData || !Array.isArray(dashboardData) || dashboardData.length === 0) {
       console.log('대시보드 데이터가 없거나 유효하지 않습니다.');
       this.state.filteredData = [];
-      messageUtils.warning('데이터를 불러올 수 없습니다.');
+      MessageManager.warning('데이터를 불러올 수 없습니다.');
       return;
     }
 
-    console.log(`필터링 전 전체 데이터: ${TMS.store.dashboardData.length}건`);
+    console.log(`필터링 전 전체 데이터: ${dashboardData.length}건`);
 
     // 원본 데이터 복사
-    let filteredData = [...TMS.store.dashboardData];
-    console.log('dashboard-json 데이터 사용 중...');
+    let filteredData = [...dashboardData];
 
     // 날짜 필터 적용 (차트 유형에 따라 다른 날짜 필드 사용)
     if (this.state.startDate && this.state.endDate) {
@@ -390,15 +414,6 @@ const VisualizationPage = {
       const startDate = new Date(this.state.startDate);
       const endDate = new Date(this.state.endDate);
       endDate.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
-
-      // 날짜 필드 샘플 확인
-      const sampleItem = filteredData[0];
-      if (sampleItem) {
-        console.log('샘플 아이템 날짜 필드:', {
-          create_time: sampleItem.create_time,
-          eta: sampleItem.eta,
-        });
-      }
 
       filteredData = filteredData.filter((item) => {
         if (this.state.chartType === 'time') {
@@ -416,8 +431,7 @@ const VisualizationPage = {
             return false;
           }
 
-          const result = createDate >= startDate && createDate <= endDate;
-          return result;
+          return createDate >= startDate && createDate <= endDate;
         } else {
           // 부서별 차트는 eta 기준
           const eta = item.eta;
@@ -433,8 +447,7 @@ const VisualizationPage = {
             return false;
           }
 
-          const result = etaDate >= startDate && etaDate <= endDate;
-          return result;
+          return etaDate >= startDate && etaDate <= endDate;
         }
       });
 
@@ -444,11 +457,6 @@ const VisualizationPage = {
     // 부서 필터 적용
     if (this.state.department) {
       console.log(`부서 필터: ${this.state.department}`);
-
-      // 부서 필드 값 확인
-      const departments = new Set(filteredData.map((item) => item.department));
-      console.log('데이터에 존재하는 부서:', [...departments]);
-
       filteredData = filteredData.filter(
         (item) => item.department === this.state.department
       );
@@ -460,7 +468,7 @@ const VisualizationPage = {
 
     if (this.state.filteredData.length === 0) {
       console.log('필터링된 데이터가 없습니다.');
-      messageUtils.warning('선택한 조건에 맞는 데이터가 없습니다.');
+      MessageManager.warning('선택한 조건에 맞는 데이터가 없습니다.');
     }
   },
 
@@ -566,16 +574,6 @@ const VisualizationPage = {
       (item) => item.create_time
     );
     console.log(`create_time 필드 존재 여부: ${hasCreateTime}`);
-
-    if (!hasCreateTime) {
-      console.log(
-        'create_time 샘플:',
-        this.state.filteredData.slice(0, 3).map((item) => ({
-          order_no: item.order_no,
-          create_time: item.create_time,
-        }))
-      );
-    }
 
     this.state.filteredData.forEach((item) => {
       if (!item.create_time) {
@@ -744,7 +742,7 @@ const VisualizationPage = {
 
     // 데이터가 없는 경우
     if (this.state.filteredData.length === 0) {
-      messageUtils.warning('해당 기간에 데이터가 없습니다.');
+      MessageManager.warning('해당 기간에 데이터가 없습니다.');
       return;
     }
 
@@ -774,41 +772,35 @@ const VisualizationPage = {
       CANCEL: '취소',
     };
 
-    // 부서별 필터가 설정된 경우 (사용 안함)
-    if (this.state.department) {
-      // 부서별 필터링은 사용하지 않음
-      console.log('부서별 필터링은 사용하지 않습니다.');
-    } else {
-      // 모든 부서 차트 렌더링
-      console.log('모든 부서 차트 렌더링...');
-      this.renderDeptStatusChart(
-        'csChartCanvas',
-        'CS 부서 배송 상태',
-        deptData.CS,
-        chartColors,
-        statusLabels
-      );
-      this.renderDeptStatusChart(
-        'hesChartCanvas',
-        'HES 부서 배송 상태',
-        deptData.HES,
-        chartColors,
-        statusLabels
-      );
-      this.renderDeptStatusChart(
-        'lenovoChartCanvas',
-        'LENOVO 부서 배송 상태',
-        deptData.LENOVO,
-        chartColors,
-        statusLabels
-      );
-      // 막대 그래프는 표시하지 않음 (allDeptChart)
-
-      document.getElementById('csChart').style.display = 'block';
-      document.getElementById('hesChart').style.display = 'block';
-      document.getElementById('lenovoChart').style.display = 'block';
-      document.getElementById('allDeptChart').style.display = 'none';
-    }
+    // 모든 부서 차트 렌더링
+    console.log('모든 부서 차트 렌더링...');
+    this.renderDeptStatusChart(
+      'csChartCanvas',
+      'CS 부서 배송 상태',
+      deptData.CS,
+      chartColors,
+      statusLabels
+    );
+    this.renderDeptStatusChart(
+      'hesChartCanvas',
+      'HES 부서 배송 상태',
+      deptData.HES,
+      chartColors,
+      statusLabels
+    );
+    this.renderDeptStatusChart(
+      'lenovoChartCanvas',
+      'LENOVO 부서 배송 상태',
+      deptData.LENOVO,
+      chartColors,
+      statusLabels
+    );
+    
+    // 차트 컨테이너 표시
+    document.getElementById('csChart').style.display = 'block';
+    document.getElementById('hesChart').style.display = 'block';
+    document.getElementById('lenovoChart').style.display = 'block';
+    document.getElementById('allDeptChart').style.display = 'none';
   },
 
   /**
@@ -1053,38 +1045,8 @@ const VisualizationPage = {
     return Object.fromEntries(
       Object.entries(counts).filter(([_, count]) => count > 0)
     );
-  },
-
-  /**
-   * 데이터 디버그 로그 출력
-   */
-  logDebugInfo: function () {
-    // 전체 데이터 건수
-    console.log(
-      '전체 데이터 건수:',
-      TMS.store.dashboardData ? TMS.store.dashboardData.length : 0
-    );
-
-    // 필터링된 데이터 건수
-    console.log('필터링된 데이터 건수:', this.state.filteredData.length);
-
-    // 필터 상태
-    console.log('필터 상태:', {
-      chartType: this.state.chartType,
-      startDate: this.state.startDate,
-      endDate: this.state.endDate,
-      department: this.state.department,
-    });
-
-    // 샘플 데이터 (최대 3건)
-    console.log('샘플 데이터:', this.state.filteredData.slice(0, 3));
-  },
+  }
 };
 
 // 전역 객체에 페이지 모듈 할당
 window.VisualizationPage = VisualizationPage;
-
-// DOM이 로드되면 확인을 위한 기본 초기화 코드
-document.addEventListener('DOMContentLoaded', function () {
-  // TMS 애플리케이션에서 자동으로 페이지 초기화를 수행합니다.
-});
