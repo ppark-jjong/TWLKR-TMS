@@ -125,7 +125,7 @@
 
       /* 제목 너비 제한 */
       .title-cell {
-        max-width: 200px;
+        max-width: 180px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -133,7 +133,7 @@
 
       /* 내용 너비 제한 */
       .content-cell {
-        max-width: 300px;
+        max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -235,9 +235,9 @@
                       <table class="data-table" id="noticeTable">
                         <thead>
                           <tr>
-                            <th width="100">작성자</th>
-                            <th width="120">작성일시</th>
-                            <th width="200">제목</th>
+                            <th width="80">작성자</th>
+                            <th width="100">작성일시</th>
+                            <th width="180">제목</th>
                             <th>내용</th>
                           </tr>
                         </thead>
@@ -279,9 +279,9 @@
                       <table class="data-table" id="handoverTable">
                         <thead>
                           <tr>
-                            <th width="100">작성자</th>
-                            <th width="120">작성일시</th>
-                            <th width="200">제목</th>
+                            <th width="80">작성자</th>
+                            <th width="100">작성일시</th>
+                            <th width="180">제목</th>
                             <th>내용</th>
                           </tr>
                         </thead>
@@ -336,6 +336,10 @@
             <div class="section-title">기본 정보</div>
             <div class="detail-grid">
               <div class="detail-item">
+                <span class="detail-label">제목</span>
+                <span class="detail-value" id="detailTitle2"></span>
+              </div>
+              <div class="detail-item">
                 <span class="detail-label">작성자</span>
                 <span class="detail-value" id="detailAuthor"></span>
               </div>
@@ -356,6 +360,13 @@
           </div>
         </div>
         <div class="modal-footer">
+          <button
+            class="btn danger-btn"
+            id="deleteHandoverBtn"
+            style="margin-right: auto"
+          >
+            <i class="fa-solid fa-trash"></i> 삭제
+          </button>
           <button class="btn secondary-btn" data-modal="handoverDetailModal">
             닫기
           </button>

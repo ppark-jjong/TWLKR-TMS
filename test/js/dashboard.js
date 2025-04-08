@@ -1100,6 +1100,7 @@ const DashboardPage = {
 
     // 값 유효성 검사
     const type = document.getElementById('editType').value;
+    const department = document.getElementById('editDepartment').value;
     const warehouse = document.getElementById('editWarehouse').value;
     const sla = document.getElementById('editSla').value;
     const eta = document.getElementById('editEta').value;
@@ -1113,6 +1114,7 @@ const DashboardPage = {
     // 필수 필드 확인
     if (
       !type ||
+      !department ||
       !warehouse ||
       !sla ||
       !eta ||
@@ -1134,6 +1136,7 @@ const DashboardPage = {
     // 업데이트 데이터 준비
     const updateData = {
       type: type,
+      department: department,
       warehouse: warehouse,
       sla: sla,
       eta: new Date(eta).toISOString(),

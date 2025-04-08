@@ -97,6 +97,9 @@ const HandoverPage = {
     document
       .getElementById('editHandoverBtn')
       .addEventListener('click', this.openEditModal.bind(this));
+    document
+      .getElementById('deleteHandoverBtn')
+      .addEventListener('click', this.confirmDeleteHandover.bind(this));
   },
 
   /**
@@ -321,9 +324,9 @@ const HandoverPage = {
     document.getElementById('detailTitle').textContent = modalTitle;
 
     // 모달 데이터 채우기
-    document.getElementById('detailPriority').parentElement.style.display =
-      'none'; // 우선순위 항목 숨김
-    document.getElementById('detailAuthor').textContent = item.created_by;
+    document.getElementById('detailTitle2').textContent = item.title || '-';
+    document.getElementById('detailAuthor').textContent =
+      item.created_by || '-';
 
     // 날짜 포맷팅
     const dateStr = item.created_at;
@@ -344,15 +347,14 @@ const HandoverPage = {
     // 모달 열기
     modalUtils.openModal('handoverDetailModal');
 
-    // 수정 버튼 권한 체크 (본인이 작성한 경우만 수정 가능)
+    // 권한 체크 (본인이 작성한 경우만 수정/삭제 가능)
     const currentUser = TMS.store.userData.userName;
     const editBtn = document.getElementById('editHandoverBtn');
+    const deleteBtn = document.getElementById('deleteHandoverBtn');
 
-    if (currentUser === item.created_by) {
-      editBtn.style.display = 'inline-block';
-    } else {
-      editBtn.style.display = 'none';
-    }
+    const isAuthor = currentUser === item.created_by;
+    editBtn.style.display = isAuthor ? 'inline-block' : 'none';
+    deleteBtn.style.display = isAuthor ? 'inline-block' : 'none';
   },
 
   /**
@@ -520,6 +522,62 @@ const HandoverPage = {
     } else if (!data.is_notice && this.state.activeTab !== 'handover-section') {
       document.querySelector('.tab[data-tab="handover-section"]').click();
     }
+
+    return true;
+  },
+
+  /**
+   * 삭제 확인
+   */
+  confirmDeleteHandover: function () {
+    const handoverId = this.selectedHandoverId;
+    if (!handoverId) return;
+
+    const item = TMS.getHandoverItemById(handoverId);
+    if (!item) {
+      messageUtils.error('삭제할 항목을 찾을 수 없습니다.');
+      return;
+    }
+
+    // 삭제 확인
+    if (
+      confirm(
+        `정말로 이 ${
+          item.is_notice ? '공지사항' : '인수인계'
+        }을 삭제하시겠습니까?`
+      )
+    ) {
+      this.deleteHandoverItem(handoverId);
+    }
+  },
+
+  /**
+   * 인수인계 항목 삭제
+   */
+  deleteHandoverItem: function (handoverId) {
+    // 기존 데이터 가져오기
+    const index = TMS.store.handoverData.findIndex(
+      (item) => item.handover_id === handoverId
+    );
+
+    if (index === -1) {
+      messageUtils.error('삭제할 항목을 찾을 수 없습니다.');
+      return false;
+    }
+
+    // 데이터 삭제
+    const deletedItem = TMS.store.handoverData.splice(index, 1)[0];
+
+    // 모달 닫기
+    modalUtils.closeModal('handoverDetailModal');
+
+    // 변경 이벤트 발생
+    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
+
+    // 성공 메시지
+    messageUtils.success(
+      `${deletedItem.is_notice ? '공지사항' : '인수인계'}이 삭제되었습니다.`
+    );
 
     return true;
   },

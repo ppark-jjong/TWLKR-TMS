@@ -198,7 +198,8 @@ const VisualizationPage = {
     const chartType = document.getElementById('vizChartType').value;
     const startDate = document.getElementById('vizStartDate').value;
     const endDate = document.getElementById('vizEndDate').value;
-    const department = document.getElementById('vizDepartmentFilter').value;
+    // 부서 필터는 항상 전체로 설정 (필터링 제거)
+    const department = '';
 
     // 필수 입력값 검증
     if (!chartType) {
@@ -551,8 +552,10 @@ const VisualizationPage = {
       '20시~00시',
     ];
 
-    // 각 시간대별 데이터 집계
-    const timeData = Array(timeSlots.length).fill(0);
+    // 부서별 시간대 데이터 집계 초기화
+    const csTimeData = Array(timeSlots.length).fill(0);
+    const hesTimeData = Array(timeSlots.length).fill(0);
+    const lenovoTimeData = Array(timeSlots.length).fill(0);
 
     console.log(
       `시간대별 집계 시작 (데이터 ${this.state.filteredData.length}건)`
@@ -602,13 +605,25 @@ const VisualizationPage = {
           slotIndex = 11; // 20시~00시
         }
 
-        timeData[slotIndex]++;
+        // 부서별로 데이터 추가
+        const department = item.department || '';
+        if (department === 'CS') {
+          csTimeData[slotIndex]++;
+        } else if (department === 'HES') {
+          hesTimeData[slotIndex]++;
+        } else if (department === 'LENOVO') {
+          lenovoTimeData[slotIndex]++;
+        }
       } catch (error) {
         console.warn('날짜 파싱 오류:', error);
       }
     });
 
-    console.log('시간대별 데이터 집계 결과:', timeData);
+    console.log('부서별 시간대 데이터 집계 결과:', {
+      CS: csTimeData,
+      HES: hesTimeData,
+      LENOVO: lenovoTimeData,
+    });
 
     // 차트 업데이트 또는 생성
     if (this.charts.mainChart) {
@@ -621,13 +636,31 @@ const VisualizationPage = {
         labels: timeSlots,
         datasets: [
           {
-            label: '주문 건수',
-            data: timeData,
+            label: 'CS 부서',
+            data: csTimeData,
             backgroundColor: 'rgba(54, 162, 235, 0.6)',
             borderColor: 'rgba(54, 162, 235, 1)',
             borderWidth: 1,
             borderRadius: 4,
             hoverBackgroundColor: 'rgba(54, 162, 235, 0.8)',
+          },
+          {
+            label: 'HES 부서',
+            data: hesTimeData,
+            backgroundColor: 'rgba(255, 159, 64, 0.6)',
+            borderColor: 'rgba(255, 159, 64, 1)',
+            borderWidth: 1,
+            borderRadius: 4,
+            hoverBackgroundColor: 'rgba(255, 159, 64, 0.8)',
+          },
+          {
+            label: 'LENOVO 부서',
+            data: lenovoTimeData,
+            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1,
+            borderRadius: 4,
+            hoverBackgroundColor: 'rgba(75, 192, 192, 0.8)',
           },
         ],
       },
@@ -637,7 +670,7 @@ const VisualizationPage = {
         plugins: {
           title: {
             display: true,
-            text: '시간대별 주문 접수 현황',
+            text: '부서별 시간대별 주문 접수 현황',
             font: {
               size: 16,
               weight: 'bold',
@@ -656,7 +689,7 @@ const VisualizationPage = {
                 return tooltipItems[0].label;
               },
               label: function (context) {
-                return `주문 건수: ${context.raw}건`;
+                return `${context.dataset.label}: ${context.raw}건`;
               },
             },
           },
@@ -673,7 +706,7 @@ const VisualizationPage = {
             },
             ticks: {
               precision: 0,
-              stepSize: Math.max(1, Math.ceil(Math.max(...timeData) / 5)),
+              stepSize: 1,
             },
             grid: {
               drawBorder: false,
@@ -704,15 +737,18 @@ const VisualizationPage = {
   },
 
   /**
-   * 부서별 상태 차트 렌더링
+   * 부서별 배송 상태 차트 렌더링
    */
   renderDeptStatusCharts: function () {
-    console.log(
-      '렌더링 부서별 상태 차트 - 데이터 건수:',
-      this.state.filteredData.length
-    );
+    console.log('부서별 배송 상태 차트 렌더링...');
 
-    // 부서별 데이터 분류
+    // 데이터가 없는 경우
+    if (this.state.filteredData.length === 0) {
+      messageUtils.warning('해당 기간에 데이터가 없습니다.');
+      return;
+    }
+
+    // 부서별로 데이터 그룹화
     const deptData = {
       CS: this.state.filteredData.filter((item) => item.department === 'CS'),
       HES: this.state.filteredData.filter((item) => item.department === 'HES'),
@@ -721,13 +757,7 @@ const VisualizationPage = {
       ),
     };
 
-    console.log('부서별 데이터 건수:', {
-      CS: deptData.CS.length,
-      HES: deptData.HES.length,
-      LENOVO: deptData.LENOVO.length,
-    });
-
-    // 차트 색상
+    // 상태별 색상 및 라벨
     const chartColors = {
       PENDING: 'rgba(255, 193, 7, 0.7)',
       IN_PROGRESS: 'rgba(0, 123, 255, 0.7)',
@@ -736,7 +766,6 @@ const VisualizationPage = {
       CANCEL: 'rgba(108, 117, 125, 0.7)',
     };
 
-    // 상태 라벨
     const statusLabels = {
       PENDING: '대기',
       IN_PROGRESS: '진행',
@@ -745,45 +774,13 @@ const VisualizationPage = {
       CANCEL: '취소',
     };
 
-    // 부서 필터가 적용된 경우 해당 부서 차트만 표시
-    if (this.state.department === 'CS') {
-      this.renderDeptStatusChart(
-        'csChartCanvas',
-        'CS 부서 배송 상태',
-        deptData.CS,
-        chartColors,
-        statusLabels
-      );
-      document.getElementById('hesChart').style.display = 'none';
-      document.getElementById('lenovoChart').style.display = 'none';
-      document.getElementById('allDeptChart').style.display = 'none';
-      document.getElementById('csChart').style.display = 'block';
-    } else if (this.state.department === 'HES') {
-      this.renderDeptStatusChart(
-        'hesChartCanvas',
-        'HES 부서 배송 상태',
-        deptData.HES,
-        chartColors,
-        statusLabels
-      );
-      document.getElementById('csChart').style.display = 'none';
-      document.getElementById('lenovoChart').style.display = 'none';
-      document.getElementById('allDeptChart').style.display = 'none';
-      document.getElementById('hesChart').style.display = 'block';
-    } else if (this.state.department === 'LENOVO') {
-      this.renderDeptStatusChart(
-        'lenovoChartCanvas',
-        'LENOVO 부서 배송 상태',
-        deptData.LENOVO,
-        chartColors,
-        statusLabels
-      );
-      document.getElementById('csChart').style.display = 'none';
-      document.getElementById('hesChart').style.display = 'none';
-      document.getElementById('allDeptChart').style.display = 'none';
-      document.getElementById('lenovoChart').style.display = 'block';
+    // 부서별 필터가 설정된 경우 (사용 안함)
+    if (this.state.department) {
+      // 부서별 필터링은 사용하지 않음
+      console.log('부서별 필터링은 사용하지 않습니다.');
     } else {
-      // 전체 부서 표시
+      // 모든 부서 차트 렌더링
+      console.log('모든 부서 차트 렌더링...');
       this.renderDeptStatusChart(
         'csChartCanvas',
         'CS 부서 배송 상태',
@@ -805,12 +802,12 @@ const VisualizationPage = {
         chartColors,
         statusLabels
       );
-      this.renderAllDeptChart(deptData, chartColors, statusLabels);
+      // 막대 그래프는 표시하지 않음 (allDeptChart)
 
       document.getElementById('csChart').style.display = 'block';
       document.getElementById('hesChart').style.display = 'block';
       document.getElementById('lenovoChart').style.display = 'block';
-      document.getElementById('allDeptChart').style.display = 'block';
+      document.getElementById('allDeptChart').style.display = 'none';
     }
   },
 
@@ -939,113 +936,6 @@ const VisualizationPage = {
                 const percentage = Math.round((value / total) * 100);
                 return `${label}: ${value}건 (${percentage}%)`;
               },
-            },
-          },
-        },
-        animation: {
-          duration: 1000,
-          easing: 'easeOutQuart',
-        },
-      },
-    });
-  },
-
-  /**
-   * 전체 부서 비교 차트 렌더링
-   */
-  renderAllDeptChart: function (deptData, chartColors, statusLabels) {
-    const ctx = document.getElementById('allDeptChartCanvas').getContext('2d');
-
-    // 모든 부서와 상태에 대한 데이터 준비
-    const allStatuses = [
-      'PENDING',
-      'IN_PROGRESS',
-      'COMPLETE',
-      'ISSUE',
-      'CANCEL',
-    ];
-    const departments = Object.keys(deptData);
-
-    // 상태별 데이터셋 생성
-    const datasets = allStatuses.map((status) => {
-      const statusData = departments.map((dept) => {
-        // 각 부서별로 해당 상태의 건수 계산
-        return deptData[dept].filter((item) => item.status === status).length;
-      });
-
-      return {
-        label: statusLabels[status] || status,
-        data: statusData,
-        backgroundColor: chartColors[status],
-        borderColor: chartColors[status].replace('0.7', '1'),
-        borderWidth: 1,
-        borderRadius: 4,
-      };
-    });
-
-    // 차트 업데이트 또는 생성
-    if (this.charts.allDeptChart) {
-      this.charts.allDeptChart.destroy();
-    }
-
-    this.charts.allDeptChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: departments,
-        datasets: datasets,
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: '부서별 상태 현황',
-            font: {
-              size: 14,
-              weight: 'bold',
-            },
-            padding: {
-              top: 10,
-              bottom: 20,
-            },
-          },
-          legend: {
-            position: 'top',
-          },
-          tooltip: {
-            callbacks: {
-              label: function (context) {
-                const label = context.dataset.label || '';
-                const value = context.raw || 0;
-                return `${label}: ${value}건`;
-              },
-            },
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            stacked: true,
-            title: {
-              display: true,
-              text: '건수',
-              font: {
-                weight: 'bold',
-              },
-            },
-            ticks: {
-              precision: 0,
-            },
-            grid: {
-              drawBorder: false,
-              color: 'rgba(0, 0, 0, 0.05)',
-            },
-          },
-          x: {
-            stacked: true,
-            grid: {
-              display: false,
             },
           },
         },
