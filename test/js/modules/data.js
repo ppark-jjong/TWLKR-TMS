@@ -190,10 +190,10 @@ const DataManager = (function() {
   
   /**
    * 대시보드 데이터 저장 함수
-   * 변경된 데이터를 localStorage와 서버 JSON 파일에 저장하여 지속성 유지
-   * @returns {Promise<boolean>} 저장 성공 여부
+   * 변경된 데이터를 localStorage에 저장하여 지속성 유지
+   * @returns {boolean} 저장 성공 여부
    */
-  async function saveDashboardData() {
+  function saveDashboardData() {
     try {
       console.log('대시보드 데이터 저장 중...');
       
@@ -203,19 +203,14 @@ const DataManager = (function() {
         lastUpdated: new Date().toISOString()
       };
       
-      // 데이터를 JSON 문자열로 변환하여 localStorage에 저장
-      localStorage.setItem('tms_dashboard_data', JSON.stringify(saveData));
-      
-      // 로컬 개발 환경에서는 다음의 코드를 통해 파일 시스템에 직접 저장
-      // 프로덕션 환경에서는 서버 API를 통해 저장해야 함
-      await saveJsonFile('dashboard_data.json', saveData);
-      
-      console.log('대시보드 데이터 저장 완료:', `${state.dashboardData.length}건`);
+      // 데이터를 localStorage에 저장
+      const result = saveToLocalStorage('tms_dashboard_data', saveData);
       
       // 데이터가 저장되었음을 알리는 이벤트 발생
       document.dispatchEvent(new CustomEvent('data:dashboardSaved'));
       
-      return true;
+      console.log('대시보드 데이터 저장 완료:', `${state.dashboardData.length}건`);
+      return result;
     } catch (error) {
       console.error('대시보드 데이터 저장 실패:', error);
       MessageManager.error('데이터를 저장하는 중 오류가 발생했습니다.');
@@ -225,15 +220,12 @@ const DataManager = (function() {
   
   /**
    * 인수인계 데이터 저장 함수
-   * 변경된 데이터를 localStorage와 서버 JSON 파일에 저장하여 지속성 유지
-   * @returns {Promise<boolean>} 저장 성공 여부
+   * 변경된 데이터를 localStorage에 저장하여 지속성 유지
+   * @returns {boolean} 저장 성공 여부
    */
-  async function saveHandoverData() {
+  function saveHandoverData() {
     try {
       console.log('인수인계 데이터 저장 중...');
-      
-      // 데이터를 localStorage에 저장
-      localStorage.setItem('tms_handover_data', JSON.stringify(state.handoverData));
       
       // 저장할 데이터 구조 생성
       const saveData = {
@@ -241,16 +233,14 @@ const DataManager = (function() {
         lastUpdated: new Date().toISOString()
       };
       
-      // 로컬 개발 환경에서는 다음의 코드를 통해 파일 시스템에 직접 저장
-      // 프로덕션 환경에서는 서버 API를 통해 저장해야 함
-      await saveJsonFile('handover_data.json', saveData);
-      
-      console.log('인수인계 데이터 저장 완료:', `${state.handoverData.length}건`);
+      // 데이터를 localStorage에 저장
+      const result = saveToLocalStorage('tms_handover_data', saveData);
       
       // 데이터가 저장되었음을 알리는 이벤트 발생
       document.dispatchEvent(new CustomEvent('data:handoverSaved'));
       
-      return true;
+      console.log('인수인계 데이터 저장 완료:', `${state.handoverData.length}건`);
+      return result;
     } catch (error) {
       console.error('인수인계 데이터 저장 실패:', error);
       MessageManager.error('인수인계 데이터를 저장하는 중 오류가 발생했습니다.');
