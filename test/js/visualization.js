@@ -5,10 +5,10 @@ const VisualizationPage = {
   // 차트 객체 저장
   charts: {
     mainChart: null,
-    csChart: null,
-    hesChart: null,
-    lenovoChart: null,
-    allDeptChart: null,
+    csChartCanvas: null,
+    hesChartCanvas: null,
+    lenovoChartCanvas: null,
+    allDeptChartCanvas: null,
   },
 
   // 페이지 상태 관리
@@ -190,6 +190,181 @@ const VisualizationPage = {
   },
 
   /**
+   * 필터 적용 기능
+   */
+  applyFilters: function () {
+    console.log('필터 적용 시작...');
+
+    const chartType = document.getElementById('vizChartType').value;
+    const startDate = document.getElementById('vizStartDate').value;
+    const endDate = document.getElementById('vizEndDate').value;
+    const department = document.getElementById('vizDepartmentFilter').value;
+
+    // 필수 입력값 검증
+    if (!chartType) {
+      messageUtils.warning('시각화 유형을 선택해주세요.');
+      return;
+    }
+
+    if (!startDate || !endDate) {
+      messageUtils.warning('시작일과 종료일을 모두 입력해주세요.');
+      return;
+    }
+
+    // 로딩 표시
+    this.showLoading(chartType, department);
+
+    // 상태 업데이트
+    this.state.chartType = chartType;
+    this.state.startDate = startDate;
+    this.state.endDate = endDate;
+    this.state.department = department;
+
+    // 차트 표시 전 모든 차트 컨테이너 초기화
+    this.resetChartVisibility();
+
+    // 차트 컨테이너 표시
+    document.getElementById('chartContainerWrapper').style.display = 'block';
+    document.getElementById('chartPlaceholder').style.display = 'none';
+
+    // 약간의 딜레이 후 차트 업데이트 (UI가 먼저 업데이트되도록)
+    setTimeout(() => {
+      try {
+        // 차트 업데이트
+        if (chartType === 'time') {
+          document.getElementById('mainChartContainer').style.display = 'block';
+          document.getElementById('departmentChartsContainer').style.display =
+            'none';
+
+          // 데이터 필터링 및 차트 렌더링
+          this.filterData();
+          this.renderTimeChart();
+        } else if (chartType === 'dept-status') {
+          document.getElementById('mainChartContainer').style.display = 'none';
+          document.getElementById('departmentChartsContainer').style.display =
+            'block';
+
+          // 데이터 필터링 및 차트 렌더링
+          this.filterData();
+          this.renderDeptStatusCharts();
+        }
+
+        // 로딩 숨김
+        this.hideLoading();
+      } catch (error) {
+        console.error('차트 업데이트 오류:', error);
+        this.handleChartError(chartType, department, error.message);
+      }
+    }, 300);
+  },
+
+  /**
+   * 로딩 표시
+   */
+  showLoading: function (chartType, department) {
+    console.log('로딩 표시:', chartType, department);
+
+    if (chartType === 'time') {
+      document.querySelector(
+        '#mainChartContainer .chart-loading'
+      ).style.display = 'flex';
+    } else if (chartType === 'dept-status') {
+      if (department) {
+        // 특정 부서 차트만 로딩 표시
+        const chartSelector = `#${department.toLowerCase()}Chart .chart-loading`;
+        const chartLoading = document.querySelector(chartSelector);
+        if (chartLoading) {
+          chartLoading.style.display = 'flex';
+        } else {
+          console.warn(`로딩 요소를 찾을 수 없습니다: ${chartSelector}`);
+        }
+      } else {
+        // 모든 부서 차트 로딩 표시
+        document
+          .querySelectorAll('.department-chart .chart-loading')
+          .forEach((el) => {
+            el.style.display = 'flex';
+          });
+      }
+    }
+  },
+
+  /**
+   * 로딩 숨김
+   */
+  hideLoading: function () {
+    document.querySelectorAll('.chart-loading').forEach((el) => {
+      el.style.display = 'none';
+    });
+  },
+
+  /**
+   * 차트 에러 처리
+   */
+  handleChartError: function (chartType, department, errorMessage) {
+    this.hideLoading();
+
+    const errorHTML = `
+      <div class="chart-error">
+        <i class="fa-solid fa-exclamation-circle"></i>
+        <p>차트 생성 중 오류가 발생했습니다: ${errorMessage}</p>
+      </div>
+    `;
+
+    if (chartType === 'time') {
+      const container = document.getElementById('mainChartContainer');
+      const errorDiv =
+        container.querySelector('.chart-error') ||
+        document.createElement('div');
+      errorDiv.innerHTML = errorHTML;
+      if (!container.querySelector('.chart-error')) {
+        container.appendChild(errorDiv);
+      }
+    } else if (chartType === 'dept-status') {
+      if (department) {
+        // 특정 부서 차트 에러 표시
+        const container = document.getElementById(
+          `${department.toLowerCase()}Chart`
+        );
+        if (container) {
+          const errorDiv =
+            container.querySelector('.chart-error') ||
+            document.createElement('div');
+          errorDiv.innerHTML = errorHTML;
+          if (!container.querySelector('.chart-error')) {
+            container.appendChild(errorDiv);
+          }
+        }
+      } else {
+        // 모든 부서 차트 에러 표시
+        document.querySelectorAll('.department-chart').forEach((container) => {
+          const errorDiv =
+            container.querySelector('.chart-error') ||
+            document.createElement('div');
+          errorDiv.innerHTML = errorHTML;
+          if (!container.querySelector('.chart-error')) {
+            container.appendChild(errorDiv);
+          }
+        });
+      }
+    }
+
+    messageUtils.error('차트 생성 중 오류가 발생했습니다.');
+  },
+
+  /**
+   * 차트 컨테이너 가시성 초기화
+   */
+  resetChartVisibility: function () {
+    // 모든 차트 컨테이너 숨김
+    document.getElementById('mainChartContainer').style.display = 'none';
+    document.getElementById('departmentChartsContainer').style.display = 'none';
+
+    // 차트 객체 초기화
+    this.resetCharts();
+  },
+
+  /**
    * 데이터 필터링
    */
   filterData: function () {
@@ -198,6 +373,7 @@ const VisualizationPage = {
     if (!TMS.store.dashboardData || !Array.isArray(TMS.store.dashboardData)) {
       console.log('대시보드 데이터가 없거나 유효하지 않습니다.');
       this.state.filteredData = [];
+      messageUtils.warning('데이터를 불러올 수 없습니다.');
       return;
     }
 
@@ -205,6 +381,7 @@ const VisualizationPage = {
 
     // 원본 데이터 복사
     let filteredData = [...TMS.store.dashboardData];
+    console.log('dashboard-json 데이터 사용 중...');
 
     // 날짜 필터 적용 (차트 유형에 따라 다른 날짜 필드 사용)
     if (this.state.startDate && this.state.endDate) {
@@ -232,10 +409,12 @@ const VisualizationPage = {
 
           const createDate = new Date(createTime);
           if (isNaN(createDate.getTime())) {
-            console.log(`날짜 변환 실패 (create_time): ${createTime}, 주문번호: ${item.order_no}`);
+            console.log(
+              `날짜 변환 실패 (create_time): ${createTime}, 주문번호: ${item.order_no}`
+            );
             return false;
           }
-          
+
           const result = createDate >= startDate && createDate <= endDate;
           return result;
         } else {
@@ -247,10 +426,12 @@ const VisualizationPage = {
 
           const etaDate = new Date(eta);
           if (isNaN(etaDate.getTime())) {
-            console.log(`날짜 변환 실패 (eta): ${eta}, 주문번호: ${item.order_no}`);
+            console.log(
+              `날짜 변환 실패 (eta): ${eta}, 주문번호: ${item.order_no}`
+            );
             return false;
           }
-          
+
           const result = etaDate >= startDate && etaDate <= endDate;
           return result;
         }
@@ -275,6 +456,11 @@ const VisualizationPage = {
 
     this.state.filteredData = filteredData;
     console.log(`최종 필터링된 데이터: ${this.state.filteredData.length}건`);
+
+    if (this.state.filteredData.length === 0) {
+      console.log('필터링된 데이터가 없습니다.');
+      messageUtils.warning('선택한 조건에 맞는 데이터가 없습니다.');
+    }
   },
 
   /**
@@ -562,82 +748,58 @@ const VisualizationPage = {
     // 부서 필터가 적용된 경우 해당 부서 차트만 표시
     if (this.state.department === 'CS') {
       this.renderDeptStatusChart(
-        'csChart',
+        'csChartCanvas',
         'CS 부서 배송 상태',
         deptData.CS,
         chartColors,
         statusLabels
       );
-      document.getElementById(
-        'hesChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'lenovoChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'allDeptChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'csChart'
-      ).parentElement.parentElement.style.display = 'block';
+      document.getElementById('hesChart').style.display = 'none';
+      document.getElementById('lenovoChart').style.display = 'none';
+      document.getElementById('allDeptChart').style.display = 'none';
+      document.getElementById('csChart').style.display = 'block';
     } else if (this.state.department === 'HES') {
       this.renderDeptStatusChart(
-        'hesChart',
+        'hesChartCanvas',
         'HES 부서 배송 상태',
         deptData.HES,
         chartColors,
         statusLabels
       );
-      document.getElementById(
-        'csChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'lenovoChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'allDeptChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'hesChart'
-      ).parentElement.parentElement.style.display = 'block';
+      document.getElementById('csChart').style.display = 'none';
+      document.getElementById('lenovoChart').style.display = 'none';
+      document.getElementById('allDeptChart').style.display = 'none';
+      document.getElementById('hesChart').style.display = 'block';
     } else if (this.state.department === 'LENOVO') {
       this.renderDeptStatusChart(
-        'lenovoChart',
+        'lenovoChartCanvas',
         'LENOVO 부서 배송 상태',
         deptData.LENOVO,
         chartColors,
         statusLabels
       );
-      document.getElementById(
-        'csChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'hesChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'allDeptChart'
-      ).parentElement.parentElement.style.display = 'none';
-      document.getElementById(
-        'lenovoChart'
-      ).parentElement.parentElement.style.display = 'block';
+      document.getElementById('csChart').style.display = 'none';
+      document.getElementById('hesChart').style.display = 'none';
+      document.getElementById('allDeptChart').style.display = 'none';
+      document.getElementById('lenovoChart').style.display = 'block';
     } else {
       // 전체 부서 표시
       this.renderDeptStatusChart(
-        'csChart',
+        'csChartCanvas',
         'CS 부서 배송 상태',
         deptData.CS,
         chartColors,
         statusLabels
       );
       this.renderDeptStatusChart(
-        'hesChart',
+        'hesChartCanvas',
         'HES 부서 배송 상태',
         deptData.HES,
         chartColors,
         statusLabels
       );
       this.renderDeptStatusChart(
-        'lenovoChart',
+        'lenovoChartCanvas',
         'LENOVO 부서 배송 상태',
         deptData.LENOVO,
         chartColors,
@@ -645,18 +807,10 @@ const VisualizationPage = {
       );
       this.renderAllDeptChart(deptData, chartColors, statusLabels);
 
-      document.getElementById(
-        'csChart'
-      ).parentElement.parentElement.style.display = 'block';
-      document.getElementById(
-        'hesChart'
-      ).parentElement.parentElement.style.display = 'block';
-      document.getElementById(
-        'lenovoChart'
-      ).parentElement.parentElement.style.display = 'block';
-      document.getElementById(
-        'allDeptChart'
-      ).parentElement.parentElement.style.display = 'block';
+      document.getElementById('csChart').style.display = 'block';
+      document.getElementById('hesChart').style.display = 'block';
+      document.getElementById('lenovoChart').style.display = 'block';
+      document.getElementById('allDeptChart').style.display = 'block';
     }
   },
 
@@ -800,7 +954,7 @@ const VisualizationPage = {
    * 전체 부서 비교 차트 렌더링
    */
   renderAllDeptChart: function (deptData, chartColors, statusLabels) {
-    const ctx = document.getElementById('allDeptChart').getContext('2d');
+    const ctx = document.getElementById('allDeptChartCanvas').getContext('2d');
 
     // 모든 부서와 상태에 대한 데이터 준비
     const allStatuses = [
@@ -945,6 +1099,13 @@ const VisualizationPage = {
         this.charts[key] = null;
       }
     });
+
+    // 모든 에러 메시지 제거
+    document.querySelectorAll('.chart-error').forEach((el) => {
+      el.remove();
+    });
+
+    console.log('모든 차트 객체 리셋 완료');
   },
 
   /**
@@ -966,130 +1127,6 @@ const VisualizationPage = {
     // 상태 업데이트
     this.state.startDate = startDate;
     this.state.endDate = endDate;
-  },
-
-  /**
-   * 필터 적용 처리
-   */
-  applyFilters: function () {
-    console.log('필터 적용 시작...');
-    
-    const chartType = document.getElementById('vizChartType').value;
-    const startDate = document.getElementById('vizStartDate').value;
-    const endDate = document.getElementById('vizEndDate').value;
-    const department = document.getElementById('vizDepartmentFilter').value;
-    
-    // 필수 입력값 검증
-    if (!chartType) {
-      messageUtils.warning('시각화 유형을 선택해주세요.');
-      return;
-    }
-    
-    if (!startDate || !endDate) {
-      messageUtils.warning('시작일과 종료일을 모두 입력해주세요.');
-      return;
-    }
-    
-    // 로딩 표시
-    this.showLoading(chartType, department);
-    
-    // 상태 업데이트
-    this.state.chartType = chartType;
-    this.state.startDate = startDate;
-    this.state.endDate = endDate;
-    this.state.department = department;
-    
-    // 약간의 딜레이 후 차트 업데이트 (UI가 먼저 업데이트되도록)
-    setTimeout(() => {
-      try {
-        // 차트 컨테이너 표시
-        document.getElementById('chartContainerWrapper').style.display = 'block';
-        document.getElementById('chartPlaceholder').style.display = 'none';
-        
-        // 차트 업데이트
-        this.updateCharts();
-        
-        // 로딩 숨김
-        this.hideLoading();
-      } catch (error) {
-        console.error('차트 업데이트 오류:', error);
-        this.handleChartError(chartType, department, error.message);
-      }
-    }, 100);
-  },
-  
-  /**
-   * 로딩 표시
-   */
-  showLoading: function(chartType, department) {
-    if (chartType === 'time') {
-      document.querySelector('#mainChartContainer .chart-loading').style.display = 'flex';
-    } else if (chartType === 'dept-status') {
-      if (department) {
-        // 특정 부서 차트만 로딩 표시
-        document.querySelector(`#${department.toLowerCase()}Chart .chart-loading`)?.style.display = 'flex';
-      } else {
-        // 모든 부서 차트 로딩 표시
-        document.querySelectorAll('.department-chart .chart-loading').forEach(el => {
-          el.style.display = 'flex';
-        });
-      }
-    }
-  },
-  
-  /**
-   * 로딩 숨김
-   */
-  hideLoading: function() {
-    document.querySelectorAll('.chart-loading').forEach(el => {
-      el.style.display = 'none';
-    });
-  },
-  
-  /**
-   * 차트 에러 처리
-   */
-  handleChartError: function(chartType, department, errorMessage) {
-    this.hideLoading();
-    
-    const errorHTML = `
-      <div class="chart-error">
-        <i class="fa-solid fa-exclamation-circle"></i>
-        <p>차트 생성 중 오류가 발생했습니다: ${errorMessage}</p>
-      </div>
-    `;
-    
-    if (chartType === 'time') {
-      const container = document.getElementById('mainChartContainer');
-      const errorDiv = container.querySelector('.chart-error') || document.createElement('div');
-      errorDiv.innerHTML = errorHTML;
-      if (!container.querySelector('.chart-error')) {
-        container.appendChild(errorDiv);
-      }
-    } else if (chartType === 'dept-status') {
-      if (department) {
-        // 특정 부서 차트 에러 표시
-        const container = document.getElementById(`${department.toLowerCase()}Chart`);
-        if (container) {
-          const errorDiv = container.querySelector('.chart-error') || document.createElement('div');
-          errorDiv.innerHTML = errorHTML;
-          if (!container.querySelector('.chart-error')) {
-            container.appendChild(errorDiv);
-          }
-        }
-      } else {
-        // 모든 부서 차트 에러 표시
-        document.querySelectorAll('.department-chart').forEach(container => {
-          const errorDiv = container.querySelector('.chart-error') || document.createElement('div');
-          errorDiv.innerHTML = errorHTML;
-          if (!container.querySelector('.chart-error')) {
-            container.appendChild(errorDiv);
-          }
-        });
-      }
-    }
-    
-    messageUtils.error('차트 생성 중 오류가 발생했습니다.');
   },
 
   /**
@@ -1151,21 +1188,6 @@ const VisualizationPage = {
 
     // 샘플 데이터 (최대 3건)
     console.log('샘플 데이터:', this.state.filteredData.slice(0, 3));
-  },
-
-  /**
-   * 차트 컨테이너 가시성 초기화
-   */
-  resetChartVisibility: function () {
-    // 모든 차트 컨테이너 숨김
-    const chartContainers = ['mainChartContainer', 'departmentChartsContainer'];
-
-    chartContainers.forEach((containerId) => {
-      const container = document.getElementById(containerId);
-      if (container) {
-        container.style.display = 'none';
-      }
-    });
   },
 };
 

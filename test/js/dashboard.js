@@ -704,9 +704,6 @@ const DashboardPage = {
       return;
     }
 
-    // 필드 초기화
-    document.getElementById('statusChangeNote').value = '';
-
     // 모달 열기
     modalUtils.openModal('statusChangeModal');
   },

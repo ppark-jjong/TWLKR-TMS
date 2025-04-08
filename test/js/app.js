@@ -307,48 +307,78 @@ const TMS = {
       return [];
     }
 
+    console.log('TMS.getDashboardData 필터링 시작:', filters);
     let filteredData = [...this.store.dashboardData];
+    console.log(`필터링 전 전체 데이터: ${filteredData.length}건`);
 
-    // 필터 적용
+    // 상태 필터 적용
     if (filters.status) {
+      console.log(`상태 필터 적용: ${filters.status}`);
       filteredData = filteredData.filter(
         (item) => item.status === filters.status
       );
+      console.log(`상태 필터 후 데이터: ${filteredData.length}건`);
     }
 
+    // 부서 필터 적용
     if (filters.department) {
+      console.log(`부서 필터 적용: ${filters.department}`);
       filteredData = filteredData.filter(
         (item) => item.department === filters.department
       );
+      console.log(`부서 필터 후 데이터: ${filteredData.length}건`);
     }
 
+    // 창고 필터 적용
     if (filters.warehouse) {
+      console.log(`창고 필터 적용: ${filters.warehouse}`);
       filteredData = filteredData.filter(
         (item) => item.warehouse === filters.warehouse
       );
+      console.log(`창고 필터 후 데이터: ${filteredData.length}건`);
     }
 
+    // 키워드 검색 적용
     if (filters.keyword) {
       const keyword = filters.keyword.toLowerCase();
-      filteredData = filteredData.filter(
-        (item) =>
-          (item.order_no && item.order_no.toLowerCase().includes(keyword)) ||
-          (item.customer && item.customer.toLowerCase().includes(keyword))
-      );
-    }
-
-    if (filters.startDate && filters.endDate) {
-      const startDate = new Date(filters.startDate);
-      const endDate = new Date(filters.endDate);
+      console.log(`키워드 검색 적용: ${keyword}`);
 
       filteredData = filteredData.filter((item) => {
-        const etaDate = item.eta_date || (item.eta ? new Date(item.eta) : null);
-        if (!etaDate) return false;
+        const orderNo = String(item.order_no || '').toLowerCase();
+        const customer = String(item.customer || '').toLowerCase();
+        return orderNo.includes(keyword) || customer.includes(keyword);
+      });
+
+      console.log(`키워드 검색 후 데이터: ${filteredData.length}건`);
+    }
+
+    // 날짜 필터 적용
+    if (filters.startDate && filters.endDate) {
+      console.log(`날짜 필터 적용: ${filters.startDate} ~ ${filters.endDate}`);
+      const startDate = new Date(filters.startDate);
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
+
+      filteredData = filteredData.filter((item) => {
+        if (!item.eta) {
+          return false;
+        }
+
+        const etaDate = new Date(item.eta);
+        if (isNaN(etaDate.getTime())) {
+          console.log(
+            `날짜 변환 실패: ${item.eta}, 주문번호: ${item.order_no}`
+          );
+          return false;
+        }
 
         return etaDate >= startDate && etaDate <= endDate;
       });
+
+      console.log(`날짜 필터 후 데이터: ${filteredData.length}건`);
     }
 
+    console.log(`최종 필터링된 데이터: ${filteredData.length}건`);
     return filteredData;
   },
 
