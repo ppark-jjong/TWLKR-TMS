@@ -18,19 +18,19 @@
     },
     {
       "handover_id": "H003",
-      "title": "안전 교육 일정 안내",
-      "content": "3월 10일 오전 10시 안전 교육이 진행될 예정입니다. 전 직원 참석 필수입니다.",
+      "title": "마포구 배차 스케줄 재확인 요망",
+      "content": "CS 대량 배송 건 인해 마포구 배차 스케줄 재확인 요망",
       "created_by": "CSAdmin",
       "created_at": "2025-03-06 11:20",
       "is_notice": true
     },
     {
       "handover_id": "H004",
-      "title": "야간 근무 인원 추가 필요",
-      "content": "이번 주 목요일 야간 근무 인원이 부족합니다. 가능한 인원은 관리자에게 연락 바랍니다.",
+      "title": "기상 악화로 인한 배송 지연",
+      "content": "오늘 오전 기상 악화로 인해 배송 지연이 발생할 수 있습니다. 고객에게 미리 안내 바랍니다.",
       "created_by": "CSAdmin",
       "created_at": "2025-03-06 16:45",
-      "is_notice": false
+      "is_notice": true
     },
     {
       "handover_id": "H005",
