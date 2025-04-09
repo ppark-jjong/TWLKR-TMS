@@ -9,11 +9,12 @@
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon" />
 
+    <!-- Ant Design CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/antd/dist/reset.css" />
+    
     <!-- 사용자 정의 CSS -->
     <link rel="stylesheet" href="styles/font.css" />
-    <link rel="stylesheet" href="styles/main.css" />
-    <link rel="stylesheet" href="styles/components.css" />
-    <link rel="stylesheet" href="styles/modal.css" />
+    <link rel="stylesheet" href="styles/ant-custom.css" />
 
     <!-- 폰트 어썸 -->
     <link
@@ -23,6 +24,12 @@
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    
+    <!-- Ant Design JS -->
+    <script src="https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/antd/dist/antd.min.js"></script>
   </head>
   <body>
     <div class="app-container">
@@ -31,7 +38,7 @@
         <!-- 사이드바 상단 로고 -->
         <div class="sidebar-logo">
           <div style="position: relative; display: inline-block;">
-            <h2 style="font-size: 1.8rem; font-weight: 800; color: #0d6efd; margin: 0; letter-spacing: -0.5px;">TWLKR-TMS</h2>
+            <h2 style="font-size: 1.8rem; font-weight: 800; color: #1890ff; margin: 0; letter-spacing: -0.5px;">TWLKR-TMS</h2>
             <img 
               src="assets/logo.png" 
               alt="로고" 
@@ -42,22 +49,44 @@
 
         <!-- 사용자 정보 -->
         <div class="user-info">
-          <div class="user-name" id="userDisplayName">CSAdmin</div>
-          <div class="user-role" id="userDisplayRole">CS</div>
+          <div class="user-avatar">
+            <span class="anticon">
+              <i class="fas fa-user-circle"></i>
+            </span>
+          </div>
+          <div class="user-details">
+            <div class="user-name" id="userDisplayName">CSAdmin</div>
+            <div class="user-role" id="userDisplayRole">CS</div>
+          </div>
         </div>
 
         <!-- 사이드바 메뉴 -->
         <div class="sidebar-menu">
-          <ul>
-            <li><a href="index.html" class="active">대시보드</a></li>
-            <li><a href="handover.html">인수인계</a></li>
-            <li><a href="visualization.html">시각화</a></li>
+          <ul class="ant-menu">
+            <li class="ant-menu-item ant-menu-item-selected">
+              <a href="index.html">
+                <span class="anticon"><i class="fas fa-chart-line"></i></span>
+                <span>대시보드</span>
+              </a>
+            </li>
+            <li class="ant-menu-item">
+              <a href="handover.html">
+                <span class="anticon"><i class="fas fa-exchange-alt"></i></span>
+                <span>인수인계</span>
+              </a>
+            </li>
+            <li class="ant-menu-item">
+              <a href="visualization.html">
+                <span class="anticon"><i class="fas fa-chart-bar"></i></span>
+                <span>시각화</span>
+              </a>
+            </li>
           </ul>
         </div>
 
         <!-- 로그아웃 버튼 -->
-        <div style="padding: 20px; margin-top: auto;">
-          <button id="logoutBtn" class="logout-btn">
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="ant-btn ant-btn-default logout-btn">
             <i class="fa-solid fa-right-from-bracket"></i>
             <span>로그아웃</span>
           </button>
@@ -67,44 +96,43 @@
       <!-- 메인 콘텐츠 -->
       <div class="main-content">
         <!-- 헤더 -->
-        <header class="header">
+        <header class="ant-layout-header header">
           <div class="header-title" id="pageTitle">대시보드</div>
-          <div class="user-menu">
-            <button id="logoutBtn" class="logout-btn">로그아웃</button>
+          <div class="header-actions">
+            <span class="header-time" id="currentTime"></span>
+            <button id="mobileMenuBtn" class="ant-btn ant-btn-text">
+              <i class="fas fa-bars"></i>
+            </button>
           </div>
         </header>
 
         <!-- 콘텐츠 영역 -->
-        <div class="content">
-          <div class="card">
-            <div class="card-header date-filter-header">
-              <div class="date-period-container">
-                <span class="date-range-label">ETA 기간:</span>
-                <div class="date-input-group">
-                  <input type="date" id="startDate" class="date-input" />
-                  <span class="date-separator">~</span>
-                  <input type="date" id="endDate" class="date-input" />
-                </div>
-                <button class="btn btn-primary" id="dateFilterBtn" style="margin-left: 10px">
-                  <i class="fa-solid fa-search"></i> 조회
-                </button>
-              </div>
-
-              <div class="search-container">
-                <input type="text" id="keywordInput" class="search-input" placeholder="주문번호 또는 고객명" />
-                <button class="search-button" id="searchBtn">
-                  <i class="fa-solid fa-search"></i>
-                </button>
-              </div>
-            </div>
-            
-            <div class="card-body">
+        <div class="ant-layout-content content">
+          <div class="ant-card main-card">
+            <div class="ant-card-body">
               <!-- 필터 영역 -->
               <div class="filter-section">
-                <div class="filter-container">
+                <div class="date-range-container">
+                  <span class="date-range-label">ETA 기간:</span>
+                  <div class="ant-space">
+                    <div class="ant-picker-range">
+                      <input type="date" id="startDate" class="ant-picker-input" />
+                      <span class="ant-picker-separator">~</span>
+                      <input type="date" id="endDate" class="ant-picker-input" />
+                    </div>
+                    <button class="ant-btn ant-btn-primary" id="dateFilterBtn">
+                      <i class="fa-solid fa-search"></i> 조회
+                    </button>
+                    <button class="ant-btn ant-btn-default" id="todayBtn">
+                      <i class="fa-solid fa-calendar-day"></i> Today
+                    </button>
+                  </div>
+                </div>
+
+                <div class="ant-space filter-container">
                   <div class="filter-item">
                     <label for="statusFilter">상태</label>
-                    <select id="statusFilter" class="filter-select">
+                    <select id="statusFilter" class="ant-select">
                       <option value="">전체</option>
                       <option value="PENDING">대기</option>
                       <option value="IN_PROGRESS">진행</option>
@@ -116,7 +144,7 @@
 
                   <div class="filter-item">
                     <label for="departmentFilter">부서</label>
-                    <select id="departmentFilter" class="filter-select">
+                    <select id="departmentFilter" class="ant-select">
                       <option value="">전체</option>
                       <option value="CS">CS</option>
                       <option value="HES">HES</option>
@@ -126,7 +154,7 @@
 
                   <div class="filter-item">
                     <label for="warehouseFilter">창고</label>
-                    <select id="warehouseFilter" class="filter-select">
+                    <select id="warehouseFilter" class="ant-select">
                       <option value="">전체</option>
                       <option value="SEOUL">서울</option>
                       <option value="BUSAN">부산</option>
@@ -135,8 +163,24 @@
                     </select>
                   </div>
 
+                  <div class="filter-item">
+                    <label for="typeFilter">유형</label>
+                    <select id="typeFilter" class="ant-select">
+                      <option value="">전체</option>
+                      <option value="DELIVERY">배송</option>
+                      <option value="RETURN">회수</option>
+                    </select>
+                  </div>
+
+                  <div class="search-container">
+                    <input type="text" id="keywordInput" class="ant-input" placeholder="주문번호 또는 고객명" />
+                    <button class="ant-btn ant-btn-primary" id="searchBtn">
+                      <i class="fa-solid fa-search"></i>
+                    </button>
+                  </div>
+
                   <div class="filter-actions">
-                    <button class="btn btn-secondary" id="resetFilterBtn">
+                    <button class="ant-btn ant-btn-default" id="resetFilterBtn">
                       <i class="fa-solid fa-rotate-left"></i> 필터 초기화
                     </button>
                   </div>
@@ -145,7 +189,7 @@
 
               <!-- 요약 카드 영역 -->
               <div class="summary-cards">
-                <div class="summary-card">
+                <div class="ant-card summary-card">
                   <div class="summary-icon">
                     <i class="fa-solid fa-boxes-stacked"></i>
                   </div>
@@ -155,8 +199,38 @@
                   </div>
                 </div>
 
-                <div class="summary-card">
-                  <div class="summary-icon">
+                <div class="ant-card summary-card">
+                  <div class="summary-icon delivery-icon">
+                    <i class="fa-solid fa-truck"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">배송 건수</p>
+                    <h3 class="summary-value" id="deliveryOrders">0건</h3>
+                  </div>
+                </div>
+
+                <div class="ant-card summary-card">
+                  <div class="summary-icon return-icon">
+                    <i class="fa-solid fa-truck-loading"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">회수 건수</p>
+                    <h3 class="summary-value" id="returnOrders">0건</h3>
+                  </div>
+                </div>
+
+                <div class="ant-card summary-card">
+                  <div class="summary-icon pending-icon">
+                    <i class="fa-solid fa-clock"></i>
+                  </div>
+                  <div class="summary-data">
+                    <p class="summary-label">대기 건수</p>
+                    <h3 class="summary-value" id="pendingOrders">0건</h3>
+                  </div>
+                </div>
+
+                <div class="ant-card summary-card">
+                  <div class="summary-icon progress-icon">
                     <i class="fa-solid fa-truck-fast"></i>
                   </div>
                   <div class="summary-data">
@@ -165,8 +239,8 @@
                   </div>
                 </div>
 
-                <div class="summary-card">
-                  <div class="summary-icon">
+                <div class="ant-card summary-card">
+                  <div class="summary-icon complete-icon">
                     <i class="fa-solid fa-check-circle"></i>
                   </div>
                   <div class="summary-data">
@@ -174,22 +248,36 @@
                     <h3 class="summary-value" id="completedOrders">0건</h3>
                   </div>
                 </div>
-                
-                <div class="summary-card">
-                  <div class="summary-icon">
-                    <i class="fa-solid fa-clock"></i>
-                  </div>
-                  <div class="summary-data">
-                    <p class="summary-label">대기 건수</p>
-                    <h3 class="summary-value" id="pendingOrders">0건</h3>
-                  </div>
-                </div>
               </div>
 
               <!-- 카드 액션 버튼 -->
               <div class="card-actions">
-                <button class="btn btn-primary" id="newOrderBtn">
+                <button class="ant-btn ant-btn-default" id="refreshBtn">
+                  <i class="fa-solid fa-sync"></i> 새로고침
+                </button>
+                <div class="ant-dropdown-trigger">
+                  <button class="ant-btn ant-btn-default" id="statusChangeBtn">
+                    <i class="fa-solid fa-arrows-rotate"></i> 상태변경
+                    <i class="fa-solid fa-chevron-down" style="margin-left: 5px;"></i>
+                  </button>
+                  <div class="ant-dropdown" id="statusDropdown">
+                    <ul class="ant-dropdown-menu">
+                      <li class="ant-dropdown-menu-item" data-status="PENDING">대기</li>
+                      <li class="ant-dropdown-menu-item" data-status="IN_PROGRESS">진행</li>
+                      <li class="ant-dropdown-menu-item" data-status="COMPLETE">완료</li>
+                      <li class="ant-dropdown-menu-item" data-status="ISSUE">이슈</li>
+                      <li class="ant-dropdown-menu-item" data-status="CANCEL">취소</li>
+                    </ul>
+                  </div>
+                </div>
+                <button class="ant-btn ant-btn-default" id="assignDriverBtn">
+                  <i class="fa-solid fa-user-plus"></i> 배차처리
+                </button>
+                <button class="ant-btn ant-btn-primary" id="newOrderBtn">
                   <i class="fa-solid fa-plus"></i> 신규 등록
+                </button>
+                <button class="ant-btn ant-btn-dangerous" id="deleteOrderBtn">
+                  <i class="fa-solid fa-trash"></i> 삭제
                 </button>
               </div>
 
@@ -200,11 +288,18 @@
 
               <!-- 데이터 테이블 -->
               <div class="table-container">
-                <table class="table" id="dashboardTable">
-                  <thead>
+                <table class="ant-table" id="dashboardTable">
+                  <thead class="ant-table-thead">
                     <tr>
+                      <th width="40px">
+                        <label class="ant-checkbox-wrapper">
+                          <input type="checkbox" id="selectAllCheckbox" class="ant-checkbox-input" />
+                          <span class="ant-checkbox-inner"></span>
+                        </label>
+                      </th>
                       <th>주문번호</th>
                       <th>고객</th>
+                      <th>유형</th>
                       <th>ETA</th>
                       <th>창고</th>
                       <th>부서</th>
@@ -212,14 +307,29 @@
                       <th>업데이트</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody class="ant-table-tbody">
                     <tr>
-                      <td colspan="7" class="empty-message">
+                      <td colspan="9" class="empty-message">
                         데이터를 불러오는 중...
                       </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- 페이지네이션 -->
+              <div class="ant-pagination">
+                <div class="ant-pagination-total-text">총 <span id="totalItems">0</span>개 항목</div>
+                <ul class="ant-pagination-items" id="paginationContainer">
+                  <!-- 페이지네이션 아이템은 자바스크립트로 생성됨 -->
+                </ul>
+                <div class="ant-pagination-options">
+                  <select id="pageSizeSelect" class="ant-select ant-pagination-options-size-changer">
+                    <option value="10">10개씩 보기</option>
+                    <option value="20">20개씩 보기</option>
+                    <option value="50">50개씩 보기</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -228,50 +338,282 @@
     </div>
 
     <!-- 주문 상세 정보 모달 -->
-    <div id="orderDetailModal" class="modal">
-      <div class="modal-overlay"></div>
-      <div class="modal-dialog">
-        <div class="modal-header">
-          <h3 class="modal-title">주문 상세 정보</h3>
-          <button class="modal-close" data-close-modal>
-            <i class="fa-solid fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <!-- 모달 내용은 JavaScript에서 동적으로 채워짐 -->
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" data-close-modal>닫기</button>
-          <button class="btn btn-primary" id="editOrderBtn">수정</button>
+    <div id="orderDetailModal" class="ant-modal-root" style="display: none;">
+      <div class="ant-modal-mask"></div>
+      <div class="ant-modal-wrap">
+        <div class="ant-modal">
+          <div class="ant-modal-content">
+            <div class="ant-modal-header">
+              <div class="ant-modal-title">주문 상세 정보</div>
+              <button class="ant-modal-close" data-close-modal>
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="ant-modal-body">
+              <!-- 모달 내용은 JavaScript에서 동적으로 채워짐 -->
+            </div>
+            <div class="ant-modal-footer">
+              <button class="ant-btn ant-btn-default" data-close-modal>닫기</button>
+              <button class="ant-btn ant-btn-primary" id="editOrderBtn">수정</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 주문 수정 모달 -->
-    <div id="editOrderModal" class="modal">
-      <div class="modal-overlay"></div>
-      <div class="modal-dialog">
-        <div class="modal-header">
-          <h3 class="modal-title">주문 수정</h3>
-          <button class="modal-close" data-close-modal>
-            <i class="fa-solid fa-times"></i>
-          </button>
+    <div id="editOrderModal" class="ant-modal-root" style="display: none;">
+      <div class="ant-modal-mask"></div>
+      <div class="ant-modal-wrap">
+        <div class="ant-modal">
+          <div class="ant-modal-content">
+            <div class="ant-modal-header">
+              <div class="ant-modal-title">주문 수정</div>
+              <button class="ant-modal-close" data-close-modal>
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="ant-modal-body">
+              <!-- 모달 내용은 JavaScript에서 동적으로 채워짐 -->
+            </div>
+            <div class="ant-modal-footer">
+              <button class="ant-btn ant-btn-default" data-close-modal>취소</button>
+              <button class="ant-btn ant-btn-primary" id="saveOrderBtn">저장</button>
+            </div>
+          </div>
         </div>
-        <div class="modal-body">
-          <!-- 모달 내용은 JavaScript에서 동적으로 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 신규 주문 등록 모달 -->
+    <div id="newOrderModal" class="ant-modal-root" style="display: none;">
+      <div class="ant-modal-mask"></div>
+      <div class="ant-modal-wrap">
+        <div class="ant-modal">
+          <div class="ant-modal-content">
+            <div class="ant-modal-header">
+              <div class="ant-modal-title">신규 주문 등록</div>
+              <button class="ant-modal-close" data-close-modal>
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="ant-modal-body">
+              <form id="newOrderForm" class="ant-form ant-form-vertical">
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">주문번호</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="order_no" class="ant-input" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">고객명</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="customer" class="ant-input" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">예상도착일</label>
+                  <div class="ant-form-item-control">
+                    <input type="date" name="eta" class="ant-input" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">창고</label>
+                  <div class="ant-form-item-control">
+                    <select name="warehouse" class="ant-select" required>
+                      <option value="">선택하세요</option>
+                      <option value="SEOUL">서울</option>
+                      <option value="BUSAN">부산</option>
+                      <option value="GWANGJU">광주</option>
+                      <option value="DAEJEON">대전</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">담당부서</label>
+                  <div class="ant-form-item-control">
+                    <select name="department" class="ant-select" required>
+                      <option value="">선택하세요</option>
+                      <option value="CS">CS</option>
+                      <option value="HES">HES</option>
+                      <option value="LENOVO">LENOVO</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">배송 유형</label>
+                  <div class="ant-form-item-control">
+                    <select name="type" class="ant-select" required>
+                      <option value="DELIVERY">배송</option>
+                      <option value="RETURN">회수</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">서비스 수준</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="sla" class="ant-input" placeholder="예: 4HR(24X7)" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">우편번호</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="postal_code" class="ant-input" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">주소</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="address" class="ant-input" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">연락처</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="contact" class="ant-input" />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">메모</label>
+                  <div class="ant-form-item-control">
+                    <textarea name="remark" class="ant-input" rows="3"></textarea>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div class="ant-modal-footer">
+              <button class="ant-btn ant-btn-default" data-close-modal>취소</button>
+              <button class="ant-btn ant-btn-primary" id="createOrderBtn">등록</button>
+            </div>
+          </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" data-close-modal>취소</button>
-          <button class="btn btn-primary" id="saveOrderBtn">저장</button>
+      </div>
+    </div>
+
+    <!-- 배차 처리 모달 -->
+    <div id="assignDriverModal" class="ant-modal-root" style="display: none;">
+      <div class="ant-modal-mask"></div>
+      <div class="ant-modal-wrap">
+        <div class="ant-modal">
+          <div class="ant-modal-content">
+            <div class="ant-modal-header">
+              <div class="ant-modal-title">배차 처리</div>
+              <button class="ant-modal-close" data-close-modal>
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="ant-modal-body">
+              <form id="assignDriverForm" class="ant-form ant-form-vertical">
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">기사 이름</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="driver_name" class="ant-input" required />
+                  </div>
+                </div>
+                <div class="ant-form-item">
+                  <label class="ant-form-item-label">기사 연락처</label>
+                  <div class="ant-form-item-control">
+                    <input type="text" name="driver_contact" class="ant-input" />
+                  </div>
+                </div>
+                <div class="ant-alert ant-alert-info">
+                  <span class="ant-alert-message">
+                    <i class="fas fa-info-circle"></i> 배차 처리는 상태를 변경하지 않습니다. 필요시 상태를 별도로 변경해주세요.
+                  </span>
+                </div>
+              </form>
+            </div>
+            <div class="ant-modal-footer">
+              <button class="ant-btn ant-btn-default" data-close-modal>취소</button>
+              <button class="ant-btn ant-btn-primary" id="saveDriverBtn">저장</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상태 변경 확인 모달 -->
+    <div id="statusConfirmModal" class="ant-modal-root" style="display: none;">
+      <div class="ant-modal-mask"></div>
+      <div class="ant-modal-wrap">
+        <div class="ant-modal">
+          <div class="ant-modal-content">
+            <div class="ant-modal-header">
+              <div class="ant-modal-title">상태 변경</div>
+              <button class="ant-modal-close" data-close-modal>
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="ant-modal-body">
+              <p id="statusConfirmMessage">선택한 주문의 상태를 변경하시겠습니까?</p>
+              <div class="ant-alert ant-alert-warning" style="margin-top: 16px;">
+                <span class="ant-alert-message">
+                  <i class="fas fa-exclamation-triangle"></i> 이 작업은 되돌릴 수 없습니다.
+                </span>
+              </div>
+            </div>
+            <div class="ant-modal-footer">
+              <button class="ant-btn ant-btn-default" data-close-modal>취소</button>
+              <button class="ant-btn ant-btn-primary" id="confirmStatusChangeBtn">변경</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 삭제 확인 모달 -->
+    <div id="deleteConfirmModal" class="ant-modal-root" style="display: none;">
+      <div class="ant-modal-mask"></div>
+      <div class="ant-modal-wrap">
+        <div class="ant-modal">
+          <div class="ant-modal-content">
+            <div class="ant-modal-header">
+              <div class="ant-modal-title">주문 삭제</div>
+              <button class="ant-modal-close" data-close-modal>
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="ant-modal-body">
+              <p id="deleteConfirmMessage">선택한 주문을 삭제하시겠습니까?</p>
+              <div class="ant-alert ant-alert-error" style="margin-top: 16px;">
+                <span class="ant-alert-message">
+                  <i class="fas fa-exclamation-triangle"></i> 삭제된 데이터는 복구할 수 없습니다.
+                </span>
+              </div>
+            </div>
+            <div class="ant-modal-footer">
+              <button class="ant-btn ant-btn-default" data-close-modal>취소</button>
+              <button class="ant-btn ant-btn-dangerous" id="confirmDeleteBtn">삭제</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 메시지 팝업 컴포넌트 -->
-    <div id="messagePopup" class="message-popup">
-      <div class="message-content">
-        <i class="message-icon"></i>
-        <span class="message-text"></span>
+    <div id="messagePopup" class="ant-message">
+      <div class="ant-message-notice">
+        <div class="ant-message-notice-content">
+          <div class="ant-message-custom-content">
+            <span class="anticon"></span>
+            <span class="ant-message-text"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+      <div class="loading-spinner">
+        <div class="ant-spin ant-spin-lg ant-spin-spinning">
+          <span class="ant-spin-dot">
+            <i class="ant-spin-dot-item"></i>
+            <i class="ant-spin-dot-item"></i>
+            <i class="ant-spin-dot-item"></i>
+            <i class="ant-spin-dot-item"></i>
+          </span>
+        </div>
+        <div class="loading-text">처리 중...</div>
       </div>
     </div>
 
@@ -279,6 +621,7 @@
     <script src="js/common.js"></script>
     <script src="js/message.js"></script>
     <script src="js/modal.js"></script>
+    <script src="js/pagination.js"></script>
     <script src="js/data.js"></script>
     <script src="js/dashboard.js"></script>
   </body>

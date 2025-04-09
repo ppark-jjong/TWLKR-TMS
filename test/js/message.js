@@ -1,71 +1,96 @@
 /**
- * 메시지 팝업 시스템
- * 사용자에게 알림 메시지를 표시하는 기능
+ * 메시지 알림 모듈
+ * Ant Design 스타일 메시지 알림 제공
  */
 
-// 메시지 타이머 변수
+// 기본 메시지 타입 별 아이콘 매핑
+const MESSAGE_ICONS = {
+  success: '<i class="fas fa-check-circle"></i>',
+  error: '<i class="fas fa-times-circle"></i>',
+  warning: '<i class="fas fa-exclamation-circle"></i>',
+  info: '<i class="fas fa-info-circle"></i>'
+};
+
+// 기본 메시지 표시 시간 (ms)
+const DEFAULT_DURATION = 3000;
+
+// 현재 활성화된 메시지 타이머
 let messageTimer = null;
 
-// 메시지 시스템 초기화
-function initMessages() {
-  // HTML에 메시지 요소가 없으면 생성
-  if (!document.getElementById('messagePopup')) {
-    const messageEl = document.createElement('div');
-    messageEl.id = 'messagePopup';
-    messageEl.className = 'message-popup';
-    messageEl.innerHTML = `
-      <div class="message-content">
-        <i class="message-icon"></i>
-        <span class="message-text"></span>
-      </div>
-    `;
-    document.body.appendChild(messageEl);
-  }
-}
-
-// 메시지 표시 함수
-function showMessage(message, type = 'info', duration = 3000) {
-  const messageEl = document.getElementById('messagePopup');
-  if (!messageEl) {
-    console.error('메시지 요소를 찾을 수 없음');
-    return;
+/**
+ * 메시지 알림 표시
+ * @param {string} text - 표시할 메시지 내용
+ * @param {string} type - 메시지 타입 (success, error, warning, info)
+ * @param {number} duration - 표시 시간 (ms)
+ */
+function showMessage(text, type = 'info', duration = DEFAULT_DURATION) {
+  const messagePopup = document.getElementById('messagePopup');
+  if (!messagePopup) return;
+  
+  // 이전 타이머 제거
+  if (messageTimer) {
+    clearTimeout(messageTimer);
+    messageTimer = null;
   }
   
-  // 메시지 타입에 따른 클래스 설정
-  messageEl.className = 'message-popup';
-  messageEl.classList.add(`message-${type}`);
+  // 메시지 타입 클래스 설정
+  messagePopup.className = 'ant-message';
+  messagePopup.classList.add(`ant-message-${type}`);
   
-  // 메시지 내용 설정
-  const textEl = messageEl.querySelector('.message-text');
-  if (textEl) textEl.textContent = message;
+  // 메시지 아이콘 설정
+  const iconElement = messagePopup.querySelector('.anticon');
+  if (iconElement) {
+    iconElement.innerHTML = MESSAGE_ICONS[type] || MESSAGE_ICONS.info;
+  }
   
-  // 아이콘 설정
-  const iconEl = messageEl.querySelector('.message-icon');
-  if (iconEl) {
-    iconEl.className = 'message-icon';
-    
-    switch(type) {
-      case 'success': iconEl.classList.add('fa-check-circle'); break;
-      case 'error': iconEl.classList.add('fa-times-circle'); break;
-      case 'warning': iconEl.classList.add('fa-exclamation-triangle'); break;
-      default: iconEl.classList.add('fa-info-circle');
-    }
+  // 메시지 텍스트 설정
+  const textElement = messagePopup.querySelector('.ant-message-text');
+  if (textElement) {
+    textElement.textContent = text;
   }
   
   // 메시지 표시
-  messageEl.classList.add('active');
+  messagePopup.classList.add('active');
   
-  // 기존 타이머 제거
-  if (messageTimer) clearTimeout(messageTimer);
-  
-  // 새 타이머 설정
+  // 표시 후 일정 시간 후 숨김
   messageTimer = setTimeout(() => {
-    messageEl.classList.remove('active');
+    messagePopup.classList.remove('active');
+    messageTimer = null;
   }, duration);
 }
 
-// 편의 함수들
-function showSuccess(message) { showMessage(message, 'success'); }
-function showError(message) { showMessage(message, 'error'); }
-function showWarning(message) { showMessage(message, 'warning'); }
-function showInfo(message) { showMessage(message, 'info'); }
+/**
+ * 성공 메시지 표시
+ * @param {string} text - 표시할 메시지 내용
+ * @param {number} duration - 표시 시간 (ms)
+ */
+function showSuccess(text, duration = DEFAULT_DURATION) {
+  showMessage(text, 'success', duration);
+}
+
+/**
+ * 오류 메시지 표시
+ * @param {string} text - 표시할 메시지 내용
+ * @param {number} duration - 표시 시간 (ms)
+ */
+function showError(text, duration = DEFAULT_DURATION) {
+  showMessage(text, 'error', duration);
+}
+
+/**
+ * 경고 메시지 표시
+ * @param {string} text - 표시할 메시지 내용
+ * @param {number} duration - 표시 시간 (ms)
+ */
+function showWarning(text, duration = DEFAULT_DURATION) {
+  showMessage(text, 'warning', duration);
+}
+
+/**
+ * 정보 메시지 표시
+ * @param {string} text - 표시할 메시지 내용
+ * @param {number} duration - 표시 시간 (ms)
+ */
+function showInfo(text, duration = DEFAULT_DURATION) {
+  showMessage(text, 'info', duration);
+}
