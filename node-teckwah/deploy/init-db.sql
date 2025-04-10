@@ -89,14 +89,19 @@ CREATE TABLE IF NOT EXISTS dashboard (
 
 -- 9. 인수인계 정보를 저장할 handover 테이블
 CREATE TABLE IF NOT EXISTS handover (
-    handover_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    created_by VARCHAR(50) NOT NULL,              -- 작성자 ID
-    created_at DATETIME NOT NULL,                 -- 작성 시각
-    updated_at DATETIME NOT NULL                  -- 수정 시각
-    is_notice BOOLEAN DEFAULT FALSE,              -- 공지사항 여부
-    FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE CASCADE
+  handover_id VARCHAR(10) PRIMARY KEY,          -- 인수인계 ID (예: H001)
+  title VARCHAR(255) NOT NULL,                  -- 제목
+  content TEXT NOT NULL,                        -- 내용
+  created_by VARCHAR(50) NOT NULL,              -- 작성자 ID
+  created_at DATETIME NOT NULL,                 -- 작성 시각
+  updated_at DATETIME NOT NULL                  -- 수정 시각
+    DEFAULT CURRENT_TIMESTAMP 
+    ON UPDATE CURRENT_TIMESTAMP,
+  is_notice BOOLEAN DEFAULT FALSE,              -- 공지사항 여부
+  
+  FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE CASCADE,
+  INDEX idx_handover_date (created_at),
+  INDEX idx_handover_notice (is_notice)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;

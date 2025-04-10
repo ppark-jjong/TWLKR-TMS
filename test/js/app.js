@@ -10,8 +10,8 @@ const TMS = {
     dashboardData: null,
     handoverData: [],
     userData: {
-      userName: "CSAdmin",
-      userRole: "CS",
+      userName: 'CSAdmin',
+      userRole: 'CS',
     },
     isDataLoaded: false,
   },
@@ -20,7 +20,7 @@ const TMS = {
    * 애플리케이션 초기화 함수
    */
   init: async function () {
-    console.log("TMS 애플리케이션 초기화 중...");
+    console.log('TMS 애플리케이션 초기화 중...');
 
     // 공통 UI 요소 초기화
     this.initCommonUI();
@@ -31,7 +31,7 @@ const TMS = {
     // 현재 페이지 식별 및 초기화
     this.initCurrentPage();
 
-    console.log("TMS 애플리케이션 초기화 완료");
+    console.log('TMS 애플리케이션 초기화 완료');
   },
 
   /**
@@ -39,11 +39,11 @@ const TMS = {
    */
   initCommonUI: function () {
     // 로그아웃 버튼 이벤트
-    const logoutBtn = document.getElementById("logoutBtn");
+    const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
-      logoutBtn.addEventListener("click", function () {
-        if (confirm("로그아웃 하시겠습니까?")) {
-          messageUtils.success("로그아웃되었습니다.");
+      logoutBtn.addEventListener('click', function () {
+        if (confirm('로그아웃 하시겠습니까?')) {
+          messageUtils.success('로그아웃되었습니다.');
           setTimeout(() => {
             window.location.reload();
           }, 1500);
@@ -52,8 +52,8 @@ const TMS = {
     }
 
     // 사용자 정보 업데이트
-    const userDisplayName = document.getElementById("userDisplayName");
-    const userDisplayRole = document.getElementById("userDisplayRole");
+    const userDisplayName = document.getElementById('userDisplayName');
+    const userDisplayRole = document.getElementById('userDisplayRole');
 
     if (userDisplayName) {
       userDisplayName.textContent = this.store.userData.userName;
@@ -82,7 +82,7 @@ const TMS = {
    */
   loadData: async function () {
     try {
-      console.log("데이터 로드 중...");
+      console.log('데이터 로드 중...');
 
       // 대시보드 데이터 로드
       await this.loadDashboardData();
@@ -92,15 +92,15 @@ const TMS = {
 
       // 데이터 로드 상태 업데이트
       this.store.isDataLoaded = true;
-      console.log("모든 데이터 로드 완료");
+      console.log('모든 데이터 로드 완료');
 
       // 커스텀 이벤트 발생 - 데이터 로드 완료
-      document.dispatchEvent(new CustomEvent("tms:dataLoaded"));
+      document.dispatchEvent(new CustomEvent('tms:dataLoaded'));
 
       return true;
     } catch (error) {
-      console.error("데이터 로드 오류:", error);
-      messageUtils.error("데이터를 불러오는 중 오류가 발생했습니다.");
+      console.error('데이터 로드 오류:', error);
+      messageUtils.error('데이터를 불러오는 중 오류가 발생했습니다.');
       return false;
     }
   },
@@ -111,7 +111,7 @@ const TMS = {
   loadDashboardData: async function () {
     try {
       // 1. 먼저 localStorage에서 데이터 확인
-      const savedData = localStorage.getItem("tms_dashboard_data");
+      const savedData = localStorage.getItem('tms_dashboard_data');
 
       if (savedData) {
         try {
@@ -121,24 +121,24 @@ const TMS = {
             parsedData.dashboard &&
             Array.isArray(parsedData.dashboard)
           ) {
-            console.log("localStorage에서 대시보드 데이터 로드 성공");
+            console.log('localStorage에서 대시보드 데이터 로드 성공');
             this.store.dashboardData = parsedData.dashboard;
             console.log(
               `대시보드 데이터 ${this.store.dashboardData.length}건 로드 완료`
             );
 
             // 데이터가 변경되었음을 알리는 이벤트
-            document.dispatchEvent(new CustomEvent("tms:dashboardDataChanged"));
+            document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
             return;
           }
         } catch (localStorageError) {
-          console.warn("localStorage 데이터 파싱 오류:", localStorageError);
+          console.warn('localStorage 데이터 파싱 오류:', localStorageError);
         }
       }
 
       // 2. localStorage에 데이터가 없거나 유효하지 않은 경우 JSON 파일 로드
-      console.log("JSON 파일에서 대시보드 데이터 로드 시도...");
-      const response = await fetch("dashboard_data.json");
+      console.log('JSON 파일에서 대시보드 데이터 로드 시도...');
+      const response = await fetch('dashboard_data.json');
 
       if (!response.ok) {
         throw new Error(
@@ -155,14 +155,14 @@ const TMS = {
           if (!item.dashboard_id) {
             item.dashboard_id = `D${Math.floor(Math.random() * 10000)
               .toString()
-              .padStart(4, "0")}`;
+              .padStart(4, '0')}`;
           }
 
           // 날짜 필드 보강
-          if (item.eta && typeof item.eta === "string") {
+          if (item.eta && typeof item.eta === 'string') {
             item.eta_date = new Date(item.eta);
           }
-          if (item.create_time && typeof item.create_time === "string") {
+          if (item.create_time && typeof item.create_time === 'string') {
             item.create_date = new Date(item.create_time);
           }
 
@@ -177,13 +177,13 @@ const TMS = {
         this.saveDashboardData();
 
         // 데이터가 변경되었음을 알리는 이벤트
-        document.dispatchEvent(new CustomEvent("tms:dashboardDataChanged"));
+        document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
       } else {
-        console.warn("대시보드 데이터 형식이 유효하지 않습니다.");
+        console.warn('대시보드 데이터 형식이 유효하지 않습니다.');
         this.store.dashboardData = [];
       }
     } catch (error) {
-      console.error("대시보드 데이터 로드 실패:", error);
+      console.error('대시보드 데이터 로드 실패:', error);
       this.store.dashboardData = [];
     }
   },
@@ -194,7 +194,7 @@ const TMS = {
   initHandoverData: async function () {
     try {
       // handover_data.json 파일에서 데이터 로드 시도
-      const response = await fetch("handover_data.json");
+      const response = await fetch('handover_data.json');
 
       if (!response.ok) {
         throw new Error(
@@ -211,18 +211,18 @@ const TMS = {
         );
       } else {
         console.warn(
-          "인수인계 데이터 형식이 유효하지 않습니다. 기본 데이터를 사용합니다."
+          '인수인계 데이터 형식이 유효하지 않습니다. 기본 데이터를 사용합니다.'
         );
         this.initDefaultHandoverData();
       }
     } catch (error) {
-      console.error("인수인계 데이터 로드 실패:", error);
+      console.error('인수인계 데이터 로드 실패:', error);
       // 파일 로드 실패 시 기본 데이터 사용
       this.initDefaultHandoverData();
     }
 
     // 데이터가 변경되었음을 알리는 이벤트
-    document.dispatchEvent(new CustomEvent("tms:handoverDataChanged"));
+    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
   },
 
   /**
@@ -232,36 +232,36 @@ const TMS = {
     // 기본 인수인계 데이터
     this.store.handoverData = [
       {
-        handover_id: "H001",
-        title: "서버 점검 안내",
-        category: "일반",
-        priority: "MEDIUM",
+        handover_id: 'H001',
+        title: '서버 점검 안내',
+        category: '일반',
+        priority: 'MEDIUM',
         content:
-          "오늘 저녁 10시부터 서버 점검이 예정되어 있습니다. 업무에 참고 바랍니다.",
-        created_by: "CSAdmin",
-        created_at: "2025-03-05 14:30",
-        confirmations: [{ user: "CSAdmin", confirmed_at: "2025-03-05 14:35" }],
+          '오늘 저녁 10시부터 서버 점검이 예정되어 있습니다. 업무에 참고 바랍니다.',
+        created_by: 'CSAdmin',
+        created_at: '2025-03-05 14:30',
+        confirmations: [{ user: 'CSAdmin', confirmed_at: '2025-03-05 14:35' }],
       },
       {
-        handover_id: "H002",
-        title: "배송 지연 안내",
-        category: "배송",
-        priority: "HIGH",
+        handover_id: 'H002',
+        title: '배송 지연 안내',
+        category: '배송',
+        priority: 'HIGH',
         content:
-          "도로 공사로 인해 강남 지역 배송이 지연될 수 있습니다. 고객에게 미리 안내 바랍니다.",
-        created_by: "CSAdmin",
-        created_at: "2025-03-06 09:15",
+          '도로 공사로 인해 강남 지역 배송이 지연될 수 있습니다. 고객에게 미리 안내 바랍니다.',
+        created_by: 'CSAdmin',
+        created_at: '2025-03-06 09:15',
         confirmations: [],
       },
       {
-        handover_id: "H003",
-        title: "안전 교육 일정 안내",
-        category: "안전",
-        priority: "MEDIUM",
+        handover_id: 'H003',
+        title: '안전 교육 일정 안내',
+        category: '안전',
+        priority: 'MEDIUM',
         content:
-          "3월 10일 오전 10시 안전 교육이 진행될 예정입니다. 전 직원 참석 필수입니다.",
-        created_by: "CSAdmin",
-        created_at: "2025-03-06 11:20",
+          '3월 10일 오전 10시 안전 교육이 진행될 예정입니다. 전 직원 참석 필수입니다.',
+        created_by: 'CSAdmin',
+        created_at: '2025-03-06 11:20',
         confirmations: [],
       },
     ];
@@ -277,20 +277,20 @@ const TMS = {
   initCurrentPage: function () {
     const pathname = window.location.pathname;
 
-    if (pathname.includes("handover.html")) {
-      console.log("현재 페이지: 인수인계");
+    if (pathname.includes('handover.html')) {
+      console.log('현재 페이지: 인수인계');
       // 인수인계 페이지 모듈이 있으면 초기화
       if (window.HandoverPage) {
         window.HandoverPage.init();
       }
-    } else if (pathname.includes("visualization.html")) {
-      console.log("현재 페이지: 시각화");
+    } else if (pathname.includes('visualization.html')) {
+      console.log('현재 페이지: 시각화');
       // 시각화 페이지 모듈이 있으면 초기화
       if (window.VisualizationPage) {
         window.VisualizationPage.init();
       }
     } else {
-      console.log("현재 페이지: 대시보드");
+      console.log('현재 페이지: 대시보드');
       // 대시보드 페이지 모듈이 있으면 초기화
       if (window.DashboardPage) {
         window.DashboardPage.init();
@@ -303,11 +303,11 @@ const TMS = {
    */
   getDashboardData: function (filters = {}) {
     if (!this.store.dashboardData) {
-      console.warn("대시보드 데이터가 로드되지 않았습니다.");
+      console.warn('대시보드 데이터가 로드되지 않았습니다.');
       return [];
     }
 
-    console.log("TMS.getDashboardData 필터링 시작:", filters);
+    console.log('TMS.getDashboardData 필터링 시작:', filters);
     let filteredData = [...this.store.dashboardData];
     console.log(`필터링 전 전체 데이터: ${filteredData.length}건`);
 
@@ -344,8 +344,8 @@ const TMS = {
       console.log(`키워드 검색 적용: ${keyword}`);
 
       filteredData = filteredData.filter((item) => {
-        const orderNo = String(item.order_no || "").toLowerCase();
-        const customer = String(item.customer || "").toLowerCase();
+        const orderNo = String(item.order_no || '').toLowerCase();
+        const customer = String(item.customer || '').toLowerCase();
         return orderNo.includes(keyword) || customer.includes(keyword);
       });
 
@@ -421,12 +421,15 @@ const TMS = {
         updated_by: this.store.userData.userName,
       };
 
+      // localStorage에 즉시 저장
+      this.saveDashboardData();
+
       // 변경 이벤트 발생
-      document.dispatchEvent(new CustomEvent("tms:dashboardDataChanged"));
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
 
       return true;
     } catch (error) {
-      console.error("대시보드 항목 업데이트 실패:", error);
+      console.error('대시보드 항목 업데이트 실패:', error);
       return false;
     }
   },
@@ -436,7 +439,7 @@ const TMS = {
    */
   getHandoverData: function (filters = {}) {
     if (!this.store.handoverData) {
-      console.warn("인수인계 데이터가 로드되지 않았습니다.");
+      console.warn('인수인계 데이터가 로드되지 않았습니다.');
       return [];
     }
 
@@ -444,14 +447,14 @@ const TMS = {
     if (filters && (filters.priority || filters.keyword)) {
       return this.store.handoverData.filter((item) => {
         // 우선순위 필터
-        if (filters.priority && filters.priority !== "") {
+        if (filters.priority && filters.priority !== '') {
           if (item.priority !== filters.priority) {
             return false;
           }
         }
 
         // 검색어 필터
-        if (filters.keyword && filters.keyword !== "") {
+        if (filters.keyword && filters.keyword !== '') {
           const keyword = filters.keyword.toLowerCase();
           return (
             item.title.toLowerCase().includes(keyword) ||
@@ -472,7 +475,7 @@ const TMS = {
    */
   getHandoverItemById: function (handoverId) {
     if (!this.store.handoverData) {
-      console.warn("인수인계 데이터가 로드되지 않았습니다.");
+      console.warn('인수인계 데이터가 로드되지 않았습니다.');
       return null;
     }
 
@@ -493,18 +496,18 @@ const TMS = {
     // 새 인수인계 ID 생성
     const newId = `H${String(this.store.handoverData.length + 1).padStart(
       3,
-      "0"
+      '0'
     )}`;
 
     // 현재 날짜/시간
     const now = new Date();
-    const dateStr = now.toISOString().replace("T", " ").substring(0, 16);
+    const dateStr = now.toISOString().replace('T', ' ').substring(0, 16);
 
     // 새 인수인계 객체 생성
     const newHandover = {
       handover_id: newId,
       title: handoverData.title,
-      priority: handoverData.priority || "일반",
+      priority: handoverData.priority || '일반',
       content: handoverData.content,
       created_by: this.store.userData.userName,
       created_at: dateStr,
@@ -514,7 +517,7 @@ const TMS = {
     this.store.handoverData.push(newHandover);
 
     // 변경 이벤트 발생
-    document.dispatchEvent(new CustomEvent("tms:handoverDataChanged"));
+    document.dispatchEvent(new CustomEvent('tms:handoverDataChanged'));
 
     return newHandover;
   },
@@ -525,7 +528,7 @@ const TMS = {
    */
   saveDashboardData: function () {
     try {
-      console.log("대시보드 데이터 저장 중...");
+      console.log('대시보드 데이터 저장 중...');
 
       // 저장할 데이터 구조 생성
       const saveData = {
@@ -537,20 +540,20 @@ const TMS = {
       const jsonData = JSON.stringify(saveData, null, 2);
 
       // localStorage에 저장
-      localStorage.setItem("tms_dashboard_data", jsonData);
+      localStorage.setItem('tms_dashboard_data', jsonData);
 
       console.log(
-        "대시보드 데이터 저장 완료:",
+        '대시보드 데이터 저장 완료:',
         `${this.store.dashboardData.length}건`
       );
 
       // 데이터가 저장되었음을 알리는 이벤트 발생
-      document.dispatchEvent(new CustomEvent("tms:dashboardDataSaved"));
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataSaved'));
 
       return true;
     } catch (error) {
-      console.error("대시보드 데이터 저장 실패:", error);
-      messageUtils.error("데이터를 저장하는 중 오류가 발생했습니다.");
+      console.error('대시보드 데이터 저장 실패:', error);
+      messageUtils.error('데이터를 저장하는 중 오류가 발생했습니다.');
       return false;
     }
   },
@@ -566,13 +569,13 @@ const TMS = {
     }
 
     if (!updatedItems || updatedItems.length === 0) {
-      console.warn("업데이트할 데이터가 없습니다.");
+      console.warn('업데이트할 데이터가 없습니다.');
       return false;
     }
 
     // 데이터가 아직 로드되지 않은 경우
     if (!this.store.dashboardData) {
-      console.warn("대시보드 데이터가 아직 로드되지 않았습니다.");
+      console.warn('대시보드 데이터가 아직 로드되지 않았습니다.');
       return false;
     }
 
@@ -604,17 +607,17 @@ const TMS = {
       this.saveDashboardData();
 
       // 데이터가 변경되었음을 알리는 이벤트
-      document.dispatchEvent(new CustomEvent("tms:dashboardDataChanged"));
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
 
       return true;
     } catch (error) {
-      console.error("대시보드 데이터 업데이트 실패:", error);
+      console.error('대시보드 데이터 업데이트 실패:', error);
       return false;
     }
   },
 };
 
 // DOM이 로드되면 애플리케이션 초기화
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener('DOMContentLoaded', function () {
   TMS.init();
 });

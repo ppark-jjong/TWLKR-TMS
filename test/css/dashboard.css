@@ -1,0 +1,148 @@
+/* 컬럼 설정 모달 */
+.column-option {
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+}
+
+.column-option label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+}
+
+.column-option input[type='checkbox'] {
+  margin-right: 10px;
+  width: 18px;
+  height: 18px;
+}
+
+/* 모달 스타일 */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  margin: auto;
+  border-radius: 6px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 500px;
+  max-width: 90%;
+  position: relative;
+  animation: modalFadeIn 0.3s;
+}
+
+.modal-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #e5e5e5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.close {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 체크박스 컬럼 */
+.checkbox-column {
+  width: 40px;
+  text-align: center;
+}
+
+/* 액션 컬럼 */
+.action-column {
+  width: 80px;
+  text-align: center;
+}
+
+/* 스테이터스 배지 */
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bg-yellow {
+  background-color: #ffedbc;
+  color: #b59000;
+}
+
+.bg-blue {
+  background-color: #cfe8ff;
+  color: #0065b3;
+}
+
+.bg-green {
+  background-color: #d1f7c4;
+  color: #2b8714;
+}
+
+.bg-gray {
+  background-color: #e9ecef;
+  color: #495057;
+}
+
+.bg-red {
+  background-color: #ffe8e8;
+  color: #d32f2f;
+}
