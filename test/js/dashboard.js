@@ -11,12 +11,12 @@ const DashboardPage = {
     filteredData: [],
     selectedItems: [],
     filters: {
-      status: "",
-      department: "",
-      warehouse: "",
-      keyword: "",
-      startDate: "",
-      endDate: "",
+      status: '',
+      department: '',
+      warehouse: '',
+      keyword: '',
+      startDate: '',
+      endDate: '',
     },
   },
 
@@ -24,7 +24,7 @@ const DashboardPage = {
    * 페이지 초기화
    */
   init: function () {
-    console.log("대시보드 페이지 초기화...");
+    console.log('대시보드 페이지 초기화...');
 
     // 이벤트 리스너 등록
     this.registerEventListeners();
@@ -37,15 +37,36 @@ const DashboardPage = {
       this.updateDashboard();
     } else {
       // 데이터 로드 대기
-      document.addEventListener("tms:dataLoaded", () => {
+      document.addEventListener('tms:dataLoaded', () => {
         this.updateDashboard();
       });
     }
 
-    // 데이터 변경 이벤트 리스닝
-    document.addEventListener("tms:dashboardDataChanged", () => {
-      this.updateDashboard();
-    });
+    // 데이터 변경 이벤트 리스닝 - 중요: 여러 번 등록되지 않도록 함
+    document.removeEventListener(
+      'tms:dashboardDataChanged',
+      this.handleDataChange
+    );
+    document.addEventListener(
+      'tms:dashboardDataChanged',
+      this.handleDataChange.bind(this)
+    );
+
+    // 디버깅용 로그 추가
+    console.log('데이터 변경 이벤트 리스너 등록 완료');
+  },
+
+  /**
+   * 데이터 변경 이벤트 처리
+   */
+  handleDataChange: function () {
+    console.log('tms:dashboardDataChanged 이벤트 감지됨 - 화면 갱신');
+    // 데이터를 다시 로드하여 최신 상태 확보
+    TMS.store.dashboardData = JSON.parse(
+      localStorage.getItem('tms_dashboard_data') || '{"dashboard":[]}'
+    ).dashboard;
+    // 대시보드 업데이트
+    this.updateDashboard();
   },
 
   /**
@@ -54,90 +75,95 @@ const DashboardPage = {
   registerEventListeners: function () {
     // 필터 관련 이벤트
     document
-      .getElementById("statusFilter")
-      .addEventListener("change", this.handleFilterChange.bind(this));
+      .getElementById('statusFilter')
+      .addEventListener('change', this.handleFilterChange.bind(this));
     document
-      .getElementById("departmentFilter")
-      .addEventListener("change", this.handleFilterChange.bind(this));
+      .getElementById('departmentFilter')
+      .addEventListener('change', this.handleFilterChange.bind(this));
     document
-      .getElementById("warehouseFilter")
-      .addEventListener("change", this.handleFilterChange.bind(this));
+      .getElementById('warehouseFilter')
+      .addEventListener('change', this.handleFilterChange.bind(this));
 
-    document.getElementById("searchKeyword").addEventListener("keyup", (e) => {
-      if (e.key === "Enter") {
-        document.getElementById("searchBtn").click();
+    document.getElementById('searchKeyword').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('searchBtn').click();
       }
     });
 
     document
-      .getElementById("searchBtn")
-      .addEventListener("click", this.handleSearch.bind(this));
+      .getElementById('searchBtn')
+      .addEventListener('click', this.handleSearch.bind(this));
     document
-      .getElementById("applyFilterBtn")
-      .addEventListener("click", this.applyFilters.bind(this));
+      .getElementById('applyFilterBtn')
+      .addEventListener('click', this.applyFilters.bind(this));
     document
-      .getElementById("resetBtn")
-      .addEventListener("click", this.resetFilters.bind(this));
+      .getElementById('resetBtn')
+      .addEventListener('click', this.resetFilters.bind(this));
 
-    // 날짜 필터
+    // 날짜 필터 - 조회 버튼
     document
-      .getElementById("quickDateBtn")
-      .addEventListener("click", this.applyDateFilter.bind(this));
+      .getElementById('quickDateBtn')
+      .addEventListener('click', this.applyFilters.bind(this));
+
+    // 날짜 필터 - 오늘 버튼
+    document
+      .getElementById('todayBtn')
+      .addEventListener('click', this.setTodayFilter.bind(this));
 
     // 테이블 액션 버튼
     document
-      .getElementById("refreshBtn")
-      .addEventListener("click", this.refreshData.bind(this));
+      .getElementById('refreshBtn')
+      .addEventListener('click', this.refreshData.bind(this));
     document
-      .getElementById("changeStatusBtn")
-      .addEventListener("click", this.openStatusChangeModal.bind(this));
+      .getElementById('changeStatusBtn')
+      .addEventListener('click', this.openStatusChangeModal.bind(this));
     document
-      .getElementById("assignBtn")
-      .addEventListener("click", this.handleAssign.bind(this));
+      .getElementById('assignBtn')
+      .addEventListener('click', this.handleAssign.bind(this));
     document
-      .getElementById("newOrderBtn")
-      .addEventListener("click", this.handleNewOrder.bind(this));
+      .getElementById('newOrderBtn')
+      .addEventListener('click', this.handleNewOrder.bind(this));
     document
-      .getElementById("deleteOrderBtn")
-      .addEventListener("click", this.handleDelete.bind(this));
+      .getElementById('deleteOrderBtn')
+      .addEventListener('click', this.handleDelete.bind(this));
 
     // 전체 선택 체크박스
     document
-      .getElementById("selectAll")
-      .addEventListener("change", this.handleSelectAll.bind(this));
+      .getElementById('selectAll')
+      .addEventListener('change', this.handleSelectAll.bind(this));
 
     // 페이지네이션
-    document.querySelectorAll(".page-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const direction = e.currentTarget.getAttribute("data-page");
+    document.querySelectorAll('.page-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const direction = e.currentTarget.getAttribute('data-page');
         this.handlePageChange(direction);
       });
     });
 
     document
-      .getElementById("pageSize")
-      .addEventListener("change", this.handlePageSizeChange.bind(this));
+      .getElementById('pageSize')
+      .addEventListener('change', this.handlePageSizeChange.bind(this));
 
     // 수정 버튼 이벤트 리스너 추가
     document
-      .getElementById("editOrderBtn")
-      .addEventListener("click", this.handleEdit.bind(this));
+      .getElementById('editOrderBtn')
+      .addEventListener('click', this.handleEdit.bind(this));
 
     // 모달 버튼 - 주문 수정
     document
-      .getElementById("confirmEditOrderBtn")
-      .addEventListener("click", this.confirmEditOrder.bind(this));
+      .getElementById('confirmEditOrderBtn')
+      .addEventListener('click', this.confirmEditOrder.bind(this));
 
     // 상태 변경 확인 버튼
     document
-      .getElementById("confirmStatusChangeBtn")
-      .addEventListener("click", this.confirmStatusChange.bind(this));
+      .getElementById('confirmStatusChangeBtn')
+      .addEventListener('click', this.confirmStatusChange.bind(this));
 
     // 모달 닫기 버튼들
-    document.querySelectorAll(".close-modal").forEach((button) => {
-      const modalId = button.getAttribute("data-modal");
+    document.querySelectorAll('.close-modal').forEach((button) => {
+      const modalId = button.getAttribute('data-modal');
       if (modalId) {
-        button.addEventListener("click", () => {
+        button.addEventListener('click', () => {
           modalUtils.closeModal(modalId);
         });
       }
@@ -157,8 +183,8 @@ const DashboardPage = {
     const startDateStr = dateUtils.formatDate(startDate);
 
     // 초기값 설정
-    document.getElementById("quickStartDate").value = startDateStr;
-    document.getElementById("quickEndDate").value = endDateStr;
+    document.getElementById('quickStartDate').value = startDateStr;
+    document.getElementById('quickEndDate').value = endDateStr;
 
     // 필터 상태 업데이트
     this.state.filters.startDate = startDateStr;
@@ -186,14 +212,14 @@ const DashboardPage = {
 
     // 선택된 항목 초기화
     this.state.selectedItems = [];
-    document.getElementById("selectAll").checked = false;
+    document.getElementById('selectAll').checked = false;
   },
 
   /**
    * 필터링된 데이터 업데이트
    */
   updateFilteredData: function () {
-    console.log("필터링 시작:", this.state.filters);
+    console.log('필터링 시작:', this.state.filters);
 
     // 원본 데이터 복사
     let filteredData = [...TMS.store.dashboardData];
@@ -288,33 +314,33 @@ const DashboardPage = {
   updateSummaryCards: function () {
     // 전체 주문 수
     const totalOrders = this.state.filteredData.length;
-    document.getElementById("totalOrders").textContent = `${totalOrders}건`;
+    document.getElementById('totalOrders').textContent = `${totalOrders}건`;
 
     // 상태별 카운트
     const pendingOrders = this.state.filteredData.filter(
-      (item) => item.status === "PENDING"
+      (item) => item.status === 'PENDING'
     ).length;
     const progressOrders = this.state.filteredData.filter(
-      (item) => item.status === "IN_PROGRESS"
+      (item) => item.status === 'IN_PROGRESS'
     ).length;
     const completedOrders = this.state.filteredData.filter(
-      (item) => item.status === "COMPLETE"
+      (item) => item.status === 'COMPLETE'
     ).length;
 
     // 이슈 및 취소 상태 카운트
     const issueOrders = this.state.filteredData.filter(
-      (item) => item.status === "ISSUE" || item.status === "CANCEL"
+      (item) => item.status === 'ISSUE' || item.status === 'CANCEL'
     ).length;
 
     // 요약 카드 업데이트
-    document.getElementById("pendingOrders").textContent = `${pendingOrders}건`;
+    document.getElementById('pendingOrders').textContent = `${pendingOrders}건`;
     document.getElementById(
-      "progressOrders"
+      'progressOrders'
     ).textContent = `${progressOrders}건`;
     document.getElementById(
-      "completedOrders"
+      'completedOrders'
     ).textContent = `${completedOrders}건`;
-    document.getElementById("otherOrders").textContent = `${issueOrders}건`;
+    document.getElementById('otherOrders').textContent = `${issueOrders}건`;
   },
 
   /**
@@ -334,168 +360,160 @@ const DashboardPage = {
    * 테이블 렌더링 (개선된 버전)
    */
   renderTable: function () {
-    console.log("테이블 렌더링 시작");
-    const tableBody = document.getElementById("dashboardTableBody");
+    console.log(
+      'Starting to render table with',
+      this.state.currentData.length,
+      'items'
+    );
+    const tableBody = document.getElementById('dashboardTableBody');
+    tableBody.innerHTML = '';
 
-    // 테이블 내용 초기화
-    tableBody.innerHTML = "";
-
-    // 데이터가 없는 경우
     if (this.state.currentData.length === 0) {
-      const emptyRow = document.createElement("tr");
-      emptyRow.className = "empty-data-row"; // 빈 데이터 행 스타일 적용
-      emptyRow.innerHTML =
-        '<td colspan="9" class="empty-table">조회된 데이터가 없습니다.</td>';
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 10;
+      emptyCell.textContent = '데이터가 없습니다.';
+      emptyCell.className = 'text-center py-3';
+      emptyRow.appendChild(emptyCell);
       tableBody.appendChild(emptyRow);
       return;
     }
 
-    // 데이터 행 추가
-    this.state.currentData.forEach((item) => {
-      // 상태에 따른 행 클래스 추가
-      const statusClassMap = {
-        PENDING: "status-pending",
-        IN_PROGRESS: "status-progress",
-        COMPLETE: "status-complete",
-        ISSUE: "status-issue",
-        CANCEL: "status-cancel",
-      };
+    // 상태별 CSS 클래스 매핑
+    const statusClassMap = {
+      PENDING: 'status-pending',
+      IN_PROGRESS: 'status-progress',
+      COMPLETE: 'status-complete',
+      ISSUE: 'status-issue',
+      CANCEL: 'status-cancel',
+    };
 
-      const row = document.createElement("tr");
-      row.setAttribute("data-id", item.order_no);
-      // 상태별 행 색상 클래스 추가
-      row.className = statusClassMap[item.status] || "";
+    this.state.currentData.forEach((item, index) => {
+      const tr = document.createElement('tr');
+      // 상태에 따른 클래스 추가
+      const statusClass = statusClassMap[item.status] || '';
+      tr.className = statusClass;
+      console.log(
+        `Row ${index} - Order: ${item.order_no}, Status: ${item.status}, Class: ${statusClass}`
+      );
 
-      // 이 항목이 현재 선택된 상태인지 확인
-      const isSelected = this.state.selectedItems.includes(item.order_no);
-
-      // 체크박스 셀
-      const checkboxCell = document.createElement("td");
-      checkboxCell.className = "checkbox-cell";
-      checkboxCell.style.textAlign = "center";
-      checkboxCell.style.borderRight = "1px solid #e8e8e8";
-      checkboxCell.innerHTML = `<input type="checkbox" class="row-checkbox" data-id="${
-        item.order_no
-      }" ${isSelected ? "checked" : ""}>`;
-      row.appendChild(checkboxCell);
-
-      // 주문번호 셀 (복사 기능 추가)
-      const orderCell = document.createElement("td");
-      orderCell.className = "order-cell";
-      orderCell.style.textAlign = "center";
-      orderCell.style.borderRight = "1px solid #e8e8e8";
-      orderCell.innerHTML = `
-        <div class="order-number-container" style="justify-content: center;">
-          <span class="order-number">${item.order_no}</span>
-          <button class="copy-btn" data-order="${item.order_no}" title="주문번호 복사">
-            <i class="fa-regular fa-copy"></i>
-          </button>
-        </div>
-      `;
-      row.appendChild(orderCell);
-
-      // 고객 셀
-      const customerCell = document.createElement("td");
-      customerCell.style.textAlign = "center";
-      customerCell.style.borderRight = "1px solid #e8e8e8";
-      customerCell.textContent = item.customer || "-";
-      row.appendChild(customerCell);
-
-      // 유형 셀
-      const typeCell = document.createElement("td");
-      typeCell.style.textAlign = "center";
-      typeCell.style.borderRight = "1px solid #e8e8e8";
-      typeCell.textContent = item.type === "DELIVERY" ? "배송" : "회수";
-      row.appendChild(typeCell);
-
-      // 상태 셀 - 텍스트만 표시 (아이콘 제거)
-      const statusText = statusUtils.getStatusText(item.status);
-      const statusCell = document.createElement("td");
-      statusCell.style.textAlign = "center";
-      statusCell.style.borderRight = "1px solid #e8e8e8";
-      statusCell.textContent = statusText;
-      row.appendChild(statusCell);
-
-      // 부서 셀
-      const deptCell = document.createElement("td");
-      deptCell.style.textAlign = "center";
-      deptCell.style.borderRight = "1px solid #e8e8e8";
-      deptCell.textContent = item.department || "-";
-      row.appendChild(deptCell);
-
-      // 창고 셀
-      const warehouseCell = document.createElement("td");
-      warehouseCell.style.textAlign = "center";
-      warehouseCell.style.borderRight = "1px solid #e8e8e8";
-      warehouseCell.textContent = item.warehouse || "-";
-      row.appendChild(warehouseCell);
-
-      // ETA 셀 - 날짜 포맷 개선
-      const etaCell = document.createElement("td");
-      etaCell.style.textAlign = "center";
-      etaCell.style.borderRight = "1px solid #e8e8e8";
-      if (item.eta) {
-        const etaDate = new Date(item.eta);
-        etaCell.textContent = etaDate.toLocaleString("ko-KR", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } else {
-        etaCell.textContent = "-";
-      }
-      row.appendChild(etaCell);
-
-      // 배송기사 셀
-      const driverCell = document.createElement("td");
-      driverCell.style.textAlign = "center";
-      driverCell.textContent = item.driver_name || "-";
-      row.appendChild(driverCell);
-
-      // 행에 클릭 이벤트 추가 - 단일 클릭으로 상세 모달 열기
-      row.addEventListener("click", (e) => {
-        // 체크박스 클릭은 이벤트 처리하지 않음
-        if (e.target.type === "checkbox") return;
-
-        // 복사 버튼 클릭은 이벤트 처리하지 않음
-        if (
-          e.target.classList.contains("copy-btn") ||
-          e.target.closest(".copy-btn")
-        )
-          return;
-
-        this.openDetailModal(item.order_no);
+      // 상세보기 토글 기능
+      tr.addEventListener('click', () => {
+        tr.classList.toggle('expanded');
+        const detailRow = document.querySelector(
+          `tr[data-detail="${item.order_no}"]`
+        );
+        if (detailRow) {
+          detailRow.classList.toggle('show');
+        }
       });
 
-      tableBody.appendChild(row);
-    });
+      // 번호 셀 (Copy 버튼 포함)
+      const tdOrder = document.createElement('td');
+      tdOrder.className = 'text-nowrap';
 
-    // 체크박스 이벤트 처리
-    document.querySelectorAll(".row-checkbox").forEach((checkbox) => {
-      checkbox.addEventListener(
-        "change",
-        this.handleRowCheckboxChange.bind(this)
-      );
-    });
+      const orderText = document.createElement('span');
+      orderText.textContent = item.order_no;
+      tdOrder.appendChild(orderText);
 
-    // 주문번호 복사 버튼 이벤트 처리
-    document.querySelectorAll(".copy-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn-copy ml-2';
+      copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+      copyBtn.title = '주문번호 복사';
+      copyBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // 행 클릭 이벤트 전파 방지
-        const orderNo = e.currentTarget.getAttribute("data-order");
         navigator.clipboard
-          .writeText(orderNo)
+          .writeText(item.order_no)
           .then(() => {
-            messageUtils.success("주문번호가 클립보드에 복사되었습니다.");
+            messageUtils.success('주문번호가 복사되었습니다.');
           })
           .catch((err) => {
-            console.error("클립보드 복사 실패:", err);
-            messageUtils.error("주문번호 복사에 실패했습니다.");
+            console.error('복사 실패:', err);
+            messageUtils.error('복사에 실패했습니다.');
           });
       });
+      tdOrder.appendChild(copyBtn);
+      tr.appendChild(tdOrder);
+
+      // 나머지 셀 생성
+      const tdCustomer = document.createElement('td');
+      tdCustomer.textContent = item.customer || '-';
+      tr.appendChild(tdCustomer);
+
+      const tdType = document.createElement('td');
+      tdType.textContent = item.type === 'DELIVERY' ? '배송' : '회수';
+      tr.appendChild(tdType);
+
+      const tdStatus = document.createElement('td');
+      const statusText = statusUtils.getStatusText(item.status);
+      const statusClass = statusUtils.getStatusClass(item.status);
+
+      const statusBadge = document.createElement('span');
+      statusBadge.className = `badge ${statusClass}`;
+      statusBadge.textContent = statusText;
+      tdStatus.appendChild(statusBadge);
+      tr.appendChild(tdStatus);
+
+      const tdDepartment = document.createElement('td');
+      tdDepartment.textContent = item.department || '-';
+      tr.appendChild(tdDepartment);
+
+      const tdWarehouse = document.createElement('td');
+      tdWarehouse.textContent = item.warehouse || '-';
+      tr.appendChild(tdWarehouse);
+
+      const tdEta = document.createElement('td');
+      tdEta.textContent = item.eta ? dateUtils.formatDateTime(item.eta) : '-';
+      tr.appendChild(tdEta);
+
+      const tdDriver = document.createElement('td');
+      tdDriver.textContent = item.driver_name || '-';
+      tr.appendChild(tdDriver);
+
+      const tdActions = document.createElement('td');
+      tdActions.className = 'actions';
+
+      // 상태 변경 버튼
+      const changeStatusBtn = document.createElement('button');
+      changeStatusBtn.className = 'btn-action btn-status';
+      changeStatusBtn.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+      changeStatusBtn.title = '상태 변경';
+      changeStatusBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 행 클릭 이벤트 전파 방지
+        this.handleStatusChange(item);
+      });
+      tdActions.appendChild(changeStatusBtn);
+
+      // 편집 버튼
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-action btn-edit';
+      editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+      editBtn.title = '주문 편집';
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 행 클릭 이벤트 전파 방지
+        this.handleEdit(item);
+      });
+      tdActions.appendChild(editBtn);
+
+      // 삭제 버튼
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn-action btn-delete';
+      deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+      deleteBtn.title = '주문 삭제';
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 행 클릭 이벤트 전파 방지
+        this.handleDelete(item);
+      });
+      tdActions.appendChild(deleteBtn);
+
+      tr.appendChild(tdActions);
+      tableBody.appendChild(tr);
+
+      // 상세 정보 행 생성
+      this.createDetailRow(item, tableBody);
     });
+
+    console.log('Table rendering completed');
   },
 
   /**
@@ -503,7 +521,7 @@ const DashboardPage = {
    */
   updatePagination: function () {
     document.getElementById(
-      "pageInfo"
+      'pageInfo'
     ).textContent = `${this.state.currentPage} / ${this.state.totalPages}`;
   },
 
@@ -512,7 +530,7 @@ const DashboardPage = {
    */
   handleRowCheckboxChange: function (e) {
     const checkbox = e.target;
-    const orderId = checkbox.getAttribute("data-id");
+    const orderId = checkbox.getAttribute('data-id');
 
     console.log(`체크박스 변경: ${orderId}, 체크 상태: ${checkbox.checked}`);
 
@@ -536,7 +554,7 @@ const DashboardPage = {
     const allSelected =
       this.state.currentData.length > 0 &&
       this.state.selectedItems.length === this.state.currentData.length;
-    document.getElementById("selectAll").checked = allSelected;
+    document.getElementById('selectAll').checked = allSelected;
   },
 
   /**
@@ -556,7 +574,7 @@ const DashboardPage = {
     }
 
     // 체크박스 업데이트
-    document.querySelectorAll(".row-checkbox").forEach((checkbox) => {
+    document.querySelectorAll('.row-checkbox').forEach((checkbox) => {
       checkbox.checked = selectAll;
     });
   },
@@ -565,10 +583,10 @@ const DashboardPage = {
    * 페이지 변경 처리
    */
   handlePageChange: function (direction) {
-    if (direction === "prev" && this.state.currentPage > 1) {
+    if (direction === 'prev' && this.state.currentPage > 1) {
       this.state.currentPage--;
     } else if (
-      direction === "next" &&
+      direction === 'next' &&
       this.state.currentPage < this.state.totalPages
     ) {
       this.state.currentPage++;
@@ -595,14 +613,14 @@ const DashboardPage = {
    * 필터 변경 처리
    */
   handleFilterChange: function (e) {
-    const filter = e.target.id.replace("Filter", "");
+    const filter = e.target.id.replace('Filter', '');
     const value = e.target.value;
 
-    if (filter === "status") {
+    if (filter === 'status') {
       this.state.filters.status = value;
-    } else if (filter === "department") {
+    } else if (filter === 'department') {
       this.state.filters.department = value;
-    } else if (filter === "warehouse") {
+    } else if (filter === 'warehouse') {
       this.state.filters.warehouse = value;
     }
   },
@@ -611,7 +629,7 @@ const DashboardPage = {
    * 검색 처리
    */
   handleSearch: function () {
-    const keyword = document.getElementById("searchKeyword").value.trim();
+    const keyword = document.getElementById('searchKeyword').value.trim();
     this.state.filters.keyword = keyword;
 
     this.state.currentPage = 1;
@@ -619,14 +637,40 @@ const DashboardPage = {
   },
 
   /**
-   * 필터 적용 처리
+   * 필터 적용 (필터 버튼 클릭 시)
    */
   applyFilters: function () {
-    // 현재 상태의 필터 적용
+    console.log('필터 적용 버튼 클릭됨');
+
+    // 상태, 부서, 창고 필터 값 가져오기
+    const status = document.getElementById('statusFilter').value;
+    const department = document.getElementById('departmentFilter').value;
+    const warehouse = document.getElementById('warehouseFilter').value;
+
+    // 날짜 필터 값 가져오기
+    const startDate = document.getElementById('quickStartDate').value;
+    const endDate = document.getElementById('quickEndDate').value;
+
+    if (!startDate || !endDate) {
+      messageUtils.warning('시작일과 종료일을 모두 입력해주세요.');
+      return;
+    }
+
+    // 필터 상태 업데이트
+    this.state.filters.status = status;
+    this.state.filters.department = department;
+    this.state.filters.warehouse = warehouse;
+    this.state.filters.startDate = startDate;
+    this.state.filters.endDate = endDate;
+
+    // 현재 페이지 초기화
     this.state.currentPage = 1;
+
+    // 데이터 업데이트
     this.updateDashboard();
 
-    messageUtils.success("필터가 적용되었습니다.");
+    // 사용자에게 피드백 제공
+    messageUtils.success('필터가 적용되었습니다.');
   },
 
   /**
@@ -634,16 +678,16 @@ const DashboardPage = {
    */
   resetFilters: function () {
     // 필터 초기화
-    document.getElementById("statusFilter").value = "";
-    document.getElementById("departmentFilter").value = "";
-    document.getElementById("warehouseFilter").value = "";
-    document.getElementById("searchKeyword").value = "";
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('departmentFilter').value = '';
+    document.getElementById('warehouseFilter').value = '';
+    document.getElementById('searchKeyword').value = '';
 
     this.state.filters = {
-      status: "",
-      department: "",
-      warehouse: "",
-      keyword: "",
+      status: '',
+      department: '',
+      warehouse: '',
+      keyword: '',
       startDate: this.state.filters.startDate,
       endDate: this.state.filters.endDate,
     };
@@ -651,29 +695,33 @@ const DashboardPage = {
     this.state.currentPage = 1;
     this.updateDashboard();
 
-    messageUtils.success("필터가 초기화되었습니다.");
+    messageUtils.success('필터가 초기화되었습니다.');
   },
 
   /**
-   * 날짜 필터 적용 처리
+   * 날짜 필터 적용 처리 (오늘 버튼 클릭 시)
    */
-  applyDateFilter: function () {
-    const startDate = document.getElementById("quickStartDate").value;
-    const endDate = document.getElementById("quickEndDate").value;
+  setTodayFilter: function () {
+    console.log('오늘 버튼 클릭됨 - setTodayFilter 함수 실행');
+    const today = new Date();
+    const todayStr = dateUtils.formatDate(today);
 
-    if (!startDate || !endDate) {
-      messageUtils.warning("시작일과 종료일을 모두 입력해주세요.");
-      return;
-    }
+    // 시작일과 종료일을 오늘로 설정
+    document.getElementById('quickStartDate').value = todayStr;
+    document.getElementById('quickEndDate').value = todayStr;
 
-    console.log(`날짜 필터 적용: ${startDate} ~ ${endDate}`);
-    this.state.filters.startDate = startDate;
-    this.state.filters.endDate = endDate;
+    // 필터 상태 업데이트
+    this.state.filters.startDate = todayStr;
+    this.state.filters.endDate = todayStr;
 
+    // 현재 페이지 초기화
     this.state.currentPage = 1;
+
+    // 대시보드 업데이트
     this.updateDashboard();
 
-    messageUtils.success("날짜 필터가 적용되었습니다.");
+    // 사용자에게 피드백 제공
+    messageUtils.success('오늘 날짜로 필터가 적용되었습니다.');
   },
 
   /**
@@ -681,9 +729,9 @@ const DashboardPage = {
    */
   refreshData: function () {
     // 로딩 표시
-    const loadingOverlay = document.getElementById("loadingOverlay");
+    const loadingOverlay = document.getElementById('loadingOverlay');
     if (loadingOverlay) {
-      loadingOverlay.style.display = "flex";
+      loadingOverlay.style.display = 'flex';
     }
 
     // 데이터 다시 로드
@@ -692,16 +740,16 @@ const DashboardPage = {
         // 로딩 완료 후 업데이트
         this.updateDashboard();
         if (loadingOverlay) {
-          loadingOverlay.style.display = "none";
+          loadingOverlay.style.display = 'none';
         }
-        messageUtils.success("데이터가 새로고침되었습니다.");
+        messageUtils.success('데이터가 새로고침되었습니다.');
       })
       .catch((error) => {
-        console.error("데이터 새로고침 실패:", error);
+        console.error('데이터 새로고침 실패:', error);
         if (loadingOverlay) {
-          loadingOverlay.style.display = "none";
+          loadingOverlay.style.display = 'none';
         }
-        messageUtils.error("데이터 새로고침 중 오류가 발생했습니다.");
+        messageUtils.error('데이터 새로고침 중 오류가 발생했습니다.');
       });
   },
 
@@ -712,76 +760,76 @@ const DashboardPage = {
     const item = TMS.getDashboardItemById(orderId);
 
     if (!item) {
-      messageUtils.error("주문 정보를 찾을 수 없습니다.");
+      messageUtils.error('주문 정보를 찾을 수 없습니다.');
       return;
     }
 
     // 모달 데이터 채우기
-    document.getElementById("detailOrderId").textContent = item.order_no || "-";
+    document.getElementById('detailOrderId').textContent = item.order_no || '-';
 
     // 상태에 따른 배지 스타일 적용 (아이콘 제거)
     const statusText = statusUtils.getStatusText(item.status);
     const statusClass = statusUtils.getStatusClass(item.status);
 
     document.getElementById(
-      "detailStatus"
+      'detailStatus'
     ).innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
 
-    document.getElementById("detailCustomer").textContent =
-      item.customer || "-";
-    document.getElementById("detailType").textContent =
-      item.type === "DELIVERY" ? "배송" : "회수";
-    document.getElementById("detailDepartment").textContent =
-      item.department || "-";
-    document.getElementById("detailWarehouse").textContent =
-      item.warehouse || "-";
-    document.getElementById("detailSla").textContent = item.sla || "-";
-    document.getElementById("detailPostalCode").textContent =
-      item.postal_code || "-";
+    document.getElementById('detailCustomer').textContent =
+      item.customer || '-';
+    document.getElementById('detailType').textContent =
+      item.type === 'DELIVERY' ? '배송' : '회수';
+    document.getElementById('detailDepartment').textContent =
+      item.department || '-';
+    document.getElementById('detailWarehouse').textContent =
+      item.warehouse || '-';
+    document.getElementById('detailSla').textContent = item.sla || '-';
+    document.getElementById('detailPostalCode').textContent =
+      item.postal_code || '-';
 
     // 날짜 형식 변환 함수
     const formatDateTime = (dateStr) => {
-      if (!dateStr) return "-";
+      if (!dateStr) return '-';
       try {
-        return new Date(dateStr).toLocaleString("ko-KR", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
+        return new Date(dateStr).toLocaleString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
         });
       } catch (e) {
         return dateStr;
       }
     };
 
-    document.getElementById("detailEta").textContent = formatDateTime(item.eta);
-    document.getElementById("detailCreateTime").textContent = formatDateTime(
+    document.getElementById('detailEta').textContent = formatDateTime(item.eta);
+    document.getElementById('detailCreateTime').textContent = formatDateTime(
       item.create_time
     );
-    document.getElementById("detailDepartTime").textContent = formatDateTime(
+    document.getElementById('detailDepartTime').textContent = formatDateTime(
       item.depart_time
     );
-    document.getElementById("detailCompleteTime").textContent = formatDateTime(
+    document.getElementById('detailCompleteTime').textContent = formatDateTime(
       item.complete_time
     );
 
-    document.getElementById("detailDriver").textContent =
-      item.driver_name || "-";
-    document.getElementById("detailDriverContact").textContent =
-      item.driver_contact || "-";
-    document.getElementById("detailAddress").textContent = item.address || "-";
-    document.getElementById("detailContact").textContent = item.contact || "-";
-    document.getElementById("detailMemo").textContent = item.remark || "-";
+    document.getElementById('detailDriver').textContent =
+      item.driver_name || '-';
+    document.getElementById('detailDriverContact').textContent =
+      item.driver_contact || '-';
+    document.getElementById('detailAddress').textContent = item.address || '-';
+    document.getElementById('detailContact').textContent = item.contact || '-';
+    document.getElementById('detailMemo').textContent = item.remark || '-';
 
-    document.getElementById("detailUpdateAt").textContent = formatDateTime(
+    document.getElementById('detailUpdateAt').textContent = formatDateTime(
       item.updated_at
     );
-    document.getElementById("detailUpdatedBy").textContent =
-      item.updated_by || "-";
+    document.getElementById('detailUpdatedBy').textContent =
+      item.updated_by || '-';
 
     // 모달 열기
-    modalUtils.openModal("orderDetailModal");
+    modalUtils.openModal('orderDetailModal');
   },
 
   /**
@@ -789,38 +837,88 @@ const DashboardPage = {
    */
   openStatusChangeModal: function () {
     if (this.state.selectedItems.length === 0) {
-      messageUtils.warning("상태 변경할 항목을 선택해주세요.");
+      messageUtils.warning('상태 변경할 항목을 선택해주세요.');
       return;
     }
-    modalUtils.openModal("statusChangeModal");
+    modalUtils.openModal('statusChangeModal');
   },
 
   /**
    * 상태 변경 확인
    */
   confirmStatusChange: function () {
-    const newStatus = document.getElementById("changeStatus").value;
+    console.log('상태 변경 확인 버튼 클릭됨 - confirmStatusChange 함수 실행');
+    console.log('선택된 항목:', this.state.selectedItems);
+
+    const newStatus = document.getElementById('changeStatus').value;
+    console.log('변경할 상태:', newStatus);
+
+    // 상태 변경 실패 여부를 체크하기 위한 변수
+    let failureCount = 0;
 
     this.state.selectedItems.forEach((orderId) => {
       const item = TMS.getDashboardItemById(orderId);
-      if (!item) return;
+      if (!item) {
+        console.error(`주문 ID ${orderId}에 대한 정보를 찾을 수 없습니다.`);
+        failureCount++;
+        return;
+      }
+
+      console.log(`${orderId} 항목 상태 변경: ${item.status} -> ${newStatus}`);
 
       // 상태만 변경
-      item.status = newStatus;
-      item.updated_at = new Date().toISOString();
-      item.updated_by = TMS.store.userData.userName;
+      const updatedItem = {
+        ...item,
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+        updated_by: TMS.store.userData.userName,
+      };
 
-      // 저장
-      TMS.updateDashboardItem(orderId, item);
+      // 개별 항목 저장
+      const updateResult = TMS.updateDashboardItem(orderId, updatedItem);
+      if (!updateResult) {
+        failureCount++;
+        console.error(`${orderId} 항목 업데이트 실패`);
+      }
     });
 
-    // 저장 및 화면 갱신
+    // 전체 데이터 저장
     TMS.saveDashboardData();
-    this.updateDashboard();
 
     // 모달 닫기
-    modalUtils.closeModal("statusChangeModal");
-    messageUtils.success("상태가 변경되었습니다.");
+    modalUtils.closeModal('statusChangeModal');
+
+    // 결과 메시지 표시
+    if (failureCount === 0) {
+      messageUtils.success('상태가 성공적으로 변경되었습니다.');
+
+      // 상태 변경 후 강제로 화면 갱신
+      console.log('상태 변경 후 화면 갱신 시작...');
+
+      // 원본 데이터를 직접 반영 (로드 과정 없이)
+      console.log('데이터를 직접 렌더링합니다.');
+
+      // 필터링 다시 적용
+      this.updateFilteredData();
+
+      // 현재 페이지 데이터 업데이트
+      this.updateCurrentPageData();
+
+      // 테이블 다시 렌더링 - 이 부분이 핵심
+      this.renderTable();
+
+      // 페이지네이션 업데이트
+      this.updatePagination();
+
+      // 요약 카드 업데이트
+      this.updateSummaryCards();
+
+      console.log('상태 변경 후 화면 갱신 완료');
+    } else {
+      messageUtils.error(
+        `일부 항목(${failureCount}개)의 상태 변경에 실패했습니다.`
+      );
+    }
   },
 
   /**
@@ -829,7 +927,7 @@ const DashboardPage = {
   handleAssign: function () {
     // 선택된 항목 확인
     if (this.state.selectedItems.length === 0) {
-      messageUtils.warning("배차 처리할 항목을 선택해주세요.");
+      messageUtils.warning('배차 처리할 항목을 선택해주세요.');
       return;
     }
 
@@ -841,17 +939,17 @@ const DashboardPage = {
     const firstOrder = TMS.getDashboardItemById(firstOrderId);
 
     // 입력 필드 초기화
-    document.getElementById("driverName").value = "";
-    document.getElementById("driverContact").value = "";
+    document.getElementById('driverName').value = '';
+    document.getElementById('driverContact').value = '';
 
     // 모달 열기
-    modalUtils.openModal("assignDriverModal");
+    modalUtils.openModal('assignDriverModal');
 
     // 확인 버튼 이벤트 리스너 (한 번만 추가)
     if (!this.assignButtonEventRegistered) {
       document
-        .getElementById("confirmAssignBtn")
-        .addEventListener("click", this.confirmAssign.bind(this));
+        .getElementById('confirmAssignBtn')
+        .addEventListener('click', this.confirmAssign.bind(this));
       this.assignButtonEventRegistered = true;
     }
   },
@@ -868,12 +966,12 @@ const DashboardPage = {
     }
 
     // 입력 값 가져오기
-    const driverName = document.getElementById("driverName").value.trim();
-    const driverContact = document.getElementById("driverContact").value.trim();
+    const driverName = document.getElementById('driverName').value.trim();
+    const driverContact = document.getElementById('driverContact').value.trim();
 
     // 기사 이름은 필수
     if (!driverName) {
-      messageUtils.warning("기사 이름을 입력해주세요.");
+      messageUtils.warning('기사 이름을 입력해주세요.');
       return;
     }
 
@@ -907,16 +1005,16 @@ const DashboardPage = {
     }
 
     // 모달 닫기
-    modalUtils.closeModal("assignDriverModal");
+    modalUtils.closeModal('assignDriverModal');
 
     // 결과 알림
     if (successCount > 0) {
       messageUtils.success(`${successCount}건의 배차 처리가 완료되었습니다.`);
       // 선택된 항목 초기화
       this.state.selectedItems = [];
-      document.getElementById("selectAll").checked = false;
+      document.getElementById('selectAll').checked = false;
     } else {
-      messageUtils.error("배차 처리에 실패했습니다.");
+      messageUtils.error('배차 처리에 실패했습니다.');
     }
 
     // 선택된 주문 ID 초기화
@@ -936,26 +1034,30 @@ const DashboardPage = {
     const defaultEtaString = defaultEta.toISOString().slice(0, 16);
 
     // 입력 필드 초기화
-    document.getElementById("newOrderNo").value = "";
-    document.getElementById("newType").value = "DELIVERY";
-    document.getElementById("newDepartment").value = "CS";
-    document.getElementById("newWarehouse").value = "SEOUL";
-    document.getElementById("newSla").value = "4HR(24X7)";
-    document.getElementById("newEta").value = defaultEtaString;
-    document.getElementById("newPostalCode").value = "";
-    document.getElementById("newCustomer").value = "";
-    document.getElementById("newAddress").value = "";
-    document.getElementById("newContact").value = "";
-    document.getElementById("newRemark").value = "";
+    document.getElementById('newOrderNo').value = '';
+    document.getElementById('newType').value = 'DELIVERY';
+    document.getElementById('newDepartment').value = 'CS';
+    document.getElementById('newWarehouse').value = 'SEOUL';
+    document.getElementById('newSla').value = '4HR(24X7)';
+    document.getElementById('newEta').value = defaultEtaString;
+    document.getElementById('newPostalCode').value = '';
+    document.getElementById('newCustomer').value = '';
+    document.getElementById('newAddress').value = '';
+    document.getElementById('newContact').value = '';
+    document.getElementById('newRemark').value = '';
 
     // 모달 열기
-    modalUtils.openModal("newOrderModal");
+    modalUtils.openModal('newOrderModal');
 
-    // 등록 버튼 이벤트 리스너 (한 번만 추가)
+    // 신규 등록 완료 버튼 이벤트 한 번만 등록 (중복 등록 방지)
     if (!this.newOrderEventRegistered) {
       document
-        .getElementById("confirmNewOrderBtn")
-        .addEventListener("click", this.submitNewOrder.bind(this));
+        .getElementById('confirmNewOrderBtn')
+        .addEventListener('click', () => {
+          console.log('신규 주문 등록 확인 버튼 클릭됨');
+          // 주문 등록 함수 호출
+          this.submitNewOrder();
+        });
       this.newOrderEventRegistered = true;
     }
   },
@@ -964,18 +1066,20 @@ const DashboardPage = {
    * 신규 주문 등록 제출
    */
   submitNewOrder: function () {
+    console.log('신규 주문 등록 제출 함수 실행');
+
     // 필수 입력 필드 검증
-    const orderNo = document.getElementById("newOrderNo").value.trim();
-    const type = document.getElementById("newType").value;
-    const department = document.getElementById("newDepartment").value;
-    const warehouse = document.getElementById("newWarehouse").value;
-    const sla = document.getElementById("newSla").value;
-    const eta = document.getElementById("newEta").value;
-    const postalCode = document.getElementById("newPostalCode").value.trim();
-    const customer = document.getElementById("newCustomer").value.trim();
-    const address = document.getElementById("newAddress").value.trim();
-    const contact = document.getElementById("newContact").value.trim();
-    const remark = document.getElementById("newRemark").value.trim();
+    const orderNo = document.getElementById('newOrderNo').value.trim();
+    const type = document.getElementById('newType').value;
+    const department = document.getElementById('newDepartment').value;
+    const warehouse = document.getElementById('newWarehouse').value;
+    const sla = document.getElementById('newSla').value;
+    const eta = document.getElementById('newEta').value;
+    const postalCode = document.getElementById('newPostalCode').value.trim();
+    const customer = document.getElementById('newCustomer').value.trim();
+    const address = document.getElementById('newAddress').value.trim();
+    const contact = document.getElementById('newContact').value.trim();
+    const remark = document.getElementById('newRemark').value.trim();
 
     // 필수 필드 확인
     if (
@@ -989,7 +1093,7 @@ const DashboardPage = {
       !customer ||
       !address
     ) {
-      messageUtils.warning("필수 입력 항목을 모두 입력해주세요.");
+      messageUtils.warning('필수 입력 항목을 모두 입력해주세요.');
       return;
     }
 
@@ -997,7 +1101,7 @@ const DashboardPage = {
     const newOrder = {
       order_no: orderNo,
       type: type,
-      status: "PENDING", // 기본 상태: 대기
+      status: 'PENDING', // 기본 상태: 대기
       department: department,
       warehouse: warehouse,
       sla: sla,
@@ -1012,34 +1116,31 @@ const DashboardPage = {
       updated_by: TMS.store.userData.userName,
     };
 
-    // 스토어에 추가
-    if (!TMS.store.dashboardData) {
-      TMS.store.dashboardData = [];
-    }
-
     // 이미 존재하는 주문번호인지 확인
-    const existingOrder = TMS.store.dashboardData.find(
-      (item) => item.order_no === orderNo
-    );
+    const existingOrder = TMS.getDashboardItemById(orderNo);
     if (existingOrder) {
-      messageUtils.error("이미 존재하는 주문번호입니다.");
+      messageUtils.error('이미 존재하는 주문번호입니다.');
       return;
     }
 
-    // 배열에 추가
-    TMS.store.dashboardData.push(newOrder);
+    console.log('신규 주문 데이터:', newOrder);
 
-    // JSON DB에 저장
-    TMS.updateDashboardData(newOrder);
+    // TMS를 통해 데이터 업데이트
+    const result = TMS.updateDashboardData(newOrder);
 
     // 모달 닫기
-    modalUtils.closeModal("newOrderModal");
+    modalUtils.closeModal('newOrderModal');
 
-    // 변경 이벤트 발생
-    document.dispatchEvent(new CustomEvent("tms:dashboardDataChanged"));
+    if (result) {
+      // 성공 메시지
+      messageUtils.success('새 주문이 등록되었습니다.');
 
-    // 성공 메시지
-    messageUtils.success("새 주문이 등록되었습니다.");
+      // 명시적으로 이벤트 발생 및 화면 갱신
+      document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
+      this.updateDashboard();
+    } else {
+      messageUtils.error('주문 등록에 실패했습니다.');
+    }
   },
 
   /**
@@ -1048,7 +1149,7 @@ const DashboardPage = {
   handleDelete: function () {
     // 선택된 항목 확인
     if (this.state.selectedItems.length === 0) {
-      messageUtils.warning("삭제할 항목을 선택해주세요.");
+      messageUtils.warning('삭제할 항목을 선택해주세요.');
       return;
     }
 
@@ -1070,7 +1171,7 @@ const DashboardPage = {
     TMS.saveDashboardData();
 
     // 변경 이벤트 발생 (자동 업데이트 트리거)
-    document.dispatchEvent(new CustomEvent("tms:dashboardDataChanged"));
+    document.dispatchEvent(new CustomEvent('tms:dashboardDataChanged'));
 
     messageUtils.success(
       `${this.state.selectedItems.length}건의 주문이 삭제되었습니다.`
@@ -1082,57 +1183,57 @@ const DashboardPage = {
    * 주문 수정 모달 열기
    */
   handleEdit: function () {
-    const orderId = document.getElementById("detailOrderId").textContent;
-    if (orderId === "-") {
+    const orderId = document.getElementById('detailOrderId').textContent;
+    if (orderId === '-') {
       return;
     }
 
     // 주문 정보 가져오기
     const orderItem = TMS.getDashboardItemById(orderId);
     if (!orderItem) {
-      messageUtils.error("주문 정보를 찾을 수 없습니다.");
+      messageUtils.error('주문 정보를 찾을 수 없습니다.');
       return;
     }
 
     // 모달 필드 초기화
-    document.getElementById("editOrderId").value = orderItem.order_no;
-    document.getElementById("editOrderNo").value = orderItem.order_no;
-    document.getElementById("editType").value = orderItem.type || "DELIVERY";
-    document.getElementById("editDepartment").value =
-      orderItem.department || "CS";
-    document.getElementById("editWarehouse").value =
-      orderItem.warehouse || "SEOUL";
-    document.getElementById("editSla").value = orderItem.sla || "4HR(24X7)";
-    document.getElementById("editStatus").value = orderItem.status || "PENDING";
+    document.getElementById('editOrderId').value = orderItem.order_no;
+    document.getElementById('editOrderNo').value = orderItem.order_no;
+    document.getElementById('editType').value = orderItem.type || 'DELIVERY';
+    document.getElementById('editDepartment').value =
+      orderItem.department || 'CS';
+    document.getElementById('editWarehouse').value =
+      orderItem.warehouse || 'SEOUL';
+    document.getElementById('editSla').value = orderItem.sla || '4HR(24X7)';
+    document.getElementById('editStatus').value = orderItem.status || 'PENDING';
 
     // ETA 날짜 변환 (datetime-local 형식으로)
     if (orderItem.eta) {
       const etaDate = new Date(orderItem.eta);
       const year = etaDate.getFullYear();
-      const month = String(etaDate.getMonth() + 1).padStart(2, "0");
-      const day = String(etaDate.getDate()).padStart(2, "0");
-      const hours = String(etaDate.getHours()).padStart(2, "0");
-      const minutes = String(etaDate.getMinutes()).padStart(2, "0");
+      const month = String(etaDate.getMonth() + 1).padStart(2, '0');
+      const day = String(etaDate.getDate()).padStart(2, '0');
+      const hours = String(etaDate.getHours()).padStart(2, '0');
+      const minutes = String(etaDate.getMinutes()).padStart(2, '0');
 
       document.getElementById(
-        "editEta"
+        'editEta'
       ).value = `${year}-${month}-${day}T${hours}:${minutes}`;
     } else {
-      document.getElementById("editEta").value = "";
+      document.getElementById('editEta').value = '';
     }
 
-    document.getElementById("editPostalCode").value =
-      orderItem.postal_code || "";
-    document.getElementById("editCustomer").value = orderItem.customer || "";
-    document.getElementById("editAddress").value = orderItem.address || "";
-    document.getElementById("editContact").value = orderItem.contact || "";
-    document.getElementById("editRemark").value = orderItem.remark || "";
+    document.getElementById('editPostalCode').value =
+      orderItem.postal_code || '';
+    document.getElementById('editCustomer').value = orderItem.customer || '';
+    document.getElementById('editAddress').value = orderItem.address || '';
+    document.getElementById('editContact').value = orderItem.contact || '';
+    document.getElementById('editRemark').value = orderItem.remark || '';
 
     // 상세 모달 닫기
-    modalUtils.closeModal("orderDetailModal");
+    modalUtils.closeModal('orderDetailModal');
 
     // 편집 모달 열기
-    modalUtils.openModal("editOrderModal");
+    modalUtils.openModal('editOrderModal');
   },
 
   /**
@@ -1140,20 +1241,20 @@ const DashboardPage = {
    */
   confirmEditOrder: function () {
     // 폼 데이터 가져오기
-    const orderId = document.getElementById("editOrderId").value;
+    const orderId = document.getElementById('editOrderId').value;
 
     // 값 유효성 검사
-    const type = document.getElementById("editType").value;
-    const department = document.getElementById("editDepartment").value;
-    const warehouse = document.getElementById("editWarehouse").value;
-    const sla = document.getElementById("editSla").value;
-    const eta = document.getElementById("editEta").value;
-    const postalCode = document.getElementById("editPostalCode").value.trim();
-    const customer = document.getElementById("editCustomer").value.trim();
-    const address = document.getElementById("editAddress").value.trim();
-    const contact = document.getElementById("editContact").value.trim();
-    const remark = document.getElementById("editRemark").value.trim();
-    const status = document.getElementById("editStatus").value;
+    const type = document.getElementById('editType').value;
+    const department = document.getElementById('editDepartment').value;
+    const warehouse = document.getElementById('editWarehouse').value;
+    const sla = document.getElementById('editSla').value;
+    const eta = document.getElementById('editEta').value;
+    const postalCode = document.getElementById('editPostalCode').value.trim();
+    const customer = document.getElementById('editCustomer').value.trim();
+    const address = document.getElementById('editAddress').value.trim();
+    const contact = document.getElementById('editContact').value.trim();
+    const remark = document.getElementById('editRemark').value.trim();
+    const status = document.getElementById('editStatus').value;
 
     // 필수 필드 확인
     if (
@@ -1166,14 +1267,14 @@ const DashboardPage = {
       !customer ||
       !address
     ) {
-      messageUtils.warning("필수 입력 항목을 모두 입력해주세요.");
+      messageUtils.warning('필수 입력 항목을 모두 입력해주세요.');
       return;
     }
 
     // 기존 주문 정보 가져오기
     const orderItem = TMS.getDashboardItemById(orderId);
     if (!orderItem) {
-      messageUtils.error("주문 정보를 찾을 수 없습니다.");
+      messageUtils.error('주문 정보를 찾을 수 없습니다.');
       return;
     }
 
@@ -1190,18 +1291,22 @@ const DashboardPage = {
       contact: contact || null,
       remark: remark || null,
       status: status,
+      updated_at: new Date().toISOString(),
+      updated_by: TMS.store.userData.userName,
     };
 
     // 상태가 변경되었을 경우 추가 필드 업데이트
     if (status !== orderItem.status) {
+      console.log(`상태 변경됨: ${orderItem.status} -> ${status}`);
+
       // 진행 상태로 변경할 때 출발 시간 자동 설정 (만약 없는 경우)
-      if (status === "IN_PROGRESS" && !orderItem.depart_time) {
+      if (status === 'IN_PROGRESS' && !orderItem.depart_time) {
         updateData.depart_time = new Date().toISOString();
       }
 
       // 완료 또는 이슈 상태로 변경할 때 완료 시간 자동 설정
       if (
-        (status === "COMPLETE" || status === "ISSUE") &&
+        (status === 'COMPLETE' || status === 'ISSUE') &&
         !orderItem.complete_time
       ) {
         updateData.complete_time = new Date().toISOString();
@@ -1211,19 +1316,48 @@ const DashboardPage = {
     // 주문 정보 업데이트
     const result = TMS.updateDashboardItem(orderId, updateData);
 
-    // JSON DB에 저장
+    // 스토어 업데이트
     if (result) {
-      TMS.updateDashboardData({ ...orderItem, ...updateData });
+      // 전체 데이터 저장
+      TMS.saveDashboardData();
+
+      console.log('주문 정보 업데이트 성공:', orderId);
+      console.log('변경된 데이터:', updateData);
     }
 
     // 모달 닫기
-    modalUtils.closeModal("editOrderModal");
+    modalUtils.closeModal('editOrderModal');
 
     // 결과 알림
     if (result) {
-      messageUtils.success("주문 정보가 성공적으로 수정되었습니다.");
+      messageUtils.success('주문 정보가 성공적으로 수정되었습니다.');
+
+      // 수정 후 강제로 데이터 다시 로드 및 화면 갱신
+      console.log('주문 수정 후 데이터 리로딩 및 화면 갱신...');
+
+      // 원본 데이터 다시 로드
+      TMS.loadDashboardData().then(() => {
+        console.log('데이터 리로드 완료, 테이블 갱신 중...');
+
+        // 필터링 다시 적용
+        this.updateFilteredData();
+
+        // 현재 페이지 데이터 업데이트
+        this.updateCurrentPageData();
+
+        // 테이블 다시 렌더링
+        this.renderTable();
+
+        // 페이지네이션 업데이트
+        this.updatePagination();
+
+        // 요약 카드 업데이트
+        this.updateSummaryCards();
+
+        console.log('주문 수정 후 화면 갱신 완료');
+      });
     } else {
-      messageUtils.error("주문 정보 수정에 실패했습니다.");
+      messageUtils.error('주문 정보 수정에 실패했습니다.');
     }
   },
 };
