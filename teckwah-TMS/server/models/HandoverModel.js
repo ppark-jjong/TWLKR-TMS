@@ -1,15 +1,16 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/Database');
-const User = require('./user-model');
+const User = require('./UserModel');
 
 const Handover = sequelize.define(
   'Handover',
   {
     handover_id: {
-      type: DataTypes.STRING(10),
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
       allowNull: false,
-      comment: '인수인계 ID (예: H001)',
+      comment: '인수인계 ID',
     },
     title: {
       type: DataTypes.STRING(255),
@@ -21,94 +22,52 @@ const Handover = sequelize.define(
       allowNull: false,
       comment: '내용',
     },
-    created_by: {
+    update_by: {
       type: DataTypes.STRING(50),
       allowNull: false,
-      comment: '작성자 ID',
+      comment: '작성/수정자 ID',
       references: {
         model: User,
         key: 'user_id',
       },
-    },
-    updated_by: {
-      type: DataTypes.STRING(50),
-      allowNull: true,
-      comment: '최종 수정자 ID',
-      references: {
-        model: User,
-        key: 'user_id',
-      },
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
     },
     is_notice: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       comment: '공지사항 여부',
     },
-    department: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      comment: '관련 부서 (없으면 전체 대상)',
-    },
-    priority: {
-      type: DataTypes.ENUM('LOW', 'MEDIUM', 'HIGH'),
-      defaultValue: 'MEDIUM',
-      comment: '중요도',
-    },
-    expiry_date: {
+    create_at: {
       type: DataTypes.DATE,
-      allowNull: true,
-      comment: '만료일 (지정된 경우 해당 날짜 이후 표시 안함)',
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+      comment: '생성 시간',
+    },
+    update_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+      comment: '수정 시간',
     },
   },
   {
     tableName: 'handover',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false, // 명시적 타임스탬프 필드 사용
+    hooks: {
+      beforeUpdate: async (instance) => {
+        // 수정 시간 업데이트
+        instance.update_at = new Date();
+      },
+    },
     indexes: [
-      {
-        name: 'idx_handover_date',
-        fields: ['created_at'],
-      },
-      {
-        name: 'idx_handover_notice',
-        fields: ['is_notice'],
-      },
-      {
-        name: 'idx_handover_department',
-        fields: ['department'],
-      },
-      {
-        name: 'idx_handover_priority',
-        fields: ['priority'],
-      },
-      {
-        name: 'idx_handover_expiry',
-        fields: ['expiry_date'],
-      },
+      { name: 'idx_handover_date', fields: ['create_at'] },
+      { name: 'idx_handover_notice', fields: ['is_notice'] },
     ],
   }
 );
 
 // 관계 설정
 Handover.belongsTo(User, {
-  foreignKey: 'created_by',
-  targetKey: 'user_id',
-  as: 'creator',
-});
-
-Handover.belongsTo(User, {
-  foreignKey: 'updated_by',
+  foreignKey: 'update_by',
   targetKey: 'user_id',
   as: 'updater',
 });

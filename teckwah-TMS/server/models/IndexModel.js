@@ -1,20 +1,14 @@
-const User = require('./user-model');
+const User = require('./UserModel');
 const Handover = require('./HandoverModel');
 const Dashboard = require('./DashboardModel');
-const { PostalCode, PostalCodeDetail } = require('./postal_code.model');
+const { PostalCode, PostalCodeDetail } = require('./PostalCodeModel');
 
 // 관계 설정
 // 사용자-인수인계 관계
 User.hasMany(Handover, {
-  foreignKey: 'created_by',
+  foreignKey: 'update_by',
   sourceKey: 'user_id',
   as: 'handovers',
-});
-
-Handover.belongsTo(User, {
-  foreignKey: 'created_by',
-  targetKey: 'user_id',
-  as: 'creator',
 });
 
 // 대시보드-우편번호 관계

@@ -1,96 +1,131 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/Database');
-const User = require('./user-model');
+const User = require('./UserModel');
 
 const Dashboard = sequelize.define(
   'Dashboard',
   {
     dashboard_id: {
-      type: DataTypes.STRING(10),
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
       allowNull: false,
       comment: '대시보드 ID',
     },
-    order_number: {
-      type: DataTypes.STRING(50),
+    order_no: {
+      type: DataTypes.STRING(15),
       allowNull: false,
       unique: true,
       comment: '주문 번호',
     },
-    customer_name: {
-      type: DataTypes.STRING(100),
+    type: {
+      type: DataTypes.ENUM('DELIVERY', 'RETURN'),
       allowNull: false,
-      comment: '고객 이름',
-    },
-    delivery_address: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-      comment: '배송 주소',
-    },
-    phone_number: {
-      type: DataTypes.STRING(20),
-      allowNull: false,
-      comment: '연락처',
+      comment: '배송 유형',
     },
     status: {
-      type: DataTypes.ENUM(
-        'PENDING',
-        'ASSIGNED',
-        'IN_TRANSIT',
-        'DELIVERED',
-        'CANCELLED'
-      ),
-      defaultValue: 'PENDING',
+      type: DataTypes.ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL'),
+      defaultValue: 'WAITING',
       allowNull: false,
       comment: '배송 상태',
     },
     department: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.ENUM('CS', 'HES', 'LENOVO'),
       allowNull: false,
       comment: '담당 부서',
     },
-    driver_id: {
-      type: DataTypes.STRING(50),
-      allowNull: true,
-      comment: '배송 기사 ID',
-      references: {
-        model: User,
-        key: 'user_id',
-      },
+    warehouse: {
+      type: DataTypes.ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON'),
+      allowNull: false,
+      comment: '창고 위치',
     },
-    estimated_delivery: {
+    sla: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      comment: 'SLA 정보',
+    },
+    eta: {
       type: DataTypes.DATE,
-      allowNull: true,
+      allowNull: false,
       comment: '예상 배송 시간',
     },
-    actual_delivery: {
+    create_time: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+      comment: '생성 시간',
+    },
+    depart_time: {
       type: DataTypes.DATE,
       allowNull: true,
-      comment: '실제 배송 완료 시간',
+      comment: '출발 시간',
     },
-    order_items: {
-      type: DataTypes.TEXT,
+    complete_time: {
+      type: DataTypes.DATE,
       allowNull: true,
-      comment: '주문 품목 (JSON 형식)',
+      comment: '완료 시간',
     },
-    order_note: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      comment: '주문 특이사항',
-    },
-    priority: {
-      type: DataTypes.ENUM('LOW', 'MEDIUM', 'HIGH', 'URGENT'),
-      defaultValue: 'MEDIUM',
-      comment: '우선순위',
-    },
-    created_by: {
-      type: DataTypes.STRING(50),
+    postal_code: {
+      type: DataTypes.STRING(5),
       allowNull: false,
-      comment: '생성자 ID',
-      references: {
-        model: User,
-        key: 'user_id',
+      comment: '우편번호',
+    },
+    city: {
+      type: DataTypes.STRING(21),
+      allowNull: true,
+      comment: '도시',
+    },
+    county: {
+      type: DataTypes.STRING(51),
+      allowNull: true,
+      comment: '군/구',
+    },
+    district: {
+      type: DataTypes.STRING(51),
+      allowNull: true,
+      comment: '동/읍/면',
+    },
+    // region은 GENERATED ALWAYS AS 컬럼이므로 Sequelize 모델에서는 가상 필드로 정의
+    region: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return `${this.city || ''} ${this.county || ''} ${this.district || ''}`.trim();
       },
+    },
+    distance: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: '거리(미터)',
+    },
+    duration_time: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: '소요 시간(초)',
+    },
+    address: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      comment: '상세 주소',
+    },
+    customer: {
+      type: DataTypes.STRING(150),
+      allowNull: false,
+      comment: '고객명',
+    },
+    contact: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      comment: '연락처',
+    },
+    driver_name: {
+      type: DataTypes.STRING(153),
+      allowNull: true,
+      comment: '기사명',
+    },
+    driver_contact: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: '기사 연락처',
     },
     updated_by: {
       type: DataTypes.STRING(50),
@@ -101,123 +136,46 @@ const Dashboard = sequelize.define(
         key: 'user_id',
       },
     },
-    created_at: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
-    },
-    last_status_change: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      comment: '마지막 상태 변경 시간',
-    },
-    longitude: {
-      type: DataTypes.DECIMAL(10, 7),
-      allowNull: true,
-      comment: '배송지 경도',
-    },
-    latitude: {
-      type: DataTypes.DECIMAL(10, 7),
-      allowNull: true,
-      comment: '배송지 위도',
-    },
-    status_history: {
+    remark: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: '상태 변경 이력 (JSON 형식)',
+      comment: '비고',
+    },
+    update_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+      comment: '수정 시간',
     },
   },
   {
     tableName: 'dashboard',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    timestamps: false, // 명시적 타임스탬프 필드 사용
     hooks: {
       beforeUpdate: async (instance) => {
-        // 상태가 변경되면 상태 변경 시간과 이력 업데이트
-        if (instance.changed('status')) {
-          instance.last_status_change = new Date();
-
-          let history = [];
-
-          // 기존 이력이 있으면 파싱
-          if (instance.status_history) {
-            try {
-              history = JSON.parse(instance.status_history);
-            } catch (e) {
-              console.error('상태 이력 파싱 오류:', e);
-              history = [];
-            }
-          }
-
-          // 새 상태 변경 이력 추가
-          history.push({
-            status: instance.status,
-            changed_at: new Date().toISOString(),
-            changed_by: instance.updated_by,
-          });
-
-          // 이력 저장
-          instance.status_history = JSON.stringify(history);
-
-          // DELIVERED 상태로 변경 시 실제 배송 완료 시간 기록
-          if (instance.status === 'DELIVERED') {
-            instance.actual_delivery = new Date();
-          }
+        // 상태가 변경되면 완료 시간 업데이트
+        if (instance.changed('status') && instance.status === 'COMPLETE') {
+          instance.complete_time = new Date();
         }
+        
+        // 수정 시간 업데이트
+        instance.update_at = new Date();
       },
     },
     indexes: [
-      {
-        name: 'idx_dashboard_status',
-        fields: ['status'],
-      },
-      {
-        name: 'idx_dashboard_department',
-        fields: ['department'],
-      },
-      {
-        name: 'idx_dashboard_estimated_delivery',
-        fields: ['estimated_delivery'],
-      },
-      {
-        name: 'idx_dashboard_driver',
-        fields: ['driver_id'],
-      },
-      {
-        name: 'idx_dashboard_priority',
-        fields: ['priority'],
-      },
-      {
-        name: 'idx_dashboard_last_status_change',
-        fields: ['last_status_change'],
-      },
+      { name: 'idx_dashboard_status', fields: ['status'] },
+      { name: 'idx_dashboard_department', fields: ['department'] },
+      { name: 'idx_dashboard_eta', fields: ['eta'] },
+      { name: 'idx_dashboard_order_no', fields: ['order_no'] },
     ],
   }
 );
 
-// 관계 설정
-Dashboard.belongsTo(User, {
-  foreignKey: 'created_by',
-  targetKey: 'user_id',
-  as: 'creator',
-});
-
+// 관계 설정 - 실제 DB 스키마에 맞게 조정
 Dashboard.belongsTo(User, {
   foreignKey: 'updated_by',
   targetKey: 'user_id',
   as: 'updater',
-});
-
-Dashboard.belongsTo(User, {
-  foreignKey: 'driver_id',
-  targetKey: 'user_id',
-  as: 'driver',
 });
 
 module.exports = Dashboard;

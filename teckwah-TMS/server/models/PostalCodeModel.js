@@ -8,18 +8,22 @@ const PostalCode = sequelize.define(
       type: DataTypes.STRING(5),
       primaryKey: true,
       allowNull: false,
+      comment: '우편번호',
     },
     city: {
-      type: DataTypes.STRING(21),
-      allowNull: false,
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: '도시',
     },
     county: {
-      type: DataTypes.STRING(51),
-      allowNull: false,
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: '군/구',
     },
     district: {
-      type: DataTypes.STRING(51),
+      type: DataTypes.STRING(100),
       allowNull: true,
+      comment: '동/읍/면',
     },
   },
   {
@@ -32,14 +36,11 @@ const PostalCode = sequelize.define(
 const PostalCodeDetail = sequelize.define(
   'postal_code_detail',
   {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
     postal_code: {
       type: DataTypes.STRING(5),
+      primaryKey: true,
       allowNull: false,
+      comment: '우편번호',
       references: {
         model: 'postal_code',
         key: 'postal_code',
@@ -47,7 +48,9 @@ const PostalCodeDetail = sequelize.define(
     },
     warehouse: {
       type: DataTypes.ENUM('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON'),
+      primaryKey: true,
       allowNull: false,
+      comment: '창고',
     },
     distance: {
       type: DataTypes.INTEGER,
@@ -65,9 +68,8 @@ const PostalCodeDetail = sequelize.define(
     timestamps: false,
     indexes: [
       {
-        name: 'idx_postal_code_warehouse',
-        fields: ['postal_code', 'warehouse'],
-        unique: true,
+        name: 'idx_warehouse_postal',
+        fields: ['warehouse', 'postal_code'],
       },
     ],
   }

@@ -1,12 +1,12 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
-const Dashboard = require('../models/dashboard.model');
-const User = require('../models/user.model');
+const Dashboard = require('../models/DashboardModel');
+const User = require('../models/UserModel');
 const {
   authenticate,
   isAdmin,
   checkDepartmentAccess,
-} = require('../middlewares/auth.middleware');
+} = require('../middlewares/AuthMiddleware');
 const {
   createResponse,
   ERROR_CODES,
@@ -35,7 +35,7 @@ router.get('/list', authenticate, async (req, res, next) => {
       search,
       page = 1,
       size = 10,
-      sort_by = 'estimated_delivery',
+      sort_by = 'eta',
       sort_order = 'ASC',
     } = req.query;
 
@@ -55,34 +55,31 @@ router.get('/list', authenticate, async (req, res, next) => {
 
     if (search) {
       whereCondition[Op.or] = [
-        { order_number: { [Op.like]: `%${search}%` } },
-        { customer_name: { [Op.like]: `%${search}%` } },
-        { delivery_address: { [Op.like]: `%${search}%` } },
-        { phone_number: { [Op.like]: `%${search}%` } },
+        { order_no: { [Op.like]: `%${search}%` } },
+        { customer: { [Op.like]: `%${search}%` } },
+        { address: { [Op.like]: `%${search}%` } },
+        { contact: { [Op.like]: `%${search}%` } },
       ];
     }
 
     // 일반 사용자는 자신의 부서 데이터만 볼 수 있음
-    if (req.user.role !== 'ADMIN') {
-      whereCondition.department = req.user.department;
+    if (req.user.user_role !== 'ADMIN') {
+      whereCondition.department = req.user.user_department;
     }
 
     // 정렬 설정 (안전한 컬럼만 허용)
     const allowedSortColumns = [
       'dashboard_id',
-      'order_number',
-      'customer_name',
+      'order_no',
+      'customer',
       'status',
       'department',
-      'estimated_delivery',
-      'created_at',
-      'updated_at',
-      'priority',
+      'eta',
+      'create_time',
+      'update_at',
     ];
 
-    const sortColumn = allowedSortColumns.includes(sort_by)
-      ? sort_by
-      : 'estimated_delivery';
+    const sortColumn = allowedSortColumns.includes(sort_by) ? sort_by : 'eta';
     const sortDirection = sort_order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     const order = [[sortColumn, sortDirection]];
 
@@ -92,18 +89,6 @@ router.get('/list', authenticate, async (req, res, next) => {
       order,
       limit,
       offset,
-      include: [
-        {
-          model: User,
-          as: 'driver',
-          attributes: ['name'],
-        },
-        {
-          model: User,
-          as: 'updater',
-          attributes: ['name', 'user_id'],
-        },
-      ],
     });
 
     // 응답 데이터 구성
@@ -113,24 +98,18 @@ router.get('/list', authenticate, async (req, res, next) => {
       total_pages: Math.ceil(count / limit),
       items: rows.map((item) => ({
         dashboard_id: item.dashboard_id,
-        order_number: item.order_number,
-        customer_name: item.customer_name,
-        delivery_address: item.delivery_address,
-        phone_number: item.phone_number,
+        order_no: item.order_no,
+        customer: item.customer,
+        address: item.address,
+        contact: item.contact,
         status: item.status,
         department: item.department,
-        driver_id: item.driver_id,
-        driver_name: item.driver ? item.driver.name : null,
-        estimated_delivery: item.estimated_delivery,
-        priority: item.priority,
+        driver_name: item.driver_name,
+        eta: item.eta,
+        type: item.type,
+        warehouse: item.warehouse,
         is_editing: item.updated_by !== null,
-        editor: item.updater
-          ? {
-              user_id: item.updater.user_id,
-              name: item.updater.name,
-            }
-          : null,
-        updated_at: item.updated_at,
+        updated_at: item.update_at,
       })),
     };
 
@@ -151,25 +130,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
     const { id } = req.params;
 
     // 상세 정보 조회
-    const dashboard = await Dashboard.findByPk(id, {
-      include: [
-        {
-          model: User,
-          as: 'driver',
-          attributes: ['name'],
-        },
-        {
-          model: User,
-          as: 'creator',
-          attributes: ['name'],
-        },
-        {
-          model: User,
-          as: 'updater',
-          attributes: ['name', 'user_id'],
-        },
-      ],
-    });
+    const dashboard = await Dashboard.findByPk(id);
 
     if (!dashboard) {
       return res
@@ -186,8 +147,8 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
     // 일반 사용자는 자신의 부서 데이터만 접근 가능
     if (
-      req.user.role !== 'ADMIN' &&
-      dashboard.department !== req.user.department
+      req.user.user_role !== 'ADMIN' &&
+      dashboard.department !== req.user.user_department
     ) {
       return res
         .status(403)
@@ -204,38 +165,30 @@ router.get('/:id', authenticate, async (req, res, next) => {
     // 응답 데이터 구성
     const responseData = {
       dashboard_id: dashboard.dashboard_id,
-      order_number: dashboard.order_number,
-      customer_name: dashboard.customer_name,
-      delivery_address: dashboard.delivery_address,
-      phone_number: dashboard.phone_number,
+      order_no: dashboard.order_no,
+      type: dashboard.type,
       status: dashboard.status,
       department: dashboard.department,
-      driver_id: dashboard.driver_id,
-      driver_name: dashboard.driver ? dashboard.driver.name : null,
-      estimated_delivery: dashboard.estimated_delivery,
-      actual_delivery: dashboard.actual_delivery,
-      order_items: dashboard.order_items,
-      order_note: dashboard.order_note,
-      priority: dashboard.priority,
-      created_by: dashboard.created_by,
-      creator_name: dashboard.creator ? dashboard.creator.name : null,
-      created_at: dashboard.created_at,
+      warehouse: dashboard.warehouse,
+      sla: dashboard.sla,
+      eta: dashboard.eta,
+      create_time: dashboard.create_time,
+      depart_time: dashboard.depart_time,
+      complete_time: dashboard.complete_time,
+      postal_code: dashboard.postal_code,
+      city: dashboard.city,
+      county: dashboard.county,
+      district: dashboard.district,
+      address: dashboard.address,
+      customer: dashboard.customer,
+      contact: dashboard.contact,
+      driver_name: dashboard.driver_name,
+      driver_contact: dashboard.driver_contact,
       updated_by: dashboard.updated_by,
-      updater_name: dashboard.updater ? dashboard.updater.name : null,
-      updated_at: dashboard.updated_at,
-      last_status_change: dashboard.last_status_change,
-      latitude: dashboard.latitude,
-      longitude: dashboard.longitude,
-      status_history: dashboard.status_history
-        ? JSON.parse(dashboard.status_history)
-        : [],
-      is_editing: dashboard.updated_by !== null,
-      editor: dashboard.updater
-        ? {
-            user_id: dashboard.updater.user_id,
-            name: dashboard.updater.name,
-          }
-        : null,
+      remark: dashboard.remark,
+      update_at: dashboard.update_at,
+      distance: dashboard.distance,
+      duration_time: dashboard.duration_time,
     };
 
     return res
@@ -249,34 +202,39 @@ router.get('/:id', authenticate, async (req, res, next) => {
 /**
  * 대시보드 생성 API
  * POST /dashboard
- * 관리자만 접근 가능
+ * 모든 인증된 사용자 접근 가능
  */
-router.post('/', authenticate, isAdmin, async (req, res, next) => {
+router.post('/', authenticate, async (req, res, next) => {
   try {
     const {
-      order_number,
-      customer_name,
-      delivery_address,
-      phone_number,
+      order_no,
+      type,
       department,
-      driver_id,
-      estimated_delivery,
-      order_items,
-      order_note,
-      priority = 'MEDIUM',
-      latitude,
-      longitude,
+      warehouse,
+      sla,
+      eta,
+      postal_code,
+      address,
+      customer,
+      contact,
+      driver_name,
+      driver_contact,
+      remark,
     } = req.body;
 
     const userId = req.user.user_id;
 
     // 기본 유효성 검사
     if (
-      !order_number ||
-      !customer_name ||
-      !delivery_address ||
-      !phone_number ||
-      !department
+      !order_no ||
+      !type ||
+      !department ||
+      !warehouse ||
+      !sla ||
+      !eta ||
+      !postal_code ||
+      !address ||
+      !customer
     ) {
       return res
         .status(400)
@@ -292,7 +250,7 @@ router.post('/', authenticate, isAdmin, async (req, res, next) => {
 
     // 주문 번호 중복 확인
     const existingOrder = await Dashboard.findOne({
-      where: { order_number },
+      where: { order_no },
     });
 
     if (existingOrder) {
@@ -308,52 +266,30 @@ router.post('/', authenticate, isAdmin, async (req, res, next) => {
         );
     }
 
-    // ID 생성 (마지막 ID + 1)
-    const lastDashboard = await Dashboard.findOne({
-      order: [['dashboard_id', 'DESC']],
-    });
-
-    let newId = 'D001';
-    if (lastDashboard) {
-      const lastIdNum = parseInt(lastDashboard.dashboard_id.substring(1));
-      newId = `D${String(lastIdNum + 1).padStart(3, '0')}`;
-    }
-
-    // 상태 이력 초기화
-    const statusHistory = [
-      {
-        status: 'PENDING',
-        changed_at: new Date().toISOString(),
-        changed_by: userId,
-      },
-    ];
-
     // 대시보드 생성
     const newDashboard = await Dashboard.create({
-      dashboard_id: newId,
-      order_number,
-      customer_name,
-      delivery_address,
-      phone_number,
-      status: 'PENDING',
+      order_no,
+      type,
+      status: 'WAITING',
       department,
-      driver_id: driver_id || null,
-      estimated_delivery: estimated_delivery || null,
-      order_items: order_items || null,
-      order_note: order_note || null,
-      priority: priority || 'MEDIUM',
-      created_by: userId,
-      updated_by: null,
-      latitude: latitude || null,
-      longitude: longitude || null,
-      status_history: JSON.stringify(statusHistory),
-      last_status_change: new Date(),
+      warehouse,
+      sla,
+      eta: new Date(eta),
+      create_time: new Date(),
+      postal_code,
+      address,
+      customer,
+      contact: contact || null,
+      driver_name: driver_name || null,
+      driver_contact: driver_contact || null,
+      updated_by: userId,
+      remark: remark || null,
     });
 
     return res.status(201).json(
       createResponse(true, '주문이 성공적으로 생성되었습니다', {
         dashboard_id: newDashboard.dashboard_id,
-        order_number: newDashboard.order_number,
+        order_no: newDashboard.order_no,
       })
     );
   } catch (error) {
@@ -369,36 +305,38 @@ router.put('/:id', authenticate, async (req, res, next) => {
   try {
     const { id } = req.params;
     const {
-      customer_name,
-      delivery_address,
-      phone_number,
+      type,
       status,
-      department,
-      driver_id,
-      estimated_delivery,
-      order_items,
-      order_note,
-      priority,
-      latitude,
-      longitude,
+      warehouse,
+      sla,
+      eta,
+      address,
+      customer,
+      contact,
+      driver_name,
+      driver_contact,
+      remark,
+      depart_time,
+      complete_time,
     } = req.body;
 
     const userId = req.user.user_id;
 
-    // 유효성 검사
+    // 유효성 검사 - 최소한 하나의 필드는 업데이트 필요
     if (
-      !customer_name &&
-      !delivery_address &&
-      !phone_number &&
+      !type &&
       !status &&
-      !department &&
-      driver_id === undefined &&
-      !estimated_delivery &&
-      !order_items &&
-      !order_note &&
-      !priority &&
-      !latitude &&
-      !longitude
+      !warehouse &&
+      !sla &&
+      !eta &&
+      !address &&
+      !customer &&
+      contact === undefined &&
+      !driver_name &&
+      driver_contact === undefined &&
+      remark === undefined &&
+      !depart_time &&
+      !complete_time
     ) {
       return res
         .status(400)
@@ -430,8 +368,8 @@ router.put('/:id', authenticate, async (req, res, next) => {
 
     // 일반 사용자는 자신의 부서 데이터만 수정 가능
     if (
-      req.user.role !== 'ADMIN' &&
-      dashboard.department !== req.user.department
+      req.user.user_role !== 'ADMIN' &&
+      dashboard.department !== req.user.user_department
     ) {
       return res
         .status(403)
@@ -447,8 +385,16 @@ router.put('/:id', authenticate, async (req, res, next) => {
 
     // 상태 변경 유효성 검사
     if (status && status !== dashboard.status) {
-      // 상태 전이 규칙 확인
-      const allowedStatuses = STATUS_TRANSITIONS[dashboard.status];
+      // 상태 전이 규칙 확인 (여기에 적절한 규칙 정의 필요)
+      const validStatusTransitions = {
+        'WAITING': ['IN_PROGRESS', 'CANCEL'],
+        'IN_PROGRESS': ['COMPLETE', 'ISSUE', 'CANCEL'],
+        'COMPLETE': ['ISSUE'],
+        'ISSUE': ['IN_PROGRESS', 'COMPLETE', 'CANCEL'],
+        'CANCEL': []
+      };
+      
+      const allowedStatuses = validStatusTransitions[dashboard.status] || [];
       if (!allowedStatuses.includes(status)) {
         return res
           .status(400)
@@ -463,66 +409,45 @@ router.put('/:id', authenticate, async (req, res, next) => {
       }
     }
 
-    // 행 락 획득 후 수정
-    try {
-      const updateData = {};
-      if (customer_name) updateData.customer_name = customer_name;
-      if (delivery_address) updateData.delivery_address = delivery_address;
-      if (phone_number) updateData.phone_number = phone_number;
-      if (status) updateData.status = status;
-      if (department && req.user.role === 'ADMIN')
-        updateData.department = department;
-      if (driver_id !== undefined) updateData.driver_id = driver_id || null;
-      if (estimated_delivery)
-        updateData.estimated_delivery = estimated_delivery;
-      if (order_items) updateData.order_items = order_items;
-      if (order_note !== undefined) updateData.order_note = order_note;
-      if (priority) updateData.priority = priority;
-      if (latitude) updateData.latitude = latitude;
-      if (longitude) updateData.longitude = longitude;
-
-      const updatedDashboard = await updateWithLock(
-        Dashboard,
-        id,
-        updateData,
-        userId
-      );
-
-      return res.status(200).json(
-        createResponse(true, '주문이 성공적으로 수정되었습니다', {
-          dashboard_id: updatedDashboard.dashboard_id,
-          status: updatedDashboard.status,
-        })
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        return res
-          .status(404)
-          .json(
-            createResponse(
-              false,
-              '해당 주문을 찾을 수 없습니다',
-              null,
-              ERROR_CODES.NOT_FOUND
-            )
-          );
-      }
-
-      if (error instanceof LockConflictException) {
-        return res
-          .status(409)
-          .json(
-            createResponse(
-              false,
-              error.message,
-              null,
-              ERROR_CODES.LOCK_CONFLICT
-            )
-          );
-      }
-
-      throw error;
+    // 수정 데이터 구성
+    const updateData = {
+      updated_by: userId,
+      update_at: new Date()
+    };
+    
+    if (type) updateData.type = type;
+    if (status) updateData.status = status;
+    if (warehouse) updateData.warehouse = warehouse;
+    if (sla) updateData.sla = sla;
+    if (eta) updateData.eta = new Date(eta);
+    if (address) updateData.address = address;
+    if (customer) updateData.customer = customer;
+    if (contact !== undefined) updateData.contact = contact || null;
+    if (driver_name) updateData.driver_name = driver_name;
+    if (driver_contact !== undefined) updateData.driver_contact = driver_contact || null;
+    if (remark !== undefined) updateData.remark = remark || null;
+    if (depart_time) updateData.depart_time = new Date(depart_time);
+    if (complete_time) updateData.complete_time = new Date(complete_time);
+    
+    // 상태가 COMPLETE로 변경될 때 완료 시간 자동 설정
+    if (status === 'COMPLETE' && !complete_time) {
+      updateData.complete_time = new Date();
     }
+    
+    // 상태가 IN_PROGRESS로 변경될 때 출발 시간 자동 설정
+    if (status === 'IN_PROGRESS' && !depart_time && !dashboard.depart_time) {
+      updateData.depart_time = new Date();
+    }
+
+    // 대시보드 업데이트
+    await dashboard.update(updateData);
+
+    return res.status(200).json(
+      createResponse(true, '주문이 성공적으로 수정되었습니다', {
+        dashboard_id: dashboard.dashboard_id,
+        status: updateData.status || dashboard.status,
+      })
+    );
   } catch (error) {
     next(error);
   }
@@ -530,7 +455,7 @@ router.put('/:id', authenticate, async (req, res, next) => {
 
 /**
  * 대시보드 삭제 API
- * DELETE /api/dashboard/:id
+ * DELETE /dashboard/:id
  * 관리자만 접근 가능
  */
 router.delete('/:id', authenticate, isAdmin, async (req, res, next) => {
@@ -565,158 +490,8 @@ router.delete('/:id', authenticate, isAdmin, async (req, res, next) => {
 });
 
 /**
- * 편집 락 획득 API
- * POST /api/dashboard/:id/lock
- */
-router.post('/:id/lock', authenticate, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.user_id;
-
-    // 대시보드 조회 (부서 확인)
-    const dashboard = await Dashboard.findByPk(id);
-
-    if (!dashboard) {
-      return res
-        .status(404)
-        .json(
-          createResponse(
-            false,
-            '해당 주문을 찾을 수 없습니다',
-            null,
-            ERROR_CODES.NOT_FOUND
-          )
-        );
-    }
-
-    // 일반 사용자는 자신의 부서 데이터만 락 획득 가능
-    if (
-      req.user.role !== 'ADMIN' &&
-      dashboard.department !== req.user.department
-    ) {
-      return res
-        .status(403)
-        .json(
-          createResponse(
-            false,
-            '다른 부서의 주문 정보를 수정할 수 없습니다',
-            null,
-            ERROR_CODES.FORBIDDEN
-          )
-        );
-    }
-
-    try {
-      // 락 획득 시도
-      const lockedDashboard = await findWithRowLock(Dashboard, id, userId);
-
-      return res.status(200).json(
-        createResponse(true, '편집 락 획득 성공', {
-          dashboard_id: lockedDashboard.dashboard_id,
-          editor: {
-            user_id: userId,
-            name: req.user.name,
-          },
-        })
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        return res
-          .status(404)
-          .json(
-            createResponse(
-              false,
-              '해당 주문을 찾을 수 없습니다',
-              null,
-              ERROR_CODES.NOT_FOUND
-            )
-          );
-      }
-
-      if (error instanceof LockConflictException) {
-        return res
-          .status(409)
-          .json(
-            createResponse(
-              false,
-              error.message,
-              null,
-              ERROR_CODES.LOCK_CONFLICT
-            )
-          );
-      }
-
-      throw error;
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * 편집 락 해제 API
- * POST /api/dashboard/:id/unlock
- */
-router.post('/:id/unlock', authenticate, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.user_id;
-
-    // 대시보드 조회
-    const dashboard = await Dashboard.findByPk(id);
-
-    if (!dashboard) {
-      return res
-        .status(404)
-        .json(
-          createResponse(
-            false,
-            '해당 주문을 찾을 수 없습니다',
-            null,
-            ERROR_CODES.NOT_FOUND
-          )
-        );
-    }
-
-    // 락 소유자 검증 (관리자는 모든 락 해제 가능)
-    if (dashboard.updated_by !== userId && req.user.role !== 'ADMIN') {
-      return res
-        .status(403)
-        .json(
-          createResponse(
-            false,
-            '락 소유자만 락을 해제할 수 있습니다',
-            null,
-            ERROR_CODES.FORBIDDEN
-          )
-        );
-    }
-
-    // 락 해제
-    const released = await releaseLock(Dashboard, id, dashboard.updated_by);
-
-    if (!released) {
-      return res
-        .status(400)
-        .json(
-          createResponse(
-            false,
-            '락 해제에 실패했습니다',
-            null,
-            ERROR_CODES.VALIDATION_ERROR
-          )
-        );
-    }
-
-    return res.status(200).json(createResponse(true, '편집 락 해제 성공'));
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
  * 시각화 데이터 조회 API
- * GET /api/dashboard/visualization
+ * GET /dashboard/visualization
  * 쿼리 파라미터: chart_type (time/status/department), start_date, end_date, department
  */
 router.get('/visualization', authenticate, async (req, res, next) => {
@@ -726,14 +501,14 @@ router.get('/visualization', authenticate, async (req, res, next) => {
     // 날짜 필터 설정
     const dateFilter = {};
     if (start_date) {
-      dateFilter.created_at = {
-        ...dateFilter.created_at,
+      dateFilter.create_time = {
+        ...dateFilter.create_time,
         [Op.gte]: new Date(start_date),
       };
     }
     if (end_date) {
-      dateFilter.created_at = {
-        ...dateFilter.created_at,
+      dateFilter.create_time = {
+        ...dateFilter.create_time,
         [Op.lte]: new Date(end_date),
       };
     }
@@ -742,8 +517,8 @@ router.get('/visualization', authenticate, async (req, res, next) => {
     const departmentFilter = department ? { department } : {};
 
     // 일반 사용자는 자신의 부서 데이터만 조회 가능
-    if (req.user.role !== 'ADMIN') {
-      departmentFilter.department = req.user.department;
+    if (req.user.user_role !== 'ADMIN') {
+      departmentFilter.department = req.user.user_department;
     }
 
     // 필터 조건 결합
@@ -760,11 +535,11 @@ router.get('/visualization', authenticate, async (req, res, next) => {
         // 시간대별 주문 건수
         data = await Dashboard.findAll({
           attributes: [
-            [fn('HOUR', col('created_at')), 'hour'],
+            [fn('HOUR', col('create_time')), 'hour'],
             [fn('COUNT', col('dashboard_id')), 'count'],
           ],
           where: whereCondition,
-          group: [fn('HOUR', col('created_at'))],
+          group: [fn('HOUR', col('create_time'))],
           order: [[literal('hour'), 'ASC']],
         });
 
@@ -794,11 +569,11 @@ router.get('/visualization', authenticate, async (req, res, next) => {
 
         // 모든 상태 포함하도록 포맷팅
         const allStatuses = [
-          'PENDING',
-          'ASSIGNED',
-          'IN_TRANSIT',
-          'DELIVERED',
-          'CANCELLED',
+          'WAITING',
+          'IN_PROGRESS',
+          'COMPLETE',
+          'ISSUE',
+          'CANCEL'
         ];
         const statusData = allStatuses.map((status) => ({
           status,
@@ -833,29 +608,32 @@ router.get('/visualization', authenticate, async (req, res, next) => {
         }));
         break;
 
-      case 'priority':
-        // 우선순위별 주문 건수
+      case 'type':
+        // 유형별 주문 건수
         data = await Dashboard.findAll({
-          attributes: ['priority', [fn('COUNT', col('dashboard_id')), 'count']],
+          attributes: [
+            'type',
+            [fn('COUNT', col('dashboard_id')), 'count'],
+          ],
           where: whereCondition,
-          group: ['priority'],
+          group: ['type'],
         });
 
-        // 모든 우선순위 포함하도록 포맷팅
-        const allPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-        const priorityData = allPriorities.map((priority) => ({
-          priority,
+        // 데이터 포맷팅
+        const allTypes = ['DELIVERY', 'RETURN'];
+        const typeData = allTypes.map((type) => ({
+          type,
           count: 0,
         }));
 
         data.forEach((item) => {
-          const priorityIndex = allPriorities.indexOf(item.dataValues.priority);
-          if (priorityIndex !== -1) {
-            priorityData[priorityIndex].count = parseInt(item.dataValues.count);
+          const typeIndex = allTypes.indexOf(item.dataValues.type);
+          if (typeIndex !== -1) {
+            typeData[typeIndex].count = parseInt(item.dataValues.count);
           }
         });
 
-        data = priorityData;
+        data = typeData;
         break;
 
       default:
@@ -882,8 +660,8 @@ router.get('/visualization', authenticate, async (req, res, next) => {
 });
 
 /**
- * 배송 기사(드라이버) 목록 조회 API
- * GET /api/dashboard/drivers
+ * 기사(드라이버) 목록 조회 API
+ * GET /dashboard/drivers
  */
 router.get('/drivers', authenticate, async (req, res, next) => {
   try {
@@ -891,22 +669,22 @@ router.get('/drivers', authenticate, async (req, res, next) => {
 
     // 조회 조건 설정
     const whereCondition = {
-      role: 'USER',
+      user_role: 'USER',
     };
 
     // 부서 필터 적용
     if (department) {
-      whereCondition.department = department;
-    } else if (req.user.role !== 'ADMIN') {
+      whereCondition.user_department = department;
+    } else if (req.user.user_role !== 'ADMIN') {
       // 일반 사용자는 자신의 부서 기사만 조회 가능
-      whereCondition.department = req.user.department;
+      whereCondition.user_department = req.user.user_department;
     }
 
     // 드라이버 목록 조회
     const drivers = await User.findAll({
       where: whereCondition,
-      attributes: ['user_id', 'name', 'department'],
-      order: [['name', 'ASC']],
+      attributes: ['user_id', 'user_department'],
+      order: [['user_id', 'ASC']],
     });
 
     return res
