@@ -5,11 +5,11 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const { sequelize } = require('./server/config/Database');
 const authRoutes = require('./server/routes/AuthRoutes');
-const dashboardRoutes = require('./server/routes/dashboard.routes');
-const handoverRoutes = require('./server/routes/handover.routes');
-const userRoutes = require('./server/routes/user.routes');
-const errorHandler = require('./server/middlewares/error.middleware');
-const { requestLogger } = require('./server/middlewares/logging.middleware');
+const dashboardRoutes = require('./server/routes/DashboardRoutes');
+const handoverRoutes = require('./server/routes/HandoverRoutes');
+const userRoutes = require('./server/routes/UserRoutes');
+const errorHandler = require('./server/middlewares/ErrorMiddleware');
+const { requestLogger } = require('./server/middlewares/LoggingMiddleware');
 
 // 환경변수 설정
 require('dotenv').config({
