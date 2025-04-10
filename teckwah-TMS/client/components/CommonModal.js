@@ -1,5 +1,3 @@
-// src/components/CommonModal.js - Ant Design 5.x 호환성 개선
-
 import React from 'react';
 import { Modal, Button } from 'antd';
 
@@ -20,7 +18,7 @@ const CommonModal = ({
 }) => {
   return (
     <Modal
-      open={visible} // visible 대신 open으로 변경 (Ant Design 5.x 호환성)
+      open={visible}
       title={title}
       onOk={onOk}
       onCancel={onCancel}

@@ -8,48 +8,11 @@ services:
       dockerfile: ./deploy/Dockerfile
     container_name: teckwah-node-app
     ports:
-      - '3000:3000'
-    depends_on:
-      - db
-    environment:
-      - NODE_ENV=production
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_NAME=teckwah_dashboard
-      - DB_USER=teckwah
-      - DB_PASSWORD=password123
-      - JWT_SECRET=prod_jwt_secret_key
-      - JWT_ACCESS_EXPIRY=15m
-      - JWT_REFRESH_EXPIRY=7d
-      - ALLOWED_ORIGINS=http://localhost:3000
+      - '8000:8000'
+    env_file:
+      - ./deploy/.env
     restart: always
     volumes:
       - ./logs:/app/logs
-    networks:
-      - teckwah-network
-
-  # MySQL 데이터베이스
-  db:
-    image: mysql:8.0
-    container_name: teckwah-mysql
-    environment:
-      - MYSQL_DATABASE=teckwah_dashboard
-      - MYSQL_USER=teckwah
-      - MYSQL_PASSWORD=password123
-      - MYSQL_ROOT_PASSWORD=root_password
-    ports:
-      - '3306:3306'
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./deploy/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    restart: always
-    networks:
-      - teckwah-network
-
-networks:
-  teckwah-network:
-    driver: bridge
-
-volumes:
-  mysql-data:
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'

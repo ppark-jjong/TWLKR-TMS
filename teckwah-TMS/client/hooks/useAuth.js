@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiService from '../utils/api';
+import apiService from '../utils/Api';
 
 // 인증 컨텍스트 생성
 const AuthContext = createContext(null);
@@ -10,15 +10,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const navigate = useNavigate();
-  
+
   // 로그인 함수
   const login = async (credentials) => {
     try {
       setError(null);
       const response = await apiService.auth.login(credentials);
-      
+
       if (response.success) {
         // 액세스 토큰 저장
         localStorage.setItem('access_token', response.data.access_token);
@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
   };
-  
+
   // 로그아웃 함수
   const logout = async () => {
     try {
@@ -47,18 +47,18 @@ export const AuthProvider = ({ children }) => {
       navigate('/login');
     }
   };
-  
+
   // 현재 사용자 정보 로드
   const loadUser = async () => {
     if (!localStorage.getItem('access_token')) {
       setLoading(false);
       return;
     }
-    
+
     try {
       setLoading(true);
       const response = await apiService.auth.getCurrentUser();
-      
+
       if (response.success) {
         setUser(response.data.user);
       } else {
@@ -74,17 +74,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-  
+
   // 현재 사용자가 관리자인지 확인
   const isAdmin = () => {
     return user?.role === 'ADMIN';
   };
-  
+
   // 컴포넌트 마운트 시 사용자 정보 로드
   useEffect(() => {
     loadUser();
   }, []);
-  
+
   // 컨텍스트 값
   const value = {
     user,
@@ -93,9 +93,9 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     isAdmin,
-    setError
+    setError,
   };
-  
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

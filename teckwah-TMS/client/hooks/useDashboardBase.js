@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { message } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateStatus, assignDriver, getDashboardDetail } from '../utils/Api';
-import { handleApiError } from '../utils/errorHandlers';
+import { handleApiError } from '../utils/ErrorHandlers';
 
 // 서브 훅 가져오기
 import useDashboardData from './UseDashboardData';

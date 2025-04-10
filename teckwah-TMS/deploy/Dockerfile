@@ -25,23 +25,33 @@ RUN if [ -d "./client" ]; then \
     fi
 
 # 포트 노출
-EXPOSE 3000
+EXPOSE 8000
 
-# 환경 변수 설정
+# 환경 변수 설정 - 기본값 (환경 변수로 덮어쓰기 가능)
 ENV NODE_ENV=production \
-    PORT=3000 \
-    DB_HOST=db \
+    API_PORT=8000 \
+    DB_HOST=host.docker.internal \
     DB_PORT=3306 \
-    DB_NAME=teckwah_dashboard \
-    DB_USER=teckwah \
-    DB_PASSWORD=password123 \
-    JWT_SECRET=prod_jwt_secret_key \
-    JWT_ACCESS_EXPIRY=15m \
-    JWT_REFRESH_EXPIRY=7d \
-    ALLOWED_ORIGINS=http://localhost:3000
+    DB_NAME=delivery_system \
+    DB_USER=root \
+    DB_PASSWORD=1234 \
+    DEBUG=True \
+    API_PREFIX= \
+    PROJECT_NAME="TWLKR-TMS" \
+    API_BASE_URL=http://0.0.0.0:8000 \
+    API_TIMEOUT=10 \
+    LOG_LEVEL=INFO \
+    ENABLE_ACCESS_LOG=True \
+    JWT_SECRET_KEY=4a24ff058be1925b52a62b9d594b367a600dde8730e647d2d29c9b2f7c7f6fff \
+    JWT_REFRESH_SECRET_KEY=8b24ff058be1925b52a62b9d594b367a600dde8730e647d2d29c9b2f7c7f6fff \
+    JWT_ALGORITHM=HS256 \
+    ACCESS_TOKEN_EXPIRE_MINUTES=60 \
+    REFRESH_TOKEN_EXPIRE_DAYS=7 \
+    LOCK_TIMEOUT_SECONDS=300 \
+    LOCK_CLEANUP_INTERVAL_MINUTES=10
 
-# .env.local 파일 복사
-COPY deploy/.env.local ./
+# .env 파일 복사하지 않음 (compose에서 처리)
+# COPY deploy/.env ./
 
 # 서버 실행
 CMD ["node", "main.js"]
