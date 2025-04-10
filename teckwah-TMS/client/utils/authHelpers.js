@@ -1,22 +1,22 @@
 // src/utils/authHelpers.js
 
-import jwt_decode from "jwt-decode";
-import { login as apiLogin } from "./api";
+import jwt_decode from 'jwt-decode';
+import { login as apiLogin } from './Api';
 
 // 토큰 저장
 export const setTokens = (accessToken, refreshToken) => {
-  localStorage.setItem("access_token", accessToken);
-  localStorage.setItem("refresh_token", refreshToken);
+  localStorage.setItem('access_token', accessToken);
+  localStorage.setItem('refresh_token', refreshToken);
 };
 
 // 토큰 가져오기
-export const getAccessToken = () => localStorage.getItem("access_token");
-export const getRefreshToken = () => localStorage.getItem("refresh_token");
+export const getAccessToken = () => localStorage.getItem('access_token');
+export const getRefreshToken = () => localStorage.getItem('refresh_token');
 
 // 토큰 삭제
 export const removeTokens = () => {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
 };
 
 // 토큰 디코딩하여 사용자 정보 가져오기
@@ -32,7 +32,7 @@ export const getUserFromToken = () => {
       user_role: decoded.role,
     };
   } catch (error) {
-    console.error("토큰 디코딩 오류:", error);
+    console.error('토큰 디코딩 오류:', error);
     return null;
   }
 };
@@ -67,18 +67,18 @@ export const isAuthenticated = () => {
 export const isAdmin = () => {
   try {
     const user = getUserFromToken();
-    return user && user.user_role === "ADMIN";
+    return user && user.user_role === 'ADMIN';
   } catch (error) {
-    console.error("isAdmin 체크 중 오류 발생:", error);
+    console.error('isAdmin 체크 중 오류 발생:', error);
     return false;
   }
 };
 export const isUser = () => {
   try {
     const user = getUserFromToken();
-    return user && user.user_role === "USER";
+    return user && user.user_role === 'USER';
   } catch (error) {
-    console.error("isUser 체크 중 오류 발생:", error);
+    console.error('isUser 체크 중 오류 발생:', error);
     return false;
   }
 };
@@ -91,7 +91,7 @@ export const refreshToken = async () => {
   try {
     // 리프레시 토큰을 쿠키로 전송하도록 설정
     const response = await apiLogin.post(
-      "/auth/refresh",
+      '/auth/refresh',
       {},
       {
         withCredentials: true,
@@ -123,8 +123,8 @@ export const loginUser = async (credentials) => {
     if (response.data && response.data.success === false) {
       return {
         success: false,
-        message: response.data?.message || "로그인에 실패했습니다.",
-        errorType: "validation",
+        message: response.data?.message || '로그인에 실패했습니다.',
+        errorType: 'validation',
         errorId: `login-validation-${Date.now()}`,
       };
     }
@@ -139,12 +139,12 @@ export const loginUser = async (credentials) => {
     // 응답 구조가 예상과 다른 경우
     return {
       success: false,
-      message: "서버 응답 형식이 올바르지 않습니다.",
-      errorType: "unknown",
+      message: '서버 응답 형식이 올바르지 않습니다.',
+      errorType: 'unknown',
       errorId: `login-unknown-${Date.now()}`,
     };
   } catch (error) {
-    console.error("로그인 오류:", error);
+    console.error('로그인 오류:', error);
 
     // 오류 유형에 따른 고유 ID 생성
     const timestamp = Date.now();
@@ -154,8 +154,8 @@ export const loginUser = async (credentials) => {
     if (!error.response) {
       return {
         success: false,
-        message: "서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.",
-        errorType: "network",
+        message: '서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.',
+        errorType: 'network',
         errorId: `login-network-${timestamp}`,
       };
     }
@@ -166,37 +166,37 @@ export const loginUser = async (credentials) => {
         return {
           success: false,
           message:
-            error.response.data?.message || "아이디나 비밀번호를 확인해주세요.",
-          errorType: "validation",
+            error.response.data?.message || '아이디나 비밀번호를 확인해주세요.',
+          errorType: 'validation',
           errorId: `login-400-${timestamp}`,
         };
       case 401: // 인증 실패
         return {
           success: false,
-          message: "아이디나 비밀번호가 일치하지 않습니다.",
-          errorType: "auth",
+          message: '아이디나 비밀번호가 일치하지 않습니다.',
+          errorType: 'auth',
           errorId: `login-401-${timestamp}`,
         };
       case 404: // 리소스 없음
         return {
           success: false,
-          message: "등록되지 않은 사용자입니다.",
-          errorType: "validation",
+          message: '등록되지 않은 사용자입니다.',
+          errorType: 'validation',
           errorId: `login-404-${timestamp}`,
         };
       case 500: // 서버 오류
         return {
           success: false,
-          message: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-          errorType: "server",
+          message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          errorType: 'server',
           errorId: `login-500-${timestamp}`,
         };
       default:
         return {
           success: false,
           message:
-            error.response.data?.message || "로그인 중 오류가 발생했습니다.",
-          errorType: "unknown",
+            error.response.data?.message || '로그인 중 오류가 발생했습니다.',
+          errorType: 'unknown',
           errorId: `login-${error.response.status}-${timestamp}`,
         };
     }

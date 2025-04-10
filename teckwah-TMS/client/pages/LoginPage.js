@@ -1,5 +1,5 @@
 // src/pages/LoginPage.js
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   Form,
   Input,
@@ -9,10 +9,10 @@ import {
   Typography,
   Alert,
   Spin,
-} from "antd";
-import { UserOutlined, LockOutlined, ReloadOutlined } from "@ant-design/icons";
-import { loginUser } from "../utils/authHelpers";
-import { useNavigate } from "react-router-dom";
+} from 'antd';
+import { UserOutlined, LockOutlined, ReloadOutlined } from '@ant-design/icons';
+import { loginUser } from '../utils/AuthHelpers';
+import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 
@@ -30,8 +30,8 @@ const LoginPage = ({ setAuth, setUserData }) => {
 
       if (response && response.success) {
         message.success({
-          content: "로그인에 성공했습니다",
-          key: "login-success",
+          content: '로그인에 성공했습니다',
+          key: 'login-success',
         });
 
         setAuth(true);
@@ -40,24 +40,24 @@ const LoginPage = ({ setAuth, setUserData }) => {
         }
 
         // 사용자 역할에 따라 적절한 페이지로 리다이렉트
-        const role = response.user?.user_role || "USER";
-        if (role === "ADMIN") {
-          navigate("/admin");
+        const role = response.user?.user_role || 'USER';
+        if (role === 'ADMIN') {
+          navigate('/admin');
         } else {
-          navigate("/dashboard");
+          navigate('/dashboard');
         }
       } else {
         setLoginError({
-          message: response.message || "로그인에 실패했습니다",
-          type: response.errorType || "error",
+          message: response.message || '로그인에 실패했습니다',
+          type: response.errorType || 'error',
         });
       }
     } catch (error) {
-      console.error("로그인 처리 중 예상치 못한 오류:", error);
+      console.error('로그인 처리 중 예상치 못한 오류:', error);
       setLoginError({
         message:
-          "로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-        type: "error",
+          '로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        type: 'error',
       });
     } finally {
       setLoading(false);
@@ -103,7 +103,7 @@ const LoginPage = ({ setAuth, setUserData }) => {
           >
             <Form.Item
               name="user_id"
-              rules={[{ required: true, message: "아이디를 입력해주세요" }]}
+              rules={[{ required: true, message: '아이디를 입력해주세요' }]}
             >
               <Input
                 prefix={<UserOutlined />}
@@ -115,7 +115,7 @@ const LoginPage = ({ setAuth, setUserData }) => {
 
             <Form.Item
               name="password"
-              rules={[{ required: true, message: "비밀번호를 입력해주세요" }]}
+              rules={[{ required: true, message: '비밀번호를 입력해주세요' }]}
             >
               <Input.Password
                 prefix={<LockOutlined />}

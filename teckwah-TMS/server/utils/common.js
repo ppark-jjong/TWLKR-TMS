@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
-const logger = require('./logger');
-const { DeliveryStatus } = require('./constants');
+const logger = require('./Logger');
+const { DeliveryStatus } = require('./Constants');
 
 /**
  * 입력 데이터 정제
@@ -11,7 +11,7 @@ const sanitizeInput = (input) => {
   if (!input) {
     return '';
   }
-  
+
   // XSS 방지를 위한 기본 정제
   return input
     .replace(/</g, '&lt;')
@@ -30,11 +30,11 @@ const formatRemark = (remark, userId) => {
   if (!remark) {
     return '';
   }
-  
+
   const now = new Date();
   const timestamp = now.toLocaleString('ko-KR');
   const sanitizedRemark = sanitizeInput(remark);
-  
+
   return `[${timestamp}] ${userId}: ${sanitizedRemark}`;
 };
 
@@ -49,14 +49,14 @@ const buildSearchQuery = (baseQuery, searchTerm, searchFields) => {
   if (!searchTerm || !searchFields || searchFields.length === 0) {
     return baseQuery;
   }
-  
-  const searchConditions = searchFields.map(field => ({
-    [field]: { [Op.like]: `%${searchTerm}%` }
+
+  const searchConditions = searchFields.map((field) => ({
+    [field]: { [Op.like]: `%${searchTerm}%` },
   }));
-  
+
   return {
     ...baseQuery,
-    [Op.or]: searchConditions
+    [Op.or]: searchConditions,
   };
 };
 
@@ -71,13 +71,13 @@ const calculatePagination = (totalItems, page = 1, pageSize = 10) => {
   const totalPages = Math.ceil(totalItems / pageSize);
   const currentPage = Math.min(Math.max(1, page), totalPages || 1);
   const offset = (currentPage - 1) * pageSize;
-  
+
   return {
     totalItems,
     totalPages,
     currentPage,
     pageSize,
-    offset
+    offset,
   };
 };
 
@@ -90,22 +90,24 @@ const formatPhoneNumber = (phoneNumber) => {
   if (!phoneNumber) {
     return '';
   }
-  
+
   // 숫자만 추출
   const cleaned = phoneNumber.replace(/\D/g, '');
-  
+
   if (cleaned.length === 11) {
     // 010-1234-5678 형식
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
   } else if (cleaned.length === 10) {
     // 02-123-4567 형식
     if (cleaned.startsWith('02')) {
-      return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+      return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 6)}-${cleaned.slice(
+        6
+      )}`;
     }
     // 010-123-4567 형식
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
   }
-  
+
   // 포맷팅 불가능한 경우 원본 반환
   return phoneNumber;
 };
@@ -116,5 +118,5 @@ module.exports = {
   buildSearchQuery,
   calculatePagination,
   formatPhoneNumber,
-  DeliveryStatus
+  DeliveryStatus,
 };

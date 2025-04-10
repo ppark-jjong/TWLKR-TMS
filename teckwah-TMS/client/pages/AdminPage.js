@@ -3,12 +3,12 @@ import React, { useState } from 'react';
 import { Button, message, Space, Popconfirm, Tabs } from 'antd';
 import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { downloadExcel, deleteDashboards } from '../utils/api';
-import { handleApiError } from '../utils/errorHandlers';
+import { downloadExcel, deleteDashboards } from '../utils/Api';
+import { handleApiError } from '../utils/ErrorHandlers';
 import PageHeader from '../components/PageHeader';
 
 // 공통 훅 가져오기
-import useDashboardBase from '../hooks/useDashboardBase';
+import useDashboardBase from '../hooks/UseDashboardBase';
 
 // 공통 컴포넌트 가져오기
 import StatusChangeModal from '../components/StatusChangeModal';
@@ -160,9 +160,9 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
   // 현재 탭에 따른 페이지 제목 설정
   const getPageTitle = () => {
     if (currentTab === 'users') {
-      return "사용자 관리";
+      return '사용자 관리';
     }
-    return "TeckwahTMS";
+    return 'TeckwahTMS';
   };
 
   // 관리자용 탭 컴포넌트 렌더링
@@ -208,7 +208,7 @@ const AdminPage = ({ activeTab = 'dashboard' }) => {
   return (
     <>
       <PageHeader title={getPageTitle()} />
-      
+
       <Tabs
         activeKey={currentTab}
         onChange={setCurrentTab}

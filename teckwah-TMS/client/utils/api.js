@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API 기본 설정
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/';
 
 // Axios 인스턴스 생성
 const api = axios.create({
@@ -36,13 +36,17 @@ api.interceptors.response.use(
     // 401 에러이고, 재시도하지 않은 경우
     if (error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       try {
         // 토큰 갱신 요청
-        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
-          withCredentials: true,
-        });
-        
+        const { data } = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          {
+            withCredentials: true,
+          }
+        );
+
         if (data.success && data.data.access_token) {
           // 새 토큰 저장
           localStorage.setItem('access_token', data.data.access_token);
@@ -59,7 +63,7 @@ api.interceptors.response.use(
         return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -84,9 +88,9 @@ const apiService = {
     getCurrentUser: async () => {
       const response = await api.get('/auth/me');
       return response.data;
-    }
+    },
   },
-  
+
   // 대시보드 관련 API
   dashboard: {
     getList: async (params) => {
@@ -124,9 +128,9 @@ const apiService = {
     getDrivers: async (params) => {
       const response = await api.get('/dashboard/drivers', { params });
       return response.data;
-    }
+    },
   },
-  
+
   // 인수인계 관련 API
   handover: {
     getList: async (params) => {
@@ -148,9 +152,9 @@ const apiService = {
     delete: async (id) => {
       const response = await api.delete(`/handover/${id}`);
       return response.data;
-    }
+    },
   },
-  
+
   // 사용자 관련 API
   users: {
     getList: async (params) => {
@@ -180,8 +184,8 @@ const apiService = {
     getDepartments: async () => {
       const response = await api.get('/users/departments/list');
       return response.data;
-    }
-  }
+    },
+  },
 };
 
 export default apiService;

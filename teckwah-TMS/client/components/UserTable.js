@@ -19,7 +19,7 @@ import {
   LockOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchUsers, createUser, updateUser, deleteUser } from '../utils/api';
+import { fetchUsers, createUser, updateUser, deleteUser } from '../utils/Api';
 
 const { Option } = Select;
 

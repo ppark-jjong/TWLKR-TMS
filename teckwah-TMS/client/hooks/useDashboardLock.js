@@ -1,7 +1,7 @@
 // src/hooks/useDashboardLock.js
 import { useState } from 'react';
 import { message } from 'antd';
-import { acquireLock, releaseLock } from '../utils/api';
+import { acquireLock, releaseLock } from '../utils/Api';
 
 /**
  * 락 상태 관리를 위한 타입

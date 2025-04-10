@@ -1,5 +1,5 @@
-const { sequelize } = require('../config/database');
-const logger = require('./logger');
+const { sequelize } = require('../config/Database');
+const logger = require('./Logger');
 
 /**
  * 트랜잭션 컨텍스트 관리자
@@ -8,20 +8,20 @@ const logger = require('./logger');
  */
 const withTransaction = async (callback) => {
   const transaction = await sequelize.transaction();
-  
+
   try {
     // 콜백 함수 실행 (트랜잭션 객체를 전달)
     const result = await callback(transaction);
-    
+
     // 성공 시 커밋
     await transaction.commit();
     return result;
   } catch (error) {
     // 오류 발생 시 롤백
     logger.error(`트랜잭션 오류로 롤백 실행: ${error.message}`, {
-      error: error.stack
+      error: error.stack,
     });
-    
+
     await transaction.rollback();
     throw error;
   }
@@ -52,12 +52,12 @@ const findWithRowLock = async (model, where, options = {}) => {
     const lockOptions = {
       ...options,
       transaction,
-      lock: true
+      lock: true,
     };
-    
+
     return model.findOne({
       where,
-      ...lockOptions
+      ...lockOptions,
     });
   });
 };
@@ -65,5 +65,5 @@ const findWithRowLock = async (model, where, options = {}) => {
 module.exports = {
   withTransaction,
   executeWithTransaction,
-  findWithRowLock
+  findWithRowLock,
 };

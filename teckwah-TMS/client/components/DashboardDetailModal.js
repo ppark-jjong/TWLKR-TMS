@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo } from "react";
+import React, { useState, useMemo, memo } from 'react';
 import {
   Form,
   Input,
@@ -12,14 +12,14 @@ import {
   Card,
   Tag,
   Divider,
-} from "antd";
-import dayjs from "dayjs";
+} from 'antd';
+import dayjs from 'dayjs';
 import {
   getAvailableStatusTransitions,
   getStatusText,
   getStatusColor,
-} from "../utils/permissionUtils";
-import OptimizedBaseModal from "./OptimizedBaseModal";
+} from '../utils/PermissionUtils';
+import OptimizedBaseModal from './OptimizedBaseModal';
 
 const { Option } = Select;
 const { Text, Title } = Typography;
@@ -46,7 +46,7 @@ const DashboardDetailModal = ({
   onStatusChange,
   form,
   dashboard,
-  userRole = "USER",
+  userRole = 'USER',
   confirmLoading = false,
 }) => {
   const [isStatusEditing, setIsStatusEditing] = useState(false);
@@ -79,13 +79,13 @@ const DashboardDetailModal = ({
   // 상태 변경 확인
   const handleStatusChange = () => {
     form
-      .validateFields(["status"])
+      .validateFields(['status'])
       .then((values) => {
         onStatusChange && onStatusChange(values.status);
         setIsStatusEditing(false);
       })
       .catch((error) => {
-        console.error("상태 변경 유효성 검사 실패:", error);
+        console.error('상태 변경 유효성 검사 실패:', error);
       });
   };
 
@@ -101,43 +101,43 @@ const DashboardDetailModal = ({
   const styles = {
     card: {
       marginBottom: 24,
-      boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-      borderRadius: "8px",
+      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+      borderRadius: '8px',
     },
     statusTag: {
-      fontSize: "16px",
-      padding: "6px 12px",
-      borderRadius: "4px",
+      fontSize: '16px',
+      padding: '6px 12px',
+      borderRadius: '4px',
     },
     buttonsContainer: {
-      display: "flex",
-      alignItems: "flex-end",
-      marginBottom: "8px",
+      display: 'flex',
+      alignItems: 'flex-end',
+      marginBottom: '8px',
     },
     footer: {
-      textAlign: "right",
-      color: "#999",
-      padding: "12px 0",
+      textAlign: 'right',
+      color: '#999',
+      padding: '12px 0',
     },
     metaText: {
-      fontSize: "13px",
+      fontSize: '13px',
     },
     cardTitle: {
-      fontSize: "16px",
-      fontWeight: "600",
+      fontSize: '16px',
+      fontWeight: '600',
       margin: 0,
     },
     formLabel: {
-      fontSize: "14px",
-      fontWeight: "500",
+      fontSize: '14px',
+      fontWeight: '500',
     },
     formInput: {
-      borderRadius: "4px",
-      height: "38px",
+      borderRadius: '4px',
+      height: '38px',
     },
     actionButton: {
-      borderRadius: "4px",
-      fontWeight: "500",
+      borderRadius: '4px',
+      fontWeight: '500',
     },
   };
 
@@ -145,26 +145,26 @@ const DashboardDetailModal = ({
   const renderStatusField = useMemo(() => {
     if (!dashboard) return null;
 
-    const isDisabled = ["COMPLETE", "ISSUE", "CANCEL"].includes(
+    const isDisabled = ['COMPLETE', 'ISSUE', 'CANCEL'].includes(
       dashboard?.status
     );
 
     if (isStatusEditing) {
       return (
-        <Card size="small" style={styles.card} bodyStyle={{ padding: "20px" }}>
+        <Card size="small" style={styles.card} bodyStyle={{ padding: '20px' }}>
           <Row gutter={24}>
             <Col span={16}>
               <Form.Item
                 label="상태"
                 name="status"
-                rules={[{ required: true, message: "상태를 선택해주세요" }]}
+                rules={[{ required: true, message: '상태를 선택해주세요' }]}
                 labelCol={{ style: styles.formLabel }}
               >
                 <Select
                   placeholder="상태 선택"
                   size="large"
-                  style={{ width: "100%" }}
-                  dropdownStyle={{ padding: "8px 0" }}
+                  style={{ width: '100%' }}
+                  dropdownStyle={{ padding: '8px 0' }}
                 >
                   {statusOptions}
                 </Select>
@@ -198,7 +198,7 @@ const DashboardDetailModal = ({
       <Card
         size="small"
         style={styles.card}
-        bodyStyle={{ padding: "20px" }}
+        bodyStyle={{ padding: '20px' }}
         title={
           <Title level={5} style={styles.cardTitle}>
             현재 상태
@@ -250,7 +250,7 @@ const DashboardDetailModal = ({
   return (
     <OptimizedBaseModal
       title={
-        <div style={{ fontSize: "18px", fontWeight: "600" }}>
+        <div style={{ fontSize: '18px', fontWeight: '600' }}>
           주문 상세 정보
         </div>
       }
@@ -260,7 +260,7 @@ const DashboardDetailModal = ({
       footer={null}
       centered
       destroyOnClose
-      bodyStyle={{ padding: "24px", maxHeight: "80vh", overflowY: "auto" }}
+      bodyStyle={{ padding: '24px', maxHeight: '80vh', overflowY: 'auto' }}
     >
       <Form
         form={form}
@@ -279,14 +279,14 @@ const DashboardDetailModal = ({
             </Title>
           }
           style={styles.card}
-          bodyStyle={{ padding: "20px" }}
+          bodyStyle={{ padding: '20px' }}
         >
           <Row gutter={32}>
             <Col span={8}>
               <Form.Item label="주문번호" name="order_no">
                 <Input
                   disabled
-                  style={{ fontWeight: "bold", ...styles.formInput }}
+                  style={{ fontWeight: 'bold', ...styles.formInput }}
                 />
               </Form.Item>
             </Col>
@@ -332,7 +332,7 @@ const DashboardDetailModal = ({
             </Title>
           }
           style={styles.card}
-          bodyStyle={{ padding: "20px" }}
+          bodyStyle={{ padding: '20px' }}
         >
           <Row gutter={32}>
             <Col span={8}>
@@ -341,7 +341,7 @@ const DashboardDetailModal = ({
                   showTime
                   format="YYYY-MM-DD HH:mm"
                   disabled
-                  style={{ width: "100%", ...styles.formInput }}
+                  style={{ width: '100%', ...styles.formInput }}
                 />
               </Form.Item>
             </Col>
@@ -352,8 +352,8 @@ const DashboardDetailModal = ({
                   style={styles.formInput}
                   value={
                     dashboard.depart_time
-                      ? dayjs(dashboard.depart_time).format("YYYY-MM-DD HH:mm")
-                      : "-"
+                      ? dayjs(dashboard.depart_time).format('YYYY-MM-DD HH:mm')
+                      : '-'
                   }
                 />
               </Form.Item>
@@ -366,9 +366,9 @@ const DashboardDetailModal = ({
                   value={
                     dashboard.complete_time
                       ? dayjs(dashboard.complete_time).format(
-                          "YYYY-MM-DD HH:mm"
+                          'YYYY-MM-DD HH:mm'
                         )
-                      : "-"
+                      : '-'
                   }
                 />
               </Form.Item>
@@ -399,7 +399,7 @@ const DashboardDetailModal = ({
                 <Input.TextArea
                   rows={2}
                   disabled
-                  style={{ borderRadius: "4px" }}
+                  style={{ borderRadius: '4px' }}
                 />
               </Form.Item>
             </Col>
@@ -414,7 +414,7 @@ const DashboardDetailModal = ({
             </Title>
           }
           style={styles.card}
-          bodyStyle={{ padding: "20px" }}
+          bodyStyle={{ padding: '20px' }}
         >
           <Row gutter={32}>
             <Col span={24}>
@@ -422,23 +422,23 @@ const DashboardDetailModal = ({
                 <Input.TextArea
                   rows={3}
                   disabled
-                  style={{ borderRadius: "4px" }}
+                  style={{ borderRadius: '4px' }}
                 />
               </Form.Item>
             </Col>
           </Row>
         </Card>
 
-        <Divider style={{ margin: "12px 0" }} />
+        <Divider style={{ margin: '12px 0' }} />
 
         <div style={styles.footer}>
           <Space direction="vertical" size={2} style={styles.metaText}>
-            <Text type="secondary">수정자: {dashboard.updated_by || "-"}</Text>
+            <Text type="secondary">수정자: {dashboard.updated_by || '-'}</Text>
             <Text type="secondary">
-              수정일:{" "}
+              수정일:{' '}
               {dashboard.updated_at
-                ? dayjs(dashboard.updated_at).format("YYYY-MM-DD HH:mm:ss")
-                : "-"}
+                ? dayjs(dashboard.updated_at).format('YYYY-MM-DD HH:mm:ss')
+                : '-'}
             </Text>
           </Space>
         </div>

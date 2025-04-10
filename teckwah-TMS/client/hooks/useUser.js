@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getUserFromToken } from '../utils/authHelpers';
+import { getUserFromToken } from '../utils/AuthHelpers';
 import { useQuery } from '@tanstack/react-query';
-import { checkSession } from '../utils/api';
+import { checkSession } from '../utils/Api';
 
 /**
  * 현재 인증된 사용자 정보를 제공하는 훅

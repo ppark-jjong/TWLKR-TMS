@@ -33,7 +33,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import locale from 'antd/es/date-picker/locale/ko_KR';
-import useUser from '../hooks/useUser';
+import useUser from '../hooks/UseUser';
 import {
   getHandovers,
   createHandover,
@@ -42,7 +42,7 @@ import {
   acquireHandoverLock,
   releaseHandoverLock,
   getHandoverLockInfo,
-} from '../utils/api';
+} from '../utils/Api';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -446,7 +446,7 @@ const HandoverPage = () => {
   return (
     <div className="handover-page">
       <PageHeader title="인수인계" />
-      
+
       <Card>
         <Row gutter={[16, 16]} className="handover-header">
           <Col xs={24} md={16}>

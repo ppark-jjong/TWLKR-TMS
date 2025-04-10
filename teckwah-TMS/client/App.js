@@ -1,6 +1,6 @@
 // src/App.js
-import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import {
   Layout,
   message,
@@ -9,32 +9,32 @@ import {
   ConfigProvider,
   Spin,
   Typography,
-} from "antd";
-import { isAuthenticated } from "./utils/authHelpers";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import AdminPage from "./pages/AdminPage";
-import HandoverPage from "./pages/HandoverPage";
-import VisualizationPage from "./pages/VisualizationPage";
-import NotFoundPage from "./pages/NotFoundPage";
-import Sidebar from "./components/Sidebar";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ReloadOutlined } from "@ant-design/icons";
-import { themeVariables } from "./styles/themeConfig";
+} from 'antd';
+import { isAuthenticated } from './utils/AuthHelpers';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import AdminPage from './pages/AdminPage';
+import HandoverPage from './pages/HandoverPage';
+import VisualizationPage from './pages/VisualizationPage';
+import NotFoundPage from './pages/NotFoundPage';
+import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ReloadOutlined } from '@ant-design/icons';
+import { themeVariables } from './styles/ThemeConfig';
 
 const { Content } = Layout;
 const { Text } = Typography;
 
 // 탭 제목 변경
-document.title = "Teckwah TMS";
+document.title = 'Teckwah TMS';
 
 // 전역 오류 핸들러 설정
 window.onerror = function (message, source, lineno, colno, error) {
-  console.error("전역 오류 발생:", { message, source, lineno, colno, error });
+  console.error('전역 오류 발생:', { message, source, lineno, colno, error });
 
   // 오류 정보를 콘솔에만 로깅
   if (error && error.stack) {
-    console.error("Stack trace:", error.stack);
+    console.error('Stack trace:', error.stack);
   }
 
   // 고유한 키를 사용하여 중복 알림 방지
@@ -43,8 +43,8 @@ window.onerror = function (message, source, lineno, colno, error) {
   // 사용자에게 알림으로 오류 정보 표시 (자동 닫힘)
   notification.error({
     key: errorKey,
-    message: "오류가 발생했습니다",
-    description: "일시적인 문제가 발생했습니다. 새로고침을 해보세요.",
+    message: '오류가 발생했습니다',
+    description: '일시적인 문제가 발생했습니다. 새로고침을 해보세요.',
     duration: 5, // 5초 후 자동으로 닫힘
     btn: (
       <Button
@@ -52,7 +52,7 @@ window.onerror = function (message, source, lineno, colno, error) {
         size="middle"
         icon={<ReloadOutlined />}
         onClick={() => window.location.reload()}
-        style={{ marginTop: "8px" }}
+        style={{ marginTop: '8px' }}
       >
         새로고침
       </Button>
@@ -65,15 +65,15 @@ window.onerror = function (message, source, lineno, colno, error) {
 // 로딩 컴포넌트
 const LoadingScreen = ({ message }) => (
   <div className="login-loading-container">
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: 'center' }}>
       <img
         src="/logo.png"
         alt="Teckwah Logo"
         style={{ height: 60, marginBottom: 24 }}
       />
       <Spin size="large" />
-      <Text style={{ display: "block", marginTop: 16 }}>
-        {message || "로딩 중..."}
+      <Text style={{ display: 'block', marginTop: 16 }}>
+        {message || '로딩 중...'}
       </Text>
     </div>
   </div>
@@ -86,7 +86,7 @@ const ProtectedRoute = ({ element, allowedRoles, userData }) => {
 
   // 권한이 없으면 적절한 페이지로 리디렉션
   if (!hasAccess) {
-    return userData?.user_role === "ADMIN" ? (
+    return userData?.user_role === 'ADMIN' ? (
       <Navigate to="/admin" replace />
     ) : (
       <Navigate to="/dashboard" replace />
@@ -110,7 +110,7 @@ const AuthWrapper = ({ children }) => {
         setIsAuth(isAuth);
         setChecking(false);
       } catch (error) {
-        console.error("인증 상태 확인 중 오류 발생:", error);
+        console.error('인증 상태 확인 중 오류 발생:', error);
         // 오류 발생 시에도 체크 상태를 완료로 변경하고 인증되지 않은 것으로 처리
         setChecking(false);
         setIsAuth(false);
@@ -155,7 +155,7 @@ function App() {
           setLoading(false);
         }, 500);
       } catch (error) {
-        console.error("초기 인증 상태 확인 중 오류 발생:", error);
+        console.error('초기 인증 상태 확인 중 오류 발생:', error);
         // 오류 발생 시에도 로딩 상태를 완료로 변경
         setLoading(false);
         // 기본적으로 인증되지 않은 상태로 설정
@@ -184,7 +184,7 @@ function App() {
                 auth ? (
                   <Navigate
                     to={
-                      userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"
+                      userData?.user_role === 'ADMIN' ? '/admin' : '/dashboard'
                     }
                   />
                 ) : (
@@ -200,7 +200,7 @@ function App() {
                 auth ? (
                   <Navigate
                     to={
-                      userData?.user_role === "ADMIN" ? "/admin" : "/dashboard"
+                      userData?.user_role === 'ADMIN' ? '/admin' : '/dashboard'
                     }
                   />
                 ) : (
@@ -227,7 +227,7 @@ function App() {
                         <ErrorBoundary>
                           <ProtectedRoute
                             element={<DashboardPage />}
-                            allowedRoles={["USER"]}
+                            allowedRoles={['USER']}
                             userData={userData}
                           />
                         </ErrorBoundary>
@@ -250,7 +250,7 @@ function App() {
                         <ErrorBoundary>
                           <ProtectedRoute
                             element={<AdminPage />}
-                            allowedRoles={["ADMIN"]}
+                            allowedRoles={['ADMIN']}
                             userData={userData}
                           />
                         </ErrorBoundary>

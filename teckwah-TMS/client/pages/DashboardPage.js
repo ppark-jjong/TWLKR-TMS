@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.js
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Button,
   Space,
@@ -15,7 +15,7 @@ import {
   message,
   Spin,
   Table,
-} from "antd";
+} from 'antd';
 import {
   SearchOutlined,
   ClearOutlined,
@@ -27,26 +27,26 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   WarningOutlined,
-} from "@ant-design/icons";
-import { DatePicker } from "antd";
-import dayjs from "dayjs";
-import axios from "axios";
-import { useQuery } from "react-query";
-import { useNavigate, useLocation } from "react-router-dom";
+} from '@ant-design/icons';
+import { DatePicker } from 'antd';
+import dayjs from 'dayjs';
+import axios from 'axios';
+import { useQuery } from 'react-query';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // 공통 훅 가져오기
-import useDashboardBase from "../hooks/useDashboardBase";
-import { formatDate, getDateRange } from "../utils/dateUtils";
+import useDashboardBase from '../hooks/UseDashboardBase';
+import { formatDate, getDateRange } from '../utils/DateUtils';
 
 // 공통 컴포넌트 가져오기
-import StatusChangeModal from "../components/StatusChangeModal";
-import AssignDriverModal from "../components/AssignDriverModal";
-import DashboardDetailModal from "../components/DashboardDetailModal";
-import LockConflictModal from "../components/LockConflictModal";
-import CreateDashboardModal from "../components/CreateDashboardModal";
-import LoadingSpinner from "../components/LoadingSpinner";
-import DashboardBase from "../components/DashboardBase";
-import DashboardTable from "../components/DashboardTable";
+import StatusChangeModal from '../components/StatusChangeModal';
+import AssignDriverModal from '../components/AssignDriverModal';
+import DashboardDetailModal from '../components/DashboardDetailModal';
+import LockConflictModal from '../components/LockConflictModal';
+import CreateDashboardModal from '../components/CreateDashboardModal';
+import LoadingSpinner from '../components/LoadingSpinner';
+import DashboardBase from '../components/DashboardBase';
+import DashboardTable from '../components/DashboardTable';
 
 const { RangePicker } = DatePicker;
 const { Panel } = Collapse;
@@ -55,32 +55,32 @@ const { Option } = Select;
 
 // 상태 옵션 상수 정의
 const STATUS_OPTIONS = [
-  { value: "NEW", label: "신규" },
-  { value: "ASSIGNED", label: "배차완료" },
-  { value: "IN_PROGRESS", label: "진행중" },
-  { value: "COMPLETE", label: "완료" },
-  { value: "CANCELLED", label: "취소" },
+  { value: 'NEW', label: '신규' },
+  { value: 'ASSIGNED', label: '배차완료' },
+  { value: 'IN_PROGRESS', label: '진행중' },
+  { value: 'COMPLETE', label: '완료' },
+  { value: 'CANCELLED', label: '취소' },
 ];
 
 // 상태별 태그 컴포넌트
 const StatusTag = ({ status }) => {
   const statusMap = {
-    PENDING: { color: "blue", icon: <ClockCircleOutlined />, text: "대기 중" },
+    PENDING: { color: 'blue', icon: <ClockCircleOutlined />, text: '대기 중' },
     IN_PROGRESS: {
-      color: "orange",
+      color: 'orange',
       icon: <SyncOutlined spin />,
-      text: "처리 중",
+      text: '처리 중',
     },
     COMPLETED: {
-      color: "green",
+      color: 'green',
       icon: <CheckCircleOutlined />,
-      text: "완료됨",
+      text: '완료됨',
     },
-    DELAYED: { color: "red", icon: <WarningOutlined />, text: "지연됨" },
+    DELAYED: { color: 'red', icon: <WarningOutlined />, text: '지연됨' },
   };
 
   const statusInfo = statusMap[status] || {
-    color: "default",
+    color: 'default',
     icon: null,
     text: status,
   };
@@ -98,11 +98,11 @@ const DashboardPage = () => {
 
   // URL 쿼리 파라미터 파싱
   const queryParams = new URLSearchParams(location.search);
-  const initialStartDate = queryParams.get("startDate")
-    ? dayjs(queryParams.get("startDate"))
-    : dayjs().subtract(7, "days");
-  const initialEndDate = queryParams.get("endDate")
-    ? dayjs(queryParams.get("endDate"))
+  const initialStartDate = queryParams.get('startDate')
+    ? dayjs(queryParams.get('startDate'))
+    : dayjs().subtract(7, 'days');
+  const initialEndDate = queryParams.get('endDate')
+    ? dayjs(queryParams.get('endDate'))
     : dayjs();
 
   // 상태 관리
@@ -110,20 +110,20 @@ const DashboardPage = () => {
     initialStartDate,
     initialEndDate,
   ]);
-  const [searchText, setSearchText] = useState(queryParams.get("search") || "");
+  const [searchText, setSearchText] = useState(queryParams.get('search') || '');
   const [filteredData, setFilteredData] = useState([]);
   const [filterOptions, setFilterOptions] = useState({
-    status: "ALL",
-    location: "ALL",
+    status: 'ALL',
+    location: 'ALL',
   });
   const [tableParams, setTableParams] = useState({
     pagination: {
-      current: Number(queryParams.get("page")) || 1,
-      pageSize: Number(queryParams.get("pageSize")) || 10,
+      current: Number(queryParams.get('page')) || 1,
+      pageSize: Number(queryParams.get('pageSize')) || 10,
     },
     sorter: {
-      field: queryParams.get("sortField") || "createdAt",
-      order: queryParams.get("sortOrder") || "descend",
+      field: queryParams.get('sortField') || 'createdAt',
+      order: queryParams.get('sortOrder') || 'descend',
     },
   });
 
@@ -158,14 +158,14 @@ const DashboardPage = () => {
     cancelLock,
     retryLock,
     summaryCount = { total: 0, in_progress: 0, complete: 0 },
-  } = useDashboardBase("USER");
+  } = useDashboardBase('USER');
 
   // 대시보드 데이터 가져오기
   const fetchDashboardData = useCallback(async () => {
     if (!dateRange[0] || !dateRange[1]) return [];
 
-    const startDate = dateRange[0].format("YYYY-MM-DD");
-    const endDate = dateRange[1].format("YYYY-MM-DD");
+    const startDate = dateRange[0].format('YYYY-MM-DD');
+    const endDate = dateRange[1].format('YYYY-MM-DD');
 
     try {
       const response = await axios.get(`/api/dashboard`, {
@@ -191,14 +191,14 @@ const DashboardPage = () => {
         },
       };
     } catch (error) {
-      console.error("API 요청 중 오류 발생:", error);
+      console.error('API 요청 중 오류 발생:', error);
       throw error;
     }
   }, [dateRange, searchText, tableParams]);
 
   // React Query를 사용한 데이터 페칭
   const { data, isLoading, error, refetch } = useQuery(
-    ["dashboardData", dateRange, searchText, tableParams],
+    ['dashboardData', dateRange, searchText, tableParams],
     fetchDashboardData,
     {
       keepPreviousData: true,
@@ -207,7 +207,7 @@ const DashboardPage = () => {
         setFilteredData(data.items);
       },
       onError: () => {
-        message.error("데이터를 불러오는 중 오류가 발생했습니다.");
+        message.error('데이터를 불러오는 중 오류가 발생했습니다.');
       },
     }
   );
@@ -217,13 +217,13 @@ const DashboardPage = () => {
     const params = new URLSearchParams();
 
     if (dateRange[0])
-      params.set("startDate", dateRange[0].format("YYYY-MM-DD"));
-    if (dateRange[1]) params.set("endDate", dateRange[1].format("YYYY-MM-DD"));
-    if (searchText) params.set("search", searchText);
-    params.set("page", tableParams.pagination.current.toString());
-    params.set("pageSize", tableParams.pagination.pageSize.toString());
-    params.set("sortField", tableParams.sorter.field);
-    params.set("sortOrder", tableParams.sorter.order);
+      params.set('startDate', dateRange[0].format('YYYY-MM-DD'));
+    if (dateRange[1]) params.set('endDate', dateRange[1].format('YYYY-MM-DD'));
+    if (searchText) params.set('search', searchText);
+    params.set('page', tableParams.pagination.current.toString());
+    params.set('pageSize', tableParams.pagination.pageSize.toString());
+    params.set('sortField', tableParams.sorter.field);
+    params.set('sortOrder', tableParams.sorter.order);
 
     navigate(
       {
@@ -241,14 +241,14 @@ const DashboardPage = () => {
     let filtered = [...data.items];
 
     // 상태 필터링
-    if (filterOptions.status !== "ALL") {
+    if (filterOptions.status !== 'ALL') {
       filtered = filtered.filter(
         (item) => item.status === filterOptions.status
       );
     }
 
     // 위치 필터링
-    if (filterOptions.location !== "ALL") {
+    if (filterOptions.location !== 'ALL') {
       filtered = filtered.filter(
         (item) => item.location === filterOptions.location
       );
@@ -259,7 +259,7 @@ const DashboardPage = () => {
 
   // 날짜 범위 변경 핸들러
   const onDateRangeChange = (dates) => {
-    setDateRange(dates || [dayjs().subtract(7, "days"), dayjs()]);
+    setDateRange(dates || [dayjs().subtract(7, 'days'), dayjs()]);
     // 페이지 리셋
     setTableParams({
       ...tableParams,
@@ -299,8 +299,8 @@ const DashboardPage = () => {
         pageSize: pagination.pageSize,
       },
       sorter: {
-        field: sorter.field || "createdAt",
-        order: sorter.order || "descend",
+        field: sorter.field || 'createdAt',
+        order: sorter.order || 'descend',
       },
     });
   };
@@ -308,27 +308,27 @@ const DashboardPage = () => {
   // 테이블 컬럼 정의
   const columns = [
     {
-      title: "ID",
-      dataIndex: "id",
-      key: "id",
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
       width: 80,
       sorter: true,
-      sortDirections: ["descend", "ascend"],
+      sortDirections: ['descend', 'ascend'],
     },
     {
-      title: "이름",
-      dataIndex: "name",
-      key: "name",
+      title: '이름',
+      dataIndex: 'name',
+      key: 'name',
       sorter: true,
-      sortDirections: ["descend", "ascend"],
+      sortDirections: ['descend', 'ascend'],
       render: (text, record) => (
         <a onClick={() => navigate(`/detail/${record.id}`)}>{text}</a>
       ),
     },
     {
-      title: "위치",
-      dataIndex: "location",
-      key: "location",
+      title: '위치',
+      dataIndex: 'location',
+      key: 'location',
       filters: data?.items
         ? [...new Set(data.items.map((item) => item.location))].map((loc) => ({
             text: loc,
@@ -338,35 +338,35 @@ const DashboardPage = () => {
       onFilter: (value, record) => record.location === value,
     },
     {
-      title: "상태",
-      dataIndex: "status",
-      key: "status",
+      title: '상태',
+      dataIndex: 'status',
+      key: 'status',
       render: (status) => <StatusTag status={status} />,
       filters: [
-        { text: "대기 중", value: "PENDING" },
-        { text: "처리 중", value: "IN_PROGRESS" },
-        { text: "완료됨", value: "COMPLETED" },
-        { text: "지연됨", value: "DELAYED" },
+        { text: '대기 중', value: 'PENDING' },
+        { text: '처리 중', value: 'IN_PROGRESS' },
+        { text: '완료됨', value: 'COMPLETED' },
+        { text: '지연됨', value: 'DELAYED' },
       ],
       onFilter: (value, record) => record.status === value,
     },
     {
-      title: "ETA",
-      dataIndex: "eta",
-      key: "eta",
+      title: 'ETA',
+      dataIndex: 'eta',
+      key: 'eta',
       sorter: true,
-      render: (text) => (text ? formatDate(text, "YYYY-MM-DD HH:mm") : "-"),
+      render: (text) => (text ? formatDate(text, 'YYYY-MM-DD HH:mm') : '-'),
     },
     {
-      title: "생성일",
-      dataIndex: "created_at",
-      key: "created_at",
+      title: '생성일',
+      dataIndex: 'created_at',
+      key: 'created_at',
       sorter: true,
-      render: (text) => formatDate(text, "YYYY-MM-DD HH:mm"),
+      render: (text) => formatDate(text, 'YYYY-MM-DD HH:mm'),
     },
     {
-      title: "액션",
-      key: "action",
+      title: '액션',
+      key: 'action',
       width: 150,
       render: (_, record) => (
         <Space size="small">
@@ -385,9 +385,9 @@ const DashboardPage = () => {
   // 로딩 중 표시
   if (isLoading && !data) {
     return (
-      <div style={{ textAlign: "center", padding: "50px" }}>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <p style={{ marginTop: "20px" }}>데이터를 불러오는 중입니다...</p>
+        <p style={{ marginTop: '20px' }}>데이터를 불러오는 중입니다...</p>
       </div>
     );
   }
@@ -395,14 +395,14 @@ const DashboardPage = () => {
   // 에러 표시
   if (error) {
     return (
-      <div style={{ textAlign: "center", padding: "50px" }}>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
         <Typography.Text type="danger">
           데이터를 불러오는 중 오류가 발생했습니다.
           <br />
           {error.message}
         </Typography.Text>
         <br />
-        <Button type="primary" onClick={refetch} style={{ marginTop: "20px" }}>
+        <Button type="primary" onClick={refetch} style={{ marginTop: '20px' }}>
           다시 시도
         </Button>
       </div>
@@ -410,53 +410,53 @@ const DashboardPage = () => {
   }
 
   return (
-    <Layout.Content style={{ padding: "24px" }}>
-      <Card style={{ marginBottom: "24px" }}>
+    <Layout.Content style={{ padding: '24px' }}>
+      <Card style={{ marginBottom: '24px' }}>
         <Row gutter={24}>
           <Col span={8}>
-            <Card style={{ textAlign: "center" }}>
+            <Card style={{ textAlign: 'center' }}>
               <div
                 style={{
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                  margin: "8px 0",
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                  margin: '8px 0',
                 }}
               >
                 {summaryCount.total || 0}
               </div>
-              <div style={{ fontSize: "14px", color: "rgba(0, 0, 0, 0.45)" }}>
+              <div style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.45)' }}>
                 전체
               </div>
             </Card>
           </Col>
           <Col span={8}>
-            <Card style={{ textAlign: "center" }}>
+            <Card style={{ textAlign: 'center' }}>
               <div
                 style={{
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                  margin: "8px 0",
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                  margin: '8px 0',
                 }}
               >
                 {summaryCount.in_progress || 0}
               </div>
-              <div style={{ fontSize: "14px", color: "rgba(0, 0, 0, 0.45)" }}>
+              <div style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.45)' }}>
                 진행중
               </div>
             </Card>
           </Col>
           <Col span={8}>
-            <Card style={{ textAlign: "center" }}>
+            <Card style={{ textAlign: 'center' }}>
               <div
                 style={{
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                  margin: "8px 0",
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                  margin: '8px 0',
                 }}
               >
                 {summaryCount.complete || 0}
               </div>
-              <div style={{ fontSize: "14px", color: "rgba(0, 0, 0, 0.45)" }}>
+              <div style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.45)' }}>
                 완료
               </div>
             </Card>
@@ -465,19 +465,19 @@ const DashboardPage = () => {
       </Card>
 
       <Card
-        style={{ marginBottom: "24px" }}
+        style={{ marginBottom: '24px' }}
         title={
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <SearchOutlined style={{ marginRight: "8px" }} />
-            <span style={{ fontWeight: "600" }}>검색 옵션</span>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <SearchOutlined style={{ marginRight: '8px' }} />
+            <span style={{ fontWeight: '600' }}>검색 옵션</span>
           </div>
         }
       >
         <Form layout="vertical" onFinish={handleSearchChange}>
-          <Collapse ghost defaultActiveKey={["1"]} expandIconPosition="end">
+          <Collapse ghost defaultActiveKey={['1']} expandIconPosition="end">
             <Panel
               header={
-                <span style={{ fontWeight: "600", fontSize: "15px" }}>
+                <span style={{ fontWeight: '600', fontSize: '15px' }}>
                   기본 검색
                 </span>
               }
@@ -489,7 +489,7 @@ const DashboardPage = () => {
                     <Input
                       placeholder="주문번호 입력"
                       allowClear
-                      style={{ borderRadius: "6px" }}
+                      style={{ borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -499,7 +499,7 @@ const DashboardPage = () => {
                       placeholder="상태 선택"
                       allowClear
                       options={STATUS_OPTIONS}
-                      style={{ width: "100%", borderRadius: "6px" }}
+                      style={{ width: '100%', borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -509,10 +509,10 @@ const DashboardPage = () => {
                       placeholder="유형 선택"
                       allowClear
                       options={[
-                        { value: "DELIVERY", label: "배송" },
-                        { value: "RETURN", label: "회수" },
+                        { value: 'DELIVERY', label: '배송' },
+                        { value: 'RETURN', label: '회수' },
                       ]}
-                      style={{ width: "100%", borderRadius: "6px" }}
+                      style={{ width: '100%', borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -521,7 +521,7 @@ const DashboardPage = () => {
                     <Input
                       placeholder="부서명 입력"
                       allowClear
-                      style={{ borderRadius: "6px" }}
+                      style={{ borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -529,7 +529,7 @@ const DashboardPage = () => {
             </Panel>
             <Panel
               header={
-                <span style={{ fontWeight: "600", fontSize: "15px" }}>
+                <span style={{ fontWeight: '600', fontSize: '15px' }}>
                   고급 검색
                 </span>
               }
@@ -541,7 +541,7 @@ const DashboardPage = () => {
                     <Input
                       placeholder="기사명 입력"
                       allowClear
-                      style={{ borderRadius: "6px" }}
+                      style={{ borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -550,7 +550,7 @@ const DashboardPage = () => {
                     <Input
                       placeholder="창고명 입력"
                       allowClear
-                      style={{ borderRadius: "6px" }}
+                      style={{ borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -559,7 +559,7 @@ const DashboardPage = () => {
                     <Input
                       placeholder="지역명 입력"
                       allowClear
-                      style={{ borderRadius: "6px" }}
+                      style={{ borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
@@ -568,7 +568,7 @@ const DashboardPage = () => {
                     <RangePicker
                       value={dateRange}
                       onChange={onDateRangeChange}
-                      style={{ width: "100%" }}
+                      style={{ width: '100%' }}
                       format="YYYY-MM-DD"
                       allowClear={false}
                     />
@@ -578,16 +578,16 @@ const DashboardPage = () => {
             </Panel>
           </Collapse>
 
-          <Row justify="end" style={{ marginTop: "16px" }}>
+          <Row justify="end" style={{ marginTop: '16px' }}>
             <Space>
               <Button
                 type="primary"
                 htmlType="submit"
                 icon={<SearchOutlined />}
                 style={{
-                  borderRadius: "6px",
-                  height: "38px",
-                  fontWeight: "500",
+                  borderRadius: '6px',
+                  height: '38px',
+                  fontWeight: '500',
                 }}
               >
                 검색
@@ -598,7 +598,7 @@ const DashboardPage = () => {
       </Card>
 
       <Card
-        style={{ marginBottom: "24px" }}
+        style={{ marginBottom: '24px' }}
         title={
           <Row justify="space-between" align="middle">
             <Col>
@@ -613,9 +613,9 @@ const DashboardPage = () => {
                   icon={<PlusOutlined />}
                   onClick={() => setCreateModalVisible(true)}
                   style={{
-                    borderRadius: "6px",
-                    height: "38px",
-                    fontWeight: "500",
+                    borderRadius: '6px',
+                    height: '38px',
+                    fontWeight: '500',
                   }}
                 >
                   새 주문 등록
@@ -627,9 +627,9 @@ const DashboardPage = () => {
                       icon={<CarOutlined />}
                       onClick={showAssignModal}
                       style={{
-                        borderRadius: "6px",
-                        height: "38px",
-                        fontWeight: "500",
+                        borderRadius: '6px',
+                        height: '38px',
+                        fontWeight: '500',
                       }}
                     >
                       배차하기
@@ -639,9 +639,9 @@ const DashboardPage = () => {
                       icon={<TagOutlined />}
                       onClick={showStatusModal}
                       style={{
-                        borderRadius: "6px",
-                        height: "38px",
-                        fontWeight: "500",
+                        borderRadius: '6px',
+                        height: '38px',
+                        fontWeight: '500',
                       }}
                     >
                       상태변경
@@ -668,7 +668,7 @@ const DashboardPage = () => {
             showTotal: (total) => `총 ${total}개 항목`,
           }}
           onChange={handleTableChange}
-          scroll={{ x: "max-content" }}
+          scroll={{ x: 'max-content' }}
         />
       </Card>
 
@@ -715,10 +715,10 @@ const DashboardPage = () => {
       />
 
       {/* 마지막 업데이트 시간 표시 */}
-      <div style={{ textAlign: "right", marginTop: "8px" }}>
+      <div style={{ textAlign: 'right', marginTop: '8px' }}>
         <Text type="secondary">
-          <SyncOutlined /> 마지막 업데이트:{" "}
-          {formatDate(new Date(), "YYYY-MM-DD HH:mm:ss")}
+          <SyncOutlined /> 마지막 업데이트:{' '}
+          {formatDate(new Date(), 'YYYY-MM-DD HH:mm:ss')}
           {isLoading && <span> (새로고침 중...)</span>}
         </Text>
       </div>

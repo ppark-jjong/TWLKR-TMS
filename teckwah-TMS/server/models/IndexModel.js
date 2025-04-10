@@ -1,6 +1,6 @@
-const User = require('./user.model');
-const Handover = require('./handover.model');
-const Dashboard = require('./dashboard.model');
+const User = require('./user-model');
+const Handover = require('./HandoverModel');
+const Dashboard = require('./DashboardModel');
 const { PostalCode, PostalCodeDetail } = require('./postal_code.model');
 
 // 관계 설정
@@ -8,26 +8,26 @@ const { PostalCode, PostalCodeDetail } = require('./postal_code.model');
 User.hasMany(Handover, {
   foreignKey: 'created_by',
   sourceKey: 'user_id',
-  as: 'handovers'
+  as: 'handovers',
 });
 
 Handover.belongsTo(User, {
   foreignKey: 'created_by',
   targetKey: 'user_id',
-  as: 'creator'
+  as: 'creator',
 });
 
 // 대시보드-우편번호 관계
 Dashboard.belongsTo(PostalCode, {
   foreignKey: 'postal_code',
   targetKey: 'postal_code',
-  as: 'postal_code_info'
+  as: 'postal_code_info',
 });
 
 PostalCode.hasMany(Dashboard, {
   foreignKey: 'postal_code',
   sourceKey: 'postal_code',
-  as: 'dashboards'
+  as: 'dashboards',
 });
 
 // 모듈 내보내기
@@ -36,5 +36,5 @@ module.exports = {
   Handover,
   Dashboard,
   PostalCode,
-  PostalCodeDetail
+  PostalCodeDetail,
 };

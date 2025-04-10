@@ -1,18 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Radio, DatePicker, Select, Button, Table, Spin, Alert, Space, Row, Col } from 'antd';
+import {
+  Card,
+  Radio,
+  DatePicker,
+  Select,
+  Button,
+  Table,
+  Spin,
+  Alert,
+  Space,
+  Row,
+  Col,
+} from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQuery } from 'react-query';
 import dayjs from 'dayjs';
 import Chart from 'chart.js/auto';
-import { getVisualizationData } from '../utils/api';
-import { STATUS_TEXT_MAP, STATUS_COLORS } from '../utils/constants';
+import { getVisualizationData } from '../utils/Api';
+import { STATUS_TEXT_MAP, STATUS_COLORS } from '../utils/Constants';
 
 const { RangePicker } = DatePicker;
 
 const Visualization = () => {
   // 상태 관리
   const [chartType, setChartType] = useState('time');
-  const [dateRange, setDateRange] = useState([dayjs().subtract(14, 'day'), dayjs()]);
+  const [dateRange, setDateRange] = useState([
+    dayjs().subtract(14, 'day'),
+    dayjs(),
+  ]);
   const [department, setDepartment] = useState('');
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
@@ -20,12 +35,13 @@ const Visualization = () => {
   // 데이터 조회
   const { data, isLoading, error, refetch } = useQuery(
     ['visualization', chartType, dateRange, department],
-    () => getVisualizationData({
-      chart_type: chartType,
-      start_date: dateRange[0]?.format('YYYY-MM-DD'),
-      end_date: dateRange[1]?.format('YYYY-MM-DD'),
-      department: department || undefined
-    }),
+    () =>
+      getVisualizationData({
+        chart_type: chartType,
+        start_date: dateRange[0]?.format('YYYY-MM-DD'),
+        end_date: dateRange[1]?.format('YYYY-MM-DD'),
+        department: department || undefined,
+      }),
     {
       enabled: true,
       refetchOnWindowFocus: false,
@@ -33,7 +49,7 @@ const Visualization = () => {
         if (data?.success && data?.data) {
           renderChart(data.data);
         }
-      }
+      },
     }
   );
 
@@ -78,7 +94,7 @@ const Visualization = () => {
     let config;
 
     // 총계 데이터 제외
-    const filteredData = chartData.filter(item => item.label !== '총계');
+    const filteredData = chartData.filter((item) => item.label !== '총계');
 
     switch (chartType) {
       case 'time':
@@ -100,8 +116,8 @@ const Visualization = () => {
 
   // 시간대별 막대 차트 설정 생성
   const createTimeBarChartConfig = (chartData) => {
-    const labels = chartData.map(item => item.label);
-    const data = chartData.map(item => item.count);
+    const labels = chartData.map((item) => item.label);
+    const data = chartData.map((item) => item.count);
 
     // 부서별 색상 설정
     const getBackgroundColor = () => {
@@ -121,13 +137,15 @@ const Visualization = () => {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [{
-          label: '배송 건수',
-          data: data,
-          backgroundColor: getBackgroundColor(),
-          borderColor: getBackgroundColor().replace('0.7', '1'),
-          borderWidth: 1
-        }]
+        datasets: [
+          {
+            label: '배송 건수',
+            data: data,
+            backgroundColor: getBackgroundColor(),
+            borderColor: getBackgroundColor().replace('0.7', '1'),
+            borderWidth: 1,
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -138,43 +156,45 @@ const Visualization = () => {
           },
           title: {
             display: true,
-            text: '시간대별 배송 접수 건수'
+            text: '시간대별 배송 접수 건수',
           },
           tooltip: {
             callbacks: {
-              afterLabel: function(context) {
-                const percentage = parseFloat(chartData[context.dataIndex].percentage);
+              afterLabel: function (context) {
+                const percentage = parseFloat(
+                  chartData[context.dataIndex].percentage
+                );
                 return `비율: ${percentage}%`;
-              }
-            }
-          }
+              },
+            },
+          },
         },
         scales: {
           y: {
             beginAtZero: true,
             title: {
               display: true,
-              text: '배송 건수'
-            }
+              text: '배송 건수',
+            },
           },
           x: {
             title: {
               display: true,
-              text: '시간대'
-            }
-          }
-        }
-      }
+              text: '시간대',
+            },
+          },
+        },
+      },
     };
   };
 
   // 상태별 파이 차트 설정 생성
   const createStatusPieChartConfig = (chartData) => {
-    const labels = chartData.map(item => item.label);
-    const data = chartData.map(item => item.count);
+    const labels = chartData.map((item) => item.label);
+    const data = chartData.map((item) => item.count);
 
     // 상태별 색상 설정
-    const backgroundColors = chartData.map(item => {
+    const backgroundColors = chartData.map((item) => {
       const status = item.rawLabel;
       switch (status) {
         case 'WAITING':
@@ -196,13 +216,17 @@ const Visualization = () => {
       type: 'pie',
       data: {
         labels: labels,
-        datasets: [{
-          label: '배송 건수',
-          data: data,
-          backgroundColor: backgroundColors,
-          borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
-          borderWidth: 1
-        }]
+        datasets: [
+          {
+            label: '배송 건수',
+            data: data,
+            backgroundColor: backgroundColors,
+            borderColor: backgroundColors.map((color) =>
+              color.replace('0.7', '1')
+            ),
+            borderWidth: 1,
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -213,30 +237,32 @@ const Visualization = () => {
           },
           title: {
             display: true,
-            text: '배송 상태 분포'
+            text: '배송 상태 분포',
           },
           tooltip: {
             callbacks: {
-              label: function(context) {
+              label: function (context) {
                 const label = context.label || '';
                 const value = context.raw || 0;
-                const percentage = parseFloat(chartData[context.dataIndex].percentage);
+                const percentage = parseFloat(
+                  chartData[context.dataIndex].percentage
+                );
                 return `${label}: ${value}건 (${percentage}%)`;
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     };
   };
 
   // 부서별 도넛 차트 설정 생성
   const createDepartmentChartConfig = (chartData) => {
-    const labels = chartData.map(item => item.label);
-    const data = chartData.map(item => item.count);
+    const labels = chartData.map((item) => item.label);
+    const data = chartData.map((item) => item.count);
 
     // 부서별 색상 설정
-    const backgroundColors = chartData.map(item => {
+    const backgroundColors = chartData.map((item) => {
       const dept = item.label;
       switch (dept) {
         case 'CS':
@@ -254,13 +280,17 @@ const Visualization = () => {
       type: 'doughnut',
       data: {
         labels: labels,
-        datasets: [{
-          label: '배송 건수',
-          data: data,
-          backgroundColor: backgroundColors,
-          borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
-          borderWidth: 1
-        }]
+        datasets: [
+          {
+            label: '배송 건수',
+            data: data,
+            backgroundColor: backgroundColors,
+            borderColor: backgroundColors.map((color) =>
+              color.replace('0.7', '1')
+            ),
+            borderWidth: 1,
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -271,20 +301,22 @@ const Visualization = () => {
           },
           title: {
             display: true,
-            text: '부서별 배송 현황'
+            text: '부서별 배송 현황',
           },
           tooltip: {
             callbacks: {
-              label: function(context) {
+              label: function (context) {
                 const label = context.label || '';
                 const value = context.raw || 0;
-                const percentage = parseFloat(chartData[context.dataIndex].percentage);
+                const percentage = parseFloat(
+                  chartData[context.dataIndex].percentage
+                );
                 return `${label}: ${value}건 (${percentage}%)`;
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     };
   };
 
@@ -293,7 +325,7 @@ const Visualization = () => {
     return [
       { title: '상태', dataIndex: 'label', key: 'label' },
       { title: '건수', dataIndex: 'count', key: 'count' },
-      { title: '비율', dataIndex: 'percentage', key: 'percentage' }
+      { title: '비율', dataIndex: 'percentage', key: 'percentage' },
     ];
   };
 
@@ -309,7 +341,7 @@ const Visualization = () => {
         key: 'statusCounts',
         render: (statusCounts) => {
           if (!statusCounts) return null;
-          
+
           return (
             <div className="status-counts-container">
               {Object.entries(statusCounts).map(([status, details]) => {
@@ -317,14 +349,16 @@ const Visualization = () => {
                 return (
                   <div key={status} className="status-count-item">
                     <span>{STATUS_TEXT_MAP[status] || status}:</span>
-                    <span>{details.count}건 ({details.percentage})</span>
+                    <span>
+                      {details.count}건 ({details.percentage})
+                    </span>
                   </div>
                 );
               })}
             </div>
           );
-        }
-      }
+        },
+      },
     ];
   };
 
@@ -343,13 +377,9 @@ const Visualization = () => {
   };
 
   return (
-    <Card 
+    <Card
       extra={
-        <Button 
-          icon={<ReloadOutlined />} 
-          onClick={refetch} 
-          loading={isLoading}
-        >
+        <Button icon={<ReloadOutlined />} onClick={refetch} loading={isLoading}>
           새로고침
         </Button>
       }
@@ -365,12 +395,27 @@ const Visualization = () => {
               buttonStyle="solid"
               style={{ display: 'flex', width: '100%' }}
             >
-              <Radio.Button value="time" style={{ flex: 1, textAlign: 'center' }}>시간대별</Radio.Button>
-              <Radio.Button value="status" style={{ flex: 1, textAlign: 'center' }}>상태별</Radio.Button>
-              <Radio.Button value="department" style={{ flex: 1, textAlign: 'center' }}>부서별</Radio.Button>
+              <Radio.Button
+                value="time"
+                style={{ flex: 1, textAlign: 'center' }}
+              >
+                시간대별
+              </Radio.Button>
+              <Radio.Button
+                value="status"
+                style={{ flex: 1, textAlign: 'center' }}
+              >
+                상태별
+              </Radio.Button>
+              <Radio.Button
+                value="department"
+                style={{ flex: 1, textAlign: 'center' }}
+              >
+                부서별
+              </Radio.Button>
             </Radio.Group>
           </Col>
-          
+
           <Col xs={24} sm={24} md={8} lg={8}>
             <RangePicker
               value={dateRange}
@@ -381,7 +426,7 @@ const Visualization = () => {
               placeholder={['시작일', '종료일']}
             />
           </Col>
-          
+
           <Col xs={24} sm={16} md={5} lg={5}>
             <Select
               placeholder="부서 선택"
@@ -393,19 +438,21 @@ const Visualization = () => {
                 { label: '전체', value: '' },
                 { label: 'CS', value: 'CS' },
                 { label: 'HES', value: 'HES' },
-                { label: 'LENOVO', value: 'LENOVO' }
+                { label: 'LENOVO', value: 'LENOVO' },
               ]}
             />
           </Col>
-          
+
           <Col xs={24} sm={8} md={3} lg={3}>
             <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-              <Button onClick={handleApplyFilters} type="primary">적용</Button>
+              <Button onClick={handleApplyFilters} type="primary">
+                적용
+              </Button>
               <Button onClick={handleResetFilters}>초기화</Button>
             </Space>
           </Col>
         </Row>
-        
+
         {/* 로딩 및 에러 표시 */}
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -423,7 +470,7 @@ const Visualization = () => {
             <div style={{ height: '400px', position: 'relative' }}>
               <canvas ref={chartRef} />
             </div>
-            
+
             {/* 데이터 테이블 */}
             <Table
               dataSource={getTableData()}
@@ -440,4 +487,4 @@ const Visualization = () => {
   );
 };
 
-export default Visualization; 
+export default Visualization;

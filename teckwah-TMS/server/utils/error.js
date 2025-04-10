@@ -1,4 +1,4 @@
-const logger = require('./logger');
+const logger = require('./Logger');
 
 /**
  * 사용자 정의 에러 클래스
@@ -9,7 +9,7 @@ class AppError extends Error {
     this.statusCode = statusCode;
     this.errorCode = errorCode;
     this.isOperational = true;
-    
+
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -54,7 +54,10 @@ class ValidationException extends AppError {
  * 409 Conflict 에러 (락 충돌용)
  */
 class LockConflictException extends AppError {
-  constructor(detail = '다른 사용자가 현재 이 데이터를 수정 중입니다', lockInfo = null) {
+  constructor(
+    detail = '다른 사용자가 현재 이 데이터를 수정 중입니다',
+    lockInfo = null
+  ) {
     super(detail, 409, 'LOCK_CONFLICT');
     this.detail = detail;
     this.lock_info = lockInfo;
@@ -69,7 +72,7 @@ class LockConflictException extends AppError {
 const standardErrorResponse = (error, res) => {
   // 운영 환경에서는 에러 스택 출력 제한
   const isProduction = process.env.NODE_ENV === 'production';
-  
+
   // 사용자 정의 에러인 경우
   if (error instanceof AppError) {
     return res.status(error.statusCode).json({
@@ -77,20 +80,20 @@ const standardErrorResponse = (error, res) => {
       message: error.message,
       error_code: error.errorCode,
       ...(error.lock_info && { lock_info: error.lock_info }),
-      ...((!isProduction && error.stack) && { stack: error.stack })
+      ...(!isProduction && error.stack && { stack: error.stack }),
     });
   }
-  
+
   // 일반 에러인 경우
   logger.error(`표준화되지 않은 오류: ${error.message}`, {
-    error: error.stack
+    error: error.stack,
   });
-  
+
   return res.status(500).json({
     success: false,
     message: '서버 내부 오류가 발생했습니다',
     error_code: 'SERVER_ERROR',
-    ...((!isProduction && error.stack) && { stack: error.stack })
+    ...(!isProduction && error.stack && { stack: error.stack }),
   });
 };
 
@@ -108,9 +111,9 @@ const errorHandler = (context) => (routeHandler) => {
         error: error.stack,
         path: req.path,
         method: req.method,
-        requestId: req.requestId
+        requestId: req.requestId,
       });
-      
+
       standardErrorResponse(error, res);
     }
   };
@@ -124,5 +127,5 @@ module.exports = {
   ValidationException,
   LockConflictException,
   standardErrorResponse,
-  errorHandler
+  errorHandler,
 };
