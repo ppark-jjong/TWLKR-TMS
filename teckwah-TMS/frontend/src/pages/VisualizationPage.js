@@ -33,50 +33,25 @@ const VisualizationPage = () => {
     try {
       setLoading(true);
       
-      // 실제 API 연동 시 사용할 코드
-      // const response = await getVisualizationData(filters);
-      // setChartData(response.data);
+      // 실제 API 호출로 데이터 가져오기
+      const response = await getVisualizationData({
+        chart_type: filters.chart_type,
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        department: filters.department || undefined
+      });
       
-      // 임시 목업 데이터 사용 (API 연동 전까지)
-      setTimeout(() => {
-        if (filters.chart_type === 'time') {
-          setChartData({
-            '9': { 'CS': 3, 'HES': 1, 'LENOVO': 2 },
-            '10': { 'CS': 5, 'HES': 2, 'LENOVO': 3 },
-            '11': { 'CS': 7, 'HES': 4, 'LENOVO': 1 },
-            '12': { 'CS': 4, 'HES': 3, 'LENOVO': 2 },
-            '13': { 'CS': 6, 'HES': 1, 'LENOVO': 4 },
-            '14': { 'CS': 8, 'HES': 2, 'LENOVO': 3 },
-            '15': { 'CS': 5, 'HES': 3, 'LENOVO': 2 },
-            '16': { 'CS': 3, 'HES': 2, 'LENOVO': 1 },
-          });
-        } else {
-          setChartData({
-            'CS': {
-              'WAITING': 5,
-              'IN_PROGRESS': 12,
-              'COMPLETE': 28,
-              'ISSUE': 3,
-              'CANCEL': 2
-            },
-            'HES': {
-              'WAITING': 3,
-              'IN_PROGRESS': 8,
-              'COMPLETE': 15,
-              'ISSUE': 2,
-              'CANCEL': 1
-            },
-            'LENOVO': {
-              'WAITING': 4,
-              'IN_PROGRESS': 6,
-              'COMPLETE': 18,
-              'ISSUE': 2,
-              'CANCEL': 3
-            }
-          });
-        }
-        setLoading(false);
-      }, 1000);
+      if (response.success) {
+        // API 응답에서 data.data가 실제 차트 데이터
+        setChartData(response.data.data);
+      } else {
+        notification.error({
+          message: '데이터 로드 실패',
+          description: response.message || '시각화 데이터를 불러오는 중 오류가 발생했습니다.',
+        });
+      }
+      
+      setLoading(false);
     } catch (error) {
       notification.error({
         message: '데이터 로드 실패',

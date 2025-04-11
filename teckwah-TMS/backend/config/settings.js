@@ -41,7 +41,7 @@ module.exports = {
   lock: {
     timeoutSeconds: parseInt(process.env.LOCK_TIMEOUT_SECONDS || '300', 10),
     cleanupIntervalMinutes: parseInt(process.env.LOCK_CLEANUP_INTERVAL_MINUTES || '10', 10),
-    maxRetry: 2,
-    retryDelay: 500  // ms
+    maxRetry: 0,  // 자동 재시도 없음 (사용자 명시적 액션만 허용)
+    retryDelay: 0  // 재시도 지연 없음
   }
 };

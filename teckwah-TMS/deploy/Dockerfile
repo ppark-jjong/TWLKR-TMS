@@ -27,10 +27,13 @@ RUN npm run build
 FROM node:20-alpine AS backend-deps
 WORKDIR /app
 
+# 네이티브 모듈을 위한 빌드 도구 설치
+RUN apk add --no-cache python3 make g++ 
+
 # package.json과 package-lock.json 파일 복사
 COPY backend/package.json backend/package-lock.json ./
 
-# 프로덕션 의존성만 설치
+# 프로덕션 의존성만 설치하며 네이티브 모듈을 컨테이너 환경에 맞게 컴파일
 RUN npm install --omit=dev
 
 # 3. 최종 이미지 구성
@@ -40,14 +43,16 @@ WORKDIR /app
 # 환경 변수 설정
 ENV NODE_ENV=production
 ENV PORT=8000
+ENV LANG=ko_KR.UTF-8
+ENV LC_ALL=ko_KR.UTF-8
 
 # 백엔드 의존성 및 소스 코드 복사
 COPY --from=backend-deps /app/node_modules ./node_modules
 COPY backend/ ./backend/
 
 # 프론트엔드 빌드 결과물 복사
-RUN mkdir -p client/build
-COPY --from=frontend-builder /app/build ./client/build
+RUN mkdir -p frontend/build
+COPY --from=frontend-builder /app/build ./frontend/build
 
 # 환경 변수 파일 복사 및 권한 설정
 COPY deploy/.env ./.env

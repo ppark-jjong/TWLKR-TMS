@@ -1,4 +1,4 @@
-const { sequelize } = require('../config/Database');
+const { sequelize } = require('../config/database');
 const { ERROR_CODES } = require('./constants');
 
 // 락 충돌 예외 클래스

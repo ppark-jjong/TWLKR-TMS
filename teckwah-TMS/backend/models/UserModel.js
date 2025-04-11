@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/Database');
+const { sequelize } = require('../config/database');
 const bcrypt = require('bcrypt');
 
 const User = sequelize.define(
@@ -11,34 +11,45 @@ const User = sequelize.define(
       allowNull: false,
       comment: '사용자 ID',
     },
-    user_password: {
+    password: {
       type: DataTypes.STRING(255),
       allowNull: false,
       comment: '비밀번호 (해시됨)',
     },
-    user_department: {
+    name: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      comment: '사용자 이름',
+    },
+    department: {
       type: DataTypes.ENUM('CS', 'HES', 'LENOVO'),
       allowNull: false,
       comment: '사용자 부서',
     },
-    user_role: {
+    role: {
       type: DataTypes.ENUM('ADMIN', 'USER'),
       allowNull: false,
       comment: '사용자 역할 (ADMIN/USER)',
     },
+    refresh_token: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'JWT 리프레시 토큰',
+    }
   },
   {
-    tableName: 'user',
-    timestamps: false,
+    tableName: 'users',
+    timestamps: true,
+    underscored: true,
     hooks: {
       beforeCreate: async (user) => {
-        if (user.user_password) {
-          user.user_password = await bcrypt.hash(user.user_password, 10);
+        if (user.password) {
+          user.password = await bcrypt.hash(user.password, 10);
         }
       },
       beforeUpdate: async (user) => {
-        if (user.changed('user_password')) {
-          user.user_password = await bcrypt.hash(user.user_password, 10);
+        if (user.changed('password')) {
+          user.password = await bcrypt.hash(user.password, 10);
         }
       },
     },
@@ -47,7 +58,7 @@ const User = sequelize.define(
 
 // 비밀번호 검증 메소드
 User.prototype.validatePassword = async function (password) {
-  return await bcrypt.compare(password, this.user_password);
+  return await bcrypt.compare(password, this.password);
 };
 
 module.exports = User;

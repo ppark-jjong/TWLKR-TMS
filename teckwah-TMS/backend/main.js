@@ -65,7 +65,7 @@ app.use('/users', userRoutes);
 // React 정적 파일 서빙 (프로덕션 환경)
 if (process.env.NODE_ENV === 'production') {
   // 정적 파일 제공
-  app.use(express.static(path.join(__dirname, '..', 'client/build')));
+  app.use(express.static(path.join(__dirname, '..', 'frontend/build')));
   
   // API 경로가 아닌 모든 요청은 React 앱으로 라우팅
   app.get('*', (req, res, next) => {
@@ -75,7 +75,7 @@ if (process.env.NODE_ENV === 'production') {
         !req.path.startsWith('/handover') && 
         !req.path.startsWith('/users') && 
         !req.path.startsWith('/health')) {
-      res.sendFile(path.join(__dirname, '..', 'client/build', 'index.html'));
+      res.sendFile(path.join(__dirname, '..', 'frontend/build', 'index.html'));
     } else {
       next();
     }

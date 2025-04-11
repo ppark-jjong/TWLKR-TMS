@@ -67,10 +67,8 @@ function App() {
         setAuth(false);
         setUserData(null);
       } finally {
-        // 로딩 상태를 지연시켜 부드러운 화면 전환
-        setTimeout(() => {
-          setLoading(false);
-        }, 500);
+        // 로딩 상태 즉시 해제 (사용자 경험을 위한 지연 없음)
+        setLoading(false);
       }
     };
 
