@@ -1,47 +1,68 @@
-# 빌드 스테이지
-FROM node:20-alpine AS builder
-
-# 작업 디렉토리 설정
-WORKDIR /build
-
-# 패키지 파일 복사
-COPY deploy/package*.json ./
-
-# 소스 코드 복사
-COPY main.js ./
-COPY server ./server
-COPY client ./client
-
-# 종속성 설치 및 빌드
-RUN npm install --production
-
-# 클라이언트 빌드
-RUN if [ -d "./client" ]; then \
-    cd client && \
-    npm install && \
-    npm run build && \
-    cd ..; \
-    fi
-
-# 프로덕션 스테이지
-FROM node:20-alpine
-
-# 작업 디렉토리 설정
+# 1. 프론트엔드 빌드 스테이지
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 
-# 필수 환경변수만 설정 (다른 변수는 docker-compose의 env_file로 처리)
-ENV NODE_ENV=production \
-    API_PORT=8000
+# package.json과 package-lock.json 파일 복사
+COPY frontend/package.json frontend/package-lock.json ./
 
-# 빌드 스테이지에서 필요한 파일만 복사
-COPY --from=builder --chown=appuser:appgroup /build/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /build/main.js ./
-COPY --from=builder --chown=appuser:appgroup /build/server ./server
-COPY --from=builder --chown=appuser:appgroup /build/client/build ./client/build
+# 의존성 설치
+RUN npm install
+
+# 소스 파일 복사 (폴더 구조 유지)
+COPY frontend/src ./src
+COPY frontend/public ./public
+COPY deploy/.env.frontend ./.env
+
+# 환경 변수 설정
+ENV NODE_ENV=production
+ENV CI=false
+ENV ESLINT_NO_DEV_ERRORS=true
+ENV GENERATE_SOURCEMAP=false
+ENV REACT_APP_API_URL=http://localhost:8000
+
+# 빌드 실행
+RUN npm run build
+
+# 2. 백엔드 의존성 설치 스테이지
+FROM node:20-alpine AS backend-deps
+WORKDIR /app
+
+# package.json과 package-lock.json 파일 복사
+COPY backend/package.json backend/package-lock.json ./
+
+# 프로덕션 의존성만 설치
+RUN npm install --omit=dev
+
+# 3. 최종 이미지 구성
+FROM node:20-alpine
+WORKDIR /app
+
+# 환경 변수 설정
+ENV NODE_ENV=production
+ENV PORT=8000
+
+# 백엔드 의존성 및 소스 코드 복사
+COPY --from=backend-deps /app/node_modules ./node_modules
+COPY backend/ ./backend/
+
+# 프론트엔드 빌드 결과물 복사
+RUN mkdir -p client/build
+COPY --from=frontend-builder /app/build ./client/build
+
+# 환경 변수 파일 복사 및 권한 설정
+COPY deploy/.env ./.env
+RUN chmod 600 ./.env
+
+# 명시적 환경 변수 설정 - docker-compose.yml과 중복될 수 있으나 명확성을 위해 추가
+ENV NODE_ENV=production
+ENV MYSQL_HOST=host.docker.internal
+ENV MYSQL_PORT=3306
+ENV MYSQL_USER=root
+ENV MYSQL_PASSWORD=1234
+ENV MYSQL_DATABASE=delivery_system
 
 # 포트 노출
 EXPOSE 8000
 
-
 # 서버 실행
-CMD ["node", "main.js"]
+CMD ["node", "backend/main.js"]

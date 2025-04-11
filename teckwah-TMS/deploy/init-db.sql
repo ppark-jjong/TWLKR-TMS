@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS refresh_token (
 -- 6. 대시보드 정보를 저장할 dashboard 테이블 
 CREATE TABLE IF NOT EXISTS dashboard (
   dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  order_no varchar(15) NOT NULL,
+  order_no varchar(255) NOT NULL,
   type ENUM('DELIVERY', 'RETURN') NOT NULL,
   status ENUM('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL') NOT NULL DEFAULT 'WAITING',
   department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   driver_contact VARCHAR(50) NULL,
   updated_by VARCHAR(50) NULL,
   remark TEXT NULL,
-  update_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_at DATETIME NOT NULL,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_department (department),
@@ -94,8 +94,8 @@ CREATE TABLE IF NOT EXISTS handover (
     content TEXT NOT NULL,
     update_by VARCHAR(50) NOT NULL,
     is_notice BOOLEAN DEFAULT FALSE,
-    create_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    create_at DATETIME NOT NULL,
+    update_at DATETIME NOT NULL,
     FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
