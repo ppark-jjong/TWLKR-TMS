@@ -1,8 +1,8 @@
-require('dotenv').config();
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { User } = require('../models/User');
-const logger = require('../utils/Logger');
+require("dotenv").config();
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const { User } = require("../models/UserModel");
+const logger = require("../utils/Logger");
 
 /**
  * 비밀번호 해싱
@@ -31,7 +31,7 @@ const comparePassword = async (password, hashedPassword) => {
  */
 const generateAccessToken = (payload) => {
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '1h',
+    expiresIn: process.env.JWT_EXPIRE || "1h",
   });
 };
 

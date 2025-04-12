@@ -1,11 +1,11 @@
-const { sequelize } = require('../config/database');
-const { ERROR_CODES } = require('./constants');
+const { sequelize } = require("../config/Database");
+const { ERROR_CODES } = require("./Constants");
 
 // 락 충돌 예외 클래스
 class LockConflictException extends Error {
-  constructor(message = '다른 사용자가 현재 이 데이터를 수정 중입니다') {
+  constructor(message = "다른 사용자가 현재 이 데이터를 수정 중입니다") {
     super(message);
-    this.name = 'LockConflictException';
+    this.name = "LockConflictException";
     this.code = ERROR_CODES.LOCK_CONFLICT;
   }
 }
@@ -14,7 +14,7 @@ class LockConflictException extends Error {
 class NotFoundException extends Error {
   constructor(id) {
     super(`ID가 ${id}인 리소스를 찾을 수 없습니다`);
-    this.name = 'NotFoundException';
+    this.name = "NotFoundException";
     this.code = ERROR_CODES.NOT_FOUND;
   }
 }
@@ -28,45 +28,45 @@ class NotFoundException extends Error {
  */
 async function findWithRowLock(model, id, options = {}) {
   const transaction = await sequelize.transaction();
-  
+
   try {
-    const primaryKeyField = model.primaryKeyAttribute || 'id';
-    
+    const primaryKeyField = model.primaryKeyAttribute || "id";
+
     // 조회 조건 설정
     const where = {};
     where[primaryKeyField] = id;
-    
+
     // SELECT FOR UPDATE로 행 락 획득
     const resource = await model.findOne({
       where,
       transaction,
       lock: transaction.LOCK.UPDATE,
-      ...options
+      ...options,
     });
-    
+
     if (!resource) {
       await transaction.rollback();
       throw new NotFoundException(id);
     }
-    
+
     // 트랜잭션은 리턴된 객체가 사용되는 동안 열려있어야 함
     // 호출자가 명시적으로 transaction.commit() 또는 transaction.rollback()을 호출해야 함
     resource.transaction = transaction;
-    
+
     return resource;
   } catch (error) {
     await transaction.rollback();
-    
+
     // 락 충돌 감지 및 예외 변환
     if (
-      error.name === 'SequelizeDatabaseError' &&
-      (error.message.includes('could not obtain lock') ||
-       error.message.includes('Lock wait timeout') ||
-       error.message.includes('Deadlock found'))
+      error.name === "SequelizeDatabaseError" &&
+      (error.message.includes("could not obtain lock") ||
+        error.message.includes("Lock wait timeout") ||
+        error.message.includes("Deadlock found"))
     ) {
       throw new LockConflictException();
     }
-    
+
     throw error;
   }
 }
@@ -81,39 +81,41 @@ async function updateWithLock(resource, updateData) {
   try {
     // resource에 transaction 속성이 있는지 확인
     if (!resource.transaction) {
-      throw new Error('락이 설정된 리소스가 아닙니다. findWithRowLock으로 먼저 락을 획득하세요.');
+      throw new Error(
+        "락이 설정된 리소스가 아닙니다. findWithRowLock으로 먼저 락을 획득하세요."
+      );
     }
-    
+
     const transaction = resource.transaction;
-    
+
     // 데이터 업데이트
-    Object.keys(updateData).forEach(key => {
+    Object.keys(updateData).forEach((key) => {
       resource[key] = updateData[key];
     });
-    
+
     // 변경사항 저장
     await resource.save({ transaction });
-    
+
     // 트랜잭션 커밋
     await transaction.commit();
-    
+
     return resource;
   } catch (error) {
     // 에러 발생 시 롤백
     if (resource.transaction) {
       await resource.transaction.rollback();
     }
-    
+
     // 락 충돌 감지 및 예외 변환
     if (
-      error.name === 'SequelizeDatabaseError' &&
-      (error.message.includes('could not obtain lock') ||
-       error.message.includes('Lock wait timeout') ||
-       error.message.includes('Deadlock found'))
+      error.name === "SequelizeDatabaseError" &&
+      (error.message.includes("could not obtain lock") ||
+        error.message.includes("Lock wait timeout") ||
+        error.message.includes("Deadlock found"))
     ) {
       throw new LockConflictException();
     }
-    
+
     throw error;
   }
 }
@@ -129,12 +131,12 @@ async function releaseLock(resource) {
     if (!resource.transaction) {
       return false;
     }
-    
+
     // 트랜잭션 롤백으로 락 해제
     await resource.transaction.rollback();
     return true;
   } catch (error) {
-    console.error('락 해제 중 오류 발생:', error);
+    console.error("락 해제 중 오류 발생:", error);
     return false;
   }
 }
@@ -144,5 +146,5 @@ module.exports = {
   updateWithLock,
   releaseLock,
   LockConflictException,
-  NotFoundException
+  NotFoundException,
 };

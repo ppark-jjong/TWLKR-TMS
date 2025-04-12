@@ -22,12 +22,12 @@ CREATE TABLE IF NOT EXISTS postal_code_detail (
    duration_time INT NOT NULL,
    PRIMARY KEY (postal_code, warehouse),
    FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
-   INDEX idx_warehouse_postal (warehouse, postal_code)
+   INDEX idx_warehouse_postal (warehouse)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 4. 사용자 정보를 저장할 user 테이블 (기존 유지)
+-- 4. 사용자 정보를 저장할 user 테이블
 CREATE TABLE IF NOT EXISTS user (
   user_id VARCHAR(50) NOT NULL PRIMARY KEY,
   user_password VARCHAR(255) NOT NULL,

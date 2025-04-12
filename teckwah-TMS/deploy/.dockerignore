@@ -24,12 +24,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # 환경 변수 파일 (deploy/.env는 제외)
-**/.env
+
 **/.env.local
 **/.env.development.local
 **/.env.test.local
 **/.env.production.local
-!deploy/.env
+
 
 # 기타 불필요한 파일
 **/.DS_Store

@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { ConfigProvider, Layout, Spin, message } from 'antd';
-import { isAuthenticated, logout } from './utils/auth';
-import { getCurrentUser } from './api/authService';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import HandoverPage from './pages/HandoverPage';
-import VisualizationPage from './pages/VisualizationPage';
-import NotFoundPage from './pages/NotFoundPage';
-import Sidebar from './components/Sidebar';
-import ErrorBoundary from './components/ErrorBoundary';
+import React, { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { ConfigProvider, Layout, Spin, message } from "antd";
+import { isAuthenticated, logout } from "./utils/auth";
+import { getCurrentUser } from "./api/authService";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import HandoverPage from "./pages/HandoverPage";
+import VisualizationPage from "./pages/VisualizationPage";
+import UserManagePage from "./pages/UserManagePage";
+import NotFoundPage from "./pages/NotFoundPage";
+import Sidebar from "./components/Sidebar";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const { Content } = Layout;
 
@@ -31,9 +32,15 @@ function App() {
 
   useEffect(() => {
     // 글로벌 오류 처리 설정 - useEffect 내부로 이동
-    const errorHandler = function(message, source, lineno, colno, error) {
-      console.error('전역 오류 발생:', { message, source, lineno, colno, error });
-      message.error('오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    const errorHandler = function (message, source, lineno, colno, error) {
+      console.error("전역 오류 발생:", {
+        message,
+        source,
+        lineno,
+        colno,
+        error,
+      });
+      message.error("오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
       return true;
     };
     window.onerror = errorHandler;
@@ -42,7 +49,7 @@ function App() {
     const checkAuthStatus = async () => {
       try {
         const { isAuth, userData } = isAuthenticated();
-        
+
         if (isAuth) {
           // 토큰이 있고 유효하다면 사용자 정보 받아오기
           try {
@@ -52,18 +59,18 @@ function App() {
             }
           } catch (apiError) {
             // API 호출 실패 시 (토큰 만료 등) 로그아웃 처리
-            console.warn('사용자 정보 조회 실패, 로그아웃 처리:', apiError);
+            console.warn("사용자 정보 조회 실패, 로그아웃 처리:", apiError);
             logout();
             setAuth(false);
             setUserData(null);
             return;
           }
         }
-        
+
         setAuth(isAuth);
         setUserData(userData);
       } catch (error) {
-        console.error('인증 상태 확인 중 오류 발생:', error);
+        console.error("인증 상태 확인 중 오류 발생:", error);
         setAuth(false);
         setUserData(null);
       } finally {
@@ -74,7 +81,7 @@ function App() {
 
     // 초기 인증 상태 확인
     checkAuthStatus();
-    
+
     return () => {
       window.onerror = null; // 이벤트 핸들러 정리
     };
@@ -116,20 +123,34 @@ function App() {
             element={
               <AuthWrapper auth={auth}>
                 <Layout className="main-layout">
-                  <Sidebar 
-                    userData={userData} 
+                  <Sidebar
+                    userData={userData}
                     setAuth={setAuth}
                     collapsed={collapsed}
                     toggleSidebar={toggleSidebar}
                   />
-                  <Layout className={`site-layout ${collapsed ? 'with-collapsed-sidebar' : ''}`}>
+                  <Layout
+                    className={`site-layout ${
+                      collapsed ? "with-collapsed-sidebar" : ""
+                    }`}
+                  >
                     <Content className="content-wrapper">
                       <ErrorBoundary>
                         <Routes>
-                          <Route index element={<Navigate to="/dashboard" replace />} />
-                          <Route path="/dashboard/*" element={<DashboardPage />} />
+                          <Route
+                            index
+                            element={<Navigate to="/dashboard" replace />}
+                          />
+                          <Route
+                            path="/dashboard/*"
+                            element={<DashboardPage />}
+                          />
                           <Route path="/handover" element={<HandoverPage />} />
-                          <Route path="/visualization" element={<VisualizationPage />} />
+                          <Route
+                            path="/visualization"
+                            element={<VisualizationPage />}
+                          />
+                          <Route path="/users" element={<UserManagePage />} />
                           <Route path="*" element={<NotFoundPage />} />
                         </Routes>
                       </ErrorBoundary>
