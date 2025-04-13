@@ -1,7 +1,7 @@
-import React from 'react';
-import { Table, Typography, Tag, Tooltip } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
-import { formatDate } from '../../utils/helpers';
+import React from "react";
+import { Table, Typography, Tag, Tooltip } from "antd";
+import { EyeOutlined } from "@ant-design/icons";
+import { formatDate } from "../../utils/Helpers";
 
 const { Text, Paragraph } = Typography;
 
@@ -18,22 +18,22 @@ const HandoverTable = ({ data, loading, onRowClick, pagination, isNotice }) => {
   // 테이블 컬럼 설정
   const columns = [
     {
-      title: '작성자',
-      dataIndex: 'update_by',
-      key: 'update_by',
+      title: "작성자",
+      dataIndex: "update_by",
+      key: "update_by",
       width: 100,
     },
     {
-      title: '작성일시',
-      dataIndex: 'create_at',
-      key: 'create_at',
+      title: "작성일시",
+      dataIndex: "create_at",
+      key: "create_at",
       width: 150,
       render: (text) => formatDate(text, true),
     },
     {
-      title: '제목',
-      dataIndex: 'title',
-      key: 'title',
+      title: "제목",
+      dataIndex: "title",
+      key: "title",
       width: 200,
       render: (text, record) => (
         <div>
@@ -49,9 +49,9 @@ const HandoverTable = ({ data, loading, onRowClick, pagination, isNotice }) => {
       ),
     },
     {
-      title: '내용',
-      dataIndex: 'content',
-      key: 'content',
+      title: "내용",
+      dataIndex: "content",
+      key: "content",
       render: (text) => (
         <Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
           {text}
@@ -59,8 +59,8 @@ const HandoverTable = ({ data, loading, onRowClick, pagination, isNotice }) => {
       ),
     },
     {
-      title: '액션',
-      key: 'action',
+      title: "액션",
+      key: "action",
       width: 60,
       render: (_, record) => (
         <Tooltip title="상세보기">
@@ -69,7 +69,7 @@ const HandoverTable = ({ data, loading, onRowClick, pagination, isNotice }) => {
               e.stopPropagation();
               onRowClick(record);
             }}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: "pointer" }}
           />
         </Tooltip>
       ),
@@ -85,7 +85,7 @@ const HandoverTable = ({ data, loading, onRowClick, pagination, isNotice }) => {
       pagination={pagination}
       onRow={(record) => ({
         onClick: () => onRowClick(record),
-        style: { cursor: 'pointer' },
+        style: { cursor: "pointer" },
       })}
       size="middle"
     />

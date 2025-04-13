@@ -29,8 +29,7 @@ const User = sequelize.define(
   },
   {
     tableName: "user",
-    timestamps: true,
-    underscored: true,
+    timestamps: false, // 타임스탬프 필드가 DB에 없으므로 false로 변경
     hooks: {
       beforeCreate: async (user) => {
         if (user.user_password) {

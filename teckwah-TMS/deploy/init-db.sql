@@ -37,19 +37,6 @@ CREATE TABLE IF NOT EXISTS user (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 5. 리프레시 토큰 관리를 위한 refresh_token 테이블 (기존 유지)
-CREATE TABLE IF NOT EXISTS refresh_token (
-  refresh_token_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  user_id VARCHAR(50) NOT NULL,
-  refresh_token VARCHAR(255) NOT NULL,
-  expires_at DATETIME NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE,
-  INDEX idx_token (refresh_token),
-  INDEX idx_expires (expires_at)
-) ENGINE=InnoDB
-  DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
 
 -- 6. 대시보드 정보를 저장할 dashboard 테이블 
 CREATE TABLE IF NOT EXISTS dashboard (
@@ -78,7 +65,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   driver_contact VARCHAR(50) NULL,
   updated_by VARCHAR(50) NULL,
   remark TEXT NULL,
-  update_at DATETIME NOT NULL,
+  update_at DATETIME NULL,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_department (department),

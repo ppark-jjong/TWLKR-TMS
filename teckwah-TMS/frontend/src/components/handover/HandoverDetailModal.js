@@ -1,8 +1,17 @@
-import React from 'react';
-import { Modal, Typography, Divider, Button, Space, Tag, Spin, Popconfirm } from 'antd';
-import { formatDate } from '../../utils/helpers';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { isAdmin } from '../../utils/auth';
+import React from "react";
+import {
+  Modal,
+  Typography,
+  Divider,
+  Button,
+  Space,
+  Tag,
+  Spin,
+  Popconfirm,
+} from "antd";
+import { formatDate } from "../../utils/Helpers";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { isAdmin } from "../../utils/Auth";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -27,14 +36,11 @@ const HandoverDetailModal = ({
   // 사용자가 작성자 또는 관리자인지 확인
   const canModify = () => {
     if (!data) return false;
-    
-    const userData = JSON.parse(localStorage.getItem('teckwah_tms_user'));
-    
+
+    const userData = JSON.parse(localStorage.getItem("teckwah_tms_user"));
+
     // 작성자이거나 관리자인 경우 수정/삭제 가능
-    return (
-      userData?.user_id === data.update_by ||
-      isAdmin()
-    );
+    return userData?.user_id === data.update_by || isAdmin();
   };
 
   // 데이터가 없는 경우
@@ -46,7 +52,7 @@ const HandoverDetailModal = ({
     <Modal
       title={
         <Space>
-          <span>{data.is_notice ? '공지사항' : '인수인계'} 상세 정보</span>
+          <span>{data.is_notice ? "공지사항" : "인수인계"} 상세 정보</span>
           {data.is_notice && <Tag color="blue">공지</Tag>}
         </Space>
       }
@@ -83,19 +89,19 @@ const HandoverDetailModal = ({
         ),
       ].filter(Boolean)}
     >
-      <div style={{ position: 'relative', minHeight: '200px' }}>
+      <div style={{ position: "relative", minHeight: "200px" }}>
         {loading ? (
           <div
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
               left: 0,
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.7)',
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              background: "rgba(255, 255, 255, 0.7)",
               zIndex: 1,
             }}
           >
@@ -108,9 +114,13 @@ const HandoverDetailModal = ({
               <Title level={4}>{data.title}</Title>
               <Space split={<Divider type="vertical" />}>
                 <Text type="secondary">작성자: {data.update_by}</Text>
-                <Text type="secondary">작성일시: {formatDate(data.create_at, true)}</Text>
+                <Text type="secondary">
+                  작성일시: {formatDate(data.create_at, true)}
+                </Text>
                 {data.update_at !== data.create_at && (
-                  <Text type="secondary">수정일시: {formatDate(data.update_at, true)}</Text>
+                  <Text type="secondary">
+                    수정일시: {formatDate(data.update_at, true)}
+                  </Text>
                 )}
               </Space>
             </div>
@@ -119,13 +129,15 @@ const HandoverDetailModal = ({
             <Divider />
             <div
               style={{
-                background: '#f9f9f9',
-                padding: '16px',
-                borderRadius: '4px',
-                minHeight: '200px',
+                background: "#f9f9f9",
+                padding: "16px",
+                borderRadius: "4px",
+                minHeight: "200px",
               }}
             >
-              <Paragraph style={{ whiteSpace: 'pre-line' }}>{data.content}</Paragraph>
+              <Paragraph style={{ whiteSpace: "pre-line" }}>
+                {data.content}
+              </Paragraph>
             </div>
           </>
         )}

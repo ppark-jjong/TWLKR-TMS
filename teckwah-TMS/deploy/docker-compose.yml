@@ -1,34 +1,13 @@
+version: '3.8'
+
 services:
   app:
     build:
       context: ..
-      dockerfile: ./deploy/Dockerfile
+      dockerfile: deploy/Dockerfile
     container_name: teckwah-tms
+    restart: unless-stopped
     ports:
-      - '8000:8000'
+      - "8080:8080"
     env_file:
-      - ./.env
-    # 로컬 테스트용 설정
-    restart: "no"  # 컨테이너 오류 시 재시작하지 않음
-    
-    # 실제 배포용 설정 (배포 시 주석 해제)
-    # restart: "always"  # 컨테이너 오류 시 항상 재시작
-    # 또는 restart: "unless-stopped"  # 수동으로 중지하지 않는 한 항상 재시작
-    
-    environment:
-      - NODE_ENV=production
-      - PORT=8000
-      
-      # 로컬 테스트용 환경 변수
-      - MYSQL_HOST=host.docker.internal
-      - MYSQL_PORT=3306
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=1234
-      - MYSQL_DATABASE=delivery_system
-      
-      # 실제 배포용 환경 변수 (배포 시 위 항목 주석 처리하고 아래 주석 해제)
-      # - MYSQL_HOST=your-db-host.com
-      # - MYSQL_PORT=3306
-      # - MYSQL_USER=prod_user
-      # - MYSQL_PASSWORD=prod_password
-      # - MYSQL_DATABASE=delivery_system
+      - .env

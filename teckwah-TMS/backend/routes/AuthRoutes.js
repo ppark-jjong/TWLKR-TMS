@@ -1,5 +1,4 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
 const User = require("../models/UserModel");
 const { authenticate } = require("../middlewares/AuthMiddleware");
 const { createResponse, ERROR_CODES } = require("../utils/Constants");
@@ -59,42 +58,21 @@ router.post("/login", async (req, res, next) => {
         );
     }
 
-    // JWT 토큰 발급
-    const accessToken = jwt.sign(
-      { user_id: user.user_id, role: user.user_role },
-      process.env.JWT_SECRET_KEY,
-      {
-        expiresIn: process.env.ACCESS_TOKEN_EXPIRE_MINUTES
-          ? `${process.env.ACCESS_TOKEN_EXPIRE_MINUTES}m`
-          : "15m",
-      }
-    );
+    // 세션에 사용자 정보 저장
+    req.session.user = {
+      user_id: user.user_id,
+      role: user.user_role,
+      department: user.user_department,
+    };
 
-    const refreshToken = jwt.sign(
-      { user_id: user.user_id },
-      process.env.JWT_REFRESH_SECRET_KEY,
-      {
-        expiresIn: process.env.REFRESH_TOKEN_EXPIRE_DAYS
-          ? `${process.env.REFRESH_TOKEN_EXPIRE_DAYS}d`
-          : "7d",
-      }
-    );
-
-    // 리프레시 토큰을 HttpOnly 쿠키로 설정
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
-    });
-
+    // 로그인 응답 반환
     return res.status(200).json(
       createResponse(true, "로그인 성공", {
         user: {
           user_id: user.user_id,
           role: user.user_role,
           department: user.user_department,
-        },
-        access_token: accessToken,
+        }
       })
     );
   } catch (error) {
@@ -103,78 +81,31 @@ router.post("/login", async (req, res, next) => {
 });
 
 /**
- * 토큰 갱신 API
- * POST /auth/refresh
+ * 세션 확인 API
+ * GET /auth/session
  */
-router.post("/refresh", async (req, res, next) => {
+router.get("/session", async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refresh_token;
-
-    if (!refreshToken) {
+    // 세션 정보 확인
+    if (!req.session || !req.session.user) {
       return res
         .status(401)
         .json(
           createResponse(
             false,
-            "재인증이 필요합니다",
+            "유효한 세션이 없습니다",
             null,
             ERROR_CODES.UNAUTHORIZED
           )
         );
     }
 
-    try {
-      // 리프레시 토큰 검증
-      const decoded = jwt.verify(
-        refreshToken,
-        process.env.JWT_REFRESH_SECRET_KEY
-      );
-
-      // 사용자 조회
-      const user = await User.findByPk(decoded.user_id);
-
-      if (!user) {
-        return res
-          .status(401)
-          .json(
-            createResponse(
-              false,
-              "잘못된 토큰입니다",
-              null,
-              ERROR_CODES.UNAUTHORIZED
-            )
-          );
-      }
-
-      // 새 액세스 토큰 발급
-      const newAccessToken = jwt.sign(
-        { user_id: user.user_id, role: user.user_role },
-        process.env.JWT_SECRET_KEY,
-        {
-          expiresIn: process.env.ACCESS_TOKEN_EXPIRE_MINUTES
-            ? `${process.env.ACCESS_TOKEN_EXPIRE_MINUTES}m`
-            : "15m",
-        }
-      );
-
-      return res.status(200).json(
-        createResponse(true, "토큰 갱신 성공", {
-          access_token: newAccessToken,
-        })
-      );
-    } catch (err) {
-      // 토큰 검증 실패
-      return res
-        .status(401)
-        .json(
-          createResponse(
-            false,
-            "인증이 만료되었습니다. 다시 로그인해주세요",
-            null,
-            ERROR_CODES.UNAUTHORIZED
-          )
-        );
-    }
+    // 세션에 있는 사용자 정보 반환
+    return res.status(200).json(
+      createResponse(true, "세션 정보 확인 성공", {
+        user: req.session.user
+      })
+    );
   } catch (error) {
     next(error);
   }
@@ -186,10 +117,27 @@ router.post("/refresh", async (req, res, next) => {
  */
 router.post("/logout", authenticate, async (req, res, next) => {
   try {
-    // 쿠키 제거
-    res.clearCookie("refresh_token");
+    // 세션 파기
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("세션 파기 중 오류:", err);
+        return res
+          .status(500)
+          .json(
+            createResponse(
+              false,
+              "로그아웃 처리 중 오류가 발생했습니다",
+              null,
+              ERROR_CODES.INTERNAL_SERVER_ERROR
+            )
+          );
+      }
 
-    return res.status(200).json(createResponse(true, "로그아웃 성공"));
+      // 쿠키 삭제 (세션 쿠키)
+      res.clearCookie("connect.sid");
+
+      return res.status(200).json(createResponse(true, "로그아웃 성공"));
+    });
   } catch (error) {
     next(error);
   }

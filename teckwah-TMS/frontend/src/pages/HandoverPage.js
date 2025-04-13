@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
-import { Card, Button, notification, Space, Divider, Typography } from 'antd';
+import React, { useState } from "react";
+import { Card, Button, notification, Space, Divider, Typography } from "antd";
 import {
   PlusOutlined,
   ReloadOutlined,
   NotificationOutlined,
   SwapOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+} from "@ant-design/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import HandoverTable from '../components/handover/HandoverTable';
-import HandoverDetailModal from '../components/handover/HandoverDetailModal';
-import HandoverFormModal from '../components/handover/HandoverFormModal';
+import HandoverTable from "../components/handover/HandoverTable";
+import HandoverDetailModal from "../components/handover/HandoverDetailModal";
+import HandoverFormModal from "../components/handover/HandoverFormModal";
 
 import {
   getHandoverList,
@@ -18,7 +18,7 @@ import {
   createHandover,
   updateHandover,
   deleteHandover,
-} from '../api/handoverService';
+} from "../api/HandoverService";
 
 const { Title } = Typography;
 
@@ -49,12 +49,13 @@ const HandoverPage = () => {
     isLoading: isLoadingNotice,
     refetch: refetchNotice,
   } = useQuery(
-    ['handoverList', 'notice', noticeFilters],
-    () => getHandoverList({
-      type: 'notice',
-      page: noticeFilters.page,
-      limit: noticeFilters.limit,
-    }),
+    ["handoverList", "notice", noticeFilters],
+    () =>
+      getHandoverList({
+        type: "notice",
+        page: noticeFilters.page,
+        limit: noticeFilters.limit,
+      }),
     {
       keepPreviousData: true,
     }
@@ -66,23 +67,21 @@ const HandoverPage = () => {
     isLoading: isLoadingHandover,
     refetch: refetchHandover,
   } = useQuery(
-    ['handoverList', 'normal', handoverFilters],
-    () => getHandoverList({
-      type: 'normal',
-      page: handoverFilters.page,
-      limit: handoverFilters.limit,
-    }),
+    ["handoverList", "normal", handoverFilters],
+    () =>
+      getHandoverList({
+        type: "normal",
+        page: handoverFilters.page,
+        limit: handoverFilters.limit,
+      }),
     {
       keepPreviousData: true,
     }
   );
 
   // 인수인계 상세 조회 쿼리
-  const {
-    data: handoverDetail,
-    isLoading: isLoadingDetail,
-  } = useQuery(
-    ['handoverDetail', selectedHandover?.handover_id],
+  const { data: handoverDetail, isLoading: isLoadingDetail } = useQuery(
+    ["handoverDetail", selectedHandover?.handover_id],
     () => getHandoverDetail(selectedHandover?.handover_id),
     {
       enabled: !!selectedHandover?.handover_id && detailVisible,
@@ -94,24 +93,24 @@ const HandoverPage = () => {
     onSuccess: (data) => {
       if (data.success) {
         notification.success({
-          message: '등록 성공',
+          message: "등록 성공",
           description: data.data.is_notice
-            ? '새로운 공지사항이 등록되었습니다.'
-            : '새로운 인수인계가 등록되었습니다.',
+            ? "새로운 공지사항이 등록되었습니다."
+            : "새로운 인수인계가 등록되었습니다.",
         });
         setFormVisible(false);
-        queryClient.invalidateQueries(['handoverList']);
+        queryClient.invalidateQueries(["handoverList"]);
       } else {
         notification.error({
-          message: '등록 실패',
-          description: data.message || '등록 중 오류가 발생했습니다.',
+          message: "등록 실패",
+          description: data.message || "등록 중 오류가 발생했습니다.",
         });
       }
     },
     onError: (error) => {
       notification.error({
-        message: '등록 실패',
-        description: error.message || '등록 중 오류가 발생했습니다.',
+        message: "등록 실패",
+        description: error.message || "등록 중 오류가 발생했습니다.",
       });
     },
   });
@@ -123,26 +122,29 @@ const HandoverPage = () => {
       onSuccess: (data) => {
         if (data.success) {
           notification.success({
-            message: '수정 성공',
+            message: "수정 성공",
             description: data.data.is_notice
-              ? '공지사항이 수정되었습니다.'
-              : '인수인계가 수정되었습니다.',
+              ? "공지사항이 수정되었습니다."
+              : "인수인계가 수정되었습니다.",
           });
           setFormVisible(false);
           setDetailVisible(false);
-          queryClient.invalidateQueries(['handoverList']);
-          queryClient.invalidateQueries(['handoverDetail', selectedHandover?.handover_id]);
+          queryClient.invalidateQueries(["handoverList"]);
+          queryClient.invalidateQueries([
+            "handoverDetail",
+            selectedHandover?.handover_id,
+          ]);
         } else {
           notification.error({
-            message: '수정 실패',
-            description: data.message || '수정 중 오류가 발생했습니다.',
+            message: "수정 실패",
+            description: data.message || "수정 중 오류가 발생했습니다.",
           });
         }
       },
       onError: (error) => {
         notification.error({
-          message: '수정 실패',
-          description: error.message || '수정 중 오류가 발생했습니다.',
+          message: "수정 실패",
+          description: error.message || "수정 중 오류가 발생했습니다.",
         });
       },
     }
@@ -153,24 +155,24 @@ const HandoverPage = () => {
     onSuccess: (data) => {
       if (data.success) {
         notification.success({
-          message: '삭제 성공',
+          message: "삭제 성공",
           description: selectedHandover?.is_notice
-            ? '공지사항이 삭제되었습니다.'
-            : '인수인계가 삭제되었습니다.',
+            ? "공지사항이 삭제되었습니다."
+            : "인수인계가 삭제되었습니다.",
         });
         setDetailVisible(false);
-        queryClient.invalidateQueries(['handoverList']);
+        queryClient.invalidateQueries(["handoverList"]);
       } else {
         notification.error({
-          message: '삭제 실패',
-          description: data.message || '삭제 중 오류가 발생했습니다.',
+          message: "삭제 실패",
+          description: data.message || "삭제 중 오류가 발생했습니다.",
         });
       }
     },
     onError: (error) => {
       notification.error({
-        message: '삭제 실패',
-        description: error.message || '삭제 중 오류가 발생했습니다.',
+        message: "삭제 실패",
+        description: error.message || "삭제 중 오류가 발생했습니다.",
       });
     },
   });
@@ -236,11 +238,11 @@ const HandoverPage = () => {
       });
     } else {
       // 생성
-      const userData = JSON.parse(localStorage.getItem('teckwah_tms_user'));
-      
+      const userData = JSON.parse(localStorage.getItem("teckwah_tms_user"));
+
       createHandoverMutation.mutate({
         ...values,
-        update_by: userData?.user_id || 'unknown',
+        update_by: userData?.user_id || "unknown",
         create_at: new Date().toISOString(),
         update_at: new Date().toISOString(),
       });
@@ -269,7 +271,7 @@ const HandoverPage = () => {
 
   // 필터링된 데이터 - 공지사항
   const noticeItems = noticeData?.data?.items || [];
-  
+
   // 필터링된 데이터 - 인수인계
   const handoverItems = handoverData?.data?.items || [];
 
@@ -298,16 +300,20 @@ const HandoverPage = () => {
       >
         {/* 공지사항 섹션 */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-            <NotificationOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+          <div
+            style={{ display: "flex", alignItems: "center", marginBottom: 16 }}
+          >
+            <NotificationOutlined
+              style={{ marginRight: 8, color: "#1890ff" }}
+            />
             <Title level={4} style={{ margin: 0 }}>
               공지사항
             </Title>
-            <div style={{ marginLeft: 8, color: '#1890ff' }}>
+            <div style={{ marginLeft: 8, color: "#1890ff" }}>
               ({noticeData?.data?.total || 0})
             </div>
           </div>
-          
+
           <HandoverTable
             data={noticeItems}
             loading={isLoadingNotice}
@@ -316,21 +322,23 @@ const HandoverPage = () => {
             isNotice={true}
           />
         </div>
-        
+
         <Divider />
-        
+
         {/* 인수인계 섹션 */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-            <SwapOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+          <div
+            style={{ display: "flex", alignItems: "center", marginBottom: 16 }}
+          >
+            <SwapOutlined style={{ marginRight: 8, color: "#1890ff" }} />
             <Title level={4} style={{ margin: 0 }}>
               인수인계
             </Title>
-            <div style={{ marginLeft: 8, color: '#1890ff' }}>
+            <div style={{ marginLeft: 8, color: "#1890ff" }}>
               ({handoverData?.data?.total || 0})
             </div>
           </div>
-          
+
           <HandoverTable
             data={handoverItems}
             loading={isLoadingHandover}
@@ -357,7 +365,9 @@ const HandoverPage = () => {
         onClose={() => setFormVisible(false)}
         onSubmit={handleFormSubmit}
         data={handoverDetail?.data}
-        loading={createHandoverMutation.isLoading || updateHandoverMutation.isLoading}
+        loading={
+          createHandoverMutation.isLoading || updateHandoverMutation.isLoading
+        }
         isEdit={isEdit}
       />
     </div>

@@ -43,8 +43,8 @@ const errorHandler = (err, req, res, next) => {
       );
   }
 
-  // JWT 인증 오류
-  if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {
+  // 세션 인증 오류
+  if (err.name === "SessionError") {
     return res
       .status(401)
       .json(

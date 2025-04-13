@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient from "./Client";
 
 /**
  * 대시보드 목록 조회 API
@@ -10,7 +10,7 @@ import apiClient from './client';
  * @returns {Promise<Object>} - 대시보드 목록 응답 데이터
  */
 export const getDashboardList = async (params) => {
-  return await apiClient.get('/dashboard/list', { params });
+  return await apiClient.get("/dashboard/list", { params });
 };
 
 /**
@@ -28,7 +28,7 @@ export const getDashboardDetail = async (id) => {
  * @returns {Promise<Object>} - 대시보드 생성 응답 데이터
  */
 export const createDashboard = async (data) => {
-  return await apiClient.post('/dashboard', data);
+  return await apiClient.post("/dashboard", data);
 };
 
 /**
@@ -82,7 +82,7 @@ export const assignDriver = async (id, data) => {
  * @returns {Promise<Object>} - 다중 배차 처리 응답 데이터
  */
 export const assignMultiDrivers = async (data) => {
-  return await apiClient.patch('/dashboard/multi-assign', data);
+  return await apiClient.patch("/dashboard/multi-assign", data);
 };
 
 /**
@@ -95,5 +95,5 @@ export const assignMultiDrivers = async (data) => {
  * @returns {Promise<Object>} - 시각화 데이터 응답 데이터
  */
 export const getVisualizationData = async (params) => {
-  return await apiClient.get('/dashboard/visualization', { params });
+  return await apiClient.get("/dashboard/visualization", { params });
 };

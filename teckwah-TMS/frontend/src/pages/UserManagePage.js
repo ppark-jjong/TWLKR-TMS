@@ -13,7 +13,7 @@ import {
   Space,
 } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import { listUsers, createUser, deleteUser } from "../api/userService";
+import { listUsers, createUser, deleteUser } from "../api/UserService";
 
 const { Title } = Typography;
 const { Option } = Select;

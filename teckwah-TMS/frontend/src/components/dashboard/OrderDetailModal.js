@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Modal,
   Descriptions,
@@ -10,23 +10,23 @@ import {
   Row,
   Col,
   Spin,
-  message
-} from 'antd';
+  message,
+} from "antd";
 import {
   EditOutlined,
   CarOutlined,
   SyncOutlined,
   CopyOutlined,
   MessageOutlined,
-} from '@ant-design/icons';
+} from "@ant-design/icons";
 import {
   formatDate,
   getStatusInfo,
   getDepartmentLabel,
   getWarehouseLabel,
   getTypeLabel,
-} from '../../utils/helpers';
-import { isAdmin } from '../../utils/auth';
+} from "../../utils/Helpers";
+import { isAdmin } from "../../utils/Auth";
 
 const { Text, Paragraph } = Typography;
 
@@ -53,13 +53,16 @@ const OrderDetailModal = ({
   // 주문번호 복사 핸들러
   const handleCopyOrderId = () => {
     if (!data?.order_no) return;
-    
-    navigator.clipboard.writeText(data.order_no)
+
+    navigator.clipboard
+      .writeText(data.order_no)
       .then(() => {
-        message.success(`주문번호 ${data.order_no}가 클립보드에 복사되었습니다.`);
+        message.success(
+          `주문번호 ${data.order_no}가 클립보드에 복사되었습니다.`
+        );
       })
       .catch(() => {
-        message.error('클립보드 복사에 실패했습니다.');
+        message.error("클립보드 복사에 실패했습니다.");
       });
   };
 
@@ -113,19 +116,19 @@ const OrderDetailModal = ({
         </Button>,
       ]}
     >
-      <div style={{ position: 'relative', minHeight: '200px' }}>
+      <div style={{ position: "relative", minHeight: "200px" }}>
         {loading ? (
           <div
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
               left: 0,
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.7)',
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              background: "rgba(255, 255, 255, 0.7)",
               zIndex: 1,
             }}
           >
@@ -149,17 +152,29 @@ const OrderDetailModal = ({
                       />
                     </Space>
                   </Descriptions.Item>
-                  <Descriptions.Item label="고객명">{data.customer}</Descriptions.Item>
-                  <Descriptions.Item label="연락처">{data.contact || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="유형">{getTypeLabel(data.type)}</Descriptions.Item>
+                  <Descriptions.Item label="고객명">
+                    {data.customer}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="연락처">
+                    {data.contact || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="유형">
+                    {getTypeLabel(data.type)}
+                  </Descriptions.Item>
                 </Descriptions>
               </Col>
               <Col span={12}>
                 <Descriptions column={1} size="small" bordered>
-                  <Descriptions.Item label="부서">{getDepartmentLabel(data.department)}</Descriptions.Item>
-                  <Descriptions.Item label="창고">{getWarehouseLabel(data.warehouse)}</Descriptions.Item>
+                  <Descriptions.Item label="부서">
+                    {getDepartmentLabel(data.department)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="창고">
+                    {getWarehouseLabel(data.warehouse)}
+                  </Descriptions.Item>
                   <Descriptions.Item label="SLA">{data.sla}</Descriptions.Item>
-                  <Descriptions.Item label="우편번호">{data.postal_code}</Descriptions.Item>
+                  <Descriptions.Item label="우편번호">
+                    {data.postal_code}
+                  </Descriptions.Item>
                 </Descriptions>
               </Col>
             </Row>
@@ -169,23 +184,39 @@ const OrderDetailModal = ({
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Descriptions column={1} size="small" bordered>
-                  <Descriptions.Item label="ETA">{formatDate(data.eta, true)}</Descriptions.Item>
-                  <Descriptions.Item label="생성 시간">{formatDate(data.create_time, true)}</Descriptions.Item>
+                  <Descriptions.Item label="ETA">
+                    {formatDate(data.eta, true)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="생성 시간">
+                    {formatDate(data.create_time, true)}
+                  </Descriptions.Item>
                   <Descriptions.Item label="출발 시간">
-                    {data.depart_time ? formatDate(data.depart_time, true) : '-'}
+                    {data.depart_time
+                      ? formatDate(data.depart_time, true)
+                      : "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label="완료 시간">
-                    {data.complete_time ? formatDate(data.complete_time, true) : '-'}
+                    {data.complete_time
+                      ? formatDate(data.complete_time, true)
+                      : "-"}
                   </Descriptions.Item>
                 </Descriptions>
               </Col>
               <Col span={12}>
                 <Descriptions column={1} size="small" bordered>
-                  <Descriptions.Item label="배송기사">{data.driver_name || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="기사 연락처">{data.driver_contact || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="배송거리">{data.distance ? `${data.distance}m` : '-'}</Descriptions.Item>
+                  <Descriptions.Item label="배송기사">
+                    {data.driver_name || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="기사 연락처">
+                    {data.driver_contact || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="배송거리">
+                    {data.distance ? `${data.distance}m` : "-"}
+                  </Descriptions.Item>
                   <Descriptions.Item label="예상소요시간">
-                    {data.duration_time ? `${Math.floor(data.duration_time / 60)}분` : '-'}
+                    {data.duration_time
+                      ? `${Math.floor(data.duration_time / 60)}분`
+                      : "-"}
                   </Descriptions.Item>
                 </Descriptions>
               </Col>
@@ -194,22 +225,28 @@ const OrderDetailModal = ({
             {/* 주소 정보 */}
             <Divider orientation="left">주소 정보</Divider>
             <Descriptions column={1} bordered>
-              <Descriptions.Item label="지역">{data.region || '-'}</Descriptions.Item>
-              <Descriptions.Item label="상세 주소">{data.address}</Descriptions.Item>
+              <Descriptions.Item label="지역">
+                {data.region || "-"}
+              </Descriptions.Item>
+              <Descriptions.Item label="상세 주소">
+                {data.address}
+              </Descriptions.Item>
             </Descriptions>
 
             {/* 메모 */}
             <Divider orientation="left">메모</Divider>
             <div
               style={{
-                background: '#f5f5f5',
-                padding: '16px',
-                borderRadius: '4px',
-                minHeight: '80px',
+                background: "#f5f5f5",
+                padding: "16px",
+                borderRadius: "4px",
+                minHeight: "80px",
               }}
             >
               {data.remark ? (
-                <Paragraph style={{ whiteSpace: 'pre-line' }}>{data.remark}</Paragraph>
+                <Paragraph style={{ whiteSpace: "pre-line" }}>
+                  {data.remark}
+                </Paragraph>
               ) : (
                 <Text type="secondary">메모가 없습니다.</Text>
               )}
@@ -218,8 +255,12 @@ const OrderDetailModal = ({
             {/* 관리 정보 */}
             <Divider orientation="left">관리 정보</Divider>
             <Descriptions column={2} size="small">
-              <Descriptions.Item label="최종 수정자">{data.updated_by || '-'}</Descriptions.Item>
-              <Descriptions.Item label="최종 수정일시">{formatDate(data.update_at, true)}</Descriptions.Item>
+              <Descriptions.Item label="최종 수정자">
+                {data.updated_by || "-"}
+              </Descriptions.Item>
+              <Descriptions.Item label="최종 수정일시">
+                {formatDate(data.update_at, true)}
+              </Descriptions.Item>
             </Descriptions>
           </>
         )}

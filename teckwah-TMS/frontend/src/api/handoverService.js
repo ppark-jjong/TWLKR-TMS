@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient from "./Client";
 
 /**
  * 인수인계/공지사항 목록 조회 API
@@ -9,7 +9,7 @@ import apiClient from './client';
  * @returns {Promise<Object>} - 인수인계/공지사항 목록 응답 데이터
  */
 export const getHandoverList = async (params) => {
-  return await apiClient.get('/handover/list', { params });
+  return await apiClient.get("/handover/list", { params });
 };
 
 /**
@@ -30,7 +30,7 @@ export const getHandoverDetail = async (id) => {
  * @returns {Promise<Object>} - 인수인계/공지사항 생성 응답 데이터
  */
 export const createHandover = async (data) => {
-  return await apiClient.post('/handover', data);
+  return await apiClient.post("/handover", data);
 };
 
 /**

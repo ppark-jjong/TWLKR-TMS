@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ConfigProvider, Layout, Spin, message } from "antd";
-import { isAuthenticated, logout } from "./utils/auth";
-import { getCurrentUser } from "./api/authService";
+import { isAuthenticated, logout } from "./utils/Auth";
+import { getCurrentUser } from "./api/AuthService";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import HandoverPage from "./pages/HandoverPage";

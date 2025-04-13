@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { Modal, Form, Input, Checkbox, Typography } from 'antd';
-import { isAdmin } from '../../utils/auth';
+import React, { useEffect } from "react";
+import { Modal, Form, Input, Checkbox, Typography } from "antd";
+import { isAdmin } from "../../utils/Auth";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -41,12 +41,13 @@ const HandoverFormModal = ({
 
   // 폼 제출 핸들러
   const handleSubmit = () => {
-    form.validateFields()
-      .then(values => {
+    form
+      .validateFields()
+      .then((values) => {
         onSubmit(values);
       })
-      .catch(error => {
-        console.error('Validation failed:', error);
+      .catch((error) => {
+        console.error("Validation failed:", error);
       });
   };
 
@@ -58,24 +59,20 @@ const HandoverFormModal = ({
 
   return (
     <Modal
-      title={isEdit ? '인수인계 수정' : '인수인계 등록'}
+      title={isEdit ? "인수인계 수정" : "인수인계 등록"}
       open={visible}
       onCancel={handleCancel}
       onOk={handleSubmit}
       confirmLoading={loading}
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{ is_notice: false }}
-      >
+      <Form form={form} layout="vertical" initialValues={{ is_notice: false }}>
         <Form.Item
           name="title"
           label="제목"
           rules={[
-            { required: true, message: '제목을 입력해주세요' },
-            { max: 100, message: '제목은 100자를 초과할 수 없습니다' },
+            { required: true, message: "제목을 입력해주세요" },
+            { max: 100, message: "제목은 100자를 초과할 수 없습니다" },
           ]}
         >
           <Input placeholder="제목을 입력하세요" maxLength={100} />
@@ -85,8 +82,8 @@ const HandoverFormModal = ({
           name="content"
           label="내용"
           rules={[
-            { required: true, message: '내용을 입력해주세요' },
-            { max: 2000, message: '내용은 2000자를 초과할 수 없습니다' },
+            { required: true, message: "내용을 입력해주세요" },
+            { max: 2000, message: "내용은 2000자를 초과할 수 없습니다" },
           ]}
         >
           <TextArea
@@ -104,9 +101,7 @@ const HandoverFormModal = ({
         )}
 
         {!admin && (
-          <Text type="secondary">
-            공지사항은 관리자만 등록할 수 있습니다.
-          </Text>
+          <Text type="secondary">공지사항은 관리자만 등록할 수 있습니다.</Text>
         )}
       </Form>
     </Modal>

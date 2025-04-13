@@ -1,4 +1,4 @@
-import apiClient from "./client";
+import apiClient from "./Client";
 
 /**
  * 사용자 목록 조회 API

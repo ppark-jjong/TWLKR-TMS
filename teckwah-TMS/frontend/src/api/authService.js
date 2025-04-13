@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient from "./Client";
 
 /**
  * 로그인 API
@@ -7,7 +7,7 @@ import apiClient from './client';
  * @returns {Promise<Object>} - 로그인 응답 데이터
  */
 export const login = async (user_id, password) => {
-  return await apiClient.post('/auth/login', { user_id, password });
+  return await apiClient.post("/auth/login", { user_id, password });
 };
 
 /**
@@ -15,7 +15,7 @@ export const login = async (user_id, password) => {
  * @returns {Promise<Object>} - 로그아웃 응답 데이터
  */
 export const logout = async () => {
-  return await apiClient.post('/auth/logout');
+  return await apiClient.post("/auth/logout");
 };
 
 /**
@@ -23,13 +23,13 @@ export const logout = async () => {
  * @returns {Promise<Object>} - 사용자 정보 응답 데이터
  */
 export const getCurrentUser = async () => {
-  return await apiClient.get('/auth/me');
+  return await apiClient.get("/auth/me");
 };
 
 /**
- * 토큰 갱신 API
- * @returns {Promise<Object>} - 토큰 갱신 응답 데이터
+ * 세션 상태 확인 API
+ * @returns {Promise<Object>} - 세션 정보 응답 데이터
  */
-export const refreshToken = async () => {
-  return await apiClient.post('/auth/refresh');
+export const checkSession = async () => {
+  return await apiClient.get("/auth/session");
 };

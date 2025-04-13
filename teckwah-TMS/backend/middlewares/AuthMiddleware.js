@@ -1,15 +1,13 @@
-const jwt = require("jsonwebtoken");
 const User = require("../models/UserModel");
 const { createResponse, ERROR_CODES } = require("../utils/Constants");
 
 /**
- * JWT 토큰 인증 미들웨어
+ * 세션 기반 인증 미들웨어
  */
 const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // 세션에서 사용자 정보 확인
+    if (!req.session || !req.session.user) {
       return res
         .status(401)
         .json(
@@ -22,15 +20,16 @@ const authenticate = async (req, res, next) => {
         );
     }
 
-    const token = authHeader.split(" ")[1];
+    // 세션에 있는 사용자 정보 가져오기
+    const sessionUser = req.session.user;
 
+    // 데이터베이스에서 최신 사용자 정보 확인 (필요시)
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-
-      // 사용자 정보 가져오기
-      const user = await User.findByPk(decoded.user_id);
+      const user = await User.findByPk(sessionUser.user_id);
 
       if (!user) {
+        // 세션은 있지만 DB에서 사용자를 찾을 수 없는 경우
+        req.session.destroy();
         return res
           .status(401)
           .json(
@@ -52,26 +51,13 @@ const authenticate = async (req, res, next) => {
 
       next();
     } catch (err) {
-      // 토큰 검증 실패
-      if (err.name === "TokenExpiredError") {
-        return res
-          .status(401)
-          .json(
-            createResponse(
-              false,
-              "인증이 만료되었습니다",
-              null,
-              ERROR_CODES.UNAUTHORIZED
-            )
-          );
-      }
-
+      console.error("사용자 정보 조회 오류:", err);
       return res
         .status(401)
         .json(
           createResponse(
             false,
-            "유효하지 않은 인증입니다",
+            "인증 정보를 확인할 수 없습니다",
             null,
             ERROR_CODES.UNAUTHORIZED
           )

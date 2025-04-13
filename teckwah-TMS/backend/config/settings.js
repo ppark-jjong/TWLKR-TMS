@@ -14,11 +14,8 @@ module.exports = {
   
   // 인증 설정
   auth: {
-    jwtSecret: process.env.JWT_SECRET,
-    jwtAlgorithm: process.env.JWT_ALGORITHM || 'HS256',
-    jwtExpire: process.env.JWT_EXPIRE || '60m',
-    refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET,
-    refreshTokenExpireDays: parseInt(process.env.REFRESH_TOKEN_EXPIRE_DAYS || '7', 10)
+    sessionSecret: process.env.SESSION_SECRET,
+    sessionExpireHours: parseInt(process.env.SESSION_EXPIRE_HOURS || '24', 10)
   },
   
   // CORS 설정

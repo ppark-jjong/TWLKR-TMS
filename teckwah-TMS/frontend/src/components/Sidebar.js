@@ -11,8 +11,8 @@ import {
   MenuUnfoldOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import { logout } from "../utils/auth";
-import logo from "../assets/logo.png";
+import { logout } from "../utils/Auth";
+import logo from "../logo.png";
 
 const { Sider } = Layout;
 const { Text } = Typography;
