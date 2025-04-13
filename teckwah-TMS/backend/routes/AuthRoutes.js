@@ -80,10 +80,6 @@ router.post("/login", async (req, res, next) => {
       }
     );
 
-    // 리프레시 토큰 저장
-    user.refresh_token = refreshToken;
-    await user.save();
-
     // 리프레시 토큰을 HttpOnly 쿠키로 설정
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
@@ -137,7 +133,7 @@ router.post("/refresh", async (req, res, next) => {
       // 사용자 조회
       const user = await User.findByPk(decoded.user_id);
 
-      if (!user || user.refresh_token !== refreshToken) {
+      if (!user) {
         return res
           .status(401)
           .json(
@@ -190,14 +186,6 @@ router.post("/refresh", async (req, res, next) => {
  */
 router.post("/logout", authenticate, async (req, res, next) => {
   try {
-    // 리프레시 토큰 제거
-    const user = await User.findByPk(req.user.user_id);
-
-    if (user) {
-      user.refresh_token = null;
-      await user.save();
-    }
-
     // 쿠키 제거
     res.clearCookie("refresh_token");
 

@@ -26,11 +26,6 @@ const User = sequelize.define(
       allowNull: false,
       comment: "사용자 역할 (ADMIN/USER)",
     },
-    refresh_token: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      comment: "JWT 리프레시 토큰",
-    },
   },
   {
     tableName: "user",
