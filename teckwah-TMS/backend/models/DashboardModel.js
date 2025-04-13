@@ -151,8 +151,7 @@ const Dashboard = sequelize.define(
     },
     update_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
+      allowNull: true,
       comment: "수정 시간",
     },
   },
@@ -171,7 +170,6 @@ const Dashboard = sequelize.define(
       },
     },
     indexes: [
-      { name: "idx_dashboard_status", fields: ["status"] },
       { name: "idx_dashboard_department", fields: ["department"] },
       { name: "idx_dashboard_eta", fields: ["eta"] },
       { name: "idx_dashboard_order_no", fields: ["order_no"] },

@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 
 /**
  * 요청 ID 생성 및 로깅 미들웨어
- * 각 요청에 고유 ID를 부여하고 요청/응답 정보를 로깅합니다.
+ * 중요 요청만 간소화된 로그로 출력합니다.
  */
 const requestLogger = (req, res, next) => {
   // 요청 ID 생성 및 할당
@@ -15,19 +15,25 @@ const requestLogger = (req, res, next) => {
   // 응답 시작 시간 기록
   const startTime = Date.now();
   
-  // 요청 정보 로깅
-  console.log(`[${requestId}] ${req.method} ${req.url} 요청 수신`);
+  // 정적 파일이 아닌 요청만 로깅 (JS, CSS, 이미지, 아이콘 제외)
+  const isStaticFile = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(req.url);
+  
+  if (!isStaticFile) {
+    // API 요청만 로깅
+    console.log(`[${requestId}] ${req.method} ${req.url}`);
+  }
   
   // 응답 메소드 오버라이드
   res.send = function(body) {
     // 응답 시간 계산
     const responseTime = Date.now() - startTime;
     
-    // 응답 정보 로깅 (에러 응답은 별도 처리)
+    // 에러 응답과 중요 API만 로깅
     if (res.statusCode >= 400) {
-      console.error(`[${requestId}] ${req.method} ${req.url} 응답 상태: ${res.statusCode} - ${responseTime}ms`);
-    } else {
-      console.log(`[${requestId}] ${req.method} ${req.url} 응답 상태: ${res.statusCode} - ${responseTime}ms`);
+      console.error(`[${requestId}] ${req.method} ${req.url} 오류: ${res.statusCode} (${responseTime}ms)`);
+    } else if (!isStaticFile && req.method !== 'GET') {
+      // POST, PUT, DELETE 등의 변경 요청만 성공 로그 출력
+      console.log(`[${requestId}] ${req.method} ${req.url} 완료: ${res.statusCode} (${responseTime}ms)`);
     }
     
     // 원본 응답 메소드 호출

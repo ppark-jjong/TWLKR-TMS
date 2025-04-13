@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ConfigProvider, Layout, Spin, message } from "antd";
 import { isAuthenticated, logout } from "./utils/Auth";
-import { getCurrentUser } from "./api/AuthService";
+import { checkSession } from "./api/AuthService";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import HandoverPage from "./pages/HandoverPage";
@@ -51,24 +51,29 @@ function App() {
         const { isAuth, userData } = isAuthenticated();
 
         if (isAuth) {
-          // 토큰이 있고 유효하다면 사용자 정보 받아오기
+          // 세션 상태 확인
           try {
-            const response = await getCurrentUser();
+            const response = await checkSession();
             if (response.success) {
               setUserData(response.data.user);
+              setAuth(true);
+            } else {
+              // 세션이 유효하지 않으면 로그아웃 처리
+              logout();
+              setAuth(false);
+              setUserData(null);
             }
           } catch (apiError) {
-            // API 호출 실패 시 (토큰 만료 등) 로그아웃 처리
-            console.warn("사용자 정보 조회 실패, 로그아웃 처리:", apiError);
+            // API 호출 실패 시 (세션 만료 등) 로그아웃 처리
+            console.warn("세션 확인 실패, 로그아웃 처리:", apiError);
             logout();
             setAuth(false);
             setUserData(null);
-            return;
           }
+        } else {
+          setAuth(false);
+          setUserData(null);
         }
-
-        setAuth(isAuth);
-        setUserData(userData);
       } catch (error) {
         console.error("인증 상태 확인 중 오류 발생:", error);
         setAuth(false);

@@ -64,17 +64,36 @@ router.post("/login", async (req, res, next) => {
       role: user.user_role,
       department: user.user_department,
     };
-
-    // 로그인 응답 반환
-    return res.status(200).json(
-      createResponse(true, "로그인 성공", {
-        user: {
-          user_id: user.user_id,
-          role: user.user_role,
-          department: user.user_department,
-        }
-      })
-    );
+    
+    // 세션 저장 완료 후 응답 반환
+    req.session.save((err) => {
+      if (err) {
+        console.error("세션 저장 오류:", err);
+        return res
+          .status(500)
+          .json(
+            createResponse(
+              false,
+              "로그인 처리 중 오류가 발생했습니다.",
+              null,
+              ERROR_CODES.INTERNAL_SERVER_ERROR
+            )
+          );
+      }
+      
+      console.log("세션 저장 성공:", req.sessionID, req.session);
+      
+      // 로그인 응답 반환
+      return res.status(200).json(
+        createResponse(true, "로그인 성공", {
+          user: {
+            user_id: user.user_id,
+            role: user.user_role,
+            department: user.user_department,
+          }
+        })
+      );
+    });
   } catch (error) {
     next(error);
   }
@@ -86,8 +105,11 @@ router.post("/login", async (req, res, next) => {
  */
 router.get("/session", async (req, res, next) => {
   try {
+    console.log("세션 확인 요청 수신:", req.session);
+    
     // 세션 정보 확인
     if (!req.session || !req.session.user) {
+      console.log("세션 없음 또는 사용자 정보 없음");
       return res
         .status(401)
         .json(
@@ -100,6 +122,8 @@ router.get("/session", async (req, res, next) => {
         );
     }
 
+    console.log("세션 확인 성공:", req.session.user);
+    
     // 세션에 있는 사용자 정보 반환
     return res.status(200).json(
       createResponse(true, "세션 정보 확인 성공", {
@@ -107,6 +131,7 @@ router.get("/session", async (req, res, next) => {
       })
     );
   } catch (error) {
+    console.error("세션 확인 중 오류:", error);
     next(error);
   }
 });
