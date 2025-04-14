@@ -1,5 +1,5 @@
-import axios from "axios";
-import { logout } from "../utils/Auth";
+import axios from 'axios';
+import { logout } from '../utils/Auth';
 
 /**
  * snake_case를 camelCase로 변환하는 함수
@@ -8,16 +8,17 @@ import { logout } from "../utils/Auth";
  */
 const snakeToCamel = (data) => {
   if (typeof data !== 'object' || data === null) return data;
-  
+
   if (Array.isArray(data)) {
-    return data.map(item => snakeToCamel(item));
+    return data.map((item) => snakeToCamel(item));
   }
-  
+
   return Object.keys(data).reduce((acc, key) => {
     const camelKey = key.replace(/_([a-z])/g, (_, p1) => p1.toUpperCase());
-    acc[camelKey] = typeof data[key] === 'object' && data[key] !== null 
-      ? snakeToCamel(data[key]) 
-      : data[key];
+    acc[camelKey] =
+      typeof data[key] === 'object' && data[key] !== null
+        ? snakeToCamel(data[key])
+        : data[key];
     return acc;
   }, {});
 };
@@ -29,16 +30,20 @@ const snakeToCamel = (data) => {
  */
 const camelToSnake = (data) => {
   if (typeof data !== 'object' || data === null) return data;
-  
+
   if (Array.isArray(data)) {
-    return data.map(item => camelToSnake(item));
+    return data.map((item) => camelToSnake(item));
   }
-  
+
   return Object.keys(data).reduce((acc, key) => {
-    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    acc[snakeKey] = typeof data[key] === 'object' && data[key] !== null 
-      ? camelToSnake(data[key]) 
-      : data[key];
+    const snakeKey = key.replace(
+      /[A-Z]/g,
+      (letter) => `_${letter.toLowerCase()}`
+    );
+    acc[snakeKey] =
+      typeof data[key] === 'object' && data[key] !== null
+        ? camelToSnake(data[key])
+        : data[key];
     return acc;
   }, {});
 };
@@ -48,28 +53,44 @@ const camelToSnake = (data) => {
  * 단순성과 YAGNI 원칙에 따라 필요한 기능만 구현
  */
 const apiClient = axios.create({
-  // 상대 경로 사용 - 같은 오리진(도메인)에서 서비스될 때 적합
+  // 상대 경로 사용 (package.json의 proxy 설정 활용)
   baseURL: '',
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
   timeout: 10000, // 10초 타임아웃 설정
   withCredentials: true, // 세션 쿠키 전송을 위해 필수
 });
 
+// axios 전역 설정 - 쿠키 처리 강화
+axios.defaults.withCredentials = true;
+
+// 브라우저 쿠키 디버깅
+console.log('현재 쿠키:', document.cookie);
+
 // 요청 인터셉터 - camelCase를 snake_case로 변환
 apiClient.interceptors.request.use(
   (config) => {
+    // 요청별 withCredentials 설정 강제
+    config.withCredentials = true;
+
+    // 디버깅용 헤더 추가
+    config.headers = {
+      ...config.headers,
+      'Cache-Control': 'no-cache',
+    };
+
     // 요청 데이터가 있는 경우 snake_case로 변환
     if (config.data) {
       config.data = camelToSnake(config.data);
     }
-    
+
     // params가 있는 경우 snake_case로 변환
     if (config.params) {
       config.params = camelToSnake(config.params);
     }
-    
+
     return config;
   },
   (error) => {
@@ -84,75 +105,66 @@ apiClient.interceptors.response.use(
     if (response.data) {
       // success, message, error_code는 그대로 유지
       const { success, message, error_code } = response.data;
-      
+
       // data 필드만 camelCase로 변환
-      const transformedData = response.data.data 
+      const transformedData = response.data.data
         ? snakeToCamel(response.data.data)
         : undefined;
-      
+
       return {
         success,
         message,
         data: transformedData,
-        error_code
+        error_code,
       };
     }
-    
+
     return response.data;
   },
   (error) => {
-    // 에러 응답 처리
-    const { response } = error;
+    console.log('API 응답 오류:', error);
 
-    // 서버 응답이 없는 경우 (네트워크 오류 등)
-    if (!response) {
-      console.error("서버에 연결할 수 없습니다.");
-      return Promise.reject({
-        success: false,
-        message: "서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.",
-        error_code: "NETWORK_ERROR",
-      });
-    }
+    // 401 Unauthorized 에러 (인증 실패) 처리
+    if (error.response && error.response.status === 401) {
+      console.log('인증 실패 - 로그인 페이지로 리다이렉션');
 
-    // 인증 오류인 경우 (401) - 로그인 페이지로 리다이렉트
-    if (response.status === 401) {
-      // 세션 기반 인증이므로 메모리 캐시만 초기화
-      logout();
-      
-      // 현재 경로가 로그인 페이지가 아닌 경우만 리다이렉트
-      if (!window.location.pathname.includes('/login')) {
-        // 리다이렉션 처리를 일관되게 BrowserRouter에 맞게 처리
-        window.location.href = "/login";
-      }
-      
-      // 명확한 오류 메시지 반환
-      return Promise.reject({
-        success: false,
-        message: "인증이 필요합니다. 다시 로그인해주세요.",
-        error_code: "UNAUTHORIZED",
-      });
+      // 세션 정보 초기화
+      localStorage.removeItem('userInfo');
+      localStorage.removeItem('accessToken');
+
+      // 로그인 페이지로 즉시 리다이렉션
+      window.location.href = '/login';
+      return Promise.reject(error);
     }
 
     // 서버에서 반환한 에러 데이터가 있는 경우
-    if (response.data) {
-      return Promise.reject(response.data);
+    if (error.response && error.response.data) {
+      return Promise.reject(error.response.data);
     }
 
     // HTTP 상태 코드별 적절한 오류 메시지 제공 (단순화)
     const errorMessages = {
-      400: { message: "잘못된 요청입니다.", code: "BAD_REQUEST" },
-      403: { message: "접근 권한이 없습니다.", code: "FORBIDDEN" },
-      404: { message: "요청한 리소스를 찾을 수 없습니다.", code: "NOT_FOUND" },
-      500: { message: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", code: "SERVER_ERROR" },
-      503: { message: "서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.", code: "SERVICE_UNAVAILABLE" }
+      400: { message: '잘못된 요청입니다.', code: 'BAD_REQUEST' },
+      403: { message: '접근 권한이 없습니다.', code: 'FORBIDDEN' },
+      404: { message: '요청한 리소스를 찾을 수 없습니다.', code: 'NOT_FOUND' },
+      500: {
+        message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        code: 'SERVER_ERROR',
+      },
+      503: {
+        message:
+          '서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.',
+        code: 'SERVICE_UNAVAILABLE',
+      },
     };
 
-    const defaultError = { 
-      message: "요청 처리 중 오류가 발생했습니다.", 
-      code: "UNKNOWN_ERROR" 
+    const defaultError = {
+      message: '요청 처리 중 오류가 발생했습니다.',
+      code: 'UNKNOWN_ERROR',
     };
 
-    const { message, code } = errorMessages[response.status] || defaultError;
+    const { message, code } =
+      errorMessages[error.response.status] || defaultError;
 
     // 오류 객체 반환
     return Promise.reject({

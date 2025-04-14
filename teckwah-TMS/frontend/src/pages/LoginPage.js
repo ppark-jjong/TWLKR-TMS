@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, message, Typography } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { login } from '../api/AuthService';
-import { setAuth } from '../utils/Auth';
+import { setUserData } from '../utils/Auth';
 import { useNavigate } from 'react-router-dom';
 import logo from '../logo.png';
 
@@ -27,19 +27,23 @@ const LoginPage = ({ setAuth, setUserData }) => {
       // 로그인 API 호출 - username을 user_id로 매핑
       const response = await login(username, password);
 
-      if (response.success) {
+      if (response && response.success) {
         // 로그인 성공
         message.success('로그인 성공');
 
-        // 세션 기반 인증 - 로컬에 별도 저장하지 않음
-        // App.js의 인증 상태 업데이트
-        setAuth(response.data.user);
+        // 사용자 정보 설정 (App과 유틸리티에 모두 설정)
+        if (response.data && response.data.user) {
+          setUserData(response.data.user);
+        }
 
-        // 사용자 정보 설정
-        setUserData(response.data.user);
-        
-        // 대시보드 페이지로 수동 리다이렉션
-        navigate('/dashboard');
+        // 세션 기반 인증 - App.js의 인증 상태 업데이트
+        setAuth(true);
+
+        // 세션 쿠키가 설정될 시간을 주기 위해 지연 후 리다이렉트
+        setTimeout(() => {
+          // 대시보드 페이지로 수동 리다이렉션
+          navigate('/dashboard/list', { replace: true });
+        }, 1000); // 1초 지연
       } else {
         // 로그인 실패
         message.error(response.message || '로그인에 실패했습니다');

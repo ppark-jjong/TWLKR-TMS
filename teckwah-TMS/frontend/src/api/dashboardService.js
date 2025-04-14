@@ -1,4 +1,5 @@
-import apiClient from "./Client";
+import apiClient from './Client';
+import { getTodayDate } from '../utils/Helpers';
 
 /**
  * 대시보드 목록 조회 API
@@ -9,8 +10,54 @@ import apiClient from "./Client";
  * @param {number} params.limit - 페이지 사이즈
  * @returns {Promise<Object>} - 대시보드 목록 응답 데이터
  */
-export const getDashboardList = async (params) => {
-  return await apiClient.get("/dashboard/list", { params });
+export const getDashboardList = async (params = {}) => {
+  // 날짜 범위가 없는 경우 기본값으로 오늘 날짜 설정
+  const today = getTodayDate();
+  const requestParams = {
+    ...params,
+    start: params.start || today,
+    end: params.end || today,
+  };
+
+  // 항상 필요한 파라미터인 start와 end가 있는지 검증
+  if (!requestParams.start || !requestParams.end) {
+    console.error('필수 파라미터 누락: start, end');
+    throw new Error('조회 기간을 지정해주세요.');
+  }
+
+  console.log('대시보드 목록 API 요청 최종 파라미터:', requestParams);
+
+  try {
+    return await apiClient.get('/dashboard/list', { params: requestParams });
+  } catch (error) {
+    console.error('대시보드 목록 조회 API 오류:', error);
+    throw error;
+  }
+};
+
+/**
+ * 대시보드 검색 API
+ * @param {Object} params - 검색 파라미터
+ * @param {string} params.search - 검색어 (필수)
+ * @param {number} params.page - 페이지 번호
+ * @param {number} params.limit - 페이지 사이즈
+ * @returns {Promise<Object>} - 검색 결과 응답 데이터
+ */
+export const searchDashboard = async (params = {}) => {
+  // 검색어 필수 검증
+  if (!params.search) {
+    console.error('필수 파라미터 누락: search');
+    throw new Error('검색어를 입력해주세요.');
+  }
+
+  console.log('대시보드 검색 API 요청 파라미터:', params);
+
+  try {
+    return await apiClient.get('/dashboard/search', { params });
+  } catch (error) {
+    console.error('대시보드 검색 API 오류:', error);
+    throw error;
+  }
 };
 
 /**
@@ -28,7 +75,7 @@ export const getDashboardDetail = async (id) => {
  * @returns {Promise<Object>} - 대시보드 생성 응답 데이터
  */
 export const createDashboard = async (data) => {
-  return await apiClient.post("/dashboard", data);
+  return await apiClient.post('/dashboard', data);
 };
 
 /**
@@ -82,7 +129,7 @@ export const assignDriver = async (id, data) => {
  * @returns {Promise<Object>} - 다중 배차 처리 응답 데이터
  */
 export const assignMultiDrivers = async (data) => {
-  return await apiClient.patch("/dashboard/multi-assign", data);
+  return await apiClient.patch('/dashboard/multi-assign', data);
 };
 
 /**
@@ -95,5 +142,5 @@ export const assignMultiDrivers = async (data) => {
  * @returns {Promise<Object>} - 시각화 데이터 응답 데이터
  */
 export const getVisualizationData = async (params) => {
-  return await apiClient.get("/dashboard/visualization", { params });
+  return await apiClient.get('/dashboard/visualization', { params });
 };

@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import { ConfigProvider, Layout, Spin, message } from "antd";
-import { logout, setUserData } from "./utils/Auth";
-import { checkSession } from "./api/AuthService";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import HandoverPage from "./pages/HandoverPage";
-import VisualizationPage from "./pages/VisualizationPage";
-import UserManagePage from "./pages/UserManagePage";
-import NotFoundPage from "./pages/NotFoundPage";
-import Sidebar from "./components/Sidebar";
-import ErrorBoundary from "./components/ErrorBoundary";
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ConfigProvider, Layout, Spin, message } from 'antd';
+import { logout, setUserData } from './utils/Auth';
+import { checkSession } from './api/AuthService';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import HandoverPage from './pages/HandoverPage';
+import VisualizationPage from './pages/VisualizationPage';
+import UserManagePage from './pages/UserManagePage';
+import NotFoundPage from './pages/NotFoundPage';
+import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const { Content } = Layout;
 
@@ -29,18 +29,19 @@ function App() {
   const [userData, setUserDataState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     // 글로벌 오류 처리 설정
     const errorHandler = function (message, source, lineno, colno, error) {
-      console.error("전역 오류 발생:", {
+      console.error('전역 오류 발생:', {
         message,
         source,
         lineno,
         colno,
         error,
       });
-      message.error("오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      message.error('오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       return true;
     };
     window.onerror = errorHandler;
@@ -48,9 +49,15 @@ function App() {
     // 인증 상태 확인 함수 - 세션 기반으로만 인증 확인 (오류 처리 강화)
     const checkAuthStatus = async () => {
       try {
+        // 로그인 페이지에서는 세션 체크를 건너뛸 수 있음
+        if (location.pathname.includes('/login')) {
+          setLoading(false);
+          return;
+        }
+
         // 세션 상태 확인 API 직접 호출
         const response = await checkSession();
-        
+
         if (response && response.success) {
           // 세션이 유효한 경우
           setUserDataState(response.data.user);
@@ -58,24 +65,26 @@ function App() {
           setAuth(true);
         } else {
           // 세션이 유효하지 않은 경우
+          console.error('세션이 유효하지 않음, 로그인 페이지로 리다이렉션');
           logout();
           setAuth(false);
           setUserDataState(null);
+          // 로그인 페이지로 즉시 리다이렉트
+          window.location.href = '/login';
+          return;
         }
       } catch (error) {
         // API 호출 실패 (세션 없음 등)
-        if (error.error_code === 'UNAUTHORIZED') {
-          console.warn("세션이 만료되었거나 유효하지 않습니다.");
-        } else if (error.error_code === 'NETWORK_ERROR') {
-          console.warn("네트워크 연결 문제로 세션 확인 실패");
-        } else {
-          console.warn("세션 확인 실패:", error);
-        }
-        
-        // 어떤 오류든 로그아웃 처리
+        console.error('인증 확인 오류:', error);
+
+        // 세션 만료 또는 인증 오류 발생 시 로그인 페이지로 리다이렉트
         logout();
         setAuth(false);
         setUserDataState(null);
+
+        // 로그인 페이지로 즉시 이동
+        window.location.href = '/login';
+        return;
       } finally {
         // 로딩 상태 해제
         setLoading(false);
@@ -88,7 +97,7 @@ function App() {
     return () => {
       window.onerror = null; // 이벤트 핸들러 정리
     };
-  }, []);
+  }, [location.pathname]);
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
@@ -113,7 +122,7 @@ function App() {
             path="/login"
             element={
               auth ? (
-                <Navigate to="/dashboard" replace />
+                <Navigate to="/dashboard/list" replace />
               ) : (
                 <LoginPage setAuth={setAuth} setUserData={setUserDataState} />
               )
@@ -134,7 +143,7 @@ function App() {
                   />
                   <Layout
                     className={`site-layout ${
-                      collapsed ? "with-collapsed-sidebar" : ""
+                      collapsed ? 'with-collapsed-sidebar' : ''
                     }`}
                   >
                     <Content className="content-wrapper">
@@ -142,10 +151,14 @@ function App() {
                         <Routes>
                           <Route
                             index
-                            element={<Navigate to="/dashboard" replace />}
+                            element={<Navigate to="/dashboard/list" replace />}
                           />
                           <Route
-                            path="/dashboard/*"
+                            path="/dashboard"
+                            element={<Navigate to="/dashboard/list" replace />}
+                          />
+                          <Route
+                            path="/dashboard/list"
                             element={<DashboardPage />}
                           />
                           <Route path="/handover" element={<HandoverPage />} />

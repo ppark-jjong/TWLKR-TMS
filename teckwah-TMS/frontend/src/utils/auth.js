@@ -11,7 +11,13 @@ let currentUserData = null;
  * @param {boolean|Object} authState - 인증 상태 또는 사용자 데이터
  */
 export const setAuth = (authState) => {
-  // App.js에서 객체 형태로 사용자 데이터를 받을 경우
+  // boolean 타입일 경우는 무시 (App 컴포넌트에서 상태 업데이트용)
+  if (typeof authState === 'boolean') {
+    // App.js에서 인증 상태를 관리하므로 아무 작업 안함
+    return;
+  }
+
+  // 객체 형태로 사용자 데이터를 받을 경우
   if (typeof authState === 'object' && authState !== null) {
     currentUserData = authState;
   }
@@ -58,5 +64,5 @@ export const logout = () => {
  * @returns {boolean} 관리자 여부
  */
 export const isAdmin = () => {
-  return currentUserData?.role === "ADMIN";
+  return currentUserData?.role === 'ADMIN';
 };

@@ -19,8 +19,8 @@ ENV CI=false
 ENV ESLINT_NO_DEV_ERRORS=true
 ENV GENERATE_SOURCEMAP=false
 
-# 빌드 실행 및 결과 확인
-RUN npm run build && ls -la build
+# 빌드 실행
+RUN npm run build
 
 # 2. 백엔드 의존성 설치 스테이지 - 최적화
 FROM node:20-alpine AS backend-deps
@@ -43,15 +43,19 @@ WORKDIR /app
 ENV NODE_ENV=development
 ENV PORT=8080
 
+# 프론트엔드 디렉토리 먼저 생성하여 확실히 경로 존재하도록 함
+RUN mkdir -p ./frontend
+
 # 백엔드 의존성 및 소스 코드 복사
 COPY --from=backend-deps /app/node_modules ./node_modules
 COPY backend/ ./backend/
 
-# 프론트엔드 빌드 결과물 복사
+# 프론트엔드 빌드 결과물 복사 - 전체 디렉토리 구조 유지
 COPY --from=frontend-builder /app/build ./frontend
 
-# 최종 이미지에서 파일 구조 확인
-RUN ls -la ./frontend || echo "프론트엔드 디렉토리가 없음!"
+# 간단한 경로 확인 (기본 진단용)
+RUN echo "프론트엔드 경로 확인: ls -la /app/frontend" && \
+    ls -la /app/frontend | grep index.html
 
 # 환경 변수 파일 복사 및 권한 설정 - 단일 컨테이너 환경에 맞게 수정
 COPY deploy/.env ./.env

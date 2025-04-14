@@ -1,16 +1,16 @@
-import React, { useState } from "react";
-import { Card, Row, Col, Input, DatePicker, Select, Button, Space } from "antd";
+import React, { useState } from 'react';
+import { Card, Row, Col, Input, DatePicker, Select, Button, Space } from 'antd';
 import {
   SearchOutlined,
   FilterOutlined,
   ReloadOutlined,
-} from "@ant-design/icons";
+} from '@ant-design/icons';
 import {
   STATUS_OPTIONS,
   DEPARTMENT_OPTIONS,
   WAREHOUSE_OPTIONS,
   PAGE_SIZE_OPTIONS,
-} from "../../utils/Constants";
+} from '../../utils/Constants';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -30,7 +30,7 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
     status: defaultValues.status || null,
     department: defaultValues.department || null,
     warehouse: defaultValues.warehouse || null,
-    keyword: defaultValues.keyword || "",
+    keyword: defaultValues.keyword || '',
     pageSize: defaultValues.pageSize || 10,
   });
 
@@ -43,10 +43,15 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
   };
 
   // 필터 적용 핸들러
-  const handleApplyFilter = () => {
-    if (onFilter) {
-      onFilter(filters);
-    }
+  const handleApply = (values) => {
+    // 모든 필터를 한번에 전달
+    onFilter({
+      dateRange: values.dateRange,
+      status: values.status,
+      department: values.department,
+      warehouse: values.warehouse,
+      keyword: values.keyword,
+    });
   };
 
   // 필터 초기화 핸들러
@@ -56,7 +61,7 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
       status: null,
       department: null,
       warehouse: null,
-      keyword: "",
+      keyword: '',
       pageSize: 10,
     });
 
@@ -70,32 +75,32 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
       {/* 상단 영역: 날짜 선택 및 검색 */}
       <Row gutter={[16, 16]} align="bottom">
         <Col xs={24} md={12}>
-          <label style={{ display: "block", marginBottom: 8 }}>
+          <label style={{ display: 'block', marginBottom: 8 }}>
             날짜 범위 (ETA 기준)
           </label>
           <RangePicker
-            style={{ width: "100%" }}
+            style={{ width: '100%' }}
             value={filters.dateRange}
-            onChange={(dates) => handleChange("dateRange", dates)}
-            placeholder={["시작일", "종료일"]}
+            onChange={(dates) => handleChange('dateRange', dates)}
+            placeholder={['시작일', '종료일']}
           />
         </Col>
         <Col xs={24} md={8}>
-          <label style={{ display: "block", marginBottom: 8 }}>검색어</label>
+          <label style={{ display: 'block', marginBottom: 8 }}>검색어</label>
           <Input
             placeholder="주문번호, 고객명, 주소로 검색"
             value={filters.keyword}
-            onChange={(e) => handleChange("keyword", e.target.value)}
+            onChange={(e) => handleChange('keyword', e.target.value)}
             suffix={<SearchOutlined />}
             allowClear
           />
         </Col>
         <Col xs={24} md={4}>
-          <label style={{ display: "block", marginBottom: 8 }}>표시 행수</label>
+          <label style={{ display: 'block', marginBottom: 8 }}>표시 행수</label>
           <Select
-            style={{ width: "100%" }}
+            style={{ width: '100%' }}
             value={filters.pageSize}
-            onChange={(value) => handleChange("pageSize", value)}
+            onChange={(value) => handleChange('pageSize', value)}
           >
             {PAGE_SIZE_OPTIONS.map((option) => (
               <Option key={option.value} value={option.value}>
@@ -109,13 +114,13 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
       {/* 하단 영역: 상태, 부서, 창고 필터 및 버튼 */}
       <Row gutter={[16, 16]} align="bottom" style={{ marginTop: 16 }}>
         <Col xs={24} md={8}>
-          <label style={{ display: "block", marginBottom: 8 }}>상태</label>
+          <label style={{ display: 'block', marginBottom: 8 }}>상태</label>
           <Select
-            style={{ width: "100%" }}
+            style={{ width: '100%' }}
             placeholder="모든 상태"
             allowClear
             value={filters.status}
-            onChange={(value) => handleChange("status", value)}
+            onChange={(value) => handleChange('status', value)}
           >
             {STATUS_OPTIONS.map((option) => (
               <Option key={option.value} value={option.value}>
@@ -125,13 +130,13 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
           </Select>
         </Col>
         <Col xs={24} md={8}>
-          <label style={{ display: "block", marginBottom: 8 }}>부서</label>
+          <label style={{ display: 'block', marginBottom: 8 }}>부서</label>
           <Select
-            style={{ width: "100%" }}
+            style={{ width: '100%' }}
             placeholder="모든 부서"
             allowClear
             value={filters.department}
-            onChange={(value) => handleChange("department", value)}
+            onChange={(value) => handleChange('department', value)}
           >
             {DEPARTMENT_OPTIONS.map((option) => (
               <Option key={option.value} value={option.value}>
@@ -141,13 +146,13 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
           </Select>
         </Col>
         <Col xs={24} md={8}>
-          <label style={{ display: "block", marginBottom: 8 }}>창고</label>
+          <label style={{ display: 'block', marginBottom: 8 }}>창고</label>
           <Select
-            style={{ width: "100%" }}
+            style={{ width: '100%' }}
             placeholder="모든 창고"
             allowClear
             value={filters.warehouse}
-            onChange={(value) => handleChange("warehouse", value)}
+            onChange={(value) => handleChange('warehouse', value)}
           >
             {WAREHOUSE_OPTIONS.map((option) => (
               <Option key={option.value} value={option.value}>
@@ -168,7 +173,7 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
           <Button
             type="primary"
             icon={<FilterOutlined />}
-            onClick={handleApplyFilter}
+            onClick={() => handleApply(filters)}
           >
             필터 적용
           </Button>

@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from "react";
-import { Card, Button, notification, Space, Popconfirm, message } from "antd";
+import React, { useState, useEffect } from 'react';
+import { Card, Button, notification, Space, Popconfirm, message } from 'antd';
 import {
   PlusOutlined,
   ReloadOutlined,
   CarOutlined,
   SyncOutlined,
   DeleteOutlined,
-} from "@ant-design/icons";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import FilterPanel from "../components/dashboard/FilterPanel";
-import SummaryCards from "../components/dashboard/SummaryCards";
-import OrdersTable from "../components/dashboard/OrdersTable";
-import OrderDetailModal from "../components/dashboard/OrderDetailModal";
-import NewOrderModal from "../components/dashboard/NewOrderModal";
-import EditOrderModal from "../components/dashboard/EditOrderModal";
-import StatusChangeModal from "../components/dashboard/StatusChangeModal";
-import AssignDriverModal from "../components/dashboard/AssignDriverModal";
+import DateFilterPanel from '../components/dashboard/DateFilterPanel';
+import StatusFilterPanel from '../components/dashboard/StatusFilterPanel';
+import SummaryCards from '../components/dashboard/SummaryCards';
+import OrdersTable from '../components/dashboard/OrdersTable';
+import OrderDetailModal from '../components/dashboard/OrderDetailModal';
+import NewOrderModal from '../components/dashboard/NewOrderModal';
+import EditOrderModal from '../components/dashboard/EditOrderModal';
+import StatusChangeModal from '../components/dashboard/StatusChangeModal';
+import AssignDriverModal from '../components/dashboard/AssignDriverModal';
 
 import {
   getDashboardList,
@@ -27,24 +28,41 @@ import {
   updateStatus,
   assignDriver,
   assignMultiDrivers,
-} from "../api/DashboardService";
-import { formatDate, getTodayDate, getDaysAgo } from "../utils/Helpers";
-import { isAdmin } from "../utils/Auth";
+  searchDashboard,
+} from '../api/DashboardService';
+import { formatDate, getTodayDate, getDaysAgo } from '../utils/Helpers';
+import { isAdmin } from '../utils/Auth';
+
+// CSS 임포트
+import './DashboardPage.css';
 
 /**
  * 대시보드 메인 페이지 컴포넌트
  */
 const DashboardPage = () => {
-  // 상태 관리
-  const [filters, setFilters] = useState({
-    dateRange: [getDaysAgo(7), getTodayDate()],
-    status: null,
-    department: null,
-    warehouse: null,
-    keyword: "",
+  // API 요청용 날짜 필터 (서버 사이드 필터링)
+  const [dateFilters, setDateFilters] = useState({
+    dateRange: [getTodayDate(), getTodayDate()],
     page: 1,
     pageSize: 10,
   });
+
+  // 검색 필터 (별도의 API 호출)
+  const [searchFilters, setSearchFilters] = useState({
+    keyword: '',
+    page: 1,
+    pageSize: 10,
+    isSearchMode: false,
+  });
+
+  // 클라이언트 필터 (클라이언트 사이드 필터링)
+  const [clientFilters, setClientFilters] = useState({
+    status: null,
+    department: null,
+    warehouse: null,
+  });
+
+  // 기타 상태 관리
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -57,276 +75,207 @@ const DashboardPage = () => {
   // React Query 클라이언트
   const queryClient = useQueryClient();
 
-  // 목록 조회 쿼리
+  // 날짜 필터 기반 목록 조회 쿼리
   const {
     data: dashboardData,
     isLoading: isLoadingList,
     error: listError,
     refetch: refetchList,
   } = useQuery(
-    ["dashboardList", filters],
+    ['dashboardList', dateFilters],
     () => {
-      // API 호출을 위한 파라미터 구성
+      // API 호출을 위한 파라미터 구성 - 날짜 필터와 필수 파라미터 추가
+      const today = getTodayDate();
+
       const params = {
-        start: filters.dateRange?.[0],
-        end: filters.dateRange?.[1],
-        page: filters.page,
-        limit: filters.pageSize,
+        // 날짜 범위가 없으면 오늘 날짜로 설정 (필수 파라미터)
+        start: dateFilters.dateRange?.[0] || today,
+        end: dateFilters.dateRange?.[1] || today,
+        page: dateFilters.page,
+        limit: dateFilters.pageSize,
       };
 
-      if (filters.keyword) {
-        params.search = filters.keyword;
-      }
+      console.log('대시보드 목록 조회 API 요청 파라미터:', params);
 
       return getDashboardList(params);
     },
     {
       keepPreviousData: true,
       refetchOnWindowFocus: false,
+      // 오류 발생 시 자동 재시도하지 않음
+      retry: false,
+      // 검색 모드일 때는 자동 실행 안함
+      enabled: !searchFilters.isSearchMode,
+      // 쿼리 실패 시 로그 및 에러 처리
+      onError: (error) => {
+        console.error('대시보드 목록 조회 실패:', error);
+        if (error.error_code === 'UNAUTHORIZED') {
+          // 인증 오류는 Client.js의 인터셉터에서 처리됨
+          console.log('인증 오류, 로그인 페이지로 리다이렉션합니다.');
+        } else {
+          message.error(
+            error.message || '데이터를 불러오는 중 오류가 발생했습니다.'
+          );
+        }
+      },
     }
   );
 
-  // 상세 조회 쿼리
+  // 검색 기반 목록 조회 쿼리 (별도 API)
   const {
-    data: orderDetail,
-    isLoading: isLoadingDetail,
-    refetch: refetchDetail,
+    data: searchData,
+    isLoading: isLoadingSearch,
+    error: searchError,
+    refetch: refetchSearch,
   } = useQuery(
-    ["dashboardDetail", selectedOrder?.dashboard_id],
-    () => getDashboardDetail(selectedOrder?.dashboard_id),
+    ['dashboardSearch', searchFilters],
+    () => {
+      // 검색어가 없으면 API 호출 안함
+      if (!searchFilters.keyword) {
+        return { success: true, data: { items: [], total: 0 } };
+      }
+
+      const params = {
+        search: searchFilters.keyword,
+        page: searchFilters.page,
+        limit: searchFilters.pageSize,
+      };
+
+      console.log('대시보드 검색 API 요청 파라미터:', params);
+
+      return searchDashboard(params);
+    },
     {
-      enabled: !!selectedOrder?.dashboard_id && detailVisible,
+      keepPreviousData: true,
       refetchOnWindowFocus: false,
+      retry: false,
+      // 검색 모드이고 검색어가 있을 때만 활성화
+      enabled: searchFilters.isSearchMode && !!searchFilters.keyword,
+      onError: (error) => {
+        console.error('대시보드 검색 실패:', error);
+        if (error.error_code === 'UNAUTHORIZED') {
+          console.log('인증 오류, 로그인 페이지로 리다이렉션합니다.');
+        } else {
+          message.error(error.message || '검색 중 오류가 발생했습니다.');
+        }
+      },
     }
   );
 
-  // 주문 생성 뮤테이션
-  const createOrderMutation = useMutation(createDashboard, {
-    onSuccess: (data) => {
-      if (data.success) {
-        notification.success({
-          message: "주문 등록 성공",
-          description: "새로운 주문이 등록되었습니다.",
-        });
-        setNewOrderVisible(false);
-        queryClient.invalidateQueries("dashboardList");
-      } else {
-        notification.error({
-          message: "주문 등록 실패",
-          description: data.message || "주문 등록 중 오류가 발생했습니다.",
-        });
+  // 현재 활성화된 데이터 (검색 모드 또는 일반 목록 모드)
+  const activeData = searchFilters.isSearchMode
+    ? searchData?.data
+    : dashboardData?.data;
+
+  // 현재 로딩 상태
+  const isLoading = searchFilters.isSearchMode
+    ? isLoadingSearch
+    : isLoadingList;
+
+  // 클라이언트 측 필터링 적용
+  const applyClientFilters = (data) => {
+    if (!data || !data.items) return [];
+
+    return data.items.filter((item) => {
+      // 상태 필터 적용
+      if (clientFilters.status && item.status !== clientFilters.status) {
+        return false;
       }
-    },
-    onError: (error) => {
-      notification.error({
-        message: "주문 등록 실패",
-        description: error.message || "주문 등록 중 오류가 발생했습니다.",
-      });
-    },
-  });
 
-  // 주문 수정 뮤테이션
-  const updateOrderMutation = useMutation(
-    (data) => updateDashboard(data.dashboard_id, data),
-    {
-      onSuccess: (data) => {
-        if (data.success) {
-          notification.success({
-            message: "주문 수정 성공",
-            description: "주문 정보가 수정되었습니다.",
-          });
-          setEditOrderVisible(false);
-          queryClient.invalidateQueries("dashboardList");
-          queryClient.invalidateQueries([
-            "dashboardDetail",
-            selectedOrder?.dashboard_id,
-          ]);
-        } else {
-          notification.error({
-            message: "주문 수정 실패",
-            description: data.message || "주문 수정 중 오류가 발생했습니다.",
-          });
-        }
-      },
-      onError: (error) => {
-        notification.error({
-          message: "주문 수정 실패",
-          description: error.message || "주문 수정 중 오류가 발생했습니다.",
-        });
-      },
-    }
-  );
-
-  // 주문 삭제 뮤테이션
-  const deleteOrderMutation = useMutation(deleteDashboard, {
-    onSuccess: (data) => {
-      if (data.success) {
-        notification.success({
-          message: "주문 삭제 성공",
-          description: "주문이 삭제되었습니다.",
-        });
-        setDetailVisible(false);
-        queryClient.invalidateQueries("dashboardList");
-      } else {
-        notification.error({
-          message: "주문 삭제 실패",
-          description: data.message || "주문 삭제 중 오류가 발생했습니다.",
-        });
+      // 부서 필터 적용
+      if (
+        clientFilters.department &&
+        item.department !== clientFilters.department
+      ) {
+        return false;
       }
-    },
-    onError: (error) => {
-      notification.error({
-        message: "주문 삭제 실패",
-        description: error.message || "주문 삭제 중 오류가 발생했습니다.",
+
+      // 창고 필터 적용
+      if (
+        clientFilters.warehouse &&
+        item.warehouse !== clientFilters.warehouse
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  // 필터링된 데이터
+  const filteredData = activeData ? applyClientFilters(activeData) : [];
+
+  // 날짜 필터 적용 핸들러 (API 요청 트리거)
+  const handleDateFilterApply = (newFilters) => {
+    // 검색 모드에서 날짜 필터 모드로 전환
+    if (searchFilters.isSearchMode) {
+      setSearchFilters({
+        ...searchFilters,
+        isSearchMode: false,
       });
-    },
-  });
-
-  // 상태 변경 뮤테이션
-  const updateStatusMutation = useMutation(
-    (data) =>
-      updateStatus(data.id, {
-        status: data.status,
-        updated_by: data.updated_by,
-        update_at: new Date().toISOString(),
-      }),
-    {
-      onSuccess: (data) => {
-        if (data.success) {
-          notification.success({
-            message: "상태 변경 성공",
-            description: "주문 상태가 변경되었습니다.",
-          });
-          setStatusChangeVisible(false);
-          queryClient.invalidateQueries("dashboardList");
-          queryClient.invalidateQueries([
-            "dashboardDetail",
-            selectedOrder?.dashboard_id,
-          ]);
-        } else {
-          notification.error({
-            message: "상태 변경 실패",
-            description: data.message || "상태 변경 중 오류가 발생했습니다.",
-          });
-        }
-      },
-      onError: (error) => {
-        notification.error({
-          message: "상태 변경 실패",
-          description: error.message || "상태 변경 중 오류가 발생했습니다.",
-        });
-      },
     }
-  );
 
-  // 배차 처리 뮤테이션
-  const assignDriverMutation = useMutation(
-    (data) =>
-      assignDriver(data.id, {
-        driver_name: data.driver_name,
-        driver_contact: data.driver_contact,
-        updated_by: data.updated_by,
-        update_at: new Date().toISOString(),
-      }),
-    {
-      onSuccess: (data) => {
-        if (data.success) {
-          notification.success({
-            message: "배차 처리 성공",
-            description: "기사 정보가 업데이트되었습니다.",
-          });
-          setAssignDriverVisible(false);
-          queryClient.invalidateQueries("dashboardList");
-          queryClient.invalidateQueries([
-            "dashboardDetail",
-            selectedOrder?.dashboard_id,
-          ]);
-        } else {
-          notification.error({
-            message: "배차 처리 실패",
-            description: data.message || "배차 처리 중 오류가 발생했습니다.",
-          });
-        }
-      },
-      onError: (error) => {
-        notification.error({
-          message: "배차 처리 실패",
-          description: error.message || "배차 처리 중 오류가 발생했습니다.",
-        });
-      },
-    }
-  );
-
-  // 다중 배차 처리 뮤테이션
-  const assignMultiDriversMutation = useMutation(
-    (data) =>
-      assignMultiDrivers({
-        ids: data.ids,
-        driver_name: data.driver_name,
-        driver_contact: data.driver_contact,
-        updated_by: data.updated_by,
-        update_at: new Date().toISOString(),
-      }),
-    {
-      onSuccess: (data) => {
-        if (data.success) {
-          notification.success({
-            message: "다중 배차 처리 성공",
-            description: `${
-              data.data.success_count
-            }건의 주문에 기사 정보가 업데이트되었습니다.${
-              data.data.failed_count > 0
-                ? ` ${data.data.failed_count}건은 실패했습니다.`
-                : ""
-            }`,
-          });
-          setAssignDriverVisible(false);
-          setSelectedRowKeys([]);
-          queryClient.invalidateQueries("dashboardList");
-        } else {
-          notification.error({
-            message: "다중 배차 처리 실패",
-            description: data.message || "배차 처리 중 오류가 발생했습니다.",
-          });
-        }
-      },
-      onError: (error) => {
-        notification.error({
-          message: "다중 배차 처리 실패",
-          description: error.message || "배차 처리 중 오류가 발생했습니다.",
-        });
-      },
-    }
-  );
-
-  // 필터 적용 핸들러
-  const handleFilterApply = (newFilters) => {
-    setFilters({
-      ...filters,
-      ...newFilters,
+    setDateFilters({
+      ...dateFilters,
+      dateRange: newFilters.dateRange,
       page: 1, // 필터 변경 시 첫 페이지로 이동
     });
   };
 
-  // 필터 초기화 핸들러
-  const handleFilterReset = () => {
-    setFilters({
-      dateRange: [getDaysAgo(7), getTodayDate()],
-      status: null,
-      department: null,
-      warehouse: null,
-      keyword: "",
+  // 검색 적용 핸들러 (API 요청 트리거)
+  const handleSearchApply = (newFilters) => {
+    // 검색 모드로 전환
+    setSearchFilters({
+      ...searchFilters,
+      keyword: newFilters.keyword,
       page: 1,
-      pageSize: 10,
+      isSearchMode: true,
     });
   };
 
-  // 데이터 새로고침 핸들러
-  const handleRefresh = () => {
-    refetchList();
+  // 상태 필터 적용 핸들러 (클라이언트 필터링)
+  const handleStatusFilterApply = (newFilters) => {
+    setClientFilters(newFilters);
   };
 
-  // 행 선택 변경 핸들러
+  // 페이지 변경 핸들러
+  const handlePageChange = (page, pageSize) => {
+    if (searchFilters.isSearchMode) {
+      // 검색 모드에서는 검색 필터 업데이트
+      setSearchFilters({
+        ...searchFilters,
+        page,
+        pageSize,
+      });
+    } else {
+      // 일반 모드에서는 날짜 필터 업데이트
+      setDateFilters({
+        ...dateFilters,
+        page,
+        pageSize,
+      });
+    }
+  };
+
+  // 필터 초기화 핸들러
+  const handleFilterReset = () => {
+    setClientFilters({
+      status: null,
+      department: null,
+      warehouse: null,
+    });
+  };
+
+  // 새로고침 핸들러
+  const handleRefresh = () => {
+    if (searchFilters.isSearchMode) {
+      refetchSearch();
+    } else {
+      refetchList();
+    }
+  };
+
+  // 행 선택 핸들러
   const handleSelectionChange = (selectedKeys) => {
     setSelectedRowKeys(selectedKeys);
   };
@@ -337,124 +286,33 @@ const DashboardPage = () => {
     setDetailVisible(true);
   };
 
-  // 페이지 변경 핸들러
-  const handlePageChange = (page, pageSize) => {
-    setFilters({
-      ...filters,
-      page,
-      pageSize,
-    });
-  };
-
-  // 신규 주문 등록 핸들러
+  // 신규 주문 모달 표시
   const handleNewOrder = () => {
     setNewOrderVisible(true);
   };
 
-  // 신규 주문 제출 핸들러
-  const handleNewOrderSubmit = (values) => {
-    createOrderMutation.mutate(values);
-  };
-
-  // 주문 수정 핸들러
-  const handleEditOrder = (order) => {
-    setSelectedOrder(order);
-    setEditOrderVisible(true);
-  };
-
-  // 주문 수정 제출 핸들러
-  const handleEditOrderSubmit = (values) => {
-    updateOrderMutation.mutate(values);
-  };
-
-  // 주문 삭제 핸들러
-  const handleDeleteOrder = (id) => {
-    if (!isAdmin()) {
-      message.error("관리자만 주문을 삭제할 수 있습니다.");
-      return;
-    }
-
-    deleteOrderMutation.mutate(id);
-  };
-
-  // 상태 변경 핸들러 - 단일 행에서만 실행 가능
-  const handleStatusChange = (order) => {
-    // 선택된 단일 행이 아닌 경우 경고 표시
-    if (!order) {
-      message.warning("상태 변경할 항목을 선택해주세요");
-      return;
-    }
-    
-    if (Array.isArray(selectedRowKeys) && selectedRowKeys.length > 1) {
-      message.warning("상태 변경은 한 번에 하나의 주문만 가능합니다");
-      return;
-    }
-    
-    setSelectedOrder(order);
-    setStatusChangeVisible(true);
-  };
-
-  // 상태 변경 제출 핸들러 - 세션에서 가져온 사용자 정보 활용
-  const handleStatusChangeSubmit = (values) => {
-    // 세션 기반으로 서버에서 인증하므로 API 호출 시 사용자 정보는 서버에서 세션에서 가져옴
-    updateStatusMutation.mutate({
-      id: selectedOrder.dashboard_id,
-      status: values.status,
-    });
-  };
-
-  // 배차 처리 핸들러
-  const handleAssignDriver = (order) => {
-    setSelectedOrder(order);
-    setIsMultipleAssign(false);
-    setAssignDriverVisible(true);
-  };
-
-  // 다중 배차 처리 핸들러
+  // 드라이버 배정 모달 표시
   const handleMultiAssignDriver = () => {
     if (selectedRowKeys.length === 0) {
-      message.warning("선택된 주문이 없습니다.");
+      message.warning('드라이버를 배정할 주문을 선택해주세요.');
       return;
     }
-
     setIsMultipleAssign(true);
     setAssignDriverVisible(true);
   };
 
-  // 배차 처리 제출 핸들러 - 세션에서 가져온 사용자 정보 활용
-  const handleAssignDriverSubmit = (values) => {
-    // 세션 기반으로 서버에서 인증하므로 API 호출 시 사용자 정보는 서버에서 세션에서 가져옴
-    if (isMultipleAssign) {
-      // 다중 배차 처리
-      assignMultiDriversMutation.mutate({
-        ids: selectedRowKeys,
-        driver_name: values.driver_name,
-        driver_contact: values.driver_contact,
-      });
-    } else {
-      // 단일 배차 처리
-      assignDriverMutation.mutate({
-        id: selectedOrder.dashboard_id,
-        driver_name: values.driver_name,
-        driver_contact: values.driver_contact,
-      });
+  // 상태 변경 모달 표시
+  const handleMultiStatusChange = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('상태를 변경할 주문을 선택해주세요.');
+      return;
     }
+    setStatusChangeVisible(true);
   };
-
-  // 오류 처리
-  useEffect(() => {
-    if (listError) {
-      notification.error({
-        message: "데이터 로드 실패",
-        description:
-          listError.message || "주문 목록을 불러오는 중 오류가 발생했습니다.",
-      });
-    }
-  }, [listError]);
 
   // 상태별 주문 수 집계
   const countByStatus = () => {
-    if (!dashboardData || !dashboardData.data || !dashboardData.data.items) {
+    if (!filteredData) {
       return {
         total: 0,
         waiting: 0,
@@ -465,28 +323,27 @@ const DashboardPage = () => {
       };
     }
 
-    const items = dashboardData.data.items;
     let waiting = 0,
       inProgress = 0,
       complete = 0,
       issue = 0,
       cancel = 0;
 
-    items.forEach((item) => {
+    filteredData.forEach((item) => {
       switch (item.status) {
-        case "WAITING":
+        case 'WAITING':
           waiting++;
           break;
-        case "IN_PROGRESS":
+        case 'IN_PROGRESS':
           inProgress++;
           break;
-        case "COMPLETE":
+        case 'COMPLETE':
           complete++;
           break;
-        case "ISSUE":
+        case 'ISSUE':
           issue++;
           break;
-        case "CANCEL":
+        case 'CANCEL':
           cancel++;
           break;
         default:
@@ -495,7 +352,7 @@ const DashboardPage = () => {
     });
 
     return {
-      total: items.length,
+      total: filteredData.length,
       waiting,
       inProgress,
       complete,
@@ -506,176 +363,165 @@ const DashboardPage = () => {
 
   // 페이지네이션 설정
   const paginationConfig = {
-    current: filters.page,
-    pageSize: filters.pageSize,
-    total: dashboardData?.data?.total || 0,
-    onChange: handlePageChange,
+    current: searchFilters.isSearchMode ? searchFilters.page : dateFilters.page,
+    pageSize: searchFilters.isSearchMode
+      ? searchFilters.pageSize
+      : dateFilters.pageSize,
+    total: activeData?.total || 0,
     showSizeChanger: true,
-    showTotal: (total) => `총 ${total}건`,
+    showTotal: (total) => `총 ${total}개 주문`,
+    onChange: handlePageChange,
+    onShowSizeChange: handlePageChange,
   };
 
-  // 필터링된 데이터
-  const filteredData = dashboardData?.data?.items || [];
-
-  // 상태별 통계
-  const statusStats = countByStatus();
-
-  // 관리자 여부 확인
-  const admin = isAdmin();
-
   return (
-    <div className="dashboard-page">
-      <Card
-        title="배송 관리 대시보드"
-        extra={
-          <Space>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleNewOrder}
-            >
-              신규 등록
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={handleRefresh}
-              loading={isLoadingList}
-            >
-              새로고침
-            </Button>
-          </Space>
-        }
-      >
-        {/* 필터 패널 */}
-        <FilterPanel
-          onFilter={handleFilterApply}
-          onReset={handleFilterReset}
-          onRefresh={handleRefresh}
-          defaultValues={filters}
-        />
-
-        {/* 요약 카드 */}
-        <SummaryCards stats={statusStats} loading={isLoadingList} />
-
-        {/* 액션 버튼 */}
-        <div
-          style={{
-            marginBottom: 16,
-            display: "flex",
-            justifyContent: "space-between",
-          }}
-        >
-          <Space>
-            <Button
-              type="primary"
-              icon={<CarOutlined />}
-              onClick={handleMultiAssignDriver}
-              disabled={selectedRowKeys.length === 0}
-              ghost
-            >
-              선택 배차
-            </Button>
-            <Button
-              type="primary"
-              icon={<SyncOutlined />}
-              onClick={() => {
-                if (selectedRowKeys.length !== 1) {
-                  message.warning("상태 변경은 한 번에 하나의 주문만 가능합니다");
-                  return;
-                }
-                // 해당 행 데이터를 찾아서 상태 변경 모달로 전달
-                const selectedOrder = filteredData.find(
-                  item => item.dashboard_id === selectedRowKeys[0]
-                );
-                if (selectedOrder) {
-                  handleStatusChange(selectedOrder);
-                }
-              }}
-              disabled={selectedRowKeys.length !== 1}
-              ghost
-            >
-              상태 변경
-            </Button>
-          </Space>
-
-          {admin && (
-            <Popconfirm
-              title="선택한 주문을 삭제하시겠습니까?"
-              description="삭제된 주문은 복구할 수 없습니다."
-              onConfirm={() => handleDeleteOrder(selectedRowKeys[0])}
-              okText="삭제"
-              cancelText="취소"
-              disabled={selectedRowKeys.length !== 1}
-            >
+    <div className="dashboard-container">
+      <div className="card-container">
+        <Card
+          title="주문 대시보드"
+          extra={
+            <Space>
               <Button
                 type="primary"
-                icon={<DeleteOutlined />}
-                danger
-                disabled={selectedRowKeys.length !== 1}
+                icon={<PlusOutlined />}
+                onClick={handleNewOrder}
               >
-                삭제
+                주문 추가
               </Button>
-            </Popconfirm>
-          )}
-        </div>
+              <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
+                새로고침
+              </Button>
+            </Space>
+          }
+        >
+          {/* 날짜 필터 및 검색 패널 */}
+          <DateFilterPanel
+            onDateFilter={handleDateFilterApply}
+            onSearch={handleSearchApply}
+            defaultValues={{
+              dateRange: dateFilters.dateRange,
+              keyword: searchFilters.keyword,
+            }}
+          />
 
-        {/* 주문 목록 테이블 */}
-        <OrdersTable
-          data={filteredData}
-          loading={isLoadingList}
-          onRowClick={handleRowClick}
-          onSelectionChange={handleSelectionChange}
-          pagination={paginationConfig}
+          {/* 상태 필터 패널 */}
+          <StatusFilterPanel
+            onFilter={handleStatusFilterApply}
+            onReset={handleFilterReset}
+          />
+
+          {/* 상태별 요약 카드 */}
+          <SummaryCards stats={countByStatus()} loading={isLoading} />
+
+          {/* 도구 모음 */}
+          <div style={{ marginBottom: 16 }}>
+            <Space wrap>
+              <Button
+                icon={<CarOutlined />}
+                onClick={handleMultiAssignDriver}
+                disabled={selectedRowKeys.length === 0}
+              >
+                기사 배정
+              </Button>
+              <Button
+                icon={<SyncOutlined />}
+                onClick={handleMultiStatusChange}
+                disabled={selectedRowKeys.length === 0}
+              >
+                상태 변경
+              </Button>
+              {isAdmin() && (
+                <Popconfirm
+                  title="선택한 주문을 삭제하시겠습니까?"
+                  onConfirm={() => {
+                    message.info('삭제 기능 구현 예정');
+                  }}
+                >
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    주문 삭제
+                  </Button>
+                </Popconfirm>
+              )}
+            </Space>
+          </div>
+
+          {/* 주문 테이블 */}
+          <OrdersTable
+            data={filteredData}
+            loading={isLoading}
+            onRowClick={handleRowClick}
+            onSelectionChange={handleSelectionChange}
+            pagination={paginationConfig}
+          />
+        </Card>
+      </div>
+
+      {/* 모달 컴포넌트들 */}
+      {selectedOrder && (
+        <OrderDetailModal
+          visible={detailVisible}
+          order={selectedOrder}
+          onClose={() => setDetailVisible(false)}
+          onEdit={() => {
+            setDetailVisible(false);
+            setEditOrderVisible(true);
+          }}
         />
-      </Card>
+      )}
 
-      {/* 주문 상세 모달 */}
-      <OrderDetailModal
-        visible={detailVisible}
-        onClose={() => setDetailVisible(false)}
-        data={orderDetail?.data}
-        onEdit={handleEditOrder}
-        onAssign={handleAssignDriver}
-        onStatusChange={handleStatusChange}
-        loading={isLoadingDetail}
-      />
-
-      {/* 신규 주문 등록 모달 */}
       <NewOrderModal
         visible={newOrderVisible}
         onClose={() => setNewOrderVisible(false)}
-        onSubmit={handleNewOrderSubmit}
-        loading={createOrderMutation.isLoading}
+        onSuccess={() => {
+          setNewOrderVisible(false);
+          refetchList();
+        }}
       />
 
-      {/* 주문 수정 모달 */}
-      <EditOrderModal
-        visible={editOrderVisible}
-        onClose={() => setEditOrderVisible(false)}
-        onSubmit={handleEditOrderSubmit}
-        orderData={orderDetail?.data}
-        loading={updateOrderMutation.isLoading}
-      />
+      {selectedOrder && (
+        <EditOrderModal
+          visible={editOrderVisible}
+          order={selectedOrder}
+          onClose={() => setEditOrderVisible(false)}
+          onSuccess={() => {
+            setEditOrderVisible(false);
+            refetchList();
+          }}
+        />
+      )}
 
-      {/* 상태 변경 모달 */}
-      <StatusChangeModal
-        visible={statusChangeVisible}
-        onClose={() => setStatusChangeVisible(false)}
-        onSubmit={handleStatusChangeSubmit}
-        orderData={selectedOrder}
-        loading={updateStatusMutation.isLoading}
-      />
+      {selectedOrder && (
+        <StatusChangeModal
+          visible={statusChangeVisible}
+          orderIds={selectedRowKeys}
+          currentStatus={selectedOrder.status}
+          onClose={() => setStatusChangeVisible(false)}
+          onSuccess={() => {
+            setStatusChangeVisible(false);
+            setSelectedRowKeys([]);
+            refetchList();
+          }}
+        />
+      )}
 
-      {/* 배차 처리 모달 */}
       <AssignDriverModal
         visible={assignDriverVisible}
-        onClose={() => setAssignDriverVisible(false)}
-        onSubmit={handleAssignDriverSubmit}
-        orderData={isMultipleAssign ? selectedRowKeys : selectedOrder}
+        orderIds={selectedRowKeys}
         isMultiple={isMultipleAssign}
-        loading={
-          assignDriverMutation.isLoading || assignMultiDriversMutation.isLoading
-        }
+        onClose={() => {
+          setAssignDriverVisible(false);
+          setIsMultipleAssign(false);
+        }}
+        onSuccess={() => {
+          setAssignDriverVisible(false);
+          setIsMultipleAssign(false);
+          setSelectedRowKeys([]);
+          refetchList();
+        }}
       />
     </div>
   );
