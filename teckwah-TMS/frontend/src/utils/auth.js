@@ -7,15 +7,18 @@ const USER_DATA_KEY = "teckwah_tms_user";
 
 /**
  * 로그인 처리 함수 - 세션 쿠키는 자동으로 처리됨
- * @param {Object} data - 로그인 응답 데이터 (사용자 정보 등)
+ * @param {boolean|Object} data - 로그인 상태 또는 로그인 응답 데이터
  */
 export const setAuth = (data) => {
-  if (!data || !data.user) {
-    throw new Error("인증 데이터가 유효하지 않습니다.");
+  // boolean 값으로 전달된 경우(App.js에서 true/false로 호출)
+  if (typeof data === 'boolean') {
+    return;
   }
-
-  // 사용자 데이터 로컬 저장 (UI 표시용)
-  localStorage.setItem(USER_DATA_KEY, JSON.stringify(data.user));
+  
+  // 객체로 전달된 경우 사용자 정보 저장
+  if (data && data.user) {
+    localStorage.setItem(USER_DATA_KEY, JSON.stringify(data.user));
+  }
 };
 
 /**

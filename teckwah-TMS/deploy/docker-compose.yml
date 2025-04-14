@@ -5,9 +5,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    container_name: teckwah-tms
-    restart: unless-stopped
+    container_name: teckwahkr-tms
+    restart: 'no'
     ports:
-      - "8080:8080"
+      - '8080:8080'
     env_file:
       - .env

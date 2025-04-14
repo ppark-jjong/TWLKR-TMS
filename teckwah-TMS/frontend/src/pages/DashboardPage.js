@@ -377,8 +377,19 @@ const DashboardPage = () => {
     deleteOrderMutation.mutate(id);
   };
 
-  // 상태 변경 핸들러
+  // 상태 변경 핸들러 - 단일 행에서만 실행 가능
   const handleStatusChange = (order) => {
+    // 선택된 단일 행이 아닌 경우 경고 표시
+    if (!order) {
+      message.warning("상태 변경할 항목을 선택해주세요");
+      return;
+    }
+    
+    if (Array.isArray(selectedRowKeys) && selectedRowKeys.length > 1) {
+      message.warning("상태 변경은 한 번에 하나의 주문만 가능합니다");
+      return;
+    }
+    
     setSelectedOrder(order);
     setStatusChangeVisible(true);
   };
@@ -572,7 +583,19 @@ const DashboardPage = () => {
             <Button
               type="primary"
               icon={<SyncOutlined />}
-              onClick={() => handleStatusChange(selectedRowKeys[0])}
+              onClick={() => {
+                if (selectedRowKeys.length !== 1) {
+                  message.warning("상태 변경은 한 번에 하나의 주문만 가능합니다");
+                  return;
+                }
+                // 해당 행 데이터를 찾아서 상태 변경 모달로 전달
+                const selectedOrder = filteredData.find(
+                  item => item.dashboard_id === selectedRowKeys[0]
+                );
+                if (selectedOrder) {
+                  handleStatusChange(selectedOrder);
+                }
+              }}
               disabled={selectedRowKeys.length !== 1}
               ghost
             >

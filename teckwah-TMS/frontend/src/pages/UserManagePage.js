@@ -12,7 +12,7 @@ import {
   Card,
   Space,
 } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { listUsers, createUser, deleteUser } from "../api/UserService";
 
 const { Title } = Typography;

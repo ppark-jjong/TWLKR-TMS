@@ -2,6 +2,48 @@ import axios from "axios";
 import { logout } from "../utils/Auth";
 
 /**
+ * snake_case를 camelCase로 변환하는 함수
+ * @param {Object} data - 변환할 객체
+ * @returns {Object} - 변환된 객체
+ */
+const snakeToCamel = (data) => {
+  if (typeof data !== 'object' || data === null) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => snakeToCamel(item));
+  }
+  
+  return Object.keys(data).reduce((acc, key) => {
+    const camelKey = key.replace(/_([a-z])/g, (_, p1) => p1.toUpperCase());
+    acc[camelKey] = typeof data[key] === 'object' && data[key] !== null 
+      ? snakeToCamel(data[key]) 
+      : data[key];
+    return acc;
+  }, {});
+};
+
+/**
+ * camelCase를 snake_case로 변환하는 함수
+ * @param {Object} data - 변환할 객체
+ * @returns {Object} - 변환된 객체
+ */
+const camelToSnake = (data) => {
+  if (typeof data !== 'object' || data === null) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => camelToSnake(item));
+  }
+  
+  return Object.keys(data).reduce((acc, key) => {
+    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    acc[snakeKey] = typeof data[key] === 'object' && data[key] !== null 
+      ? camelToSnake(data[key]) 
+      : data[key];
+    return acc;
+  }, {});
+};
+
+/**
  * axios 인스턴스 생성 - 세션 기반 인증을 위한 설정
  * 단순성과 YAGNI 원칙에 따라 필요한 기능만 구현
  */
@@ -14,10 +56,47 @@ const apiClient = axios.create({
   withCredentials: true, // 세션 쿠키 전송을 위해 필수
 });
 
-// 응답 인터셉터 설정
+// 요청 인터셉터 - camelCase를 snake_case로 변환
+apiClient.interceptors.request.use(
+  (config) => {
+    // 요청 데이터가 있는 경우 snake_case로 변환
+    if (config.data) {
+      config.data = camelToSnake(config.data);
+    }
+    
+    // params가 있는 경우 snake_case로 변환
+    if (config.params) {
+      config.params = camelToSnake(config.params);
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// 응답 인터셉터 - snake_case를 camelCase로 변환
 apiClient.interceptors.response.use(
   (response) => {
-    // 성공 응답 처리 - 단순화
+    // 응답 데이터가 있는 경우 camelCase로 변환
+    if (response.data) {
+      // success, message, error_code는 그대로 유지
+      const { success, message, error_code } = response.data;
+      
+      // data 필드만 camelCase로 변환
+      const transformedData = response.data.data 
+        ? snakeToCamel(response.data.data)
+        : undefined;
+      
+      return {
+        success,
+        message,
+        data: transformedData,
+        error_code
+      };
+    }
+    
     return response.data;
   },
   (error) => {

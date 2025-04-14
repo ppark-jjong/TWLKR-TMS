@@ -26,7 +26,7 @@ export const getHandoverDetail = async (id) => {
  * @param {Object} data - 인수인계/공지사항 생성 데이터
  * @param {string} data.title - 제목
  * @param {string} data.content - 내용
- * @param {boolean} data.is_notice - 공지 여부
+ * @param {boolean} data.isNotice - 공지 여부
  * @returns {Promise<Object>} - 인수인계/공지사항 생성 응답 데이터
  */
 export const createHandover = async (data) => {
@@ -39,7 +39,7 @@ export const createHandover = async (data) => {
  * @param {Object} data - 인수인계/공지사항 수정 데이터
  * @param {string} data.title - 제목
  * @param {string} data.content - 내용
- * @param {boolean} data.is_notice - 공지 여부
+ * @param {boolean} data.isNotice - 공지 여부
  * @returns {Promise<Object>} - 인수인계/공지사항 수정 응답 데이터
  */
 export const updateHandover = async (id, data) => {

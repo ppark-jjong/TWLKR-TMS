@@ -64,14 +64,7 @@ app.use(
   })
 );
 
-// 세션 디버깅 미들웨어 (개발 모드에서만 활성화)
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    console.log("세션 ID:", req.sessionID);
-    console.log("세션 데이터:", req.session);
-    next();
-  });
-}
+// 세션 디버깅 미들웨어는 삭제 (과도한 로깅 방지)
 
 // 6. 기본 보안 헤더 - 필수적인 것만 설정
 app.use((req, res, next) => {
@@ -86,22 +79,7 @@ app.use("/dashboard", dashboardRoutes);
 app.use("/handover", handoverRoutes);
 app.use("/users", userRoutes);
 
-// 라우팅 디버깅 (개발 모드에서만 활성화)
-if (process.env.NODE_ENV !== 'production') {
-  console.log("등록된 라우트:");
-  app._router.stack.forEach(function (r) {
-    if (r.route && r.route.path) {
-      console.log(`경로: ${r.route.path}`);
-    } else if (r.name === "router" && r.handle.stack) {
-      console.log(`라우터: ${r.regexp}`);
-      r.handle.stack.forEach(function (r2) {
-        if (r2.route && r2.route.path) {
-          console.log(`  → ${r2.route.path}`);
-        }
-      });
-    }
-  });
-}
+// 라우팅 디버깅 코드 제거 (과도한 로깅 방지)
 
 // 7. 간단한 헬스체크 엔드포인트
 app.get("/health", (req, res) => {

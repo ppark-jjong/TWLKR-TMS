@@ -81,7 +81,8 @@ router.post("/login", async (req, res, next) => {
           );
       }
       
-      console.log("세션 저장 성공:", req.sessionID, req.session);
+      // 간단한 로깅
+      console.log(`사용자 로그인 성공: ${user.user_id}`);
       
       // 로그인 응답 반환
       return res.status(200).json(
@@ -105,11 +106,8 @@ router.post("/login", async (req, res, next) => {
  */
 router.get("/session", async (req, res, next) => {
   try {
-    console.log("세션 확인 요청 수신:", req.session);
-    
-    // 세션 정보 확인
+    // 세션 정보 확인 (간결한 로깅)
     if (!req.session || !req.session.user) {
-      console.log("세션 없음 또는 사용자 정보 없음");
       return res
         .status(401)
         .json(
@@ -121,8 +119,6 @@ router.get("/session", async (req, res, next) => {
           )
         );
     }
-
-    console.log("세션 확인 성공:", req.session.user);
     
     // 세션에 있는 사용자 정보 반환
     return res.status(200).json(

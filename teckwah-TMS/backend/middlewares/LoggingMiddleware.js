@@ -17,10 +17,11 @@ const requestLogger = (req, res, next) => {
   
   // 정적 파일이 아닌 요청만 로깅 (JS, CSS, 이미지, 아이콘 제외)
   const isStaticFile = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(req.url);
+  const isApiRoute = /^\/(auth|dashboard|handover|users)/i.test(req.url);
   
-  if (!isStaticFile) {
-    // API 요청만 로깅
-    console.log(`[${requestId}] ${req.method} ${req.url}`);
+  // API 요청만 간결하게 로깅 (세션 정보 없이)
+  if (!isStaticFile && isApiRoute) {
+    console.log(`[${requestId.substring(0, 8)}] ${req.method} ${req.url}`);
   }
   
   // 응답 메소드 오버라이드
@@ -30,10 +31,10 @@ const requestLogger = (req, res, next) => {
     
     // 에러 응답과 중요 API만 로깅
     if (res.statusCode >= 400) {
-      console.error(`[${requestId}] ${req.method} ${req.url} 오류: ${res.statusCode} (${responseTime}ms)`);
-    } else if (!isStaticFile && req.method !== 'GET') {
-      // POST, PUT, DELETE 등의 변경 요청만 성공 로그 출력
-      console.log(`[${requestId}] ${req.method} ${req.url} 완료: ${res.statusCode} (${responseTime}ms)`);
+      console.error(`[${requestId.substring(0, 8)}] ${req.method} ${req.url} 오류: ${res.statusCode} (${responseTime}ms)`);
+    } else if (!isStaticFile && isApiRoute && req.method !== 'GET') {
+      // POST, PUT, DELETE 등의 변경 요청만 성공 로그 출력 (간결하게)
+      console.log(`[${requestId.substring(0, 8)}] ${req.method} ${req.url} 완료: ${res.statusCode} (${responseTime}ms)`);
     }
     
     // 원본 응답 메소드 호출
