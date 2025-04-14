@@ -31,14 +31,9 @@ const LoginPage = ({ setAuth, setUserData }) => {
         // 로그인 성공
         message.success('로그인 성공');
 
-        // 세션 기반 인증이므로 사용자 정보만 로컬에 저장
-        localStorage.setItem(
-          'teckwah_tms_user',
-          JSON.stringify(response.data.user)
-        );
-
+        // 세션 기반 인증 - 로컬에 별도 저장하지 않음
         // App.js의 인증 상태 업데이트
-        setAuth(true);
+        setAuth(response.data.user);
 
         // 사용자 정보 설정
         setUserData(response.data.user);

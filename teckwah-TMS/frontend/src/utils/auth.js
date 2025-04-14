@@ -1,55 +1,56 @@
 /**
  * 인증 관련 유틸리티 함수 (세션 기반)
+ * 로컬 스토리지 사용을 제거하고 세션 기반 인증에 완전히 의존
  */
 
-// 사용자 데이터 캐시 키
-const USER_DATA_KEY = "teckwah_tms_user";
+// 메모리 내 사용자 데이터 캐싱 (페이지 리로드 시 초기화됨)
+let currentUserData = null;
 
 /**
  * 로그인 처리 함수 - 세션 쿠키는 자동으로 처리됨
- * @param {boolean|Object} data - 로그인 상태 또는 로그인 응답 데이터
+ * @param {boolean|Object} authState - 인증 상태 또는 사용자 데이터
  */
-export const setAuth = (data) => {
-  // boolean 값으로 전달된 경우(App.js에서 true/false로 호출)
-  if (typeof data === 'boolean') {
-    return;
-  }
-  
-  // 객체로 전달된 경우 사용자 정보 저장
-  if (data && data.user) {
-    localStorage.setItem(USER_DATA_KEY, JSON.stringify(data.user));
+export const setAuth = (authState) => {
+  // App.js에서 객체 형태로 사용자 데이터를 받을 경우
+  if (typeof authState === 'object' && authState !== null) {
+    currentUserData = authState;
   }
 };
 
 /**
- * 사용자 데이터 가져오기 - 로컬에 저장된 사용자 정보
- * @returns {Object|null} 저장된 사용자 데이터 또는 null
+ * 사용자 데이터 설정 함수
+ * @param {Object} userData - 서버에서 받은 사용자 데이터
+ */
+export const setUserData = (userData) => {
+  currentUserData = userData;
+};
+
+/**
+ * 사용자 데이터 가져오기 - 메모리에 캐시된 데이터 반환
+ * @returns {Object|null} 캐시된 사용자 데이터 또는 null
  */
 export const getUserData = () => {
-  const userData = localStorage.getItem(USER_DATA_KEY);
-  return userData ? JSON.parse(userData) : null;
+  return currentUserData;
 };
 
 /**
- * 인증 여부 확인 - 로컬에 저장된 사용자 정보로 먼저 확인하고,
- * 서버에서 세션 유효성은 API 호출 시 검증됨
+ * 인증 여부 확인 - 메모리 캐시 기반
+ * 페이지 리로드 시 App.js에서 세션 체크 API를 호출하여 다시 설정됨
  * @returns {Object} isAuth: 인증 여부, userData: 사용자 데이터
  */
 export const isAuthenticated = () => {
-  const userData = getUserData();
-  
   return {
-    isAuth: !!userData,
-    userData: userData,
+    isAuth: !!currentUserData,
+    userData: currentUserData,
   };
 };
 
 /**
- * 로그아웃 처리 - 로컬 데이터 삭제
+ * 로그아웃 처리 - 메모리 데이터 삭제
  * 서버 측 세션은 /auth/logout API에서 처리
  */
 export const logout = () => {
-  localStorage.removeItem(USER_DATA_KEY);
+  currentUserData = null;
 };
 
 /**
@@ -57,14 +58,5 @@ export const logout = () => {
  * @returns {boolean} 관리자 여부
  */
 export const isAdmin = () => {
-  const userData = getUserData();
-  return userData?.role === "ADMIN";
-};
-
-/**
- * getToken은 더 이상 필요 없지만, 기존 Client.js와의 호환성을 위해 빈 함수 유지
- * @returns {null} 항상 null 반환
- */
-export const getToken = () => {
-  return null;
+  return currentUserData?.role === "ADMIN";
 };

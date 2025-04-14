@@ -1,11 +1,9 @@
 const { Sequelize } = require('sequelize');
 const path = require('path');
 
-// 환경변수 설정 - 단순화
+// 환경변수 설정 - 단일 컨테이너 환경에 맞게 단순화
 require('dotenv').config({
-  path: process.env.NODE_ENV === 'production' 
-    ? path.join(__dirname, '..', '..', '.env') 
-    : path.join(__dirname, '..', '..', 'deploy', '.env')
+  path: path.join(__dirname, '..', '..', '.env')
 });
 
 // 커스텀 로거 함수 - 개발 모드에서만 동작

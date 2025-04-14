@@ -65,8 +65,8 @@ export const updateStatus = async (id, data) => {
  * 배차 처리 API
  * @param {number} id - 대시보드 ID
  * @param {Object} data - 배차 처리 데이터
- * @param {string} data.driverName - 배송기사 이름
- * @param {string} data.driverContact - 배송기사 연락처
+ * @param {string} data.driver_name - 배송기사 이름 (백엔드에서는 snake_case로 변환됨)
+ * @param {string} data.driver_contact - 배송기사 연락처 (백엔드에서는 snake_case로 변환됨)
  * @returns {Promise<Object>} - 배차 처리 응답 데이터
  */
 export const assignDriver = async (id, data) => {
@@ -77,8 +77,8 @@ export const assignDriver = async (id, data) => {
  * 다중 배차 처리 API
  * @param {Object} data - 다중 배차 처리 데이터
  * @param {Array<number>} data.ids - 대시보드 ID 배열
- * @param {string} data.driverName - 배송기사 이름
- * @param {string} data.driverContact - 배송기사 연락처
+ * @param {string} data.driver_name - 배송기사 이름 (백엔드에서는 snake_case로 변환됨)
+ * @param {string} data.driver_contact - 배송기사 연락처 (백엔드에서는 snake_case로 변환됨)
  * @returns {Promise<Object>} - 다중 배차 처리 응답 데이터
  */
 export const assignMultiDrivers = async (data) => {

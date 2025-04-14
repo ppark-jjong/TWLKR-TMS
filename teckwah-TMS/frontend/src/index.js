@@ -21,7 +21,7 @@ const queryClient = new QueryClient({
 // 앱 루트 생성
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// 애플리케이션 렌더링
+// 애플리케이션 렌더링 - HashRouter 대신 BrowserRouter 사용
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

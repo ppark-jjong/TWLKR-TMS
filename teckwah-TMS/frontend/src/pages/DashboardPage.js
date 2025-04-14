@@ -394,14 +394,12 @@ const DashboardPage = () => {
     setStatusChangeVisible(true);
   };
 
-  // 상태 변경 제출 핸들러
+  // 상태 변경 제출 핸들러 - 세션에서 가져온 사용자 정보 활용
   const handleStatusChangeSubmit = (values) => {
-    const userData = JSON.parse(localStorage.getItem("teckwah_tms_user"));
-
+    // 세션 기반으로 서버에서 인증하므로 API 호출 시 사용자 정보는 서버에서 세션에서 가져옴
     updateStatusMutation.mutate({
       id: selectedOrder.dashboard_id,
       status: values.status,
-      updated_by: userData?.user_id || "unknown",
     });
   };
 
@@ -423,17 +421,15 @@ const DashboardPage = () => {
     setAssignDriverVisible(true);
   };
 
-  // 배차 처리 제출 핸들러
+  // 배차 처리 제출 핸들러 - 세션에서 가져온 사용자 정보 활용
   const handleAssignDriverSubmit = (values) => {
-    const userData = JSON.parse(localStorage.getItem("teckwah_tms_user"));
-
+    // 세션 기반으로 서버에서 인증하므로 API 호출 시 사용자 정보는 서버에서 세션에서 가져옴
     if (isMultipleAssign) {
       // 다중 배차 처리
       assignMultiDriversMutation.mutate({
         ids: selectedRowKeys,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
-        updated_by: userData?.user_id || "unknown",
       });
     } else {
       // 단일 배차 처리
@@ -441,7 +437,6 @@ const DashboardPage = () => {
         id: selectedOrder.dashboard_id,
         driver_name: values.driver_name,
         driver_contact: values.driver_contact,
-        updated_by: userData?.user_id || "unknown",
       });
     }
   };

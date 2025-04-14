@@ -48,7 +48,8 @@ const camelToSnake = (data) => {
  * 단순성과 YAGNI 원칙에 따라 필요한 기능만 구현
  */
 const apiClient = axios.create({
-  baseURL: window.ENV?.API_URL || '',  // 런타임 환경 설정 또는 상대 경로
+  // 상대 경로 사용 - 같은 오리진(도메인)에서 서비스될 때 적합
+  baseURL: '',
   headers: {
     "Content-Type": "application/json",
   },
@@ -115,11 +116,12 @@ apiClient.interceptors.response.use(
 
     // 인증 오류인 경우 (401) - 로그인 페이지로 리다이렉트
     if (response.status === 401) {
-      // 로컬 스토리지 데이터 삭제
+      // 세션 기반 인증이므로 메모리 캐시만 초기화
       logout();
       
       // 현재 경로가 로그인 페이지가 아닌 경우만 리다이렉트
       if (!window.location.pathname.includes('/login')) {
+        // 리다이렉션 처리를 일관되게 BrowserRouter에 맞게 처리
         window.location.href = "/login";
       }
       

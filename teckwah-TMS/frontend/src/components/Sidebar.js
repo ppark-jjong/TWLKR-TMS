@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Layout, Menu, Typography, Avatar, Space, Button } from "antd";
 import {
   DashboardOutlined,
@@ -12,6 +12,7 @@ import {
   TeamOutlined,
 } from "@ant-design/icons";
 import { logout } from "../utils/Auth";
+import { logout as logoutAPI } from "../api/AuthService";
 import logo from "../logo.png";
 
 const { Sider } = Layout;
@@ -27,6 +28,7 @@ const { Text } = Typography;
  */
 const Sidebar = ({ userData, setAuth, collapsed, toggleSidebar }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
 
   // 활성 메뉴 아이템 키 계산
@@ -38,31 +40,26 @@ const Sidebar = ({ userData, setAuth, collapsed, toggleSidebar }) => {
     return "1"; // 기본값
   };
 
-  // 로그아웃 처리 함수
+  // 로그아웃 처리 함수 - 순수하게 세션 기반으로 작동
   const handleLogout = async () => {
     try {
-      // 백엔드 로그아웃 API 호출 (에러가 발생해도 로컬 로그아웃은 진행)
-      await fetch("/auth/logout", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("teckwah_tms_token")}`,
-        },
-      }).catch(console.error);
-
-      // 로컬 로그아웃 처리
+      // API 클라이언트를 통한 로그아웃 요청
+      await logoutAPI();
+      
+      // 클라이언트 측 메모리 캐시 초기화
       logout();
-
+      
       // 인증 상태 업데이트
       setAuth(false);
 
-      // 로그인 페이지로 이동
-      window.location.href = "/login";
+      // react-router-dom의 navigate 사용
+      navigate("/login");
     } catch (error) {
       console.error("로그아웃 중 오류 발생:", error);
       // 오류가 발생해도 로컬 로그아웃 및 리다이렉트
       logout();
       setAuth(false);
-      window.location.href = "/login";
+      navigate("/login");
     }
   };
 

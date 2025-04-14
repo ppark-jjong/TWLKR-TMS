@@ -11,3 +11,9 @@ services:
       - '8080:8080'
     env_file:
       - .env
+    # 명확한 단일 컨테이너 환경 설정
+    environment:
+      - NODE_ENV=development
+    # 호스트 시스템의 MySQL과 연결 설정
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -14,13 +14,13 @@ COPY frontend/public ./public
 COPY deploy/.env ./.env
 
 # 환경 변수 설정 - .env 파일에서 가져오는 값 사용
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 ENV CI=false
 ENV ESLINT_NO_DEV_ERRORS=true
 ENV GENERATE_SOURCEMAP=false
 
-# 빌드 실행
-RUN npm run build
+# 빌드 실행 및 결과 확인
+RUN npm run build && ls -la build
 
 # 2. 백엔드 의존성 설치 스테이지 - 최적화
 FROM node:20-alpine AS backend-deps
@@ -40,7 +40,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # 필요한 환경 변수만 설정
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 ENV PORT=8080
 
 # 백엔드 의존성 및 소스 코드 복사
@@ -48,21 +48,17 @@ COPY --from=backend-deps /app/node_modules ./node_modules
 COPY backend/ ./backend/
 
 # 프론트엔드 빌드 결과물 복사
-COPY --from=frontend-builder /app/build ./frontend/build
+COPY --from=frontend-builder /app/build ./frontend
 
-# 환경 변수 파일 복사 및 권한 설정
+# 최종 이미지에서 파일 구조 확인
+RUN ls -la ./frontend || echo "프론트엔드 디렉토리가 없음!"
+
+# 환경 변수 파일 복사 및 권한 설정 - 단일 컨테이너 환경에 맞게 수정
 COPY deploy/.env ./.env
 RUN chmod 600 ./.env
-
-
-# # 보안 강화: 비권한 사용자로 실행
-# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-# RUN chown -R appuser:appgroup /app
-# USER appuser
 
 # 포트 노출
 EXPOSE 8080
 
 # 서버 실행 
 CMD ["node", "backend/main.js"]
-

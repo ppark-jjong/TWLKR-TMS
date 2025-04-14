@@ -154,8 +154,10 @@ router.post("/logout", authenticate, async (req, res, next) => {
           );
       }
 
-      // 쿠키 삭제 (세션 쿠키)
-      res.clearCookie("connect.sid");
+      // 쿠키 삭제 (세션 쿠키 이름을 정확히 지정)
+      res.clearCookie("teckwah.sid", {
+        path: '/', // main.js의 세션 설정과 일치시킴
+      });
 
       return res.status(200).json(createResponse(true, "로그아웃 성공"));
     });
