@@ -38,8 +38,8 @@
 ### 2.2 기술 스택
 
 **백엔드:**
-- Node.js 20 LTS (장기 지원 버전)
-- Express 4.x
+- python 3.12.9
+- fastapi
 
 **프론트엔드:**
 - React 18.x  
@@ -99,8 +99,7 @@
 - 일관된 오류 처리 패턴을 유지하며, 사용자 관점에서의 명확한 피드백을 제공합니다.
 
 ### 4.3 배포 고려사항
-- **Node.js(Express) + React**를 하나의 Docker 컨테이너로 묶어 배포합니다.  
-- Express의 정적 파일 서빙 기능(`express.static`)을 활용하여 React 빌드 결과물을 서빙합니다.  
+
 - Dockerfile로 간단하게 빌드 및 배포 구성  
 - 환경 변수로 필수 설정값만 관리  
 - 헬스 체크와 관련된 과도한 로깅은 지양(한 번만 선언)합니다.  
@@ -109,17 +108,10 @@
 - **보안 헤더**: 필수적인 기본 보안 헤더만 설정합니다.
 
 #### 4.3.1 Docker 기반 단일 컨테이너 배포 설계 (간단 요약)
-- **배경**: Node.js(Express) + React 단일 앱, bcrypt 등 네이티브 모듈 사용, 여러 로컬 환경 상이  
-- **목표**
-  - 어떤 환경에서도 동일 산출물  
-  - 최소 의존성 파일로 어디서든 배포  
-  - 네이티브 모듈 호환성 문제 해소  
-  - 단일 컨테이너로 통합 배포  
-- **해결책**: Docker 멀티 스테이지 빌드  
-  - 빌드 스테이지: node:20 기반에서 npm install, React npm run build 수행  
-  - 프로덕션 스테이지: 위 빌드 결과(프론트 build 폴더 등)만 복사해 가볍게 구성  
-  - bcrypt 등 네이티브 모듈은 빌드 스테이지에서 컴파일되므로 OS 종속성 문제 최소화  
-  - `docker build` → `docker run` 두 단계로 어디서든 동일 컨테이너 실행 가능
+- Docker 단일 컨테이너 활용을 위해 Multi-stage 빌드로 프론트엔드를 빌드한 뒤, 
+- 빌드 결과물(정적 파일)을 Python 컨테이너 내부에 복사 FastAPI에서 StaticFiles를 통해 해당 정적 파일을 서빙하거나, 
+- 별도 미들웨어를 최소한으로 사용
+- 배포 시 Google App Engine(GAE Flexible Environment)에서 runtime: custom을 통해 직접 빌드된 컨테이너를 실행
 
 ### 4.4 사용자 경험 및 인터페이스 원칙
 
@@ -152,14 +144,6 @@
 
 #### GAE 배포 시 보안 설정
 - GAE의 기본 보안 기능(DDoS 방어, TLS/SSL)을 활용합니다.  
-- 기본 보안 헤더는 (Express 기준) 미들웨어로 간단히 추가 가능합니다. 예시:
-  ```js
-  // 보안 헤더 예시 (Express)
-  app.use((req, res, next) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    return next();
-  });
 
 
 ### 보안 수준 최적화
