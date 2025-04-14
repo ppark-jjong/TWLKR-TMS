@@ -10,7 +10,12 @@ import {
   DEPARTMENT_OPTIONS,
   WAREHOUSE_OPTIONS,
   PAGE_SIZE_OPTIONS,
+<<<<<<< HEAD
+} from "../../utils/Constants";
+import { getTodayDate } from "../../utils/Helpers";
+=======
 } from '../../utils/Constants';
+>>>>>>> main
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -26,7 +31,7 @@ const { Option } = Select;
 const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
   // 필터 상태 관리
   const [filters, setFilters] = useState({
-    dateRange: defaultValues.dateRange || null,
+    dateRange: defaultValues.dateRange || [getTodayDate(), getTodayDate()], // 기본값이 없으면 오늘 날짜로 설정
     status: defaultValues.status || null,
     department: defaultValues.department || null,
     warehouse: defaultValues.warehouse || null,
@@ -56,8 +61,11 @@ const FilterPanel = ({ onFilter, onReset, onRefresh, defaultValues = {} }) => {
 
   // 필터 초기화 핸들러
   const handleReset = () => {
+    // 초기화 시 오늘 날짜로 설정
+    const todayDateValue = [getTodayDate(), getTodayDate()];
+    
     setFilters({
-      dateRange: null,
+      dateRange: todayDateValue,
       status: null,
       department: null,
       warehouse: null,

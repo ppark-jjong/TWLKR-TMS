@@ -53,8 +53,12 @@ const camelToSnake = (data) => {
  * 단순성과 YAGNI 원칙에 따라 필요한 기능만 구현
  */
 const apiClient = axios.create({
+<<<<<<< HEAD
+  baseURL: process.env.REACT_APP_API_URL || '',  // .env 파일에서 환경변수 사용
+=======
   // 상대 경로 사용 (package.json의 proxy 설정 활용)
   baseURL: '',
+>>>>>>> main
   headers: {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',

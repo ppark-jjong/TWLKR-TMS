@@ -40,29 +40,17 @@ import './DashboardPage.css';
  * 대시보드 메인 페이지 컴포넌트
  */
 const DashboardPage = () => {
-  // API 요청용 날짜 필터 (서버 사이드 필터링)
-  const [dateFilters, setDateFilters] = useState({
-    dateRange: [getTodayDate(), getTodayDate()],
-    page: 1,
-    pageSize: 10,
-  });
-
-  // 검색 필터 (별도의 API 호출)
-  const [searchFilters, setSearchFilters] = useState({
-    keyword: '',
-    page: 1,
-    pageSize: 10,
-    isSearchMode: false,
-  });
-
-  // 클라이언트 필터 (클라이언트 사이드 필터링)
-  const [clientFilters, setClientFilters] = useState({
+  // 상태 관리 - 오늘 날짜로 기본 설정
+  const [filters, setFilters] = useState({
+    dateRange: [getTodayDate(), getTodayDate()], // 오늘 날짜만 기본값으로 설정
     status: null,
     department: null,
     warehouse: null,
+    keyword: '',
+    page: 1,
+    pageSize: 10,
   });
 
-  // 기타 상태 관리
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -222,12 +210,14 @@ const DashboardPage = () => {
     });
   };
 
-  // 검색 적용 핸들러 (API 요청 트리거)
-  const handleSearchApply = (newFilters) => {
-    // 검색 모드로 전환
-    setSearchFilters({
-      ...searchFilters,
-      keyword: newFilters.keyword,
+  // 필터 초기화 핸들러
+  const handleFilterReset = () => {
+    setFilters({
+      dateRange: [getTodayDate(), getTodayDate()], // 초기화 시에도 오늘 날짜로 설정
+      status: null,
+      department: null,
+      warehouse: null,
+      keyword: '',
       page: 1,
       isSearchMode: true,
     });

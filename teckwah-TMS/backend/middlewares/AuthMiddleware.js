@@ -6,6 +6,30 @@ const { createResponse, ERROR_CODES } = require('../utils/Constants');
  */
 const authenticate = async (req, res, next) => {
   try {
+<<<<<<< HEAD
+    // 세션 정보 디버깅
+    console.log(`인증 요청: ${req.path}, 세션ID: ${req.sessionID}, 세션 존재: ${!!req.session}`);
+
+    // 세션에서 사용자 정보 확인
+    if (!req.session || !req.session.user) {
+      // API 요청인 경우 401 응답
+      if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+        return res
+          .status(401)
+          .json(
+            createResponse(
+              false,
+              "인증이 필요합니다",
+              { redirectTo: "/login" },
+              ERROR_CODES.UNAUTHORIZED
+            )
+          );
+      }
+      
+      // 일반 페이지 요청인 경우 리다이렉션
+      console.log(`인증 미들웨어에서 리다이렉션: ${req.path} -> /login`);
+      return res.redirect('/login');
+=======
     // 세션에서 사용자 정보 확인 - 세션 없으면 즉시 401 반환
     if (!req.session || !req.session.user) {
       console.error(`인증 실패: ${req.method} ${req.originalUrl} - 세션 없음`);
@@ -19,6 +43,7 @@ const authenticate = async (req, res, next) => {
             ERROR_CODES.UNAUTHORIZED
           )
         );
+>>>>>>> main
     }
 
     // 세션에 있는 사용자 정보 가져오기
@@ -30,6 +55,25 @@ const authenticate = async (req, res, next) => {
 
       if (!user) {
         // 세션은 있지만 DB에서 사용자를 찾을 수 없는 경우
+<<<<<<< HEAD
+        console.error(`사용자 찾을 수 없음: ${sessionUser.user_id}`);
+        req.session.destroy();
+        
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+          return res
+            .status(401)
+            .json(
+              createResponse(
+                false,
+                "유효하지 않은 사용자입니다",
+                { redirectTo: "/login" },
+                ERROR_CODES.UNAUTHORIZED
+              )
+            );
+        }
+        
+        return res.redirect('/login');
+=======
         console.error(
           `인증 실패: ${req.method} ${req.originalUrl} - 사용자 없음 (${sessionUser.user_id})`
         );
@@ -44,6 +88,7 @@ const authenticate = async (req, res, next) => {
               ERROR_CODES.UNAUTHORIZED
             )
           );
+>>>>>>> main
       }
 
       // 요청 객체에 사용자 정보 추가

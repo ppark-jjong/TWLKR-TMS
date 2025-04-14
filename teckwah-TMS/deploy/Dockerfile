@@ -1,44 +1,74 @@
-# 1. 프론트엔드 빌드 스테이지 - 최적화
-FROM node:20-alpine AS frontend-builder
+# 1. 빌드 스테이지
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# 캐시 활용을 위해 package.json 및 package-lock.json 먼저 복사
-COPY frontend/package*.json ./
-
-# 의존성 설치 (CI 모드로 설치하여 lockfile 준수)
-RUN npm ci
-
-# 소스 파일 복사 (folding 최적화)
-COPY frontend/src ./src
-COPY frontend/public ./public
+# 환경변수 파일 복사
 COPY deploy/.env ./.env
 
+<<<<<<< HEAD
+# 백엔드 의존성 설치
+COPY backend/package.json backend/package-lock.json ./backend/
+RUN cd backend && npm ci
+
+# 프론트엔드 의존성 설치
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN cd frontend && npm ci
+
+# 백엔드 소스 복사
+COPY backend/ ./backend/
+
+# 프론트엔드 소스 복사
+COPY frontend/ ./frontend/
+
+# 빌드 환경 설정 
+ENV NODE_ENV=production
+=======
 # 환경 변수 설정 - .env 파일에서 가져오는 값 사용
 ENV NODE_ENV=development
+>>>>>>> main
 ENV CI=false
 ENV ESLINT_NO_DEV_ERRORS=true
 ENV GENERATE_SOURCEMAP=false
 
-# 빌드 실행
+# 프론트엔드 빌드
+WORKDIR /app/frontend
 RUN npm run build
 
-# 2. 백엔드 의존성 설치 스테이지 - 최적화
-FROM node:20-alpine AS backend-deps
-WORKDIR /app
+# 빌드 결과 확인 (디버깅용)
+RUN echo "===== 프론트엔드 빌드 결과 확인 =====" && \
+    ls -la /app/frontend/build/ || echo "build 폴더가 존재하지 않음!"
 
-# 네이티브 모듈을 위한 빌드 도구 설치 - 최소 패키지만 설치
-RUN apk add --no-cache python3 make g++ 
-
-# 캐시 활용을 위해 package.json 및 package-lock.json 먼저 복사
-COPY backend/package*.json ./
-
-# 프로덕션 의존성만 설치
-RUN npm ci --omit=dev
-
-# 3. 최종 이미지 구성 - 경량화 및 보안 강화
+# 2. 프로덕션 스테이지
 FROM node:20-alpine
 WORKDIR /app
 
+<<<<<<< HEAD
+# 환경변수 파일 복사
+COPY deploy/.env ./.env
+RUN chmod 600 ./.env
+
+# 백엔드 의존성 설치 (프로덕션 모드)
+COPY backend/package.json backend/package-lock.json ./backend/
+RUN cd backend && npm ci --omit=dev
+
+# 백엔드 소스 복사
+COPY backend/ ./backend/
+
+# 프론트엔드 빌드 결과물 복사
+COPY --from=builder /app/frontend/build/ ./frontend/
+
+# 복사된 프론트엔드 빌드 결과 확인 (디버깅용)
+RUN echo "===== 복사된 프론트엔드 파일 확인 =====" && \
+    ls -la /app/frontend/ || echo "frontend 폴더에 파일이 없음!"
+
+# 환경 설정
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# 포트 설정 및 실행
+EXPOSE 8080
+CMD ["node", "backend/main.js"]
+=======
 # 필요한 환경 변수만 설정
 ENV NODE_ENV=development
 ENV PORT=8080
@@ -66,3 +96,4 @@ EXPOSE 8080
 
 # 서버 실행 
 CMD ["node", "backend/main.js"]
+>>>>>>> main

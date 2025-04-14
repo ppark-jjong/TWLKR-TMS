@@ -3,13 +3,21 @@ const path = require('path');
 
 // 환경변수 설정 - 단일 컨테이너 환경에 맞게 단순화
 require('dotenv').config({
+<<<<<<< HEAD
+  path:
+    process.env.NODE_ENV === 'production'
+      ? path.join(__dirname, '..', '..', '.env')
+      : path.join(__dirname, '..', '..', 'deploy', '.env'),
+=======
   path: path.join(__dirname, '..', '..', '.env')
+>>>>>>> main
 });
 
 // 커스텀 로거 함수 - 개발 모드에서만 동작
 const customLogger = (query, time) => {
   if (process.env.NODE_ENV === 'development') {
-    if (time > 500) { // 500ms 이상 걸리는 쿼리는 경고로 표시
+    if (time > 500) {
+      // 500ms 이상 걸리는 쿼리는 경고로 표시
       console.warn(`[DB 쿼리 성능 경고: ${time}ms] ${query}`);
     } else if (process.env.DEBUG === 'True') {
       console.log(`[DB 쿼리: ${time}ms] ${query}`);
@@ -32,7 +40,7 @@ const sequelize = new Sequelize(
       max: 5, // 기본값으로 설정하여 단순화
       min: 0,
       acquire: 30000,
-      idle: 10000
+      idle: 10000,
     },
     dialectOptions: {
       connectTimeout: 10000,
@@ -46,15 +54,15 @@ const sequelize = new Sequelize(
           return field.string();
         }
         return next();
-      }
+      },
     },
     define: {
       timestamps: true, // created_at, updated_at 자동 생성
       underscored: true, // snake_case 컬럼명 사용
       freezeTableName: true, // 테이블명 복수화 방지
       charset: process.env.MYSQL_CHARSET || 'utf8mb4',
-      collate: 'utf8mb4_unicode_ci'
-    }
+      collate: 'utf8mb4_unicode_ci',
+    },
   }
 );
 

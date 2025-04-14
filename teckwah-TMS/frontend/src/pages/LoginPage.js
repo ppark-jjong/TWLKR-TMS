@@ -39,11 +39,19 @@ const LoginPage = ({ setAuth, setUserData }) => {
         // 세션 기반 인증 - App.js의 인증 상태 업데이트
         setAuth(true);
 
+<<<<<<< HEAD
+        // 사용자 정보 설정
+        setUserData(response.data.user);
+
+        // 대시보드 페이지로 수동 리다이렉션
+        navigate('/dashboard/list');
+=======
         // 세션 쿠키가 설정될 시간을 주기 위해 지연 후 리다이렉트
         setTimeout(() => {
           // 대시보드 페이지로 수동 리다이렉션
           navigate('/dashboard/list', { replace: true });
         }, 1000); // 1초 지연
+>>>>>>> main
       } else {
         // 로그인 실패
         message.error(response.message || '로그인에 실패했습니다');
