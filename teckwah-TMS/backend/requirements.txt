@@ -1,6 +1,7 @@
 fastapi==0.110.0
 uvicorn==0.28.0
 pydantic==2.6.3
+# pydantic-settings 제거 - 수동 설정 관리 방식으로 변경
 sqlalchemy==2.0.27
 pymysql==1.1.0
 cryptography==42.0.3
@@ -9,3 +10,4 @@ bcrypt==4.1.2
 passlib==1.7.4
 python-dateutil==2.8.2
 email-validator==2.1.1
+python-dotenv==1.0.1

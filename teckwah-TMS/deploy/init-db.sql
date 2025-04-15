@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   updated_by VARCHAR(50) NULL,
   remark TEXT NULL,
   update_at DATETIME NULL,
+  is_locked BOOLEAN DEFAULT FALSE,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_department (department),
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS handover (
     is_notice BOOLEAN DEFAULT FALSE,
     create_at DATETIME NOT NULL,
     update_at DATETIME NOT NULL,
+    is_locked BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4

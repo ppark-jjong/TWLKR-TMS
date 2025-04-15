@@ -8,14 +8,26 @@ import { AuthService } from '../services';
 // 인증 컨텍스트 생성
 const AuthContext = createContext();
 
+// 로그인 페이지인지 확인하는 함수
+const isLoginPage = () => {
+  return window.location.pathname === '/login';
+};
+
 // 인증 컨텍스트 제공자 컴포넌트
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false); // 인증 확인 완료 여부
 
-  // 초기 인증 상태 확인
+  // 초기 인증 상태 확인 (단 한 번만 실행)
   useEffect(() => {
+    // 이미 인증 확인을 했거나 로그인 페이지인 경우 세션 체크 건너뛰기
+    if (authChecked || isLoginPage()) {
+      setIsLoading(false);
+      return;
+    }
+
     const checkAuthStatus = async () => {
       try {
         const response = await AuthService.getCurrentUser();
@@ -29,11 +41,12 @@ export const AuthProvider = ({ children }) => {
         console.log('사용자 인증 필요');
       } finally {
         setIsLoading(false);
+        setAuthChecked(true); // 인증 확인 완료 표시
       }
     };
 
     checkAuthStatus();
-  }, []);
+  }, [authChecked]);
 
   // 로그인 함수
   const login = async (userId, password) => {
@@ -44,6 +57,7 @@ export const AuthProvider = ({ children }) => {
       if (response.success) {
         setCurrentUser(response.data);
         setIsAuthenticated(true);
+        setAuthChecked(true); // 로그인 성공 시 인증 확인 완료 표시
         message.success('로그인 성공');
         return true;
       } else {
@@ -66,6 +80,7 @@ export const AuthProvider = ({ children }) => {
       
       setCurrentUser(null);
       setIsAuthenticated(false);
+      setAuthChecked(false); // 로그아웃 후 인증 상태 재확인 필요
       message.success('로그아웃 되었습니다');
       return true;
     } catch (error) {

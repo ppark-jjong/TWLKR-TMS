@@ -30,6 +30,10 @@ const DashboardService = {
    * @returns {Promise} 생성된 주문 정보
    */
   createOrder: async (orderData) => {
+    // 우편번호 5자리 맞추기
+    if (orderData.postal_code) {
+      orderData.postal_code = orderData.postal_code.padStart(5, '0');
+    }
     const response = await api.post('/dashboard', orderData);
     return response.data;
   },
@@ -41,6 +45,10 @@ const DashboardService = {
    * @returns {Promise} 수정된 주문 정보
    */
   updateOrder: async (orderId, orderData) => {
+    // 우편번호 5자리 맞추기
+    if (orderData.postal_code) {
+      orderData.postal_code = orderData.postal_code.padStart(5, '0');
+    }
     const response = await api.put(`/dashboard/${orderId}`, orderData);
     return response.data;
   },
@@ -77,6 +85,17 @@ const DashboardService = {
   },
   
   /**
+   * 주문 상태 일괄 변경
+   * @param {Array<number>} orderIds 주문 ID 배열
+   * @param {string} status 변경할 상태
+   * @returns {Promise} 변경 결과
+   */
+  updateMultipleStatus: async (orderIds, status) => {
+    const response = await api.post('/dashboard/update-status', { orderIds, status });
+    return response.data;
+  },
+  
+  /**
    * 기사 일괄 배정
    * @param {Array<number>} orderIds 주문 ID 배열
    * @param {string} driverName 기사 이름
@@ -89,6 +108,26 @@ const DashboardService = {
       driverName,
       driverContact
     });
+    return response.data;
+  },
+  
+  /**
+   * 주문 락 획득
+   * @param {number} orderId 주문 ID
+   * @returns {Promise} 락 획득 결과
+   */
+  lockOrder: async (orderId) => {
+    const response = await api.post(`/dashboard/${orderId}/lock`);
+    return response.data;
+  },
+  
+  /**
+   * 주문 락 해제
+   * @param {number} orderId 주문 ID
+   * @returns {Promise} 락 해제 결과
+   */
+  unlockOrder: async (orderId) => {
+    const response = await api.post(`/dashboard/${orderId}/unlock`);
     return response.data;
   },
 
