@@ -30,29 +30,7 @@ const AuthService = {
       return response.data;
     } catch (error) {
       console.error('로그인 오류:', error);
-      
-      // 오류 정보에 따른 적절한 메시지 구성
-      let errorMessage = '로그인 중 오류가 발생했습니다.';
-      
-      if (error.response) {
-        // 서버에서 응답이 왔지만 오류 상태 코드인 경우
-        if (error.response.status === 401) {
-          errorMessage = '아이디 또는 비밀번호가 올바르지 않습니다.';
-        } else {
-          errorMessage = error.response.data?.detail || 
-                        error.response.data?.message || 
-                        `서버 오류가 발생했습니다. (${error.response.status})`;
-        }
-      } else if (error.request) {
-        // 요청은 보냈지만 응답이 없는 경우
-        errorMessage = '서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.';
-      }
-      
-      // 적절한 오류 객체 반환
-      return {
-        success: false,
-        message: errorMessage
-      };
+      throw error;
     }
   },
   
@@ -74,10 +52,7 @@ const AuthService = {
       return response.data;
     } catch (error) {
       console.error('로그아웃 오류:', error);
-      return {
-        success: false,
-        message: '로그아웃 처리 중 오류가 발생했습니다.'
-      };
+      throw error;
     }
   },
   

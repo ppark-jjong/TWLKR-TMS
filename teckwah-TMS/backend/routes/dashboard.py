@@ -34,6 +34,8 @@ from backend.utils.lock import (
 router = APIRouter()
 
 
+from backend.services.dashboard_service import get_dashboard_orders as service_get_dashboard_orders
+
 @router.get("/", response_model=Dict[str, Any])
 async def get_dashboard_orders(
     start_date: Optional[str] = Query(None, description="시작 날짜 (ISO 형식)"),
@@ -48,127 +50,26 @@ async def get_dashboard_orders(
     - 날짜 기간으로만 필터링 (ETA 기준)
     - 클라이언트 측에서 추가 필터링 처리
     """
-    # 디버깅용 상세 요청 정보 로깅
-    logger.info("======= 대시보드 주문 목록 조회 시작 =======")
-    logger.info(f"사용자: {current_user['user_id']}, 권한: {current_user['user_role']}")
-    logger.info(
-        f"요청 파라미터: start_date={start_date}, end_date={end_date}, page={page}, limit={limit}"
+    # 간결한 요청 정보 로깅
+    logger.api(f"주문 목록 조회 - 사용자: {current_user['user_id']}, 날짜: {start_date or '오늘'} ~ {end_date or '오늘+1일'}, 페이지: {page}")
+    
+    # 서비스 레이어 호출
+    response_data = service_get_dashboard_orders(
+        db=db,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        limit=limit,
+        current_user_id=current_user["user_id"]
     )
-
-    # 문자열 날짜를 datetime으로 변환
-    start_datetime = None
-    end_datetime = None
-
-    if start_date:
-        try:
-            start_datetime = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
-        except ValueError:
-            try:
-                # ISO 8601 형식이 아닐 경우 다른 형식 시도
-                start_datetime = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S.%fZ")
-            except ValueError:
-                logger.warning(f"유효하지 않은 시작 날짜 형식: {start_date}")
-                # 기본값: 오늘
-                start_datetime = datetime.now().replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                )
-
-    if end_date:
-        try:
-            end_datetime = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-        except ValueError:
-            try:
-                # ISO 8601 형식이 아닐 경우 다른 형식 시도
-                end_datetime = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
-            except ValueError:
-                logger.warning(f"유효하지 않은 종료 날짜 형식: {end_date}")
-                # 시작 날짜가 있으면 +1일, 없으면 오늘 자정
-                if start_datetime:
-                    end_datetime = start_datetime + timedelta(days=1)
-                else:
-                    end_datetime = datetime.now().replace(
-                        hour=23, minute=59, second=59, microsecond=999999
-                    )
-
-    # 기본 쿼리
-    query = db.query(Dashboard)
-
-    # 날짜 필터링 - 개선: 기본값 적용 로직 수정
-    if not start_datetime:
-        # 기본값: 오늘
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        start_datetime = today
-        end_datetime = today + timedelta(days=1)
-    elif not end_datetime:
-        end_datetime = start_datetime + timedelta(days=1)
-
-    # 개선: ETA 필드 기준으로 날짜 필터링만 적용
-    query = query.filter(Dashboard.eta >= start_datetime, Dashboard.eta < end_datetime)
-
-    # 로깅: 변환된 날짜 범위
-    logger.info(
-        f"대시보드 쿼리: start={start_datetime.isoformat()}, end={end_datetime.isoformat()}"
-    )
-
-    # 총 항목 수 계산
-    total_count = query.count()
-    logger.info(f"쿼리 조건 적용 후 검색된 총 주문 수: {total_count}")
-
-    # 필터링된 데이터 가져오기
-    query = query.order_by(Dashboard.eta.asc())
-    query = query.offset((page - 1) * limit).limit(limit)
-    results = query.all()
-
-    # 상태별 카운트 계산 - 클라이언트 필터링에 유용한 통계 정보는 유지
-    status_counts = (
-        db.query(Dashboard.status, func.count(Dashboard.dashboard_id).label("count"))
-        .filter(Dashboard.eta >= start_datetime, Dashboard.eta < end_datetime)
-        .group_by(Dashboard.status)
-        .all()
-    )
-
-    # 상태별 카운트 변환
-    status_count_dict = {
-        "WAITING": 0,
-        "IN_PROGRESS": 0,
-        "COMPLETE": 0,
-        "ISSUE": 0,
-        "CANCEL": 0,
-    }
-
-    for status_name, count in status_counts:
-        status_count_dict[status_name] = count
-
-    # 각 주문의 락 상태 확인
-    for order in results:
-        order_lock_status = check_lock_status(
-            db, Dashboard, order.dashboard_id, current_user["user_id"]
-        )
-        # 응답 데이터에 락 상태 정보 추가
-        setattr(order, "locked_info", order_lock_status)
-
-    # 개선된 응답 - 필터 정보는 날짜만 포함
-    response_data = {
-        "success": True,
-        "message": "주문 목록 조회 성공",
-        "data": {
-            "items": results,
-            "total": total_count,
-            "page": page,
-            "limit": limit,
-            "status_counts": status_count_dict,
-            "filter": {
-                "start_date": start_datetime,
-                "end_date": end_datetime,
-            },
-        },
-    }
-
-    # 로그 추가
-    logger.info(f"대시보드 응답: 결과 {len(results)}건, 총 {total_count}건")
-
+    
+    # 로그 간소화
+    logger.api(f"주문 목록 응답 - 페이지: {page}, 결과: {len(response_data['data']['items'])}건")
+    
     return response_data
 
+
+from backend.services.dashboard_service import create_order as service_create_order
 
 @router.post("/", response_model=Dict[str, Any])
 async def create_order(
@@ -179,39 +80,13 @@ async def create_order(
     """
     새 주문 생성
     """
-    # 우편번호 처리 (5자리 표준화)
-    postal_code = order.postal_code
-    if len(postal_code) < 5:
-        postal_code = postal_code.zfill(5)  # 앞에 0 추가하여 5자리로 맞춤
-
-    new_order = Dashboard(
-        order_no=order.order_no,
-        type=order.type,
-        status=OrderStatus.WAITING,
-        department=order.department,
-        warehouse=order.warehouse,
-        sla=order.sla,
-        eta=order.eta,
-        create_time=datetime.now(),
-        postal_code=postal_code,
-        address=order.address,
-        customer=order.customer,
-        contact=order.contact,
-        driver_name=order.driver_name,
-        driver_contact=order.driver_contact,
-        remark=order.remark,
-        updated_by=current_user["user_id"],
-        update_at=datetime.now(),
+    # 서비스 레이어 호출
+    new_order = service_create_order(
+        db=db,
+        order_data=order.dict(),
+        current_user_id=current_user["user_id"]
     )
-
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
-
-    logger.info(
-        f"주문 생성: ID {new_order.dashboard_id}, 번호: {new_order.order_no}, 생성자: {current_user['user_id']}"
-    )
-
+    
     return {"success": True, "message": "주문 생성 성공", "data": new_order}
 
 
@@ -350,11 +225,9 @@ async def update_order(
     if order_update.postal_code and len(order_update.postal_code) < 5:
         order_update.postal_code = order_update.postal_code.zfill(5)
 
-    # 상태 변경 불가능 처리
+    # 상태 변경 불가능 처리 - 경고 로그 간소화
     if order_update.status is not None:
-        logger.warning(
-            f"주문 수정 API에서 상태 변경 시도: ID {order_id}, 사용자: {current_user['user_id']}"
-        )
+        logger.warning(f"부적절한 상태 변경 시도 - 주문 ID: {order_id}, 사용자: {current_user['user_id']}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="주문 수정 API에서는 상태를 변경할 수 없습니다. status-multiple API를 사용하세요.",
@@ -399,9 +272,7 @@ async def delete_multiple_orders(
     여러 주문 일괄 삭제
     권한 제한: 관리자는 모든 항목, 일반 사용자는 본인 생성 항목만 삭제 가능
     """
-    logger.info(
-        f"주문 일괄 삭제: user_id={current_user['user_id']}, order_count={len(delete_data.order_ids)}"
-    )
+    logger.api(f"주문 일괄 삭제 요청 - 사용자: {current_user['user_id']}, 대상: {len(delete_data.order_ids)}건")
     # 관리자만 삭제 가능하도록 제한 (개선사항)
     if current_user["user_role"] != UserRole.ADMIN:
         raise HTTPException(
@@ -438,7 +309,7 @@ async def delete_multiple_orders(
 
     if locked_orders:
         locked_msg = f"일부 주문({locked_orders})이 다른 사용자에 의해 잠겨 있습니다"
-        logger.warning(locked_msg)
+        logger.lock(f"락 충돌 발생 - {locked_msg}, 요청자: {current_user['user_id']}")
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail=locked_msg,
@@ -452,9 +323,7 @@ async def delete_multiple_orders(
 
     db.commit()
 
-    logger.info(
-        f"일괄 주문 삭제: IDs {deleted_ids}, 총 {len(deleted_ids)}건, 처리자: {current_user['user_id']}"
-    )
+    logger.db(f"주문 삭제 완료 - {len(deleted_ids)}건, 처리자: {current_user['user_id']}")
 
     return {
         "success": True,
@@ -472,6 +341,8 @@ class StatusUpdateMultiple(BaseModel):
     status: OrderStatus = Field(..., description="변경할 상태")
 
 
+from backend.services.dashboard_service import update_multiple_orders_status as service_update_status
+
 @router.post("/status-multiple", response_model=Dict[str, Any])
 async def update_multiple_orders_status(
     status_data: StatusUpdateMultiple,
@@ -480,35 +351,22 @@ async def update_multiple_orders_status(
 ):
     """
     여러 주문 상태 일괄 변경 (개선됨)
-    - 기사 배정 API와 유사한 간결한 로직으로 변경
-    - 1개 이상의 주문 상태 변경 처리
     """
-    # 요청 로깅
-    logger.info(
-        f"주문 상태 일괄 변경: user_id={current_user['user_id']}, status={status_data.status}, order_count={len(status_data.order_ids)}"
-    )
+    # 요청 로깅 간소화
+    logger.api(f"상태 일괄 변경 요청 - 상태: {status_data.status}, 대상: {len(status_data.order_ids)}건, 사용자: {current_user['user_id']}")
 
     if not status_data.order_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="변경할 주문을 선택해주세요"
         )
-
-    # 주문 목록 조회
+        
+    # 락 검증
     orders = (
         db.query(Dashboard)
         .filter(Dashboard.dashboard_id.in_(status_data.order_ids))
         .all()
     )
-
-    found_ids = [order.dashboard_id for order in orders]
-    logger.info(f"상태 변경 대상 주문 수: {len(orders)}")
-
-    if not orders:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="선택한 주문을 찾을 수 없습니다",
-        )
-
+    
     # 락 검증
     locked_orders = []
     for order in orders:
@@ -519,93 +377,22 @@ async def update_multiple_orders_status(
             locked_orders.append(order.dashboard_id)
 
     if locked_orders:
-        error_msg = (
-            f"일부 주문(IDs: {locked_orders})이 다른 사용자에 의해 잠겨 있습니다"
-        )
-        logger.warning(error_msg)
+        error_msg = f"일부 주문(IDs: {locked_orders})이 다른 사용자에 의해 잠겨 있습니다"
+        logger.lock(f"상태 변경 락 충돌 - {error_msg}, 요청자: {current_user['user_id']}")
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail=error_msg,
         )
 
-    # 상태 변경 처리 준비
-    current_time = datetime.now()
-    is_admin = current_user["user_role"] == UserRole.ADMIN
-    forbidden_ids = []
-    updated_ids = []
-
-    # 상태 전환 권한 체크 테이블
-    allowed_transitions = {
-        OrderStatus.WAITING: [OrderStatus.IN_PROGRESS],
-        OrderStatus.IN_PROGRESS: [
-            OrderStatus.COMPLETE,
-            OrderStatus.ISSUE,
-            OrderStatus.CANCEL,
-        ],
-    }
-
-    # 상태 변경 실행
-    for order in orders:
-        # 상태 변경 권한 체크 (일반 사용자)
-        can_update = True
-        if not is_admin:
-            if (
-                order.status not in allowed_transitions
-                or status_data.status not in allowed_transitions.get(order.status, [])
-            ):
-                can_update = False
-                forbidden_ids.append(order.dashboard_id)
-                logger.warning(
-                    f"권한 없는 상태 변경 시도: 주문 ID {order.dashboard_id}, {order.status} → {status_data.status}, 사용자: {current_user['user_id']}"
-                )
-                continue
-
-        if can_update:
-            prev_status = order.status
-
-            # 상태 변경에 따른 시간 자동 업데이트
-            if (
-                prev_status == OrderStatus.WAITING
-                and status_data.status == OrderStatus.IN_PROGRESS
-            ):
-                order.depart_time = current_time
-            elif prev_status == OrderStatus.IN_PROGRESS and status_data.status in [
-                OrderStatus.COMPLETE,
-                OrderStatus.ISSUE,
-                OrderStatus.CANCEL,
-            ]:
-                order.complete_time = current_time
-
-            # 상태 업데이트
-            order.status = status_data.status
-            order.updated_by = current_user["user_id"]
-            order.update_at = current_time
-            updated_ids.append(order.dashboard_id)
-
-            logger.info(
-                f"주문 상태 변경: ID {order.dashboard_id}, {prev_status} → {status_data.status}, 처리자: {current_user['user_id']}"
-            )
-
-    # 변경사항 저장
-    db.commit()
-
-    # 결과 메시지 구성
-    result_message = f"{len(updated_ids)}개 주문 상태 변경 성공"
-    if forbidden_ids:
-        result_message += (
-            f", {len(forbidden_ids)}개 주문은 권한이 없어 변경되지 않았습니다"
-        )
-
-    # 응답 반환
-    return {
-        "success": True,
-        "message": result_message,
-        "data": {
-            "updated_count": len(updated_ids),
-            "updated_ids": updated_ids,
-            "forbidden_ids": forbidden_ids,
-        },
-    }
+    # 서비스 레이어 호출
+    response = service_update_status(
+        db=db,
+        order_ids=status_data.order_ids,
+        status=status_data.status,
+        current_user=current_user
+    )
+    
+    return response
 
 
 # 기사 배정용 요청 모델 추가
@@ -624,9 +411,7 @@ async def assign_driver(
     """
     여러 주문에 기사 일괄 배정
     """
-    logger.info(
-        f"기사 일괄 배정: user_id={current_user['user_id']}, order_count={len(driver_data.order_ids)}, driver_name={driver_data.driver_name}"
-    )
+    logger.api(f"기사 배정 요청 - 기사: {driver_data.driver_name}, 대상: {len(driver_data.order_ids)}건, 사용자: {current_user['user_id']}")
 
     if not driver_data.order_ids:
         raise HTTPException(
@@ -640,7 +425,7 @@ async def assign_driver(
         .all()
     )
 
-    logger.info(f"기사 배정 대상 주문 수: {len(orders)}")
+    logger.db(f"기사 배정 대상 조회됨 - {len(orders)}건")
 
     if not orders:
         raise HTTPException(

@@ -35,7 +35,6 @@ from backend.routes import (
     handover,
     visualization,
     user,
-    postal_code,
 )
 from backend.utils.security import cleanup_expired_sessions, sessions, get_session
 
@@ -132,7 +131,6 @@ app.include_router(dashboard.router, prefix="/dashboard", tags=["대시보드"])
 app.include_router(handover.router, prefix="/handover", tags=["인수인계"])
 app.include_router(visualization.router, prefix="/visualization", tags=["시각화"])
 app.include_router(user.router, prefix="/users", tags=["사용자 관리"])
-app.include_router(postal_code.router, prefix="/postal-codes", tags=["우편번호"])
 
 # API 라우터 목록 로깅
 routes = sorted([f"{route.methods} {route.path}" for route in app.routes if hasattr(route, "methods")])

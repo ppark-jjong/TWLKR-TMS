@@ -1,8 +1,11 @@
 /**
  * API 관련 기본 설정 및 인터셉터
+ * - 표준화된 오류 처리
+ * - 로깅 패턴 통일화
  */
 import axios from 'axios';
 import { message } from 'antd';
+import logger from '../utils/logger';
 
 // 로그인 페이지 확인 함수
 const isLoginPage = () => {
@@ -84,12 +87,7 @@ const createEmptyResponse = (path) => {
           limit: 10
         }
       };
-    case 'postal-codes':
-      return {
-        success: true,
-        message: "우편번호 정보 조회 성공",
-        data: null
-      };
+
     default:
       return {
         success: false,
@@ -112,14 +110,7 @@ const api = axios.create({
   withCredentials: true, // 쿠키 자동 전송
 });
 
-// API 호출 통계
-const apiStats = {
-  success: 0,
-  error: 0,
-  lastCall: null,
-  lastError: null,
-  calls: {}
-};
+// 디버그 모드 설정에 따라 로깅 활성화/비활성화
 
 // 요청 인터셉터 설정
 api.interceptors.request.use(
@@ -132,38 +123,25 @@ api.interceptors.request.use(
     config.metadata = { startTime: new Date().getTime(), requestId };
     
     // URL 경로 그대로 사용 (백엔드와 이미 동일하게 설정됨)
-    // 이제 URL 매핑이 필요 없습니다. 프론트엔드의 /dashboard는 백엔드의 /dashboard와 일치
+    const method = config.method.toUpperCase();
+    const url = config.url;
     
-    // 디버그 로그
-    if (DEBUG) {
-      console.log(`API 요청: ${config.method.toUpperCase()} ${config.url}`, {
-        params: config.params,
-        data: config.data,
-        requestId
-      });
-    }
+    // 통합 로거를 사용한 로깅 (서비스 레이어에서 처리)
+    logger.debug(`API 요청 시작: ${method} ${url}`, {
+      requestId,
+      params: config.params,
+      hasData: !!config.data
+    });
     
-    // API 통계 업데이트
-    apiStats.lastCall = new Date();
-    const endpoint = config.url.split('?')[0]; // 쿼리 파라미터 제외
-    if (!apiStats.calls[endpoint]) {
-      apiStats.calls[endpoint] = { count: 0, success: 0, error: 0 };
-    }
-    apiStats.calls[endpoint].count++;
+    // 요청 로깅만 수행 (통계 제거)
     
     return config;
   },
   (error) => {
-    console.error('API 요청 준비 중 오류:', error);
+    logger.error('API 요청 준비 중 오류 발생', error);
     showErrorOnce('요청 준비 중 오류가 발생했습니다.');
     
-    // API 통계 업데이트
-    apiStats.error++;
-    apiStats.lastError = {
-      time: new Date(),
-      message: error.message,
-      type: 'request-setup'
-    };
+    // 오류 로깅 (통계 제거)
     
     return Promise.reject(error);
   }
@@ -176,53 +154,28 @@ api.interceptors.response.use(
     const endTime = new Date().getTime();
     const requestTime = endTime - response.config.metadata.startTime;
     
-    // 디버그 로그
-    if (DEBUG) {
-      console.log(
-        `API 응답 (${requestTime}ms): ${response.config.method.toUpperCase()} ${response.config.url}`, 
-        response.data
-      );
-    }
+    // 요청 정보
+    const method = response.config.method.toUpperCase();
+    const url = response.config.url;
     
-    // API 통계 업데이트
-    apiStats.success++;
-    const endpoint = response.config.url.split('?')[0];
-    if (apiStats.calls[endpoint]) {
-      apiStats.calls[endpoint].success++;
-    }
+    // 간소화된 로깅
+    logger.response(url, true);
     
     // 응답이 성공적으로 왔지만 success가 false인 경우 사용자에게 알림
     if (response.data && response.data.success === false) {
-      console.warn('API 응답 success=false:', response.data);
+      logger.warn(`API 로직 실패: ${response.data.message || ''}`);
       showErrorOnce(response.data.message || '요청이 처리되었지만 오류가 발생했습니다.');
     }
     
     return response;
   },
   (error) => {
-    // 디버그 로그
-    console.error('API 오류:', error);
-    
     // 요청 정보 추출
-    const requestMethod = error.config?.method?.toUpperCase() || 'UNKNOWN';
     const requestUrl = error.config?.url || 'UNKNOWN';
-    const requestId = error.config?.metadata?.requestId || 'UNKNOWN';
-    const path = requestUrl.split('/')[1] || '';
+    const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
     
-    // API 통계 업데이트
-    apiStats.error++;
-    apiStats.lastError = {
-      time: new Date(),
-      message: error.message,
-      url: requestUrl,
-      status: error.response?.status,
-      type: 'response'
-    };
-    
-    const endpoint = requestUrl.split('?')[0];
-    if (apiStats.calls[endpoint]) {
-      apiStats.calls[endpoint].error++;
-    }
+    // 간소화된 로깅
+    logger.error(`API 오류: ${method} ${requestUrl}`, error);
     
     // 401 인증 오류 처리 (리다이렉트 루프 방지)
     if (error.response && error.response.status === 401) {
@@ -252,10 +205,11 @@ api.interceptors.response.use(
       showErrorOnce(errorMessage);
       
       // 페이지 렌더링을 위해 기본 데이터 반환 (UI 표시 목적)
+      const path = requestUrl.split('/')[1] || '';
       const emptyResponse = createEmptyResponse(path);
       return Promise.resolve({ data: emptyResponse });
     }
-    // 422 - 검증 오류
+    // 422 - 검증 오류 (프론트엔드에서 주로 처리해야 함)
     else if (error.response && error.response.status === 422) {
       // 검증 오류 메시지 표시
       const errorDetail = error.response.data?.detail || '입력 데이터가 유효하지 않습니다.';
@@ -266,40 +220,23 @@ api.interceptors.response.use(
     }
     // 500 등 서버 오류
     else if (error.response) {
-      // 오류 메시지 표시 (중복 방지)
+      // 오류 메시지 표시
       const errorMessage = error.response.data?.detail || 
                           error.response.data?.message || 
-                          `서버 오류가 발생했습니다. (${error.response.status})`;
+                          `서버 오류가 발생했습니다. 다시 시도해주세요.`;
       
       showErrorOnce(errorMessage);
-      
-      // 페이지 렌더링을 위해 기본 데이터 반환 (UI 표시 목적)
-      const emptyResponse = createEmptyResponse(path);
-      return Promise.resolve({ data: emptyResponse });
+      return Promise.reject(error);
     } 
     // 네트워크 오류
     else {
       showErrorOnce('서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.');
-      
-      // 페이지 렌더링을 위해 기본 데이터 반환
-      const emptyResponse = createEmptyResponse(path);
-      return Promise.resolve({ data: emptyResponse });
+      return Promise.reject(error);
     }
   }
 );
 
-// API 상태 확인 함수 (디버깅용)
-api.getStats = () => apiStats;
-
-// API 상태 초기화 함수 (디버깅용)
-api.resetStats = () => {
-  apiStats.success = 0;
-  apiStats.error = 0;
-  apiStats.lastCall = null;
-  apiStats.lastError = null;
-  apiStats.calls = {};
-  return { message: 'API 통계가 초기화되었습니다.' };
-};
+// 불필요한 통계 함수 제거
 
 export { showErrorOnce, showSuccess };
 export default api;

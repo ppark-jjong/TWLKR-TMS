@@ -2,6 +2,10 @@
  * 대시보드(주문) 관련 API 서비스
  */
 import api from './api';
+import logger from '../utils/logger';
+
+// 서비스 이름 상수
+const SERVICE_NAME = 'DashboardService';
 
 const DashboardService = {
   /**
@@ -11,12 +15,13 @@ const DashboardService = {
    */
   getOrders: async (params) => {
     try {
-      console.log('주문 목록 조회 요청:', params);
+      logger.service(SERVICE_NAME, 'getOrders');
+      logger.api('GET', '/dashboard');
+      
       const response = await api.get('/dashboard', { params });
-      console.log('주문 목록 조회 응답:', response.data);
       return response.data;
     } catch (error) {
-      console.error('주문 목록 조회 오류:', error);
+      logger.error('주문 목록 조회 실패', error);
       throw error; // api 인터셉터에서 처리
     }
   },
@@ -28,12 +33,15 @@ const DashboardService = {
    */
   getOrder: async (orderId) => {
     try {
-      console.log(`주문 상세 조회 요청: ID=${orderId}`);
+      logger.service(SERVICE_NAME, 'getOrder', { orderId });
+      logger.api('GET', `/dashboard/${orderId}`);
+      
       const response = await api.get(`/dashboard/${orderId}`);
-      console.log('주문 상세 조회 응답:', response.data);
+      
+      logger.apiResponse(`/dashboard/${orderId}`, 'success');
       return response.data;
     } catch (error) {
-      console.error(`주문 상세 조회 오류: ID=${orderId}`, error);
+      logger.error(`주문 상세 조회 실패: ID=${orderId}`, error);
       throw error;
     }
   },
@@ -45,18 +53,19 @@ const DashboardService = {
    */
   createOrder: async (orderData) => {
     try {
-      console.log('주문 생성 요청:', orderData);
+      logger.service(SERVICE_NAME, 'createOrder');
       
       // 우편번호 5자리 맞추기
       if (orderData.postal_code) {
+        logger.data('우편번호 포맷팅');
         orderData.postal_code = orderData.postal_code.padStart(5, '0');
       }
       
+      logger.api('POST', '/dashboard');
       const response = await api.post('/dashboard', orderData);
-      console.log('주문 생성 응답:', response.data);
       return response.data;
     } catch (error) {
-      console.error('주문 생성 오류:', error);
+      logger.error('주문 생성 실패', error);
       throw error;
     }
   },
@@ -69,18 +78,20 @@ const DashboardService = {
    */
   updateOrder: async (orderId, orderData) => {
     try {
-      console.log(`주문 수정 요청: ID=${orderId}`, orderData);
+      logger.service(SERVICE_NAME, 'updateOrder', { orderId });
       
       // 우편번호 5자리 맞추기
       if (orderData.postal_code) {
         orderData.postal_code = orderData.postal_code.padStart(5, '0');
       }
       
+      logger.api('PUT', `/dashboard/${orderId}`);
       const response = await api.put(`/dashboard/${orderId}`, orderData);
-      console.log('주문 수정 응답:', response.data);
+      
+      logger.apiResponse(`/dashboard/${orderId}`, 'success');
       return response.data;
     } catch (error) {
-      console.error(`주문 수정 오류: ID=${orderId}`, error);
+      logger.error(`주문 수정 실패: ID=${orderId}`, error);
       throw error;
     }
   },
@@ -92,12 +103,15 @@ const DashboardService = {
    */
   deleteOrder: async (orderId) => {
     try {
-      console.log(`주문 삭제 요청: ID=${orderId}`);
+      logger.service(SERVICE_NAME, 'deleteOrder', { orderId });
+      logger.api('DELETE', `/dashboard/${orderId}`);
+      
       const response = await api.delete(`/dashboard/${orderId}`);
-      console.log('주문 삭제 응답:', response.data);
+      
+      logger.apiResponse(`/dashboard/${orderId}`, 'success');
       return response.data;
     } catch (error) {
-      console.error(`주문 삭제 오류: ID=${orderId}`, error);
+      logger.error(`주문 삭제 실패: ID=${orderId}`, error);
       throw error;
     }
   },
@@ -109,19 +123,20 @@ const DashboardService = {
    */
   deleteMultipleOrders: async (orderIds) => {
     try {
-      console.log('다중 삭제 요청:', { orderIds });
+      logger.service(SERVICE_NAME, 'deleteMultipleOrders', { count: orderIds.length });
+      logger.api('POST', '/dashboard/delete-multiple', { order_ids: orderIds });
+      
       const response = await api.post('/dashboard/delete-multiple', { 
         order_ids: orderIds  // order_ids로 백엔드와 일치시킴
       });
-      console.log('다중 삭제 응답:', response.data);
+      
+      logger.apiResponse('/dashboard/delete-multiple', 'success', { 
+        count: response.data?.data?.deleted_count 
+      });
       return response.data;
     } catch (error) {
-      console.error('다중 삭제 오류:', error);
-      return {
-        success: false,
-        message: '주문 다중 삭제 실패',
-        data: null
-      };
+      logger.error('다중 삭제 실패', error);
+      throw error;
     }
   },
   
@@ -133,12 +148,15 @@ const DashboardService = {
    */
   updateOrderStatus: async (orderId, status) => {
     try {
-      console.log(`주문 상태 변경 요청: ID=${orderId}, 상태=${status}`);
+      logger.service(SERVICE_NAME, 'updateOrderStatus', { orderId, status });
+      logger.api('POST', `/dashboard/${orderId}/status`);
+      
       const response = await api.post(`/dashboard/${orderId}/status`, { status });
-      console.log('주문 상태 변경 응답:', response.data);
+      
+      logger.apiResponse(`/dashboard/${orderId}/status`, 'success');
       return response.data;
     } catch (error) {
-      console.error(`주문 상태 변경 오류: ID=${orderId}, 상태=${status}`, error);
+      logger.error(`주문 상태 변경 실패: ID=${orderId}, 상태=${status}`, error);
       throw error;
     }
   },
@@ -151,20 +169,17 @@ const DashboardService = {
    */
   updateMultipleStatus: async (orderIds, status) => {
     try {
-      console.log('상태 일괄 변경 요청:', { orderIds, status });
+      logger.service(SERVICE_NAME, 'updateMultipleStatus');
+      logger.api('POST', '/dashboard/status-multiple');
+      
       const response = await api.post('/dashboard/status-multiple', { 
         order_ids: orderIds, 
         status 
       });
-      console.log('상태 일괄 변경 응답:', response.data);
       return response.data;
     } catch (error) {
-      console.error('상태 일괄 변경 오류:', error);
-      return {
-        success: false,
-        message: '주문 상태 일괄 변경 실패',
-        data: null
-      };
+      logger.error('상태 일괄 변경 실패', error);
+      throw error;
     }
   },
   
@@ -177,21 +192,23 @@ const DashboardService = {
    */
   assignDriver: async (orderIds, driverName, driverContact) => {
     try {
-      console.log('기사 배정 요청:', { orderIds, driverName, driverContact });
+      logger.service(SERVICE_NAME, 'assignDriver', { 
+        count: orderIds.length, 
+        driverName 
+      });
+      logger.api('POST', '/dashboard/assign-driver');
+      
       const response = await api.post('/dashboard/assign-driver', {
         order_ids: orderIds,  // order_ids로 백엔드와 일치시킴
         driver_name: driverName,
         driver_contact: driverContact
       });
-      console.log('기사 배정 응답:', response.data);
+      
+      logger.apiResponse('/dashboard/assign-driver', 'success');
       return response.data;
     } catch (error) {
-      console.error('기사 배정 오류:', error);
-      return {
-        success: false,
-        message: '기사 배정 실패',
-        data: null
-      };
+      logger.error('기사 배정 실패', error);
+      throw error;
     }
   },
   
@@ -202,12 +219,17 @@ const DashboardService = {
    */
   lockOrder: async (orderId) => {
     try {
-      console.log(`주문 락 획득 요청: ID=${orderId}`);
+      logger.service(SERVICE_NAME, 'lockOrder', { orderId });
+      logger.api('POST', `/dashboard/${orderId}/lock`);
+      
       const response = await api.post(`/dashboard/${orderId}/lock`);
-      console.log('주문 락 획득 응답:', response.data);
+      
+      logger.apiResponse(`/dashboard/${orderId}/lock`, 'success', {
+        acquired: response.data?.success === true
+      });
       return response.data;
     } catch (error) {
-      console.error(`주문 락 획득 오류: ID=${orderId}`, error);
+      logger.error(`주문 락 획득 실패: ID=${orderId}`, error);
       throw error;
     }
   },
@@ -219,12 +241,17 @@ const DashboardService = {
    */
   unlockOrder: async (orderId) => {
     try {
-      console.log(`주문 락 해제 요청: ID=${orderId}`);
+      logger.service(SERVICE_NAME, 'unlockOrder', { orderId });
+      logger.api('POST', `/dashboard/${orderId}/unlock`);
+      
       const response = await api.post(`/dashboard/${orderId}/unlock`);
-      console.log('주문 락 해제 응답:', response.data);
+      
+      logger.apiResponse(`/dashboard/${orderId}/unlock`, 'success', {
+        released: response.data?.success === true
+      });
       return response.data;
     } catch (error) {
-      console.error(`주문 락 해제 오류: ID=${orderId}`, error);
+      logger.error(`주문 락 해제 실패: ID=${orderId}`, error);
       throw error;
     }
   },
@@ -236,7 +263,9 @@ const DashboardService = {
    */
   downloadOrders: async (params) => {
     try {
-      console.log('주문 데이터 다운로드 요청:', params);
+      logger.service(SERVICE_NAME, 'downloadOrders');
+      logger.api('GET', '/dashboard', { ...params, responseType: 'blob' });
+      
       // 실제 REST API에서는 api.get('/dashboard/download', {params})가 될 수 있음
       // 현재는 기존 주문 조회 기능을 활용
       const response = await api.get('/dashboard', { 
@@ -260,10 +289,10 @@ const DashboardService = {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      console.log('주문 데이터 다운로드 완료');
+      logger.info('주문 데이터 다운로드 완료');
       return { success: true };
     } catch (error) {
-      console.error('주문 데이터 다운로드 오류:', error);
+      logger.error('주문 데이터 다운로드 실패', error);
       throw error;
     }
   }

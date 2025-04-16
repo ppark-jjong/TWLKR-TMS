@@ -22,25 +22,7 @@ const UserService = {
       return response.data;
     } catch (error) {
       console.error('사용자 목록 조회 오류:', error);
-      
-      // 오류 메시지 상세화
-      let errorMessage = '사용자 목록을 불러오는 중 오류가 발생했습니다.';
-      
-      if (error.response) {
-        if (error.response.status === 401 || error.response.status === 403) {
-          errorMessage = '관리자 권한이 필요합니다.';
-        } else {
-          errorMessage = error.response.data?.detail || 
-                        error.response.data?.message || 
-                        `서버 오류가 발생했습니다. (${error.response.status})`;
-        }
-      }
-      
-      throw {
-        success: false,
-        message: errorMessage,
-        error_code: error.response?.status || 'UNKNOWN'
-      };
+      throw error; // api 인터셉터에서 처리
     }
   },
   
