@@ -32,7 +32,6 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="인증이 필요합니다",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     session = get_session(session_id)
@@ -45,7 +44,6 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="세션이 만료되었거나 유효하지 않습니다",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     return {

@@ -167,7 +167,4 @@ class OrderResponse(BaseModel):
 class OrderFilter(BaseModel):
     start_date: Optional[datetime] = Field(None, description="시작 날짜")
     end_date: Optional[datetime] = Field(None, description="종료 날짜")
-    status: Optional[OrderStatus] = Field(None, description="상태")
-    department: Optional[Department] = Field(None, description="부서")
-    warehouse: Optional[Warehouse] = Field(None, description="창고")
-    order_no: Optional[str] = Field(None, description="주문 번호 검색")
+    # 클라이언트 측 필터링을 위해 다른 필드들은 제거

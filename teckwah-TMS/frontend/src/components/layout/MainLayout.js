@@ -105,7 +105,7 @@ const MainLayout = ({ children }) => {
   const menuItems = currentUser?.userRole === 'ADMIN' ? adminMenuItems : userMenuItems;
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: '#ffffff' }}>
       <Sider 
         trigger={null} 
         collapsible 
@@ -119,40 +119,33 @@ const MainLayout = ({ children }) => {
           left: 0,
           top: 0,
           bottom: 0,
-          overflow: 'auto'
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
         }}
         width={240}
       >
-        {/* 시스템 로고 및 이름 */}
+        {/* 시스템 로고 및 이름 - 상단 로고 제거 */}
         <div style={{ 
-          padding: '20px 15px', 
+          padding: '28px 16px 24px', 
           textAlign: 'center',
-          borderBottom: '1px solid #f0f0f0',
-          position: 'relative'
+          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
         }}>
           <h1 style={{ 
             margin: 0, 
-            fontSize: '1.5rem', 
+            fontSize: collapsed ? '1.2rem' : '1.6rem',
             fontWeight: 700, 
             letterSpacing: '0.5px',
             textAlign: 'center', 
             width: '100%',
-            display: collapsed ? 'none' : 'block'
+            color: '#1890ff',
+            background: 'linear-gradient(to right, #1890ff, #36cfc9)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            textShadow: '0 1px 2px rgba(0,0,0,0.05)'
           }}>
-            TWLKR-TMS
+            {collapsed ? 'TMS' : 'TWLKR-TMS'}
           </h1>
-          <img 
-            src="/logo.png" 
-            alt="Logo" 
-            style={{ 
-              position: collapsed ? 'static' : 'absolute',
-              top: collapsed ? 'auto' : '10px',
-              right: collapsed ? 'auto' : '15px',
-              width: '32px',
-              height: 'auto',
-              margin: collapsed ? '0 auto' : '0'
-            }} 
-          />
         </div>
         
         {/* 사용자 정보 */}
@@ -161,28 +154,30 @@ const MainLayout = ({ children }) => {
           display: 'flex',
           alignItems: 'center', 
           gap: '16px',
-          borderBottom: '1px solid #f0f0f0',
-          background: '#f5f7fa'
+          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+          background: 'rgba(0, 0, 0, 0.02)'
         }}>
           <Avatar 
             icon={<UserOutlined />} 
             style={{ 
-              backgroundColor: '#e6f7ff', 
-              color: '#1890ff' 
+              backgroundColor: '#1890ff', 
+              color: '#fff',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
             }} 
           />
           {!collapsed && (
             <div>
               <div style={{ 
                 fontWeight: 600, 
-                fontSize: '14px' 
+                fontSize: '14px',
+                color: '#333'
               }}>
                 {currentUser?.userId}
               </div>
               <div style={{
                 fontSize: '12px',
-                color: '#666',
-                backgroundColor: '#e6f7ff',
+                color: '#fff',
+                backgroundColor: '#1890ff',
                 padding: '2px 8px',
                 borderRadius: '10px',
                 display: 'inline-block',
@@ -202,48 +197,55 @@ const MainLayout = ({ children }) => {
           style={{ 
             borderRight: 0,
             flex: 1,
-            paddingTop: '8px' 
+            paddingTop: '8px',
+            backgroundColor: 'transparent',
           }}
+          theme="light"
         />
         
-        {/* 하단 로그아웃 버튼 */}
-        <div style={{ 
-          padding: '16px',
-          borderTop: '1px solid #f0f0f0',
-          marginTop: 'auto'
-        }}>
-          <Button
-            icon={<LogoutOutlined />}
-            onClick={handleLogout}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              gap: '8px',
-              border: '1px solid #f0f0f0'
-            }}
-          >
-            {!collapsed && '로그아웃'}
-          </Button>
-        </div>
-        
-        {/* 사이드바 하단 로고 */}
-        <div style={{
-          padding: '16px',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          borderTop: '1px solid #f0f0f0'
-        }}>
-          <img 
-            src="/logo.png" 
-            alt="Teckwah 로고" 
-            style={{
-              maxWidth: '90%',
-              height: 'auto'
-            }}
-          />
+        <div style={{ marginTop: 'auto' }}>
+          {/* 하단 로그아웃 버튼 */}
+          <div style={{ 
+            padding: '16px',
+            borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+          }}>
+            <Button
+              type="primary"
+              icon={<LogoutOutlined />}
+              onClick={handleLogout}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                gap: '8px',
+                transition: 'all 0.3s'
+              }}
+            >
+              {!collapsed && '로그아웃'}
+            </Button>
+          </div>
+          
+          {/* 사이드바 하단 로고 - 하단으로 이동시키고 더 크게 표시 */}
+          <div style={{
+            padding: '16px 16px 24px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+            background: 'rgba(0, 0, 0, 0.02)',
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="Teckwah 로고" 
+              style={{
+                width: collapsed ? '40px' : '80px',
+                height: 'auto',
+                opacity: 1,
+                filter: 'none'
+              }}
+            />
+          </div>
         </div>
       </Sider>
       
@@ -273,8 +275,9 @@ const MainLayout = ({ children }) => {
           padding: '16px 24px', 
           background: '#fff',
           borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-          minHeight: 280
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+          minHeight: 280,
+          border: '1px solid rgba(0, 0, 0, 0.06)'
         }}>
           {children}
         </Content>

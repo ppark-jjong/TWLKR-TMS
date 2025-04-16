@@ -1,8 +1,10 @@
 /**
  * 인증 관련 컨텍스트
+ * - 로그인, 로그아웃, 세션 관리 기능 제공
+ * - 전역 상태로 인증 정보 관리
  */
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { message } from 'antd';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import { showErrorOnce, showSuccess } from '../services/api';
 import { AuthService } from '../services';
 
 // 인증 컨텍스트 생성
@@ -18,55 +20,118 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false); // 인증 확인 완료 여부
+  const [lastChecked, setLastChecked] = useState(null);
 
-  // 초기 인증 상태 확인 (단 한 번만 실행)
-  useEffect(() => {
-    // 이미 인증 확인을 했거나 로그인 페이지인 경우 세션 체크 건너뛰기
-    if (authChecked || isLoginPage()) {
-      setIsLoading(false);
-      return;
-    }
-
-    const checkAuthStatus = async () => {
-      try {
-        const response = await AuthService.getCurrentUser();
-        
-        if (response.success) {
-          setCurrentUser(response.data);
-          setIsAuthenticated(true);
-        }
-      } catch (error) {
-        // 인증되지 않은 상태는 정상 케이스
-        console.log('사용자 인증 필요');
-      } finally {
-        setIsLoading(false);
-        setAuthChecked(true); // 인증 확인 완료 표시
-      }
-    };
-
-    checkAuthStatus();
-  }, [authChecked]);
-
-  // 로그인 함수
-  const login = async (userId, password) => {
+  // 세션 상태 확인 함수
+  const checkAuthStatus = useCallback(async (silent = false) => {
     try {
+      console.log('인증 상태 확인 시작...');
       setIsLoading(true);
-      const response = await AuthService.login(userId, password);
+
+      const response = await AuthService.getCurrentUser();
+      console.log('인증 확인 응답:', response);
       
       if (response.success) {
         setCurrentUser(response.data);
         setIsAuthenticated(true);
-        setAuthChecked(true); // 로그인 성공 시 인증 확인 완료 표시
-        message.success('로그인 성공');
-        return true;
+        if (!silent) {
+          console.log('세션 유효성 확인 성공');
+        }
       } else {
-        message.error(response.message || '로그인 실패');
-        return false;
+        console.warn('인증 실패:', response.message);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        
+        // 로그인 페이지가 아니고 사일런트 모드가 아닌 경우 알림
+        if (!isLoginPage() && !silent) {
+          showErrorOnce('세션이 만료되었습니다. 다시 로그인해주세요.');
+          console.log('로그인 페이지로 이동 중...');
+          window.location.href = '/login';
+        }
       }
     } catch (error) {
-      message.error('아이디 또는 비밀번호가 올바르지 않습니다');
-      return false;
+      console.warn('사용자 인증 오류:', error);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      
+      // 로그인 페이지가 아니고 사일런트 모드가 아닌 경우 알림 및 리다이렉션
+      if (!isLoginPage() && !silent) {
+        showErrorOnce('인증 확인 중 오류가 발생했습니다. 다시 로그인해주세요.');
+        console.log('로그인 페이지로 이동 중...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000);
+      }
+    } finally {
+      setIsLoading(false);
+      setLastChecked(new Date());
+    }
+  }, []);
+
+  // 인증 정보 주기적 갱신
+  useEffect(() => {
+    // 로그인 페이지에서는 주기적 확인 건너뛰기
+    if (isLoginPage()) {
+      return;
+    }
+
+    const refreshInterval = 5 * 60 * 1000; // 5분
+    const intervalId = setInterval(() => {
+      console.log('세션 자동 갱신 중...');
+      checkAuthStatus(true); // 사일런트 모드로 체크
+    }, refreshInterval);
+
+    return () => clearInterval(intervalId);
+  }, [checkAuthStatus]);
+
+  // 초기 인증 상태 확인 (컴포넌트 마운트 시 1회)
+  useEffect(() => {
+    // 로그인 페이지에서는 세션 체크 강제 건너뛰기
+    if (isLoginPage()) {
+      setIsLoading(false);
+      return;
+    }
+
+    checkAuthStatus();
+  }, [checkAuthStatus]);
+
+  // 로그인 함수
+  const login = async (userId, password) => {
+    console.log(`로그인 시도: ${userId}`);
+    
+    try {
+      setIsLoading(true);
+      const response = await AuthService.login(userId, password);
+      
+      console.log('로그인 응답:', response);
+      
+      if (response.success) {
+        setCurrentUser(response.data);
+        setIsAuthenticated(true);
+        setLastChecked(new Date());
+        
+        // 쿠키 확인 (디버깅용)
+        const cookies = document.cookie.split(';');
+        const sessionCookie = cookies.find(cookie => cookie.trim().startsWith('session_id='));
+        console.log('세션 쿠키 존재:', !!sessionCookie);
+        
+        return { 
+          success: true, 
+          message: '로그인 성공' 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: response.message || '로그인에 실패했습니다. 아이디 또는 비밀번호를 확인하세요.' 
+        };
+      }
+    } catch (error) {
+      console.error('로그인 처리 오류:', error);
+      
+      return { 
+        success: false, 
+        message: '로그인 중 오류가 발생했습니다. 네트워크 연결을 확인하거나 잠시 후 다시 시도하세요.'
+      };
     } finally {
       setIsLoading(false);
     }
@@ -76,42 +141,3 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setIsLoading(true);
-      await AuthService.logout();
-      
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-      setAuthChecked(false); // 로그아웃 후 인증 상태 재확인 필요
-      message.success('로그아웃 되었습니다');
-      return true;
-    } catch (error) {
-      message.error('로그아웃 처리 중 오류가 발생했습니다');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 제공할 값
-  const value = {
-    currentUser,
-    isLoading,
-    isAuthenticated,
-    login,
-    logout
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-// 인증 컨텍스트 사용 훅
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth는 AuthProvider 내부에서만 사용할 수 있습니다');
-  }
-  return context;
-};

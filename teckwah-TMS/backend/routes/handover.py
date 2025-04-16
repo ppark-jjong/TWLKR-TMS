@@ -29,75 +29,103 @@ async def get_handovers(
     인수인계 목록 조회
     개선: 공지사항과 일반 인수인계 분리 조회
     """
-    # 공지사항 목록 쿼리
-    notice_query = db.query(Handover).filter(Handover.is_notice == True)
-    notice_total = notice_query.count()
-    notice_query = notice_query.order_by(Handover.create_at.desc())
+    # 요청 로깅
+    logger.info(f"인수인계 목록 조회 시작: user_id={current_user['user_id']}, is_notice={is_notice}, page={page}, limit={limit}")
+    try:
+        # 서비스 로직: 공지사항 목록 쿼리
+        logger.info("공지사항 목록 쿼리 실행 중...")
+        notice_query = db.query(Handover).filter(Handover.is_notice == True)
+        notice_total = notice_query.count()
+        logger.info(f"공지사항 총 개수: {notice_total}개")
+        notice_query = notice_query.order_by(Handover.create_at.desc())
     
-    # 공지사항 페이지네이션
-    notice_page = 1 if is_notice is None or is_notice else page
-    notice_query = notice_query.offset((notice_page - 1) * limit).limit(limit)
-    notices = notice_query.all()
+        # 서비스 로직: 공지사항 페이지네이션
+        notice_page = 1 if is_notice is None or is_notice else page
+        logger.info(f"공지사항 페이지: {notice_page}, 페이지당 항목 수: {limit}")
+        notice_query = notice_query.offset((notice_page - 1) * limit).limit(limit)
+        notices = notice_query.all()
+        logger.info(f"공지사항 조회 결과: {len(notices)}개 항목")
+        
+        # 서비스 로직: 일반 인수인계 목록 쿼리
+        logger.info("일반 인수인계 목록 쿼리 실행 중...")
+        handover_query = db.query(Handover).filter(Handover.is_notice == False)
+        handover_total = handover_query.count()
+        logger.info(f"일반 인수인계 총 개수: {handover_total}개")
+        handover_query = handover_query.order_by(Handover.create_at.desc())
     
-    # 일반 인수인계 목록 쿼리
-    handover_query = db.query(Handover).filter(Handover.is_notice == False)
-    handover_total = handover_query.count()
-    handover_query = handover_query.order_by(Handover.create_at.desc())
-    
-    # 일반 인수인계 페이지네이션
-    handover_page = 1 if is_notice else page
-    handover_query = handover_query.offset((handover_page - 1) * limit).limit(limit)
-    handovers = handover_query.all()
-    
-    # 각 항목의 락 상태 확인 및 추가
-    for item in notices + handovers:
-        lock_status = check_lock_status(db, Handover, item.handover_id, current_user["user_id"])
-        setattr(item, "locked_info", lock_status)
+        # 서비스 로직: 일반 인수인계 페이지네이션
+        handover_page = 1 if is_notice else page
+        logger.info(f"일반 인수인계 페이지: {handover_page}, 페이지당 항목 수: {limit}")
+        handover_query = handover_query.offset((handover_page - 1) * limit).limit(limit)
+        handovers = handover_query.all()
+        logger.info(f"일반 인수인계 조회 결과: {len(handovers)}개 항목")
+        
+        # 서비스 로직: 각 항목의 락 상태 확인 및 추가
+        logger.info("각 항목의 락 상태 확인 중...")
+        for item in notices + handovers:
+            lock_status = check_lock_status(db, Handover, item.handover_id, current_user["user_id"])
+            setattr(item, "locked_info", lock_status)
+        logger.info(f"락 상태 확인 완료: {len(notices) + len(handovers)}개 항목")
 
-    # is_notice 파라미터가 있으면 해당하는 목록만 반환
-    if is_notice is not None:
-        if is_notice:
-            return {
-                "success": True,
-                "message": "공지사항 목록 조회 성공",
-                "data": {
+        # 응답 준비: is_notice 파라미터가 있으면 해당하는 목록만 반환
+        logger.info(f"응답 준비 중: is_notice={is_notice}")
+        if is_notice is not None:
+            if is_notice:
+                response_data = {
+                    "success": True,
+                    "message": "공지사항 목록 조회 성공",
+                    "data": {
+                        "items": notices,
+                        "total": notice_total,
+                        "page": notice_page,
+                        "limit": limit,
+                    },
+                }
+                logger.info(f"공지사항 목록 조회 완료: {len(notices)}개 항목 반환")
+                return response_data
+            else:
+                response_data = {
+                    "success": True,
+                    "message": "인수인계 목록 조회 성공",
+                    "data": {
+                        "items": handovers,
+                        "total": handover_total,
+                        "page": handover_page,
+                        "limit": limit,
+                    },
+                }
+                logger.info(f"일반 인수인계 목록 조회 완료: {len(handovers)}개 항목 반환")
+                return response_data
+        
+        # 기본: 공지사항과 인수인계 모두 반환
+        response_data = {
+            "success": True,
+            "message": "인수인계/공지사항 목록 조회 성공",
+            "data": {
+                "notices": {
                     "items": notices,
                     "total": notice_total,
-                    "page": notice_page,
+                    "page": 1,
                     "limit": limit,
                 },
-            }
-        else:
-            return {
-                "success": True,
-                "message": "인수인계 목록 조회 성공",
-                "data": {
+                "handovers": {
                     "items": handovers,
                     "total": handover_total,
-                    "page": handover_page,
+                    "page": 1,
                     "limit": limit,
                 },
-            }
-    
-    # 기본: 공지사항과 인수인계 모두 반환
-    return {
-        "success": True,
-        "message": "인수인계/공지사항 목록 조회 성공",
-        "data": {
-            "notices": {
-                "items": notices,
-                "total": notice_total,
-                "page": 1,
-                "limit": limit,
             },
-            "handovers": {
-                "items": handovers,
-                "total": handover_total,
-                "page": 1,
-                "limit": limit,
-            },
-        },
-    }
+        }
+        logger.info(f"전체 목록 조회 완료: 공지사항 {len(notices)}개, 일반 인수인계 {len(handovers)}개 항목 반환")
+        return response_data
+    except Exception as e:
+        logger.error(f"인수인계 목록 조회 중 오류 발생: {str(e)}")
+        # 사용자 친화적 오류 메시지 반환
+        return {
+            "success": False, 
+            "message": "인수인계 목록을 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            "error_code": "HANDOVER_LIST_ERROR"
+        }
 
 
 @router.post("/", response_model=Dict[str, Any])

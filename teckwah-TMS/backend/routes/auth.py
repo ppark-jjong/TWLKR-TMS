@@ -7,6 +7,7 @@ from backend.utils.logger import logger
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 from typing import Dict, Any
+import json
 
 from backend.database import get_db
 from backend.models.user import User, UserResponse
@@ -17,44 +18,55 @@ router = APIRouter()
 security = HTTPBasic()
 
 
+from pydantic import BaseModel
+
+# 로그인 요청 데이터 모델
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 @router.post("/login")
 async def login(
-    credentials: HTTPBasicCredentials = Depends(security),
+    login_data: LoginRequest,
     db: Session = Depends(get_db),
     response: Response = None,
 ):
     """
     로그인 처리 및 세션 생성
     """
+    # 로깅 추가: 로그인 시도 기록
+    logger.info(f"로그인 시도: 사용자 ID={login_data.username}")
+    
     # DB에서 사용자 조회
-    user = db.query(User).filter(User.user_id == credentials.username).first()
+    user = db.query(User).filter(User.user_id == login_data.username).first()
 
     # 인증 실패 시 401 반환
-    if not user or not verify_password(credentials.password, user.user_password):
-        logger.warning(f"로그인 실패: {credentials.username}")
+    if not user or not verify_password(login_data.password, user.user_password):
+        logger.warning(f"로그인 실패: {login_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="아이디 또는 비밀번호가 올바르지 않습니다",
-            headers={"WWW-Authenticate": "Basic"},
         )
 
     # 세션 생성
     session_id = create_session(user.user_id, user.user_role)
-    logger.info(f"로그인 성공: {user.user_id}, 권한: {user.user_role}")
+    logger.info(f"로그인 성공: {user.user_id}, 권한: {user.user_role}, 세션ID: {session_id[:8]}...")
 
-    # 쿠키 설정
-    if response:  # response가 None이 아닌 경우에만 쿠키 설정
-        response.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=True,
-            max_age=3600 * 24,  # 1일
-            secure=False,  # 개발 환경에서는 False, 프로덕션에서는 True
-            samesite="lax",
-        )
+    # 쿠키 설정 - response 객체가 있는지 여부와 관계없이 항상 설정
+    response = Response() if response is None else response
+    response.set_cookie(
+        key="session_id",
+        value=session_id,
+        httponly=True,
+        max_age=3600 * 24,  # 1일
+        secure=False,  # 개발 환경에서는 False, 프로덕션에서는 True
+        samesite="lax",
+    )
+    
+    logger.info(f"사용자 {user.user_id}의 세션 쿠키 설정 완료")
 
     # 응답 반환
-    return {
+    return_data = {
         "success": True,
         "message": "로그인 성공",
         "data": {
@@ -63,6 +75,14 @@ async def login(
             "user_department": user.user_department,
         },
     }
+    
+    # 응답 객체에 적용
+    return Response(
+        content=json.dumps(return_data),
+        media_type="application/json",
+        headers=dict(response.headers),
+        status_code=200,
+    )
 
 
 @router.post("/logout")
