@@ -10,7 +10,8 @@
 }
 
 body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: #f5f5f5;
   color: rgba(0, 0, 0, 0.85);
   line-height: 1.5;
@@ -18,12 +19,12 @@ body {
 
 /* 링크 스타일 */
 a {
-  color: #1890ff;
+  color: #d72519;
   text-decoration: none;
 }
 
 a:hover {
-  color: #40a9ff;
+  color: #ff6347;
 }
 
 /* 테이블 행 클릭 스타일 */

@@ -42,15 +42,14 @@ def acquire_lock(
     
     # 이미 락이 있는 경우
     if record.is_locked:
-        # 자신이 락을 가지고 있는 경우 (update_by 필드로 확인)
-        if hasattr(record, 'updated_by') and record.updated_by == user_id:
-            # 락 시간 갱신 (update_at 필드로 갱신)
-            if hasattr(record, 'update_at'):
-                record.update_at = now
-            
-            db.commit()
-            return True
-        elif hasattr(record, 'update_by') and record.update_by == user_id:
+        # 자신이 락을 가지고 있는 경우 (필드명 통일하여 확인)
+        update_field = None
+        if hasattr(record, 'updated_by'):
+            update_field = 'updated_by'
+        elif hasattr(record, 'update_by'):
+            update_field = 'update_by'
+        
+        if update_field and getattr(record, update_field) == user_id:
             # 락 시간 갱신 (update_at 필드로 갱신)
             if hasattr(record, 'update_at'):
                 record.update_at = now
@@ -64,14 +63,17 @@ def acquire_lock(
             expire_time = record.update_at + timedelta(minutes=LOCK_EXPIRY_MINUTES)
             
         if expire_time and now > expire_time:
-            # 만료된 경우 락 획득
-            previous_user = None
+            # 만료된 경우 락 획득 (필드명 통일하여 처리)
+            update_field = None
             if hasattr(record, 'updated_by'):
-                previous_user = record.updated_by
-                record.updated_by = user_id
+                update_field = 'updated_by'
             elif hasattr(record, 'update_by'):
-                previous_user = record.update_by
-                record.update_by = user_id
+                update_field = 'update_by'
+            
+            previous_user = None
+            if update_field:
+                previous_user = getattr(record, update_field)
+                setattr(record, update_field, user_id)
                 
             if hasattr(record, 'update_at'):
                 record.update_at = now
@@ -264,7 +266,8 @@ def release_expired_locks(db: Session):
     )
     
     for record in dashboard_records:
-        logger.info(f"만료된 Dashboard 락 해제: ID {record.dashboard_id}, 사용자: {record.updated_by if hasattr(record, 'updated_by') else record.update_by}")
+        update_field = 'updated_by' if hasattr(record, 'updated_by') else 'update_by'
+        logger.info(f"만료된 Dashboard 락 해제: ID {record.dashboard_id}, 사용자: {getattr(record, update_field, 'Unknown')}")
         record.is_locked = False
         # update_by와 update_at은 마지막 편집자 정보로 유지 (변경하지 않음)
     

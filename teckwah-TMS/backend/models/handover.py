@@ -35,6 +35,12 @@ class HandoverCreate(BaseModel):
     is_notice: Optional[bool] = Field(False, description="공지사항 여부")
 
 
+class HandoverUpdate(BaseModel):
+    title: Optional[str] = Field(None, description="제목")
+    content: Optional[str] = Field(None, description="내용")
+    is_notice: Optional[bool] = Field(None, description="공지사항 여부")
+
+
 class HandoverResponse(BaseModel):
     handover_id: int
     title: str

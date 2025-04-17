@@ -1,65 +1,108 @@
 """
 날짜 변환 관련 유틸리티 함수
 """
+
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
-
-
-def parse_iso_date(date_str: Optional[str], default_today: bool = True) -> Optional[datetime]:
-    """
-    ISO 형식 날짜 문자열을 datetime 객체로 변환
-    
-    Args:
-        date_str: ISO 형식 날짜 문자열 (예: '2023-01-01T00:00:00.000Z')
-        default_today: 변환 실패 시 오늘 날짜 반환 여부
-        
-    Returns:
-        변환된 datetime 객체 또는 None
-    """
-    if not date_str:
-        return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) if default_today else None
-        
-    try:
-        # ISO 8601 형식 파싱 시도
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except ValueError:
-        try:
-            # 다른 일반적인 ISO 형식 시도
-            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-        except ValueError:
-            # 기본값: 오늘
-            if default_today:
-                return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            return None
+from typing import Tuple, Optional
 
 
 def get_date_range(start_date: Optional[str], end_date: Optional[str]) -> Tuple[datetime, datetime]:
     """
-    시작 및 종료 날짜 문자열을 파싱하여 적절한 datetime 범위 반환
+    시작일과 종료일을 기반으로 날짜 범위 반환
     
     Args:
-        start_date: 시작 날짜 문자열 (ISO 형식)
-        end_date: 종료 날짜 문자열 (ISO 형식)
+        start_date: ISO 형식 시작일 문자열 (YYYY-MM-DD 또는 YYYY-MM-DDThh:mm:ss)
+        end_date: ISO 형식 종료일 문자열 (YYYY-MM-DD 또는 YYYY-MM-DDThh:mm:ss)
         
     Returns:
-        (시작 날짜, 종료 날짜) 튜플
+        시작 datetime과 종료 datetime 튜플
     """
-    # 시작 날짜 처리
-    start_datetime = parse_iso_date(start_date)
+    now = datetime.now()
     
-    # 종료 날짜 처리
-    if end_date:
-        end_datetime = parse_iso_date(end_date, default_today=False)
-        if not end_datetime:
-            # 시작 날짜가 있으면 +1일, 없으면 오늘 자정
-            if start_datetime:
-                end_datetime = start_datetime + timedelta(days=1)
-            else:
-                end_datetime = datetime.now().replace(
-                    hour=23, minute=59, second=59, microsecond=999999
-                )
+    # 시작일이 없는 경우 오늘 날짜의 시작으로 설정
+    if not start_date:
+        start_datetime = datetime(now.year, now.month, now.day, 0, 0, 0)
     else:
-        # 종료 날짜가 없으면 시작 날짜 + 1일 또는 오늘 + 1일
-        end_datetime = start_datetime + timedelta(days=1)
+        # 시간 정보가 없으면 00:00:00 추가
+        if "T" not in start_date and " " not in start_date:
+            start_date = f"{start_date}T00:00:00"
+        
+        try:
+            start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except ValueError:
+            # 형식이 맞지 않는 경우 오늘 날짜의 시작으로 설정
+            start_datetime = datetime(now.year, now.month, now.day, 0, 0, 0)
+    
+    # 종료일이 없는 경우 내일 날짜의 시작으로 설정
+    if not end_date:
+        tomorrow = now + timedelta(days=1)
+        end_datetime = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0)
+    else:
+        # 시간 정보가 없으면 23:59:59 추가
+        if "T" not in end_date and " " not in end_date:
+            end_date = f"{end_date}T23:59:59"
+        
+        try:
+            end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except ValueError:
+            # 형식이 맞지 않는 경우 내일 날짜의 시작으로 설정
+            tomorrow = now + timedelta(days=1)
+            end_datetime = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0)
     
     return start_datetime, end_datetime
+
+
+def format_datetime(dt: datetime) -> str:
+    """
+    datetime 객체를 'YYYY-MM-DD HH:MM:SS' 형식의 문자열로 변환
+    
+    Args:
+        dt: 변환할 datetime 객체
+        
+    Returns:
+        형식화된 문자열
+    """
+    if not dt:
+        return ""
+    
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_date(dt: datetime) -> str:
+    """
+    datetime 객체를 'YYYY-MM-DD' 형식의 문자열로 변환
+    
+    Args:
+        dt: 변환할 datetime 객체
+        
+    Returns:
+        형식화된 문자열
+    """
+    if not dt:
+        return ""
+    
+    return dt.strftime("%Y-%m-%d")
+
+
+def parse_iso_datetime(date_str: str) -> Optional[datetime]:
+    """
+    ISO 형식 문자열을 datetime 객체로 변환
+    
+    Args:
+        date_str: ISO 형식 문자열 (YYYY-MM-DDThh:mm:ss)
+        
+    Returns:
+        datetime 객체 또는 None (변환 실패 시)
+    """
+    if not date_str:
+        return None
+    
+    try:
+        # 'Z' 타임존 정보를 '+00:00'으로 변환 (Python 3.6 호환성)
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00').replace('T', ' '))
+    except ValueError:
+        try:
+            # T 구분자를 공백으로 변환해서 다시 시도
+            return datetime.fromisoformat(date_str.replace('T', ' '))
+        except ValueError:
+            return None

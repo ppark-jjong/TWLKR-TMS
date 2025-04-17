@@ -112,6 +112,79 @@ const api = axios.create({
 
 // 디버그 모드 설정에 따라 로깅 활성화/비활성화
 
+/**
+ * camelCase를 snake_case로 변환
+ */
+const camelToSnakeCase = (obj) => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  // 배열인 경우 각 요소에 대해 재귀 처리
+  if (Array.isArray(obj)) {
+    return obj.map(camelToSnakeCase);
+  }
+  
+  // 객체인 경우 각 필드 처리
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // key를 snake_case로 변환
+    const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+    
+    // 값이 객체인 경우 재귀 처리
+    result[snakeKey] = camelToSnakeCase(value);
+  }
+  
+  return result;
+};
+
+/**
+ * snake_case를 camelCase로 변환하고 날짜 형식 처리
+ */
+const snakeToCamelCase = (obj) => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  // 배열인 경우 각 요소에 대해 재귀 처리
+  if (Array.isArray(obj)) {
+    return obj.map(snakeToCamelCase);
+  }
+  
+  // 객체인 경우 각 필드 처리
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // key를 camelCase로 변환
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    
+    // 누락된 region 필드 처리 (dashboard 모델 전용)
+    if (camelKey === 'dashboardId' && !obj.hasOwnProperty('region') && 
+        obj.hasOwnProperty('city') && obj.hasOwnProperty('county') && obj.hasOwnProperty('district')) {
+      const city = obj.city || '';
+      const county = obj.county || '';
+      const district = obj.district || '';
+      const parts = [city, county, district].filter(p => p);
+      result['region'] = parts.join(' ');
+    }
+    
+    // 값이 날짜 문자열인지 확인
+    if (typeof value === 'string' && 
+        (value.match(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/) || 
+         value.match(/^\d{4}-\d{2}-\d{2}$/))) {
+      // ISO 날짜 문자열은 그대로 유지 (백엔드에서 이미 T가 공백으로 변환됨)
+      result[camelKey] = value;
+    } else if (value && typeof value === 'object') {
+      // 객체나 배열인 경우 재귀 처리
+      result[camelKey] = snakeToCamelCase(value);
+    } else {
+      // 기본 타입은 변환 없이 할당
+      result[camelKey] = value;
+    }
+  }
+  
+  return result;
+};
+
 // 요청 인터셉터 설정
 api.interceptors.request.use(
   (config) => {
@@ -126,14 +199,21 @@ api.interceptors.request.use(
     const method = config.method.toUpperCase();
     const url = config.url;
     
+    // camelCase → snake_case 자동 변환
+    if (config.params) {
+      config.params = camelToSnakeCase(config.params);
+    }
+    
+    if (config.data) {
+      config.data = camelToSnakeCase(config.data);
+    }
+    
     // 통합 로거를 사용한 로깅 (서비스 레이어에서 처리)
-    logger.debug(`API 요청 시작: ${method} ${url}`, {
+    logger.api(method, url, {
       requestId,
       params: config.params,
       hasData: !!config.data
     });
-    
-    // 요청 로깅만 수행 (통계 제거)
     
     return config;
   },
@@ -157,6 +237,11 @@ api.interceptors.response.use(
     // 요청 정보
     const method = response.config.method.toUpperCase();
     const url = response.config.url;
+    
+    // snake_case → camelCase 자동 변환
+    if (response.data && typeof response.data === 'object') {
+      response.data = snakeToCamelCase(response.data);
+    }
     
     // 간소화된 로깅
     logger.response(url, true);

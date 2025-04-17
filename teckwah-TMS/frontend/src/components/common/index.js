@@ -6,11 +6,13 @@ import CustomTable from './CustomTable';
 import StatusTag from './StatusTag';
 import PageLoading from './PageLoading';
 import ErrorResult from './ErrorResult';
+import BaseModal from './BaseModal';
 
 export {
   PageTitle,
   CustomTable,
   StatusTag,
   PageLoading,
-  ErrorResult
+  ErrorResult,
+  BaseModal
 };

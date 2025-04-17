@@ -76,6 +76,7 @@ class Dashboard(Base):
     city = Column(String(21), nullable=True)
     county = Column(String(51), nullable=True)
     district = Column(String(51), nullable=True)
+    region = Column(String(153), nullable=True, info={'generated': True})  # 계산 필드 명시적 추가
     distance = Column(Integer, nullable=True)
     duration_time = Column(Integer, nullable=True)
     address = Column(Text, nullable=False)
@@ -149,6 +150,7 @@ class OrderResponse(BaseModel):
     city: Optional[str] = None
     county: Optional[str] = None
     district: Optional[str] = None
+    region: Optional[str] = None  # region 필드 추가 (city, county, district 조합)
     distance: Optional[int] = None
     duration_time: Optional[int] = None
     address: str

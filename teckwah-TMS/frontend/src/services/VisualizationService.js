@@ -2,6 +2,10 @@
  * 시각화 관련 API 서비스
  */
 import api from './api';
+import logger from '../utils/logger';
+
+// 서비스 이름 상수
+const SERVICE_NAME = 'VisualizationService';
 
 const VisualizationService = {
   /**
@@ -9,24 +13,48 @@ const VisualizationService = {
    * @param {Object} params 기간 등 필터 조건
    * @returns {Promise} 시각화 데이터
    */
-  getStats: async (params) => {
+  getStats: async (params = {}) => {
     try {
-      console.log('시각화 통계 요청 파라미터:', params);
+      logger.service(SERVICE_NAME, 'getStats');
+      
+      // 날짜를 ISO 형식으로 확실히 변환
+      const parsedParams = { ...params };
       
       // 시각화 타입이 없으면 기본값 지정
-      const requestParams = {
-        ...params,
-        visualization_type: params.visualization_type || 'time_based'
-      };
+      parsedParams.visualizationType = parsedParams.visualizationType || 'time_based';
       
-      console.log('시각화 통계 최종 요청 파라미터:', requestParams);
+      // 날짜 형식이 있으면 확실히 ISO 형식으로 변환
+      if (parsedParams.startDate) {
+        parsedParams.startDate = typeof parsedParams.startDate.toISOString === 'function'
+          ? parsedParams.startDate.toISOString()
+          : parsedParams.startDate;
+      }
       
-      const response = await api.get('/visualization/stats', { params: requestParams });
-      console.log('시각화 통계 응답:', response.data);
+      if (parsedParams.endDate) {
+        parsedParams.endDate = typeof parsedParams.endDate.toISOString === 'function'
+          ? parsedParams.endDate.toISOString()
+          : parsedParams.endDate;
+      }
       
+      // API 요청 (camelCase → snake_case 자동 변환)
+      const response = await api.get('/visualization/stats', { params: parsedParams });
+      
+      // 응답 데이터 전처리 (차트 라이브러리 호환)
+      if (response.data.success && response.data.data) {
+        // 날짜 문자열을 변환해 차트 라이브러리와 호환
+        if (Array.isArray(response.data.data.timeData)) {
+          response.data.data.timeData = response.data.data.timeData.map(item => ({
+            ...item,
+            // 날짜 문자열 포맷팅 예시
+            time: item.time ? item.time.replace(/T/g, ' ').substring(0, 16) : item.time
+          }));
+        }
+      }
+      
+      logger.apiResponse('/visualization/stats', 'success');
       return response.data;
     } catch (error) {
-      console.error('시각화 통계 요청 오류:', error);
+      logger.error('시각화 통계 요청 실패', error);
       throw error; // api 인터셉터에서 처리
     }
   },
@@ -38,21 +66,21 @@ const VisualizationService = {
    */
   getDepartmentStats: async (params) => {
     try {
-      console.log('부서별 통계 요청 파라미터:', params);
+      logger.service(SERVICE_NAME, 'getDepartmentStats');
       
       const requestParams = {
         ...params,
         visualization_type: 'department_based'
       };
       
-      console.log('부서별 통계 최종 요청 파라미터:', requestParams);
+      logger.api('GET', '/visualization/stats', { visualization_type: 'department_based' });
       
       const response = await api.get('/visualization/stats', { params: requestParams });
-      console.log('부서별 통계 응답:', response.data);
       
+      logger.apiResponse('/visualization/stats', 'success');
       return response.data;
     } catch (error) {
-      console.error('부서별 통계 요청 오류:', error);
+      logger.error('부서별 통계 요청 실패', error);
       throw error; // api 인터셉터에서 처리
     }
   }

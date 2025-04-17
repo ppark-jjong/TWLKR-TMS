@@ -12,25 +12,29 @@ const AuthService = {
    */
   login: async (userId, password) => {
     try {
-      console.log(`로그인 시도: ${userId}`);
+      // 핵심 로그: 로그인 시도
+      console.log('[인증] 로그인 시도');
       
-      // HTTP Basic Auth 대신 일반 POST 요청으로 변경
+      // 백엔드 명명 규칙에 맞춰 요청
       const response = await api.post('/auth/login', {
-        username: userId,
+        username: userId,  // 백엔드 필드명: username
         password: password
       });
       
-      console.log('로그인 응답:', response);
-      
-      // 쿠키 확인
-      const cookies = document.cookie.split(';');
-      const sessionCookie = cookies.find(cookie => cookie.trim().startsWith('session_id='));
-      console.log('세션 쿠키 존재:', !!sessionCookie);
+      // 핵심 로그: 로그인 성공
+      console.log('[인증] 로그인 성공');
       
       return response.data;
     } catch (error) {
-      console.error('로그인 오류:', error);
-      throw error;
+      // 핵심 로그: 로그인 실패
+      console.error('[인증] 로그인 실패');
+      
+      // 오류 상태 코드 로깅 (필수 디버깅 정보)
+      if (error.response) {
+        console.error('[인증] 오류 상태 코드:', error.response.status);
+      }
+      
+      throw error; // 상위에서 처리하도록 전파
     }
   },
   
@@ -40,18 +44,18 @@ const AuthService = {
    */
   logout: async () => {
     try {
-      console.log('로그아웃 시도...');
-      const response = await api.post('/auth/logout');
-      console.log('로그아웃 응답:', response);
+      // 핵심 로그: 로그아웃 시도
+      console.log('[인증] 로그아웃 시도');
       
-      // 쿠키 확인
-      const cookiesAfter = document.cookie.split(';');
-      const sessionCookieAfter = cookiesAfter.find(cookie => cookie.trim().startsWith('session_id='));
-      console.log('로그아웃 후 세션 쿠키 존재:', !!sessionCookieAfter);
+      const response = await api.post('/auth/logout');
+      
+      // 핵심 로그: 로그아웃 성공
+      console.log('[인증] 로그아웃 완료');
       
       return response.data;
     } catch (error) {
-      console.error('로그아웃 오류:', error);
+      // 핵심 로그: 로그아웃 실패
+      console.error('[인증] 로그아웃 실패');
       throw error;
     }
   },
@@ -62,13 +66,13 @@ const AuthService = {
    */
   getCurrentUser: async () => {
     try {
-      console.log('현재 사용자 정보 조회 중...');
+      // API 레이어에서 처리하므로 여기서는 로깅하지 않음
       const response = await api.get('/auth/me');
-      console.log('사용자 정보 응답:', response);
       return response.data;
     } catch (error) {
-      console.error('사용자 정보 조회 오류:', error);
-      throw error;  // 이 오류는 상위에서 처리
+      // 핵심 오류는 기록
+      console.error('[인증] 사용자 정보 조회 실패');
+      throw error;
     }
   },
   
@@ -78,12 +82,11 @@ const AuthService = {
    */
   checkSession: async () => {
     try {
-      console.log('세션 상태 확인 중...');
+      // 호출이 너무 자주 발생하므로 로깅하지 않음
       const response = await api.get('/auth/me');
-      console.log('세션 상태 응답:', response);
       return true;
     } catch (error) {
-      console.warn('세션 만료 또는 오류:', error);
+      // 일반적인 세션 만료는 오류가 아니므로 로깅하지 않음
       return false;
     }
   }

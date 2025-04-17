@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from backend.models.dashboard import Dashboard, OrderStatus
+from backend.models.dashboard import Dashboard, OrderStatus, OrderUpdate
 from backend.models.user import UserRole
 from backend.utils.logger import logger
 from backend.utils.date_utils import get_date_range
@@ -97,13 +97,14 @@ def create_order(
 ) -> Dashboard:
     """
     새 주문 생성
+    우편번호는 백엔드에서 일관되게 처리
     """
     # 우편번호 처리 (5자리 표준화)
     postal_code = order_data.get("postal_code")
-    if postal_code and len(postal_code) < 5:
-        postal_code = postal_code.zfill(5)  # 앞에 0 추가하여 5자리로 맞춤
-    else:
-        postal_code = order_data.get("postal_code")
+    if postal_code and len(str(postal_code)) < 5:
+        postal_code = str(postal_code).zfill(5)  # 앞에 0 추가하여 5자리로 맞춤
+        logger.db(f"우편번호 자동 보정: '{order_data.get('postal_code')}' → '{postal_code}'")
+        order_data["postal_code"] = postal_code
     
     # 새 주문 객체 생성
     new_order = Dashboard(
@@ -134,6 +135,46 @@ def create_order(
     logger.db(f"주문 생성 - ID: {new_order.dashboard_id}, 번호: {new_order.order_no}, 생성자: {current_user_id}")
     
     return new_order
+
+
+def update_order(
+    db: Session,
+    order_id: int,
+    order_data: Dict[str, Any],
+    current_user_id: str
+) -> Dashboard:
+    """
+    주문 정보 업데이트 서비스
+    우편번호는 백엔드에서 일관되게 처리
+    """
+    # 기존 주문 조회
+    order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
+    
+    if not order:
+        logger.error(f"주문 수정 실패 - ID={order_id}, 주문 없음")
+        raise ValueError("주문을 찾을 수 없습니다")
+    
+    # 우편번호 처리 (5자리 표준화)
+    if "postal_code" in order_data and order_data["postal_code"]:
+        postal_code = order_data["postal_code"]
+        if len(str(postal_code)) < 5:
+            order_data["postal_code"] = str(postal_code).zfill(5)
+            logger.db(f"우편번호 자동 보정: '{postal_code}' → '{order_data['postal_code']}'")
+    
+    # 필드 업데이트
+    for key, value in order_data.items():
+        setattr(order, key, value)
+    
+    # 업데이트 정보 갱신
+    order.updated_by = current_user_id
+    order.update_at = datetime.now()
+    
+    db.commit()
+    db.refresh(order)
+    
+    logger.db(f"주문 수정 - ID: {order_id}, 수정자: {current_user_id}")
+    
+    return order
 
 
 def update_multiple_orders_status(

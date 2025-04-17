@@ -37,8 +37,9 @@ const App = () => {
         locale={koKR}
         theme={{
           token: {
-            colorPrimary: '#1890ff',
-            fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+            colorPrimary: '#D72519',
+            fontFamily:
+              "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
           },
         }}
       >

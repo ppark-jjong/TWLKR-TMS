@@ -199,6 +199,8 @@ async def unlock_order(
     }
 
 
+from backend.services.dashboard_service import update_order as service_update_order
+
 @router.put("/{order_id}", response_model=Dict[str, Any])
 async def update_order(
     order_id: int,
@@ -221,10 +223,6 @@ async def update_order(
             status_code=status.HTTP_404_NOT_FOUND, detail="주문을 찾을 수 없습니다"
         )
 
-    # 우편번호 처리 (5자리 표준화)
-    if order_update.postal_code and len(order_update.postal_code) < 5:
-        order_update.postal_code = order_update.postal_code.zfill(5)
-
     # 상태 변경 불가능 처리 - 경고 로그 간소화
     if order_update.status is not None:
         logger.warning(f"부적절한 상태 변경 시도 - 주문 ID: {order_id}, 사용자: {current_user['user_id']}")
@@ -233,19 +231,15 @@ async def update_order(
             detail="주문 수정 API에서는 상태를 변경할 수 없습니다. status-multiple API를 사용하세요.",
         )
 
-    # 필드 업데이트 (상태 제외)
-    update_dict = order_update.dict(exclude_unset=True, exclude={"status"})
-    for key, value in update_dict.items():
-        setattr(order, key, value)
+    # 서비스 레이어로 주문 업데이트 위임
+    updated_order = service_update_order(
+        db=db,
+        order_id=order_id,
+        order_data=order_update.dict(exclude_unset=True, exclude={"status"}),
+        current_user_id=current_user["user_id"]
+    )
 
-    # 업데이트 정보 갱신
-    order.updated_by = current_user["user_id"]
-    order.update_at = datetime.now()
-
-    db.commit()
-    db.refresh(order)
-
-    return {"success": True, "message": "주문 업데이트 성공", "data": order}
+    return {"success": True, "message": "주문 업데이트 성공", "data": updated_order}
 
 
 @router.delete("/{order_id}", response_model=Dict[str, Any])

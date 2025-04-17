@@ -25,6 +25,8 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+from backend.utils.response_utils import success_response, error_response
+
 @router.post("/login")
 async def login(
     login_data: LoginRequest,
@@ -34,15 +36,15 @@ async def login(
     """
     로그인 처리 및 세션 생성
     """
-    # 로깅 추가: 로그인 시도 기록
-    logger.info(f"로그인 시도: 사용자 ID={login_data.username}")
+    # 핵심 로그: 로그인 시도
+    logger.auth(f"로그인 시도: {login_data.username}")
     
     # DB에서 사용자 조회
     user = db.query(User).filter(User.user_id == login_data.username).first()
 
     # 인증 실패 시 401 반환
     if not user or not verify_password(login_data.password, user.user_password):
-        logger.warning(f"로그인 실패: {login_data.username}")
+        logger.auth(f"로그인 실패: {login_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="아이디 또는 비밀번호가 올바르지 않습니다",
@@ -50,7 +52,7 @@ async def login(
 
     # 세션 생성
     session_id = create_session(user.user_id, user.user_role)
-    logger.info(f"로그인 성공: {user.user_id}, 권한: {user.user_role}, 세션ID: {session_id[:8]}...")
+    logger.auth(f"로그인 성공: {user.user_id}, 권한: {user.user_role}")
 
     # 쿠키 설정 - response 객체가 있는지 여부와 관계없이 항상 설정
     response = Response() if response is None else response
@@ -62,19 +64,16 @@ async def login(
         secure=False,  # 개발 환경에서는 False, 프로덕션에서는 True
         samesite="lax",
     )
-    
-    logger.info(f"사용자 {user.user_id}의 세션 쿠키 설정 완료")
 
-    # 응답 반환
-    return_data = {
-        "success": True,
-        "message": "로그인 성공",
-        "data": {
+    # 일관된 응답 형식 사용
+    return_data = success_response(
+        message="로그인 성공",
+        data={
             "user_id": user.user_id,
             "user_role": user.user_role,
             "user_department": user.user_department,
-        },
-    }
+        }
+    )
     
     # 응답 객체에 적용
     return Response(

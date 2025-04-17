@@ -55,14 +55,17 @@ const DashboardService = {
     try {
       logger.service(SERVICE_NAME, 'createOrder');
       
-      // 우편번호 5자리 맞추기
-      if (orderData.postal_code) {
-        logger.data('우편번호 포맷팅');
-        orderData.postal_code = orderData.postal_code.padStart(5, '0');
+      // 우편번호 처리는 백엔드에서 일괄 처리
+      // 4자리 우편번호인 경우 5자리로 보정 (중복 체크)
+      if (orderData.postalCode && orderData.postalCode.length === 4) {
+        orderData.postalCode = '0' + orderData.postalCode;
+        logger.info('우편번호 자동 보정 (프론트엔드)', orderData.postalCode);
       }
       
       logger.api('POST', '/dashboard');
       const response = await api.post('/dashboard', orderData);
+      
+      logger.apiResponse('/dashboard', 'success');
       return response.data;
     } catch (error) {
       logger.error('주문 생성 실패', error);
@@ -80,9 +83,10 @@ const DashboardService = {
     try {
       logger.service(SERVICE_NAME, 'updateOrder', { orderId });
       
-      // 우편번호 5자리 맞추기
-      if (orderData.postal_code) {
-        orderData.postal_code = orderData.postal_code.padStart(5, '0');
+      // 우편번호 처리는 백엔드에서 일괄 처리하지만 프론트에서도 중복 검증
+      if (orderData.postalCode && orderData.postalCode.length === 4) {
+        orderData.postalCode = '0' + orderData.postalCode;
+        logger.info('우편번호 자동 보정 (프론트엔드)', orderData.postalCode);
       }
       
       logger.api('PUT', `/dashboard/${orderId}`);
@@ -121,17 +125,17 @@ const DashboardService = {
    * @param {Array<number>} orderIds 주문 ID 배열
    * @returns {Promise} 삭제 결과
    */
-  deleteMultipleOrders: async (orderIds) => {
+  deleteOrders: async (orderIds) => {
     try {
-      logger.service(SERVICE_NAME, 'deleteMultipleOrders', { count: orderIds.length });
-      logger.api('POST', '/dashboard/delete-multiple', { order_ids: orderIds });
+      logger.service(SERVICE_NAME, 'deleteOrders', { count: orderIds.length });
+      logger.api('POST', '/dashboard/delete-multiple');
       
       const response = await api.post('/dashboard/delete-multiple', { 
-        order_ids: orderIds  // order_ids로 백엔드와 일치시킴
+        orderIds  // 자동으로 snake_case로 변환되어 order_ids가 됨
       });
       
       logger.apiResponse('/dashboard/delete-multiple', 'success', { 
-        count: response.data?.data?.deleted_count 
+        count: response.data?.data?.deletedCount 
       });
       return response.data;
     } catch (error) {
@@ -167,15 +171,17 @@ const DashboardService = {
    * @param {string} status 변경할 상태
    * @returns {Promise} 변경 결과
    */
-  updateMultipleStatus: async (orderIds, status) => {
+  updateOrdersStatus: async (orderIds, status) => {
     try {
-      logger.service(SERVICE_NAME, 'updateMultipleStatus');
+      logger.service(SERVICE_NAME, 'updateOrdersStatus');
       logger.api('POST', '/dashboard/status-multiple');
       
       const response = await api.post('/dashboard/status-multiple', { 
-        order_ids: orderIds, 
+        orderIds, // 자동으로 snake_case로 변환되어 order_ids가 됨
         status 
       });
+      
+      logger.apiResponse('/dashboard/status-multiple', 'success');
       return response.data;
     } catch (error) {
       logger.error('상태 일괄 변경 실패', error);
@@ -190,18 +196,18 @@ const DashboardService = {
    * @param {string} driverContact 기사 연락처
    * @returns {Promise} 배정 결과
    */
-  assignDriver: async (orderIds, driverName, driverContact) => {
+  assignDriverToOrders: async (orderIds, driverName, driverContact) => {
     try {
-      logger.service(SERVICE_NAME, 'assignDriver', { 
+      logger.service(SERVICE_NAME, 'assignDriverToOrders', { 
         count: orderIds.length, 
         driverName 
       });
       logger.api('POST', '/dashboard/assign-driver');
       
       const response = await api.post('/dashboard/assign-driver', {
-        order_ids: orderIds,  // order_ids로 백엔드와 일치시킴
-        driver_name: driverName,
-        driver_contact: driverContact
+        orderIds,  // 자동으로 snake_case로 변환되어 order_ids가 됨
+        driverName,
+        driverContact
       });
       
       logger.apiResponse('/dashboard/assign-driver', 'success');

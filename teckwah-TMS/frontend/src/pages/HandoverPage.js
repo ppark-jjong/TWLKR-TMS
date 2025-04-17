@@ -229,7 +229,15 @@ const HandoverPage = () => {
       dataIndex: 'createAt',
       key: 'createAt',
       width: 170,
-      render: (date) => dayjs(date).format('YYYY-MM-DD HH:mm'),
+      render: (date) => {
+        // 날짜 형식 확인 및 정상적인 변환 보장
+        try {
+          return dayjs(date).format('YYYY-MM-DD HH:mm');
+        } catch (error) {
+          console.warn('날짜 변환 오류:', date, error);
+          return date || '-'; // 변환 실패 시 원본 데이터 반환
+        }
+      },
     },
     {
       title: '작업',

@@ -29,55 +29,29 @@ Base = declarative_base()
 # 데이터베이스 연결 테스트
 def test_db_connection():
     """
-    데이터베이스 연결을 테스트하고 결과 로그를 남깁니다.
+    데이터베이스 연결을 간단히 테스트하고 결과 로그를 남깁니다.
+    프로젝트 규칙에 따라 최초 한 번만 시도합니다.
     """
     from backend.utils.logger import logger
-    import time
+    from sqlalchemy import text
     
-    # 최대 3번 재시도
-    max_retries = 3
-    retry_delay = 2  # 초
-    
-    for attempt in range(1, max_retries + 1):
-        try:
-            logger.info(f"데이터베이스 연결 시도 {attempt}/{max_retries}...")
-            logger.info(f"연결 정보: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}, 데이터베이스: {settings.MYSQL_DATABASE}, 사용자: {settings.MYSQL_USER}")
+    try:
+        logger.info("데이터베이스 연결 시도...")
+        logger.info(f"연결 정보: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}, 데이터베이스: {settings.MYSQL_DATABASE}, 사용자: {settings.MYSQL_USER}")
+        
+        # 간단한 쿼리로 연결 테스트 (SQLAlchemy 2.0 호환)
+        with engine.connect() as conn:
+            # text() 함수를 사용하여 문자열 쿼리를 실행 가능한 객체로 변환
+            result = conn.execute(text("SELECT 1"))
+            row = result.fetchone()
             
-            # 연결 타임아웃 설정 (짧게)
-            start_time = time.time()
+            logger.info("데이터베이스 연결 성공!")
             
-            # 간단한 쿼리로 연결 테스트
-            with engine.connect() as conn:
-                result = conn.execute("SELECT 1")
-                row = result.fetchone()
-                
-                elapsed_time = time.time() - start_time
-                logger.info(f"데이터베이스 연결 성공! (소요 시간: {elapsed_time:.2f}초)")
-                logger.info(f"데이터베이스 URL: {settings.DATABASE_URL.split('@')[1]}")  # 비밀번호 제외하고 로깅
-                
-                # 간단한 테이블 목록 조회
-                try:
-                    tables_result = conn.execute("SHOW TABLES")
-                    tables = [table[0] for table in tables_result]
-                    logger.info(f"데이터베이스 테이블 목록: {tables}")
-                except Exception as table_err:
-                    logger.warning(f"테이블 목록 조회 실패: {str(table_err)}")
-                
-                return True
-        except Exception as e:
-            logger.error(f"데이터베이스 연결 실패 (시도 {attempt}/{max_retries}): {str(e)}")
-            
-            if attempt < max_retries:
-                logger.info(f"{retry_delay}초 후 재시도...")
-                time.sleep(retry_delay)
-                retry_delay *= 2  # 지수 백오프
-            else:
-                logger.critical(f"최대 재시도 횟수({max_retries}회) 초과. 데이터베이스 연결 실패")
-                logger.critical(f"데이터베이스 설정을 확인하세요: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}")
-                logger.critical(f"환경 변수 MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE를 확인하세요.")
-                return False
-    
-    return False
+            return True
+    except Exception as e:
+        logger.error(f"데이터베이스 연결 실패: {str(e)}")
+        logger.warning(f"데이터베이스 설정을 확인하세요: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}")
+        return False
 
 # 애플리케이션 시작 시 DB 연결 테스트
 connection_result = test_db_connection()

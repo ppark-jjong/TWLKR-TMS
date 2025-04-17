@@ -43,70 +43,18 @@ import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 import 'dayjs/plugin/timezone';
 import 'dayjs/plugin/utc';
+import {
+  STATUS_OPTIONS,
+  DEPARTMENT_OPTIONS,
+  WAREHOUSE_OPTIONS,
+  TYPE_OPTIONS,
+  PAGE_SIZE_OPTIONS,
+} from '../constants';
+import { useDataFetching } from '../hooks';
 
 const { confirm } = Modal;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-
-// 상태 옵션
-const STATUS_OPTIONS = [
-  {
-    value: 'WAITING',
-    label: '대기',
-    color: '#fffbe6',
-    textColor: '#ad8b00',
-    icon: <ClockCircleOutlined />,
-  },
-  {
-    value: 'IN_PROGRESS',
-    label: '진행',
-    color: '#e6f7ff',
-    textColor: '#1890ff',
-    icon: <SwapOutlined />,
-  },
-  {
-    value: 'COMPLETE',
-    label: '완료',
-    color: '#f6ffed',
-    textColor: '#52c41a',
-    icon: <CheckCircleOutlined />,
-  },
-  {
-    value: 'ISSUE',
-    label: '이슈',
-    color: '#fff1f0',
-    textColor: '#f5222d',
-    icon: <WarningOutlined />,
-  },
-  {
-    value: 'CANCEL',
-    label: '취소',
-    color: '#f5f5f5',
-    textColor: '#595959',
-    icon: <StopOutlined />,
-  },
-];
-
-// 부서 옵션
-const DEPARTMENT_OPTIONS = [
-  { value: 'CS', label: 'CS' },
-  { value: 'HES', label: 'HES' },
-  { value: 'LENOVO', label: 'LENOVO' },
-];
-
-// 창고 옵션
-const WAREHOUSE_OPTIONS = [
-  { value: 'SEOUL', label: '서울' },
-  { value: 'BUSAN', label: '부산' },
-  { value: 'GWANGJU', label: '광주' },
-  { value: 'DAEJEON', label: '대전' },
-];
-
-// 유형 옵션
-const TYPE_OPTIONS = [
-  { value: 'DELIVERY', label: '배송', color: '#f9f0ff', textColor: '#722ed1' },
-  { value: 'RETURN', label: '회수', color: '#fff7e6', textColor: '#fa8c16' },
-];
 
 const DashboardPage = () => {
   const { currentUser } = useAuth();
@@ -976,13 +924,15 @@ const DashboardPage = () => {
             <Button type="primary" onClick={handleOpenCreateModal}>
               <PlusOutlined /> 신규 등록
             </Button>
-            <Button
-              danger
-              onClick={handleDeleteMultiple}
-              disabled={selectedRowKeys.length === 0}
-            >
-              <DeleteOutlined /> 삭제
-            </Button>
+            {currentUser.user_role === 'ADMIN' && (
+              <Button
+                danger
+                onClick={handleDeleteMultiple}
+                disabled={selectedRowKeys.length === 0}
+              >
+                <DeleteOutlined /> 삭제
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1093,9 +1043,11 @@ const DashboardPage = () => {
               <Button type="primary" onClick={handleOpenDriverModal}>
                 <UserOutlined /> 배차 처리
               </Button>
-              <Button danger onClick={handleDeleteMultiple}>
-                <DeleteOutlined /> 삭제
-              </Button>
+              {currentUser.user_role === 'ADMIN' && (
+                <Button danger onClick={handleDeleteMultiple}>
+                  <DeleteOutlined /> 삭제
+                </Button>
+              )}
             </Space>
           </div>
         )}

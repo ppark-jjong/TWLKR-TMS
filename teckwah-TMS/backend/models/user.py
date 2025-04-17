@@ -5,7 +5,7 @@
 from sqlalchemy import Column, String, Enum
 from enum import Enum as PyEnum
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from backend.database import Base
 
@@ -40,6 +40,12 @@ class UserCreate(BaseModel):
     user_password: str = Field(..., description="사용자 비밀번호")
     user_department: Department = Field(..., description="소속 부서")
     user_role: UserRole = Field(..., description="사용자 권한")
+
+
+class UserUpdate(BaseModel):
+    user_password: Optional[str] = Field(None, description="사용자 비밀번호")
+    user_department: Optional[Department] = Field(None, description="소속 부서")
+    user_role: Optional[UserRole] = Field(None, description="사용자 권한")
 
 
 class UserResponse(BaseModel):

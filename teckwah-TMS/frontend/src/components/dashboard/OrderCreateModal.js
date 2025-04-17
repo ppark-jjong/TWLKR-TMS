@@ -6,7 +6,7 @@ import {
   Modal, Form, Input, Select, DatePicker, 
   Row, Col, Button, message 
 } from 'antd';
-import { DashboardService, PostalCodeService } from '../../services';
+import { DashboardService } from '../../services';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -15,47 +15,40 @@ const { TextArea } = Input;
 const OrderCreateModal = ({ visible, onCancel, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [postalCodeInfo, setPostalCodeInfo] = useState(null);
   
   // 폼 초기화
   const resetForm = () => {
     form.resetFields();
-    setPostalCodeInfo(null);
   };
   
-  // 우편번호 검색
-  const handlePostalCodeSearch = async () => {
-    const postalCode = form.getFieldValue('postalCode');
+  // 우편번호 처리 - DB 레벨에서 처리되며 프론트엔드에서는 포맷만 검증
+  const handlePostalCodeSearch = () => {
+    let postalCode = form.getFieldValue('postalCode');
     
-    if (!postalCode || postalCode.length < 5) {
-      message.warn('유효한 우편번호를 입력하세요');
+    if (!postalCode) {
+      message.warn('우편번호를 입력하세요');
       return;
     }
     
-    try {
-      const response = await PostalCodeService.getPostalCode(postalCode);
-      
-      if (response.success) {
-        setPostalCodeInfo(response.data.postalCode);
-        
-        // 우편번호 정보에서 주소 자동 설정
-        if (response.data.postalCode) {
-          const { city, county, district } = response.data.postalCode;
-          form.setFieldsValue({
-            address: `${city || ''} ${county || ''} ${district || ''}`
-          });
-        }
-        
-        message.success('우편번호 정보를 불러왔습니다');
-      } else {
-        message.warn('우편번호 정보를 찾을 수 없습니다');
-        setPostalCodeInfo(null);
-      }
-    } catch (error) {
-      console.error('우편번호 조회 오류:', error);
-      message.error('우편번호 조회 중 오류가 발생했습니다');
-      setPostalCodeInfo(null);
+    // 숫자만 추출
+    postalCode = postalCode.replace(/[^0-9]/g, '');
+    
+    // 4자리 우편번호인 경우 앞에 '0' 추가 (프로젝트 규칙에 따름)
+    if (postalCode.length === 4) {
+      postalCode = '0' + postalCode;
+      form.setFieldsValue({ postalCode });
+      message.info('4자리 우편번호를 5자리로 변환했습니다');
     }
+    
+    // 5자리가 아닌 경우 처리
+    if (postalCode.length !== 5) {
+      message.warn('5자리 우편번호를 입력하세요');
+      return;
+    }
+    
+    // 우편번호를 사용하여 주소 필드 포커스
+    form.getFieldInstance('address')?.focus();
+    message.success('우편번호가 설정되었습니다. 상세 주소를 입력하세요.');
   };
   
   // 주문 생성 제출
@@ -63,6 +56,13 @@ const OrderCreateModal = ({ visible, onCancel, onSuccess }) => {
     try {
       const values = await form.validateFields();
       setLoading(true);
+      
+      // 우편번호 처리 - 4자리인 경우 앞에 '0' 추가
+      let postalCode = values.postalCode;
+      if (postalCode && postalCode.length === 4) {
+        postalCode = '0' + postalCode;
+        values.postalCode = postalCode;
+      }
       
       // 날짜 데이터 ISO 문자열로 변환
       const orderData = {
@@ -213,7 +213,7 @@ const OrderCreateModal = ({ visible, onCancel, onSuccess }) => {
               label="우편번호"
               name="postalCode"
               rules={[{ required: true, message: '우편번호를 입력하세요' }]}
-              extra={postalCodeInfo ? `${postalCodeInfo.city || ''} ${postalCodeInfo.county || ''} ${postalCodeInfo.district || ''}` : null}
+              extra="5자리 우편번호를 입력하세요. 4자리 입력 시 앞에 '0'이 자동으로 추가됩니다."
             >
               <Input.Search 
                 placeholder="우편번호 입력 (5자리)" 
