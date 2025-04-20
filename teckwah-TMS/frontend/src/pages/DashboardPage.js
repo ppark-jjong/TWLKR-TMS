@@ -352,8 +352,8 @@ const DashboardPage = () => {
 
     if (lockedIds.length > 0) {
       try {
-        // 실제 배차 처리 요청
-        const response = await DashboardService.assignDriver(
+        // 실제 배차 처리 요청 - 백엔드 API 메서드명과 일치시킴
+        const response = await DashboardService.assignDriverToOrders(
           lockedIds,
           driverData.driverName,
           driverData.driverContact
@@ -413,8 +413,8 @@ const DashboardPage = () => {
 
     if (lockedIds.length > 0) {
       try {
-        // 여기서 일괄 상태 변경 API를 호출 (구현 필요)
-        const response = await DashboardService.updateMultipleStatus(
+        // 백엔드 API 메서드명과 일치시킴
+        const response = await DashboardService.updateOrdersStatus(
           lockedIds,
           statusData.status
         );
@@ -478,7 +478,7 @@ const DashboardPage = () => {
       cancelText: '취소',
       onOk: async () => {
         try {
-          const response = await DashboardService.deleteMultipleOrders(
+          const response = await DashboardService.deleteOrders(
             selectedRowKeys
           );
 

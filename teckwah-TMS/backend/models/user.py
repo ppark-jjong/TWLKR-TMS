@@ -4,10 +4,11 @@
 
 from sqlalchemy import Column, String, Enum
 from enum import Enum as PyEnum
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing import Optional, Dict, Any
 
 from backend.database import Base
+from backend.models.model_config import APIModel
 
 
 class UserRole(str, PyEnum):
@@ -35,23 +36,20 @@ class User(Base):
 
 
 # API 요청/응답 모델
-class UserCreate(BaseModel):
-    user_id: str = Field(..., description="사용자 ID")
-    user_password: str = Field(..., description="사용자 비밀번호")
-    user_department: Department = Field(..., description="소속 부서")
-    user_role: UserRole = Field(..., description="사용자 권한")
+class UserCreate(APIModel):
+    user_id: str = Field(..., description="사용자 ID", alias="userId")
+    user_password: str = Field(..., description="사용자 비밀번호", alias="userPassword")
+    user_department: Department = Field(..., description="소속 부서", alias="userDepartment")
+    user_role: UserRole = Field(..., description="사용자 권한", alias="userRole")
 
 
-class UserUpdate(BaseModel):
-    user_password: Optional[str] = Field(None, description="사용자 비밀번호")
-    user_department: Optional[Department] = Field(None, description="소속 부서")
-    user_role: Optional[UserRole] = Field(None, description="사용자 권한")
+class UserUpdate(APIModel):
+    user_password: Optional[str] = Field(None, description="사용자 비밀번호", alias="userPassword")
+    user_department: Optional[Department] = Field(None, description="소속 부서", alias="userDepartment")
+    user_role: Optional[UserRole] = Field(None, description="사용자 권한", alias="userRole")
 
 
-class UserResponse(BaseModel):
-    user_id: str = Field(..., description="사용자 ID")
-    user_department: Department = Field(..., description="소속 부서")
-    user_role: UserRole = Field(..., description="사용자 권한")
-
-    class Config:
-        from_attributes = True
+class UserResponse(APIModel):
+    user_id: str = Field(..., description="사용자 ID", alias="userId")
+    user_department: Department = Field(..., description="소속 부서", alias="userDepartment")
+    user_role: UserRole = Field(..., description="사용자 권한", alias="userRole")

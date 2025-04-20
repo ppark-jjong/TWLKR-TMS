@@ -52,7 +52,9 @@ export const AuthProvider = ({ children }) => {
         if (!isLoginPage() && !silent) {
           showErrorOnce('세션이 만료되었습니다. 다시 로그인해주세요.');
           console.log('로그인 페이지로 이동 중...');
-          window.location.href = '/login';
+          // 현재 경로를 저장하여 로그인 후 돌아올 수 있게 함
+          const currentPath = window.location.pathname;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
         }
       }
     } catch (error) {
@@ -65,7 +67,9 @@ export const AuthProvider = ({ children }) => {
         showErrorOnce('인증 확인 중 오류가 발생했습니다. 다시 로그인해주세요.');
         console.log('로그인 페이지로 이동 중...');
         setTimeout(() => {
-          window.location.href = '/login';
+          // 현재 경로를 저장하여 로그인 후 돌아올 수 있게 함
+          const currentPath = window.location.pathname;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
         }, 1000);
       }
     } finally {

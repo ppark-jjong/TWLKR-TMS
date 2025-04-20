@@ -71,7 +71,11 @@ init-db.sql를 기반으로 이미 데이터 스키마와 실제 데이터들이
 - 백엔드와 프론트엔드 사이의 모든 데이터 교환은 명확히 정의된 구조를 따릅니다.  
 - 방어적 코딩보다 명확한 데이터 구조와 타입을 통한 안정성을 확보합니다.  
 - 모든 응답은 `{success: boolean, message: string, data?: any, error_code?: string}` 형식을 준수합니다.
-
+- Pydantic alias 매핑 활용
+  - Backend에서는 Pydantic `Field(alias='camelCaseName')`와  
+    `Config(by_alias=True, allow_population_by_field_name=True)`를 설정하여  
+    내부 모델(`snake_case`)과 외부 JSON(`camelCase`) 필드를 자동으로 1:1 매핑합니다.
+    
 #### 사용자 친화적 오류 메시지
 - 시스템 내부 오류는 사용자가 이해할 수 있는 한국어 메시지로 변환합니다.  
 - 오류 상황에서는 명확한 다음 단계(새로고침, 다시 시도 등)를 제안합니다.  
@@ -81,7 +85,7 @@ init-db.sql를 기반으로 이미 데이터 스키마와 실제 데이터들이
 - 시스템은 자동 재시도 기능을 사용하지 않습니다.  
 - 모든 복구 시도는 사용자의 명시적인 액션(새로고침 버튼 클릭 등)을 통해서만 이루어집니다.  
 - 오류 발생 시 필요한 액션 버튼(예: 새로고침)을 함께 제공합니다.
-
+  
 ---
 
 ## 4. 개발 및 배포 지침

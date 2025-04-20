@@ -17,26 +17,38 @@ const VisualizationService = {
     try {
       logger.service(SERVICE_NAME, 'getStats');
       
-      // 날짜를 ISO 형식으로 확실히 변환
+      // 날짜를 공백 구분자 형식으로 변환
       const parsedParams = { ...params };
       
       // 시각화 타입이 없으면 기본값 지정
       parsedParams.visualizationType = parsedParams.visualizationType || 'time_based';
       
-      // 날짜 형식이 있으면 확실히 ISO 형식으로 변환
+      // 날짜 형식이 있으면 공백 구분자 형식(YYYY-MM-DD HH:MM:SS)으로 변환
       if (parsedParams.startDate) {
-        parsedParams.startDate = typeof parsedParams.startDate.toISOString === 'function'
-          ? parsedParams.startDate.toISOString()
-          : parsedParams.startDate;
+        if (typeof parsedParams.startDate.toISOString === 'function') {
+          // JavaScript Date 객체인 경우
+          const dt = parsedParams.startDate;
+          parsedParams.startDate = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}:${String(dt.getSeconds()).padStart(2, '0')}`;
+        }
+        // 이미 문자열인 경우 T를 공백으로 변환
+        else if (typeof parsedParams.startDate === 'string' && parsedParams.startDate.includes('T')) {
+          parsedParams.startDate = parsedParams.startDate.replace('T', ' ');
+        }
       }
       
       if (parsedParams.endDate) {
-        parsedParams.endDate = typeof parsedParams.endDate.toISOString === 'function'
-          ? parsedParams.endDate.toISOString()
-          : parsedParams.endDate;
+        if (typeof parsedParams.endDate.toISOString === 'function') {
+          // JavaScript Date 객체인 경우
+          const dt = parsedParams.endDate;
+          parsedParams.endDate = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}:${String(dt.getSeconds()).padStart(2, '0')}`;
+        }
+        // 이미 문자열인 경우 T를 공백으로 변환
+        else if (typeof parsedParams.endDate === 'string' && parsedParams.endDate.includes('T')) {
+          parsedParams.endDate = parsedParams.endDate.replace('T', ' ');
+        }
       }
       
-      // API 요청 (camelCase → snake_case 자동 변환)
+      // API 요청 (Pydantic alias를 통해 자동 변환됨)
       const response = await api.get('/visualization/stats', { params: parsedParams });
       
       // 응답 데이터 전처리 (차트 라이브러리 호환)
@@ -45,8 +57,8 @@ const VisualizationService = {
         if (Array.isArray(response.data.data.timeData)) {
           response.data.data.timeData = response.data.data.timeData.map(item => ({
             ...item,
-            // 날짜 문자열 포맷팅 예시
-            time: item.time ? item.time.replace(/T/g, ' ').substring(0, 16) : item.time
+            // 날짜 문자열 포맷팅은 이미 백엔드에서 처리됨 (공백 구분자 형식)
+            time: item.time
           }));
         }
       }

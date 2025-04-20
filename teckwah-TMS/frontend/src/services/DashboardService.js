@@ -121,7 +121,7 @@ const DashboardService = {
   },
   
   /**
-   * 주문 다중 삭제
+   * 주문 다중 삭제 (백엔드 API: delete_multiple_orders)
    * @param {Array<number>} orderIds 주문 ID 배열
    * @returns {Promise} 삭제 결과
    */
@@ -131,7 +131,7 @@ const DashboardService = {
       logger.api('POST', '/dashboard/delete-multiple');
       
       const response = await api.post('/dashboard/delete-multiple', { 
-        orderIds  // 자동으로 snake_case로 변환되어 order_ids가 됨
+        orderIds  // Pydantic alias를 통해 백엔드에서 order_ids로 매핑됨
       });
       
       logger.apiResponse('/dashboard/delete-multiple', 'success', { 
@@ -166,7 +166,7 @@ const DashboardService = {
   },
   
   /**
-   * 주문 상태 일괄 변경
+   * 주문 상태 일괄 변경 (백엔드 API: update_multiple_orders_status)
    * @param {Array<number>} orderIds 주문 ID 배열
    * @param {string} status 변경할 상태
    * @returns {Promise} 변경 결과
@@ -177,7 +177,7 @@ const DashboardService = {
       logger.api('POST', '/dashboard/status-multiple');
       
       const response = await api.post('/dashboard/status-multiple', { 
-        orderIds, // 자동으로 snake_case로 변환되어 order_ids가 됨
+        orderIds, // Pydantic alias를 통해 백엔드에서 order_ids로 매핑됨
         status 
       });
       
@@ -190,7 +190,7 @@ const DashboardService = {
   },
   
   /**
-   * 기사 일괄 배정
+   * 기사 일괄 배정 (백엔드 API: assign_driver_to_orders)
    * @param {Array<number>} orderIds 주문 ID 배열
    * @param {string} driverName 기사 이름
    * @param {string} driverContact 기사 연락처
@@ -205,7 +205,7 @@ const DashboardService = {
       logger.api('POST', '/dashboard/assign-driver');
       
       const response = await api.post('/dashboard/assign-driver', {
-        orderIds,  // 자동으로 snake_case로 변환되어 order_ids가 됨
+        orderIds,  // Pydantic alias를 통해 백엔드에서 order_ids로 매핑됨
         driverName,
         driverContact
       });

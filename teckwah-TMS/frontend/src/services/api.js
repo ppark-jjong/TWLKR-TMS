@@ -32,6 +32,8 @@ const showSuccess = (successMsg) => {
   message.success(successMsg);
 };
 
+// 백엔드에서 이미 Pydantic alias를 통해 camelCase로 변환되어 오므로 별도 변환 불필요
+
 // 기본 응답 데이터 생성 함수 (API 오류 시 기본값 반환)
 const createEmptyResponse = (path) => {
   // 경로에 따라 적절한 빈 데이터 반환
@@ -113,77 +115,9 @@ const api = axios.create({
 // 디버그 모드 설정에 따라 로깅 활성화/비활성화
 
 /**
- * camelCase를 snake_case로 변환
+ * 변수명 자동 변환 로직 제거
+ * Pydantic의 alias 기능을 사용하도록 변경되어 더 이상 필요하지 않음
  */
-const camelToSnakeCase = (obj) => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
-    return obj;
-  }
-  
-  // 배열인 경우 각 요소에 대해 재귀 처리
-  if (Array.isArray(obj)) {
-    return obj.map(camelToSnakeCase);
-  }
-  
-  // 객체인 경우 각 필드 처리
-  const result = {};
-  for (const [key, value] of Object.entries(obj)) {
-    // key를 snake_case로 변환
-    const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-    
-    // 값이 객체인 경우 재귀 처리
-    result[snakeKey] = camelToSnakeCase(value);
-  }
-  
-  return result;
-};
-
-/**
- * snake_case를 camelCase로 변환하고 날짜 형식 처리
- */
-const snakeToCamelCase = (obj) => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
-    return obj;
-  }
-  
-  // 배열인 경우 각 요소에 대해 재귀 처리
-  if (Array.isArray(obj)) {
-    return obj.map(snakeToCamelCase);
-  }
-  
-  // 객체인 경우 각 필드 처리
-  const result = {};
-  for (const [key, value] of Object.entries(obj)) {
-    // key를 camelCase로 변환
-    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-    
-    // 누락된 region 필드 처리 (dashboard 모델 전용)
-    if (camelKey === 'dashboardId' && !obj.hasOwnProperty('region') && 
-        obj.hasOwnProperty('city') && obj.hasOwnProperty('county') && obj.hasOwnProperty('district')) {
-      const city = obj.city || '';
-      const county = obj.county || '';
-      const district = obj.district || '';
-      const parts = [city, county, district].filter(p => p);
-      result['region'] = parts.join(' ');
-    }
-    
-    // 값이 날짜 문자열인지 확인
-    if (typeof value === 'string' && 
-        (value.match(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/) || 
-         value.match(/^\d{4}-\d{2}-\d{2}$/))) {
-      // ISO 날짜 문자열은 그대로 유지 (백엔드에서 이미 T가 공백으로 변환됨)
-      result[camelKey] = value;
-    } else if (value && typeof value === 'object') {
-      // 객체나 배열인 경우 재귀 처리
-      result[camelKey] = snakeToCamelCase(value);
-    } else {
-      // 기본 타입은 변환 없이 할당
-      result[camelKey] = value;
-    }
-  }
-  
-  return result;
-};
 
 // 요청 인터셉터 설정
 api.interceptors.request.use(
@@ -195,20 +129,14 @@ api.interceptors.request.use(
     // 요청 시작 시간 기록
     config.metadata = { startTime: new Date().getTime(), requestId };
     
-    // URL 경로 그대로 사용 (백엔드와 이미 동일하게 설정됨)
+    // URL 경로 그대로 사용
     const method = config.method.toUpperCase();
     const url = config.url;
     
-    // camelCase → snake_case 자동 변환
-    if (config.params) {
-      config.params = camelToSnakeCase(config.params);
-    }
+    // Pydantic alias 기능을 사용하므로 변환 로직 불필요
+    // 클라이언트는 camelCase 형식 그대로 사용
     
-    if (config.data) {
-      config.data = camelToSnakeCase(config.data);
-    }
-    
-    // 통합 로거를 사용한 로깅 (서비스 레이어에서 처리)
+    // 통합 로거를 사용한 로깅
     logger.api(method, url, {
       requestId,
       params: config.params,
@@ -238,10 +166,7 @@ api.interceptors.response.use(
     const method = response.config.method.toUpperCase();
     const url = response.config.url;
     
-    // snake_case → camelCase 자동 변환
-    if (response.data && typeof response.data === 'object') {
-      response.data = snakeToCamelCase(response.data);
-    }
+    // 백엔드 응답은 이미 Pydantic alias를 통해 camelCase로 변환되어 옴
     
     // 간소화된 로깅
     logger.response(url, true);
@@ -262,16 +187,19 @@ api.interceptors.response.use(
     // 간소화된 로깅
     logger.error(`API 오류: ${method} ${requestUrl}`, error);
     
-    // 401 인증 오류 처리 (리다이렉트 루프 방지)
+    // 401 인증 오류 처리 (리다이렉트 루프 방지) - 개선된 버전
     if (error.response && error.response.status === 401) {
-      // 로그인 페이지에서의 401은 정상 케이스로 처리 (리다이렉트 안함)
+      // 로그인 페이지나 /auth/me 엔드포인트에서의 401은 정상 처리
       if (!isLoginPage() && !requestUrl.includes('/auth/me')) {
+        console.error('인증되지 않은 API 접근 감지:', requestUrl);
         showErrorOnce('세션이 만료되었습니다. 다시 로그인해주세요.');
         
-        // 약간의 지연 후 리다이렉션 (알림 표시를 위해)
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1000);
+        // 현재 URL을 state로 전달하여 로그인 후 원래 페이지로 돌아올 수 있게 함
+        const currentPath = window.location.pathname;
+        const loginPath = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        
+        // 즉시 리다이렉션
+        window.location.href = loginPath;
       }
       
       return Promise.reject(error);
