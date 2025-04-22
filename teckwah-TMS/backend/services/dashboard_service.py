@@ -6,13 +6,16 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from pydantic import ValidationError
 
-from backend.models.dashboard import (
-    Dashboard,
+# ORM 모델 import
+from backend.models.dashboard import Dashboard
+from backend.models.postal_code import PostalCode, PostalCodeDetail
+
+# 스키마 import
+from backend.schemas.dashboard_schema import (
     OrderStatus,
-    OrderUpdate,
     OrderResponse,
-    OrderListResponse,
     OrderListResponseData,
     OrderListFilterResponse,
     LockStatus,
@@ -20,11 +23,11 @@ from backend.models.dashboard import (
     StatusUpdateMultipleResponseData,
     AssignDriverResponseData,
 )
-from backend.models.postal_code import PostalCode, PostalCodeDetail
-from backend.models.user import UserRole
+from backend.schemas.user_schema import UserRole  # UserRole 스키마 가져오기
+
 from backend.utils.logger import logger
 from backend.utils.date_utils import get_date_range
-from backend.utils.lock import check_lock_status
+from backend.utils.lock import check_lock_status, validate_lock
 
 
 def get_dashboard_orders(
@@ -35,37 +38,62 @@ def get_dashboard_orders(
     limit: int,
     current_user_id: str,
     order_no: Optional[str] = None,
-) -> OrderListResponse:
+    status: Optional[str] = None,
+    department: Optional[str] = None,
+    warehouse: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    대시보드 주문 목록 조회 (Pydantic 모델 반환) + order_no 필터링 추가
+    대시보드 주문 목록 조회 (dict 반환) + order_no, status, department, warehouse 필터링 추가 + 상세 로깅
     """
-    start_datetime, end_datetime = get_date_range(start_date, end_date)
-    query = db.query(Dashboard).filter(
-        Dashboard.eta >= start_datetime, Dashboard.eta < end_datetime
+    logger.debug(f"서비스 get_dashboard_orders 시작")
+    # --- [로그 3] DB 조회 직전 파라미터/조건 로깅 ---
+    try:
+        start_datetime, end_datetime = get_date_range(start_date, end_date)
+        logger.debug(f"  DB 조회를 위한 날짜 범위: {start_datetime} ~ {end_datetime}")
+    except ValueError as date_err:
+        logger.error(
+            f"날짜 변환 오류: start='{start_date}', end='{end_date}'. 오류: {date_err}"
+        )
+        # 날짜 변환 실패 시 오류 응답 반환
+        return {
+            "success": False,
+            "message": f"날짜 형식 오류: {date_err}",
+            "data": None,
+        }
+
+    base_query = db.query(Dashboard).filter(
+        Dashboard.eta >= start_datetime, Dashboard.eta <= end_datetime
     )
-    log_msg = f"주문 데이터 조회 - 기간: {start_datetime.strftime('%Y-%m-%d')} ~ {end_datetime.strftime('%Y-%m-%d')}"
+    log_msg_parts = [
+        f"ETA >= {start_datetime.strftime('%Y-%m-%d')}",
+        f"ETA <= {end_datetime.strftime('%Y-%m-%d')}",
+    ]
 
     if order_no:
-        query = query.filter(Dashboard.order_no.ilike(f"%{order_no}%"))
-        log_msg += f", 주문번호: *{order_no}*"
+        base_query = base_query.filter(Dashboard.order_no.ilike(f"%{order_no}%"))
+        log_msg_parts.append(f"order_no LIKE '%{order_no}%'")
 
-    logger.db(log_msg)
+    # status 필터링 추가
+    if status:
+        base_query = base_query.filter(Dashboard.status == status)
+        log_msg_parts.append(f"status == '{status}'")
 
-    total_count = query.count()
-    results = (
-        query.order_by(Dashboard.eta.asc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-        .all()
-    )
+    # department 필터링 추가
+    if department:
+        base_query = base_query.filter(Dashboard.department == department)
+        log_msg_parts.append(f"department == '{department}'")
 
-    status_query = db.query(
-        Dashboard.status, func.count(Dashboard.dashboard_id).label("count")
-    ).filter(Dashboard.eta >= start_datetime, Dashboard.eta < end_datetime)
-    if order_no:
-        status_query = status_query.filter(Dashboard.order_no.ilike(f"%{order_no}%"))
-    status_counts_query = status_query.group_by(Dashboard.status).all()
+    # warehouse 필터링 추가
+    if warehouse:
+        base_query = base_query.filter(Dashboard.warehouse == warehouse)
+        log_msg_parts.append(f"warehouse == '{warehouse}'")
 
+    logger.debug(f"  DB 기본 쿼리 조건: {' AND '.join(log_msg_parts)}")
+    # -----------------------------------------------
+
+    # --- DB 조회 실행 및 결과 로깅 ---
+    results = []
+    total_count = 0
     status_count_dict = {
         "WAITING": 0,
         "IN_PROGRESS": 0,
@@ -73,38 +101,177 @@ def get_dashboard_orders(
         "ISSUE": 0,
         "CANCEL": 0,
     }
-    for status_name, count in status_counts_query:
-        status_count_dict[status_name] = count
+    try:
+        # 전체 건수 조회 (필터링 적용)
+        count_query = base_query.with_entities(func.count(Dashboard.dashboard_id))
+        total_count = count_query.scalar()
+        logger.db(f"  전체 건수 조회 성공: {total_count} 건")
 
+        # 실제 데이터 조회 (정렬, 페이징 적용)
+        data_query = (
+            base_query.order_by(Dashboard.eta.asc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+        results = data_query.all()
+        logger.db(
+            f"  DB 조회 성공: {len(results)} 건 조회 (페이지: {page}, Limit: {limit}, 전체 {total_count} 건)"
+        )
+        if results:
+            logger.debug(f"    조회된 첫번째 ORM 객체 타입: {type(results[0])}")
+            for i, order_orm in enumerate(results):
+                try:
+                    # ORM 객체의 모든 컬럼 값을 dict로 변환하여 로깅 (주의: 데이터 양이 많으면 성능 저하 가능)
+                    orm_dict = {
+                        c.name: getattr(order_orm, c.name, "N/A")
+                        for c in order_orm.__table__.columns
+                    }
+                    logger.debug(f"    Raw ORM Data [{i}]: {orm_dict}")
+                except Exception as e_orm_log:
+                    logger.warning(f"    Raw ORM Data [{i}] 로깅 중 오류: {e_orm_log}")
+                    logger.debug(
+                        f"    Raw ORM Data [{i}] Type: {type(order_orm)}"
+                    )  # 타입이라도 로깅
+        else:
+            logger.debug("    조회된 ORM 데이터 없음")
+        # ---------------------------------------------
+
+        # --- 상태 집계 로깅 (기존 로직 유지) ---
+        status_query = base_query.with_entities(
+            Dashboard.status, func.count(Dashboard.dashboard_id).label("count")
+        ).group_by(Dashboard.status)
+        status_counts_query = status_query.all()
+        logger.db(f"  상태 집계 결과: {status_counts_query}")
+        # 기본값 설정 후 조회 결과로 업데이트
+        for status_name, count in status_counts_query:
+            if status_name in status_count_dict:
+                status_count_dict[status_name] = count
+        logger.debug(f"    상태 집계 Dict: {status_count_dict}")
+        # ----------------------
+
+    except Exception as e:
+        logger.error(f"DB 조회 또는 집계 중 오류 발생: {e}", exc_info=True)
+        # 오류 발생 시 실패 응답 반환
+        return {
+            "success": False,
+            "message": f"데이터베이스 조회 오류: {e}",
+            "data": None,
+        }
+    # -----------------------------
+
+    # --- [로그 5] OrderResponse 변환 및 로깅 ---
     order_responses = []
+    logger.debug(f"Pydantic 모델(OrderResponse) 변환 시작 - 대상 {len(results)} 건")
     if results:
-        for order in results:
+        for i, order_orm in enumerate(results):
             try:
-                order_responses.append(OrderResponse.from_orm(order))
-            except Exception as e:
-                logger.error(
-                    f"OrderResponse.from_orm 변환 실패 (서비스): order_id={order.dashboard_id}, 오류={e}"
+                # 변환 시도 전 원본 데이터 다시 로깅 (선택적, 위에서 이미 로깅함)
+                # logger.debug(f"  OrderResponse 변환 시도 [{i}]: ID={getattr(order_orm, 'dashboard_id', 'N/A')}, ...}")
+
+                # Pydantic v2: model_validate 사용
+                response_item = OrderResponse.model_validate(order_orm)
+
+                # 변환 후 주요 값 로깅
+                logger.debug(
+                    f"    OrderResponse 변환 성공 [{i}]: ID={response_item.dashboard_id}, OrderNo={response_item.order_no}, Status={response_item.status}"
                 )
-                continue
+                order_responses.append(response_item)
 
-    response_data = OrderListResponseData(
-        items=order_responses,
-        total=total_count,
-        page=page,
-        limit=limit,
-        statusCounts=status_count_dict,
-        filter=OrderListFilterResponse(startDate=start_datetime, endDate=end_datetime),
+            except ValidationError as ve:
+                # Pydantic 유효성 검사 오류 발생 시
+                logger.error(
+                    f"  OrderResponse.model_validate 유효성 검사 실패 [{i}]: order_id={getattr(order_orm, 'dashboard_id', 'N/A')}, 오류={ve.errors()}",
+                    exc_info=True,  # Traceback 로깅
+                )
+                # 실패한 ORM 객체 데이터 상세 로깅
+                try:
+                    failed_orm_dict = {
+                        c.name: getattr(order_orm, c.name, "N/A")
+                        for c in order_orm.__table__.columns
+                    }
+                    logger.error(
+                        f"    유효성 검사 실패한 원본 ORM 데이터 [{i}]: {failed_orm_dict}"
+                    )
+                except Exception as e_fail_log:
+                    logger.error(f"    실패 ORM 데이터 로깅 중 오류: {e_fail_log}")
+                # 중요: 여기서 오류를 발생시키지 않고, 실패 정보를 포함하여 반환하거나, 부분 성공으로 처리할지 결정 필요
+                # 우선은 로그만 남기고 계속 진행 (라우터에서 최종적으로 422가 발생할 수 있음)
+                # 또는 즉시 오류 응답 반환:
+                # return {"success": False, "message": f"데이터 유효성 검증 실패 (ID: {getattr(order_orm, 'dashboard_id', 'N/A')}): {ve.errors()}", "data": None}
+
+            except Exception as e:
+                # 기타 예외 처리 (예: ORM 객체 속성 접근 오류 등)
+                logger.error(
+                    f"  OrderResponse.model_validate 변환 중 일반 오류 [{i}]: order_id={getattr(order_orm, 'dashboard_id', 'N/A')}, 오류={e}",
+                    exc_info=True,
+                )
+                # 즉시 오류 응답 반환
+                return {
+                    "success": False,
+                    "message": f"데이터 처리 중 오류 발생 (ID: {getattr(order_orm, 'dashboard_id', 'N/A')})",
+                    "data": None,
+                }
+
+    logger.debug(
+        f"  OrderResponse 변환 완료: 최종 {len(order_responses)} 건 (시도: {len(results)} 건)"
     )
+    # -------------------------------
 
-    return OrderListResponse(data=response_data)
+    # --- [로그 6] 최종 응답 딕셔너리 생성 전 데이터 로깅 ---
+    filter_data = OrderListFilterResponse(
+        start_date=start_datetime, end_date=end_datetime
+    )
+    # 최종 응답 데이터 구조 생성 (Pydantic 모델 사용)
+    try:
+        response_data_payload = OrderListResponseData(
+            items=order_responses,
+            total=total_count,
+            page=page,
+            limit=limit,
+            status_counts=status_count_dict,
+            filter=filter_data,
+        )
+        logger.debug(
+            f"OrderListResponseData 생성 성공: items_len={len(response_data_payload.items)}, total={response_data_payload.total}, page={response_data_payload.page}"
+        )
+    except Exception as data_model_exc:
+        logger.error(
+            f"OrderListResponseData 생성 실패: {data_model_exc}", exc_info=True
+        )
+        logger.error(
+            f"  실패 시점 데이터: items_len={len(order_responses)}, total={total_count}, page={page}, limit={limit}, status_counts={status_count_dict}, filter={filter_data.dict()}"
+        )
+        return {"success": False, "message": "응답 데이터 구조 생성 실패", "data": None}
+
+    # 최종 반환 딕셔너리 구성 (APIResponse 형식 준수)
+    final_response_dict = {
+        "success": True,
+        "message": "주문 목록 조회 성공",
+        "data": response_data_payload.dict(by_alias=True),  # camelCase로 변환하여 반환
+    }
+    # 최종 반환 딕셔너리 로깅 (요약)
+    log_final_summary = {
+        k: type(v) if k == "data" else v for k, v in final_response_dict.items()
+    }
+    if "data" in final_response_dict and isinstance(final_response_dict["data"], dict):
+        log_final_summary["data_summary"] = {
+            "items_len": len(final_response_dict["data"].get("items", [])),
+            "total": final_response_dict["data"].get("total"),
+            # 필요한 키 추가...
+        }
+    logger.debug(
+        f"서비스 get_dashboard_orders 최종 반환 딕셔너리 (요약): {log_final_summary}"
+    )
+    return final_response_dict
 
 
 def create_order(
     db: Session, order_data: Dict[str, Any], current_user_id: str
 ) -> Dashboard:
     """
-    새 주문 생성 (우편번호 기반 자동 정보 업데이트 포함)
+    새 주문 생성 (우편번호 기반 자동 정보 업데이트 포함) + 상세 로깅
     """
+    logger.debug(f"create_order 서비스 시작. 입력 data: {order_data}")
     postal_code = order_data.get("postalCode")
     warehouse = order_data.get("warehouse")
     city, county, district, distance, duration_time = None, None, None, None, None
@@ -114,7 +281,7 @@ def create_order(
         if len(str(postal_code)) < 5:
             postal_code = str(postal_code).zfill(5)
             logger.db(
-                f"우편번호 자동 보정: '{order_data.get("postalCode")}' → '{postal_code}'"
+                f"우편번호 자동 보정: '{order_data.get('postalCode')}' → '{postal_code}'"
             )
 
         # PostalCode 테이블에서 city, county, district 조회
@@ -181,64 +348,103 @@ def create_order(
         update_at=datetime.now(),
     )
 
+    logger.debug(
+        f"  생성된 Dashboard 객체 (일부): OrderNo={new_order.order_no}, ETA={new_order.eta}, Customer={new_order.customer}"
+    )
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
-    logger.db(
-        f"주문 생성 - ID: {new_order.dashboard_id}, 번호: {new_order.order_no}, 생성자: {current_user_id}"
-    )
+    logger.db(f"주문 생성 DB 반영 완료 - ID: {new_order.dashboard_id}")
     return new_order
 
 
 def update_order(
     db: Session, order_id: int, order_data: Dict[str, Any], current_user_id: str
-) -> Dashboard:
+) -> Optional[Dashboard]:
     """
-    주문 정보 업데이트 서비스 (우편번호/창고 변경 시 자동 정보 업데이트 포함)
+    주문 정보 업데이트 서비스 (우편번호/창고 변경 시 자동 정보 업데이트 포함) + 상세 로깅
     """
-    order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
+    logger.debug(f"서비스 update_order 시작. ID: {order_id}")
+    logger.debug(f"  입력 data: {order_data}")  # 전달받은 dict 로깅
+    try:
+        order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
+    except Exception as db_exc:
+        logger.error(
+            f"주문 조회 중 DB 오류 발생 (order_id={order_id}): {db_exc}", exc_info=True
+        )
+        # DB 오류 시 None 반환 또는 예외 발생 (라우터에서 처리하도록 None 반환)
+        return None
+
     if not order:
         logger.error(f"주문 수정 실패 - ID={order_id}, 주문 없음")
-        raise ValueError("주문을 찾을 수 없습니다")
+        # 라우터에서 처리하도록 None 반환 (또는 여기서 ValueError 발생시켜 라우터에서 잡도록 할 수도 있음)
+        # raise ValueError("주문을 찾을 수 없습니다")
+        return None
 
-    # 락 검증 (서비스 레벨에서도 추가 - 라우트에서 이미 수행하지만 안전을 위해)
-    validate_lock(db, Dashboard, order_id, current_user_id)
+    # 락 검증 (서비스 레벨 - 라우터에서 이미 수행했더라도 방어적으로)
+    try:
+        validate_lock(db, Dashboard, order_id, current_user_id)
+        logger.debug(f"  락 검증 통과 (order_id={order_id})")
+    except Exception as lock_exc:
+        logger.error(f"  락 검증 중 예상치 못한 오류: {lock_exc}", exc_info=True)
+        # 예상치 못한 오류는 일반 오류로 처리 (None 반환 또는 새 예외 발생)
+        return None
 
+    # ... (우편번호/창고 변경 로직 및 로깅은 기존 유지) ...
     postal_code_changed = False
     warehouse_changed = False
     new_postal_code = order.postal_code
     new_warehouse = order.warehouse
 
-    # 입력된 데이터로 기본 업데이트 준비
     update_dict = {}
+    logger.debug(f"  업데이트할 필드 확인 시작")
     for key, value in order_data.items():
-        if key == "postalCode":
-            original_postal_code = value
-            # 5자리 표준화
-            if value and len(str(value)) < 5:
-                value = str(value).zfill(5)
-                logger.db(f"우편번호 자동 보정: '{original_postal_code}' → '{value}'")
-            # 변경 여부 확인
-            if order.postal_code != value:
-                postal_code_changed = True
-                new_postal_code = value
-            update_dict["postal_code"] = value
-        elif key == "warehouse":
-            if order.warehouse != value:
-                warehouse_changed = True
-                new_warehouse = value
-            update_dict["warehouse"] = value
-        elif key == "driverName":
-            update_dict["driver_name"] = value
-        elif key == "driverContact":
-            update_dict["driver_contact"] = value
-        elif hasattr(order, key):
-            update_dict[key] = value
+        # status 필드는 업데이트 대상에서 제외 (다른 API 사용)
+        if key == "status":
+            logger.warning(
+                f"    'status' 필드는 update_order에서 무시됨 (order_id={order_id})"
+            )
+            continue
 
-    # 우편번호 또는 창고가 변경된 경우, 관련 정보 재조회 및 업데이트
+        # 나머지 필드는 update_dict에 추가 (이후 우편번호/창고 로직에서 덮어쓸 수 있음)
+        # 주의: 모델에 없는 필드가 들어올 경우 에러 발생 가능성 있음
+        # hasattr(order, key) 체크는 DB 모델 기준이므로, camelCase key는 처리 못함
+        # 라우터에서 받은 order_data는 이미 snake_case로 변환되었어야 함 (Pydantic 처리)
+        # 만약 camelCase가 넘어왔다면 여기서 오류 발생 가능 -> 라우터 로그 확인 필요
+        if hasattr(order, key):
+            update_dict[key] = value
+            logger.debug(f"    업데이트 대상 포함: {key} = {value}")
+            # 우편번호/창고 변경 감지
+            if key == "postal_code":
+                original_postal_code = value
+                if value and len(str(value)) < 5:
+                    value = str(value).zfill(5)
+                    logger.db(
+                        f"    우편번호 자동 보정: '{original_postal_code}' → '{value}'"
+                    )
+                if order.postal_code != value:
+                    postal_code_changed = True
+                    new_postal_code = value
+                update_dict["postal_code"] = value  # 보정된 값으로 다시 저장
+            elif key == "warehouse":
+                if order.warehouse != value:
+                    warehouse_changed = True
+                    new_warehouse = value
+                update_dict["warehouse"] = value
+        else:
+            logger.warning(
+                f"    업데이트 요청된 필드 '{key}'가 DB 모델에 없어 무시됨 (order_id={order_id})"
+            )
+
+    # 우편번호 또는 창고 변경 시 관련 정보 재조회 (기존 로깅 유지)
     if postal_code_changed or warehouse_changed:
+        logger.debug(
+            f"  우편번호/창고 변경 감지. 관련 정보 재조회 시작 (postal_code={new_postal_code}, warehouse={new_warehouse})"
+        )
+        # ... (재조회 로직 및 로그) ...
         city, county, district, distance, duration_time = None, None, None, None, None
         if new_postal_code:
+            # ... (PostalCode 조회 로직 및 로그) ...
             pc_info = (
                 db.query(PostalCode)
                 .filter(PostalCode.postal_code == new_postal_code)
@@ -249,12 +455,13 @@ def update_order(
                 county = pc_info.county
                 district = pc_info.district
                 logger.db(
-                    f"우편번호 정보 재조회 성공: {new_postal_code} -> {city} {county} {district}"
+                    f"    우편번호 정보 재조회 성공: {new_postal_code} -> {city} {county} {district}"
                 )
             else:
-                logger.warn(f"우편번호 정보 없음: {new_postal_code}")
+                logger.warn(f"    우편번호 정보 없음: {new_postal_code}")
 
             if new_warehouse:
+                # ... (PostalCodeDetail 조회 로직 및 로그) ...
                 pc_detail = (
                     db.query(PostalCodeDetail)
                     .filter(
@@ -267,15 +474,15 @@ def update_order(
                     distance = pc_detail.distance
                     duration_time = pc_detail.duration_time
                     logger.db(
-                        f"우편번호 상세 정보 재조회 성공: {new_postal_code}, {new_warehouse} -> 거리:{distance}, 시간:{duration_time}"
+                        f"    우편번호 상세 정보 재조회 성공: {new_postal_code}, {new_warehouse} -> 거리:{distance}, 시간:{duration_time}"
                     )
                 else:
                     logger.warn(
-                        f"우편번호 상세 정보 없음: {new_postal_code}, 창고: {new_warehouse}"
+                        f"    우편번호 상세 정보 없음: {new_postal_code}, 창고: {new_warehouse}"
                     )
             else:
                 logger.warn(
-                    f"우편번호 상세 정보 조회를 위한 창고 정보 누락: {new_postal_code}"
+                    f"    상세 정보 조회를 위한 창고 정보 누락: {new_postal_code}"
                 )
 
         # 재조회된 정보로 업데이트 딕셔너리에 추가/덮어쓰기
@@ -284,19 +491,51 @@ def update_order(
         update_dict["district"] = district
         update_dict["distance"] = distance
         update_dict["duration_time"] = duration_time
+        logger.debug(f"  재조회된 정보 update_dict에 반영 완료")
 
     # 최종 업데이트 적용
-    for db_key, db_value in update_dict.items():
-        if hasattr(order, db_key):
-            setattr(order, db_key, db_value)
+    try:
+        logger.debug(
+            f"  최종 DB 업데이트 적용 시작. 대상 필드: {list(update_dict.keys())}"
+        )
+        for db_key, db_value in update_dict.items():
+            # hasattr 체크는 위에서 했으므로 생략 가능하나, 안전을 위해 유지
+            if hasattr(order, db_key):
+                setattr(order, db_key, db_value)
+            else:  # 이 경우는 발생하면 안됨
+                logger.error(
+                    f"    DB 업데이트 중 모델에 없는 필드 발생: {db_key}. 로직 오류 가능성."
+                )
 
-    order.updated_by = current_user_id
-    order.update_at = datetime.now()
+        order.updated_by = current_user_id
+        order.update_at = datetime.now()
 
-    db.commit()
-    db.refresh(order)
-    logger.db(f"주문 수정 - ID: {order_id}, 수정자: {current_user_id}")
-    return order
+        db.commit()
+        db.refresh(order)
+        logger.db(f"주문 수정 DB 반영 완료 - ID: {order_id}")
+
+        # --- [로그 6] 서비스 반환 직전 로깅 ---
+        # 성공 시 업데이트된 ORM 객체 반환
+        logger.debug(
+            f"서비스 update_order 성공. 업데이트된 ORM 객체 반환 (order_id={order_id})"
+        )
+        try:
+            updated_orm_dict = {
+                c.name: getattr(order, c.name, "N/A") for c in order.__table__.columns
+            }
+            logger.debug(f"  반환될 ORM 데이터 (dict): {updated_orm_dict}")
+        except Exception as e_final_orm_log:
+            logger.error(f"  반환 ORM 데이터 로깅 중 오류: {e_final_orm_log}")
+        # -------------------------------------
+        return order
+
+    except Exception as commit_exc:
+        logger.error(
+            f"DB commit/refresh 중 오류 발생 (order_id={order_id}): {commit_exc}",
+            exc_info=True,
+        )
+        db.rollback()  # 오류 발생 시 롤백
+        return None  # 실패 시 None 반환
 
 
 def delete_order(db: Session, order_id: int, current_user_id: str) -> bool:

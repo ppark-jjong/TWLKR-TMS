@@ -37,11 +37,7 @@ const UserManagePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState([]);
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 1000, // 모든 사용자를 한 번에 표시
-    total: 0
-  });
+  // 페이지네이션 제거
   
   // 모달 상태
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -55,19 +51,10 @@ const UserManagePage = () => {
     setError(null);
     
     try {
-      const params = {
-        page: pagination.current,
-        limit: pagination.pageSize
-      };
-      
-      const response = await UserService.getUsers(params);
+      const response = await UserService.getUsers();
       
       if (response.success) {
         setData(response.data.items);
-        setPagination({
-          ...pagination,
-          total: response.data.total
-        });
       } else {
         setError(response.message || '데이터 조회 실패');
       }
@@ -82,16 +69,7 @@ const UserManagePage = () => {
   // 초기 데이터 로드
   useEffect(() => {
     fetchData();
-  }, [pagination.current, pagination.pageSize]);
-  
-  // 테이블 변경 처리 (페이지네이션)
-  const handleTableChange = (pagination) => {
-    setPagination({
-      current: pagination.current,
-      pageSize: pagination.pageSize,
-      total: pagination.total
-    });
-  };
+  }, []);
   
   // 사용자 삭제
   const handleDelete = async (userId) => {
@@ -242,12 +220,7 @@ const UserManagePage = () => {
         columns={columns}
         loading={loading}
         rowKey="userId"
-        pagination={{
-          ...pagination,
-          showSizeChanger: true,
-          showTotal: (total) => `전체 ${total}명`,
-        }}
-        onChange={handleTableChange}
+        pagination={false} // 페이지네이션 비활성화
         showSettings={false}
         showExport={false}
       />

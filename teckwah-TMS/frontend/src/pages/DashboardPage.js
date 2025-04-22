@@ -64,7 +64,6 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [rawData, setRawData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
   const [statusCounts, setStatusCounts] = useState({
     WAITING: 0,
     IN_PROGRESS: 0,
@@ -116,7 +115,7 @@ const DashboardPage = () => {
   const [visibleColumns, setVisibleColumns] = useState(initialVisibleColumns);
   // -----------------------------
 
-  // 데이터 불러오기 (CSR 필터링 위해 수정)
+  // 데이터 불러오기 (SSR 필터링으로 수정)
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -127,7 +126,10 @@ const DashboardPage = () => {
         endDate: filters.endDate,
         page: pagination.current,
         limit: pagination.pageSize,
-        orderNo: filters.orderNo,
+        orderNo: filters.orderNo || undefined, // 빈 문자열 대신 undefined
+        status: filters.status || undefined, // SSR 필터 추가
+        department: filters.department || undefined, // SSR 필터 추가
+        warehouse: filters.warehouse || undefined, // SSR 필터 추가
       };
 
       const response = await DashboardService.getOrders(params);
@@ -150,56 +152,33 @@ const DashboardPage = () => {
       } else {
         setError(response.message || '데이터 조회 실패');
         setRawData([]);
-        setFilteredData([]);
         setPagination({ ...pagination, total: 0 });
       }
     } catch (error) {
       console.error('데이터 조회 오류:', error);
       setError('데이터를 불러오는 중 오류가 발생했습니다');
       setRawData([]);
-      setFilteredData([]);
       setPagination({ ...pagination, total: 0 });
     } finally {
       setLoading(false);
     }
   };
 
-  // 초기 데이터 로드 및 페이지네이션/검색 조건 변경 시 데이터 재조회
+  // 초기 데이터 로드 및 필터/페이지네이션 변경 시 데이터 재조회 (의존성 배열 수정)
   useEffect(() => {
     fetchData();
   }, [
     filters.startDate,
     filters.endDate,
     filters.orderNo,
+    filters.status, // 의존성 추가
+    filters.department, // 의존성 추가
+    filters.warehouse, // 의존성 추가
     pagination.current,
     pagination.pageSize,
   ]);
 
-  // --- CSR 필터링 로직 ---
-  useEffect(() => {
-    let processedData = [...rawData];
-
-    if (filters.status) {
-      processedData = processedData.filter(
-        (item) => item.status === filters.status
-      );
-    }
-    if (filters.department) {
-      processedData = processedData.filter(
-        (item) => item.department === filters.department
-      );
-    }
-    if (filters.warehouse) {
-      processedData = processedData.filter(
-        (item) => item.warehouse === filters.warehouse
-      );
-    }
-
-    setFilteredData(processedData);
-  }, [rawData, filters.status, filters.department, filters.warehouse]);
-  // -----------------------
-
-  // 날짜 필터 변경 처리 (fetchData 호출 안 함, 상태만 변경)
+  // 날짜 필터 변경 처리 (fetchData 호출 안 함, 상태만 변경 - useEffect가 트리거)
   const handleDateChange = (dates) => {
     if (!dates || dates.length !== 2) return;
     setFilters({
@@ -227,19 +206,17 @@ const DashboardPage = () => {
     fetchData();
   };
 
-  // 필터 적용 버튼 핸들러 (이제 아무 작업 안 함, useEffect가 처리)
-  const handleApplyFilter = () => {
-    console.log('Applying filters (CSR):', filters);
-  };
-
-  // 필터 초기화 (fetchData 호출 안 함, 상태만 변경)
+  // 필터 초기화 (fetchData 호출 안 함, 상태만 변경 - useEffect가 트리거, orderNo 초기화 추가)
   const handleResetFilter = () => {
     setFilters({
       ...filters,
       status: '',
       department: '',
       warehouse: '',
+      orderNo: '', // orderNo 초기화 추가
     });
+    // 페이지네이션도 1페이지로 리셋
+    setPagination({ ...pagination, current: 1 });
   };
 
   // 데이터 새로고침 (fetchData 호출 유지)
@@ -521,7 +498,7 @@ const DashboardPage = () => {
         title: 'ETA',
         dataIndex: 'eta',
         key: 'eta',
-        render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm'),
+        render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
         sorter: (a, b) => dayjs(a.eta).unix() - dayjs(b.eta).unix(),
         width: 150,
       },
@@ -529,7 +506,7 @@ const DashboardPage = () => {
         title: '접수시간',
         dataIndex: 'createTime',
         key: 'createTime',
-        render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm'),
+        render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
         sorter: (a, b) =>
           dayjs(a.createTime).unix() - dayjs(b.createTime).unix(),
         width: 150,
@@ -698,41 +675,6 @@ const DashboardPage = () => {
                 <SearchOutlined /> 조회
               </Button>
               <Button onClick={handleSetToday}>오늘</Button>
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginLeft: '20px',
-                }}
-              >
-                <span
-                  style={{
-                    marginRight: '8px',
-                    fontSize: '13px',
-                    color: '#666',
-                  }}
-                >
-                  표시 행 수:
-                </span>
-                <Select
-                  value={pagination.pageSize}
-                  onChange={(value) =>
-                    setPagination({
-                      ...pagination,
-                      pageSize: value,
-                      current: 1,
-                    })
-                  }
-                  style={{ width: '80px' }}
-                >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <Option key={size} value={size}>
-                      {size}행
-                    </Option>
-                  ))}
-                </Select>
-              </div>
             </div>
           </div>
 
@@ -873,57 +815,10 @@ const DashboardPage = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginLeft: '12px' }}>
-              <Button
-                type="primary"
-                onClick={handleApplyFilter}
-                style={{ height: '36px' }}
-              >
-                <SearchOutlined /> 필터 적용
-              </Button>
               <Button onClick={handleResetFilter} style={{ height: '36px' }}>
                 초기화
               </Button>
             </div>
-          </div>
-
-          {/* 액션 버튼 */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '8px',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-            }}
-          >
-            <Button type="primary" onClick={handleRefresh}>
-              <ReloadOutlined /> 새로고침
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleOpenStatusModal}
-              disabled={selectedRowKeys.length === 0}
-            >
-              <SwapOutlined /> 상태 변경
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleOpenDriverModal}
-              disabled={selectedRowKeys.length === 0}
-            >
-              <UserOutlined /> 배차 처리
-            </Button>
-            <Button type="primary" onClick={handleOpenCreateModal}>
-              <PlusOutlined /> 신규 등록
-            </Button>
-            {currentUser.user_role === 'ADMIN' && (
-              <Button
-                danger
-                onClick={handleDeleteMultiple}
-                disabled={selectedRowKeys.length === 0}
-              >
-                <DeleteOutlined /> 삭제
-              </Button>
-            )}
           </div>
         </div>
 
@@ -939,7 +834,7 @@ const DashboardPage = () => {
           <Card style={{ flex: 1, minWidth: '200px' }}>
             <Statistic
               title="총 건수"
-              value={filteredData.length}
+              value={pagination.total}
               suffix="건"
               valueStyle={{ color: '#1890ff' }}
               prefix={<ClockCircleOutlined />}
@@ -1005,6 +900,23 @@ const DashboardPage = () => {
             <Button icon={<SettingOutlined />} />
           </Popover>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Select
+              value={pagination.pageSize}
+              onChange={(value) =>
+                setPagination({
+                  ...pagination,
+                  pageSize: value,
+                  current: 1,
+                })
+              }
+              style={{ width: '100px' }}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <Option key={size} value={size}>
+                  {size} 행씩 보기
+                </Option>
+              ))}
+            </Select>
             <Button type="primary" onClick={handleRefresh}>
               <ReloadOutlined /> 새로고침
             </Button>
@@ -1040,12 +952,12 @@ const DashboardPage = () => {
         {/* 테이블 */}
         <Table
           columns={getVisibleTableColumns()}
-          dataSource={filteredData}
+          dataSource={rawData}
           rowKey="dashboardId"
           loading={loading}
           pagination={{
             ...pagination,
-            showSizeChanger: true,
+            showSizeChanger: false,
             pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
             showTotal: (total, range) =>
               `${range[0]}-${range[1]} / 전체 ${pagination.total}개`,

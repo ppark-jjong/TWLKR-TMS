@@ -59,20 +59,23 @@ const LoginPage = () => {
       if (result.success) {
         message.success('로그인 성공!');
         console.log('로그인 성공, 리다이렉트:', from);
-        
+
         // 원래 접근하려던 페이지 또는 대시보드로 리다이렉트
         navigate(from, { replace: true });
       } else {
         console.log('로그인 실패:', result.message);
-        setLoginError(result.message || '로그인에 실패했습니다. 사용자 ID 또는 비밀번호를 확인하세요.');
-        
+        setLoginError(
+          result.message ||
+            '로그인에 실패했습니다. 사용자 ID 또는 비밀번호를 확인하세요.'
+        );
+
         // 비밀번호 필드 초기화
         form.setFieldsValue({ password: '' });
       }
     } catch (error) {
       console.error('로그인 오류:', error);
       setLoginError('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
-      
+
       // 비밀번호 필드 초기화
       form.setFieldsValue({ password: '' });
     } finally {
@@ -113,14 +116,14 @@ const LoginPage = () => {
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Space direction="vertical" size={8}>
-            <img 
-              src="/logo.png" 
-              alt="Logo" 
-              height={80} 
-              style={{ 
+            <img
+              src="/logo.png"
+              alt="Logo"
+              height={80}
+              style={{
                 filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.1))',
-                marginBottom: 8
-              }} 
+                marginBottom: 8,
+              }}
             />
             <Title level={3} style={{ marginTop: 8, marginBottom: 0 }}>
               TeckWahKRTMS
@@ -189,32 +192,40 @@ const LoginPage = () => {
 
         {process.env.NODE_ENV !== 'production' && (
           <div style={{ marginTop: 16, textAlign: 'center' }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>개발 환경 전용 - 빠른 로그인</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              개발 환경 전용 - 빠른 로그인
+            </Text>
             <div style={{ marginTop: 8 }}>
               <Space>
-                <Button size="small" onClick={loginAsAdmin}>관리자 계정</Button>
-                <Button size="small" onClick={loginAsUser}>일반 사용자 계정</Button>
+                <Button size="small" onClick={loginAsAdmin}>
+                  관리자 계정
+                </Button>
+                <Button size="small" onClick={loginAsUser}>
+                  일반 사용자 계정
+                </Button>
               </Space>
             </div>
           </div>
         )}
 
         {isLoading && (
-          <div style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: 'rgba(255, 255, 255, 0.6)',
-            borderRadius: '8px',
-            zIndex: 10
-          }}>
-            <Spin 
-              indicator={<LoadingOutlined style={{ fontSize: 36 }} spin />} 
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              background: 'rgba(255, 255, 255, 0.6)',
+              borderRadius: '8px',
+              zIndex: 10,
+            }}
+          >
+            <Spin
+              indicator={<LoadingOutlined style={{ fontSize: 36 }} spin />}
               tip="인증 확인 중..."
             />
           </div>

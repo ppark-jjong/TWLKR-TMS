@@ -3,14 +3,18 @@
 """
 
 from sqlalchemy import Column, String, Integer, Enum, ForeignKey, Index
-from pydantic import Field
-from typing import Optional
+
+# from pydantic import Field # 삭제
+# from typing import Optional # 삭제
 
 from backend.database import Base
 
-# Warehouse Enum 임포트 (Dashboard 모델에서 가져옴)
-from backend.models.dashboard import Warehouse
-from backend.models.model_config import APIModel
+# Warehouse Enum은 dashboard 스키마에서 가져옴
+from backend.schemas.dashboard_schema import Warehouse
+
+# Warehouse Enum 임포트 제거 (스키마로 이동)
+# from backend.models.dashboard import Warehouse
+# from backend.models.model_config import APIModel # 삭제
 
 
 class PostalCode(Base):
@@ -32,7 +36,7 @@ class PostalCodeDetail(Base):
     postal_code = Column(
         String(5), ForeignKey("postal_code.postal_code"), primary_key=True
     )
-    # Warehouse Enum 사용
+    # Warehouse Enum 객체 사용
     warehouse = Column(Enum(Warehouse), primary_key=True)
     distance = Column(Integer, nullable=False)
     duration_time = Column(Integer, nullable=False)
@@ -41,30 +45,8 @@ class PostalCodeDetail(Base):
     __table_args__ = (Index("idx_warehouse_postal", "warehouse"),)
 
 
-# API 요청/응답 모델
-class PostalCodeResponse(APIModel):
-    postal_code: str = Field(..., alias="postalCode")
-    city: Optional[str] = None
-    county: Optional[str] = None
-    district: Optional[str] = None
-
-
-class PostalCodeDetailResponse(APIModel):
-    postal_code: str = Field(..., alias="postalCode")
-    warehouse: Warehouse  # Enum 타입 사용
-    distance: int
-    duration_time: int = Field(..., alias="durationTime")
-
-
-class PostalCodeCreate(APIModel):
-    postal_code: str = Field(..., description="우편번호", alias="postalCode")
-    city: Optional[str] = Field(None, description="시")
-    county: Optional[str] = Field(None, description="군/구")
-    district: Optional[str] = Field(None, description="동/읍/면")
-
-
-class PostalCodeDetailCreate(APIModel):
-    postal_code: str = Field(..., description="우편번호", alias="postalCode")
-    warehouse: Warehouse = Field(..., description="창고")
-    distance: int = Field(..., description="거리(km)")
-    duration_time: int = Field(..., description="소요시간(분)", alias="durationTime")
+# API 요청/응답 모델 (schemas/postal_code_schema.py로 이동)
+# class PostalCodeResponse(APIModel): ...
+# class PostalCodeDetailResponse(APIModel): ...
+# class PostalCodeCreate(APIModel): ...
+# class PostalCodeDetailCreate(APIModel): ...

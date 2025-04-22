@@ -14,7 +14,7 @@ const DashboardService = {
    * @returns {Promise} 주문 목록 및 상태별 카운트
    */
   getOrders: async (params) => {
-    const url = '/dashboard';
+    const url = '/dashboard/list';
     try {
       logger.service(SERVICE_NAME, 'getOrders');
       logger.api('GET', url);

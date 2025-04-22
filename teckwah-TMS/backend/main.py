@@ -36,6 +36,7 @@ from backend.routes import (
     user,
 )
 from backend.utils.security import cleanup_expired_sessions, sessions, get_session
+import traceback
 
 # 설정 로드
 settings = get_settings()
@@ -169,6 +170,15 @@ else:
         f"정적 파일 디렉토리('/static')를 찾을 수 없습니다: {STATIC_FILES_DIR}"
     )
 
+# 루트 정적 파일(favicon.ico, robots.txt 등)을 위한 추가 마운트
+if os.path.exists(STATIC_FILES_DIR):
+    logger.info(f"루트 정적 파일 서빙 경로 설정: {STATIC_FILES_DIR}")
+    # html=False로 설정하여 index.html은 SPA 미들웨어가 처리하도록 함
+    app.mount(
+        "/", StaticFiles(directory=STATIC_FILES_DIR, html=False), name="root_static"
+    )
+    logger.info("favicon.ico 및 기타 루트 정적 파일 서빙 설정 완료")
+
 INDEX_HTML_PATH = os.path.join(STATIC_FILES_DIR, "index.html")
 if not os.path.exists(INDEX_HTML_PATH):
     logger.warning(f"index.html 파일을 찾을 수 없습니다: {INDEX_HTML_PATH}")
@@ -236,9 +246,21 @@ async def spa_redirect_middleware(request: Request, call_next):
     auth_exempt_paths = [
         "/login",
         "/favicon.ico",
-        "/logo.png",
+        # "/logo.png",  # logo.png는 아래에서 직접 처리
     ]  # 기타 필요한 정적 파일 추가
     is_auth_exempt = path in auth_exempt_paths
+
+    # logo.png는 StaticFiles 마운트 전에 직접 처리 시도
+    if path == "/logo.png":
+        logo_path = os.path.join(STATIC_FILES_DIR, "logo.png")
+        if os.path.exists(logo_path):
+            log_level(f"로고 파일 직접 서빙 [ID: {request_id}]: {path}")
+            return FileResponse(logo_path)
+        else:
+            log_level(f"로고 파일 없음 [ID: {request_id}]: {logo_path}")
+            # 로고 없으면 404 반환 (SPA 폴백 방지)
+            return Response(content="Logo not found", status_code=404)
+
     if is_auth_exempt:
         log_level(f"인증 예외 경로 처리 [ID: {request_id}]: {path}")
         # 로그인 페이지 또는 기타 예외 경로는 그대로 처리 (SPA 폴백 또는 StaticFiles)

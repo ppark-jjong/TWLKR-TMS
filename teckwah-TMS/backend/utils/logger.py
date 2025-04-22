@@ -14,7 +14,7 @@ def setup_logger():
     """간소화된 로깅 설정"""
     # 애플리케이션 로거 설정
     logger = logging.getLogger("teckwah-tms")
-    logger.setLevel(logging.INFO)  # 기본 INFO 레벨 유지
+    logger.setLevel(logging.DEBUG)  # 로거 기본 레벨을 DEBUG로 변경
 
     # 로거 핸들러 초기화 (중복 방지)
     if logger.handlers:
@@ -23,7 +23,7 @@ def setup_logger():
 
     # 콘솔 핸들러
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG)  # 콘솔 핸들러 레벨도 DEBUG로 변경
     console_format = logging.Formatter(LOG_FORMAT)
     console_handler.setFormatter(console_format)
     logger.addHandler(console_handler)
@@ -78,31 +78,24 @@ class Logger:
         """인증 작업 관련 핵심 로그"""
         auth(message)
 
-    def error(self, message, error=None):
-        """오류 관련 로그"""
+    def error(self, message, error=None, exc_info=False):
+        """오류 관련 로그 (exc_info 추가)"""
+        log_message = f"[ERROR] {message}"
         if error:
-            _logger.error(f"[ERROR] {message} - {str(error)}")
-        else:
-            _logger.error(f"[ERROR] {message}")
-    
-    # 호환성을 위해 빈 함수 유지 (로그 출력 없음)
+            log_message += f" - {str(error)}"
+        _logger.error(log_message, exc_info=exc_info)
+
     def debug(self, message):
-        pass
-    
+        _logger.debug(f"[DEBUG] {message}")
+
     def info(self, message):
-        # 중요한 시스템 정보만 기록
-        if "[시스템]" in message:
-            _logger.info(message)
-    
+        _logger.info(message)
+
     def warning(self, message):
-        # 중요 경고만 기록
-        if "인증" in message or "보안" in message or "락" in message:
-            _logger.warning(message)
-    
+        _logger.warning(f"[WARN] {message}")
+
     def lock(self, message):
-        # 중요 락 관련 로그만 기록
-        if "획득" in message or "해제" in message or "충돌" in message:
-            _logger.info(f"[LOCK] {message}")
+        _logger.info(f"[LOCK] {message}")
 
 
 logger = Logger()

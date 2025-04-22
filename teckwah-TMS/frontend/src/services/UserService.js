@@ -10,20 +10,16 @@ const SERVICE_NAME = 'UserService';
 const UserService = {
   /**
    * 사용자 목록 조회 (관리자 전용)
-   * 모든 사용자를 한 번에 조회하도록 페이지 크기를 1000으로 설정
-   * @param {Object} params 검색 조건
+   * 모든 사용자를 한 번에 조회하도록 구성
    * @returns {Promise} 사용자 목록
    */
-  getUsers: async (params = {}) => {
+  getUsers: async () => {
     const url = '/users';
     try {
       logger.service(SERVICE_NAME, 'getUsers');
-
-      // 페이지 크기를 1000으로 설정하여 모든 유저를 한 번에 가져옴
-      const defaultParams = { limit: 1000, ...params };
-
-      logger.api('GET', url, defaultParams);
-      const response = await api.get(url, { params: defaultParams });
+      logger.api('GET', url);
+      
+      const response = await api.get(url);
 
       logger.response(url, response.data?.success);
       return response.data;

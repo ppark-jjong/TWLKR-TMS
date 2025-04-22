@@ -6,6 +6,7 @@
 import axios from 'axios';
 import { message } from 'antd';
 import logger from '../utils/logger';
+import { history } from '../utils/history';
 
 // 로그인 페이지 확인 함수
 const isLoginPage = () => {
@@ -195,21 +196,18 @@ api.interceptors.response.use(
     // 간소화된 로깅
     logger.error(`API 오류: ${method} ${requestUrl}`, error);
 
-    // 401 인증 오류 처리 (리다이렉트 루프 방지) - 개선된 버전
+    // 401 인증 오류 처리 (리다이렉트 루프 방지)
     if (error.response && error.response.status === 401) {
-      // 로그인 페이지나 /auth/me 엔드포인트에서의 401은 정상 처리
       if (!isLoginPage() && !requestUrl.includes('/auth/me')) {
-        console.error('인증되지 않은 API 접근 감지:', requestUrl);
+        console.error('인증되지 않은 API 접근 감지 (인터셉터):', requestUrl);
         showErrorOnce('세션이 만료되었습니다. 다시 로그인해주세요.');
 
-        // 현재 URL을 state로 전달하여 로그인 후 원래 페이지로 돌아올 수 있게 함
-        const currentPath = window.location.pathname;
+        const currentPath = window.location.pathname + window.location.search;
         const loginPath = `/login?redirect=${encodeURIComponent(currentPath)}`;
 
-        // 즉시 리다이렉션
-        window.location.href = loginPath;
+        // window.location.href 대신 history 객체 사용
+        history.push(loginPath);
       }
-
       return Promise.reject(error);
     }
     // 403 - 권한 부족

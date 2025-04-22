@@ -4,22 +4,18 @@
 
 from sqlalchemy import Column, String, Enum
 from enum import Enum as PyEnum
-from pydantic import Field
-from typing import Optional, Dict, Any, List
+
+# from pydantic import Field
+# from typing import Optional, Dict, Any, List
 
 from backend.database import Base
-from backend.models.model_config import APIModel
+
+# from backend.models.model_config import APIModel
 
 
-class UserRole(str, PyEnum):
-    ADMIN = "ADMIN"
-    USER = "USER"
-
-
-class Department(str, PyEnum):
-    CS = "CS"
-    HES = "HES"
-    LENOVO = "LENOVO"
+# Enum 정의는 schemas/user_schema.py로 이동
+# class UserRole(str, PyEnum): ...
+# class Department(str, PyEnum): ...
 
 
 class User(Base):
@@ -29,35 +25,16 @@ class User(Base):
 
     user_id = Column(String(50), primary_key=True)
     user_password = Column(String(255), nullable=False)
+    # SQLAlchemy Enum 정의는 문자열 이름 사용
     user_department = Column(
         Enum("CS", "HES", "LENOVO", name="department_enum"), nullable=False
     )
     user_role = Column(Enum("ADMIN", "USER", name="role_enum"), nullable=False)
 
 
-# API 요청/응답 모델
-class UserCreate(APIModel):
-    user_id: str = Field(..., description="사용자 ID", alias="userId")
-    user_password: str = Field(..., description="사용자 비밀번호", alias="userPassword")
-    user_department: Department = Field(..., description="소속 부서", alias="userDepartment")
-    user_role: UserRole = Field(..., description="사용자 권한", alias="userRole")
-
-
-class UserUpdate(APIModel):
-    user_password: Optional[str] = Field(None, description="사용자 비밀번호", alias="userPassword")
-    user_department: Optional[Department] = Field(None, description="소속 부서", alias="userDepartment")
-    user_role: Optional[UserRole] = Field(None, description="사용자 권한", alias="userRole")
-
-
-class UserResponse(APIModel):
-    user_id: str = Field(..., description="사용자 ID", alias="userId")
-    user_department: Department = Field(..., description="소속 부서", alias="userDepartment")
-    user_role: UserRole = Field(..., description="사용자 권한", alias="userRole")
-
-
-# 사용자 목록 응답
-class UserListResponse(APIModel):
-    items: List[UserResponse] = Field(..., description="사용자 목록")
-    total: int = Field(..., description="전체 사용자 수")
-    page: int = Field(..., description="현재 페이지")
-    limit: int = Field(..., description="페이지당 항목 수")
+# API 요청/응답 모델 (schemas/user_schema.py로 이동)
+# class UserCreate(APIModel): ...
+# class UserUpdate(APIModel): ...
+# class UserResponse(APIModel): ...
+# class UserListResponseData(APIModel): ...
+# class UserListResponse(APIModel): ...

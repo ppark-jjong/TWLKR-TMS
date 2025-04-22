@@ -17,11 +17,18 @@ const VisualizationService = {
     const url = '/visualization/stats'; // URL 선언
     try {
       logger.service(SERVICE_NAME, 'getStats');
-      logger.api('GET', url, params); // 파라미터 로깅
+      
+      // func 파라미터가 필요 없으므로 params에서 제거 (안전을 위해)
+      const cleanParams = { ...params };
+      if (cleanParams.func) {
+        delete cleanParams.func;
+      }
+      
+      logger.api('GET', url, cleanParams); // 파라미터 로깅
 
       // Pydantic 모델이 alias를 통해 camelCase 파라미터를 받을 수 있으므로
       // 프론트엔드에서 추가 변환 불필요. params 그대로 전달.
-      const response = await api.get(url, { params });
+      const response = await api.get(url, { params: cleanParams });
 
       logger.response(url, response.data?.success); // 수정: logger.response 사용
       return response.data;

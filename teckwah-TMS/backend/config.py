@@ -19,11 +19,24 @@ except AttributeError:
 try:
     from dotenv import load_dotenv
 
-    # 환경 변수 로드 - Docker 환경 내 경로 확인
-    env_path = "/app/.env"  # Docker 컨테이너 내부 경로
-    if os.path.exists(env_path):
-        load_dotenv(env_path)
-        logging.info(f".env 파일을 로드했습니다: {env_path}")
+    # 환경 변수 로드 - Docker와 로컬 환경 모두 확인
+    env_paths = [
+        "/app/.env",  # Docker 컨테이너 내부 경로
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),  # 프로젝트 루트
+        os.path.join(os.path.dirname(__file__), ".env"),  # backend 폴더
+    ]
+    
+    env_loaded = False
+    for env_path in env_paths:
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+            logging.info(f".env 파일을 로드했습니다: {env_path}")
+            env_loaded = True
+            break
+            
+    if not env_loaded:
+        logging.warning("어떤 .env 파일도 찾을 수 없습니다. 기본 환경 변수를 사용합니다.")
+        
 except ImportError:
     logging.warning(
         "python-dotenv 패키지가 설치되지 않았습니다. 기본 환경 변수를 사용합니다."
@@ -50,7 +63,7 @@ class Settings:
         self.ALLOWED_ORIGINS = parse_comma_separated_list(origins_env)
 
         # 데이터베이스 설정
-        self.MYSQL_HOST = os.getenv("MYSQL_HOST", "host.docker.internal")
+        self.MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
         self.MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
         self.MYSQL_USER = os.getenv("MYSQL_USER", "root")
         self.MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "1234")

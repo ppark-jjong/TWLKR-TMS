@@ -18,13 +18,9 @@ router = APIRouter()
 security = HTTPBasic()
 
 
-from pydantic import BaseModel
-
-
-# 로그인 요청 데이터 모델
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+# Pydantic 모델 정의는 schemas/auth_schema.py로 이동
+# from pydantic import BaseModel
+# class LoginRequest(BaseModel): ...
 
 
 from backend.utils.response_utils import success_response, error_response
@@ -32,7 +28,8 @@ from backend.utils.response_utils import success_response, error_response
 
 @router.post("/login")
 async def login(
-    login_data: LoginRequest,
+    # login_data 타입을 추후 schemas.auth_schema.LoginRequest로 변경 필요
+    login_data: Any,  # 임시로 Any 처리 (추후 수정)
     db: Session = Depends(get_db),
     response: Response = None,
 ):

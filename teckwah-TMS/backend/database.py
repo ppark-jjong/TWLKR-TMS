@@ -26,6 +26,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # 베이스 모델 생성
 Base = declarative_base()
 
+
 # 데이터베이스 연결 테스트
 def test_db_connection():
     """
@@ -34,24 +35,29 @@ def test_db_connection():
     """
     from backend.utils.logger import logger
     from sqlalchemy import text
-    
+
     try:
         logger.info("데이터베이스 연결 시도...")
-        logger.info(f"연결 정보: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}, 데이터베이스: {settings.MYSQL_DATABASE}, 사용자: {settings.MYSQL_USER}")
-        
+        logger.info(
+            f"연결 정보: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}, 데이터베이스: {settings.MYSQL_DATABASE}, 사용자: {settings.MYSQL_USER}"
+        )
+
         # 간단한 쿼리로 연결 테스트 (SQLAlchemy 2.0 호환)
         with engine.connect() as conn:
             # text() 함수를 사용하여 문자열 쿼리를 실행 가능한 객체로 변환
             result = conn.execute(text("SELECT 1"))
             row = result.fetchone()
-            
+
             logger.info("데이터베이스 연결 성공!")
-            
+
             return True
     except Exception as e:
         logger.error(f"데이터베이스 연결 실패: {str(e)}")
-        logger.warning(f"데이터베이스 설정을 확인하세요: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}")
+        logger.warning(
+            f"데이터베이스 설정을 확인하세요: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
+        )
         return False
+
 
 # 애플리케이션 시작 시 DB 연결 테스트
 connection_result = test_db_connection()
@@ -59,8 +65,12 @@ connection_result = test_db_connection()
 # 연결 실패 시 서버 시작을 계속할지 선택
 if not connection_result and settings.DEBUG:
     from backend.utils.logger import logger
-    logger.warning("데이터베이스 연결 실패했으나 디버그 모드에서 서버 시작을 계속합니다.")
+
+    logger.warning(
+        "데이터베이스 연결 실패했으나 디버그 모드에서 서버 시작을 계속합니다."
+    )
     logger.warning("일부 기능이 제대로 작동하지 않을 수 있습니다.")
+
 
 # FastAPI의 Depends와 함께 사용하기 위한 의존성 함수
 def get_db() -> Generator[Session, None, None]:
@@ -70,11 +80,11 @@ def get_db() -> Generator[Session, None, None]:
     """
     from backend.utils.logger import logger
     import uuid
-    
+
     # 각 세션 요청에 고유 ID 부여하여 추적
     session_id = str(uuid.uuid4())[:8]
     logger.info(f"DB 세션 시작 [세션ID: {session_id}]")
-    
+
     db = SessionLocal()
     try:
         logger.info(f"DB 세션 생성 완료 [세션ID: {session_id}]")
@@ -86,7 +96,10 @@ def get_db() -> Generator[Session, None, None]:
         logger.error(f"DB 트랜잭션 롤백: {str(e)} [세션ID: {session_id}]")
         # 오류 세부 정보 기록
         import traceback
-        logger.error(f"DB 오류 상세 내용: {traceback.format_exc()} [세션ID: {session_id}]")
+
+        logger.error(
+            f"DB 오류 상세 내용: {traceback.format_exc()} [세션ID: {session_id}]"
+        )
         raise
     finally:
         db.close()

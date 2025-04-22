@@ -18,39 +18,52 @@ API_MODEL_CONFIG = ConfigDict(
     populate_by_name=True,  # 필드 이름으로 데이터 매핑 허용 (alias 지원)
     json_encoders={
         # datetime 객체를 공백 구분자 형식으로 직렬화
-        datetime: lambda dt: dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
-    }
+        datetime: lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S") if dt else None
+    },
 )
+
+
+# 커스텀 JSON 인코더
+def custom_json_encoder(obj):
+    if isinstance(obj, datetime):
+        return obj.strftime("%Y-%m-%d %H:%M:%S")  # 원하는 형식으로 변경
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
 # API 응답용 기본 모델 클래스
 class APIModel(BaseModel):
     """
     API 응답용 기본 모델
-    
-    모든 API 요청/응답에 사용되는 Pydantic 모델은 이 클래스를 상속받아 
+
+    모든 API 요청/응답에 사용되는 Pydantic 모델은 이 클래스를 상속받아
     일관된 설정(alias 등)을 적용받습니다.
-    
+
     상속 방법:
     ```python
     from backend.models.model_config import APIModel
-    
+
     class UserResponse(APIModel):
         user_id: int = Field(..., alias="userId")
-        username: str
+        username: str = Field(..., alias="username") # alias 수동 추가 예시
     ```
-    
+
     날짜 형식:
     - 모든 datetime 필드는 'YYYY-MM-DD HH:MM:SS' 형식으로 직렬화됨
     - ISO 형식(T 구분자)과 공백 구분자 형식 모두 파싱 가능
-    
+
     API 요청/응답 규칙:
-    - 모든 필드는 camelCase 형식의 alias를 가져야 함
-    - 모든 snake_case 필드는 자동으로 camelCase로 변환되어 API 응답에 포함됨
+    - 모든 필드는 camelCase 형식의 alias를 가져야 함 (이제 수동으로 관리)
     - 모든 API 응답은 {"success": boolean, "message": string, "data": any, "error_code"?: string} 형식을 따름
     """
-    model_config = API_MODEL_CONFIG
-    
+
+    model_config = ConfigDict(
+        from_attributes=True,  # ORM 모드 활성화
+        populate_by_name=True,  # alias 이름으로도 필드 값 채우기 허용
+        json_encoders={
+            datetime: lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")
+        },  # datetime 직렬화 형식 지정
+    )
+
     @classmethod
     def validate_datetime(cls, v: Any, field: Any) -> Any:
         """
@@ -59,7 +72,7 @@ class APIModel(BaseModel):
         """
         if isinstance(v, str) and field.annotation == datetime:
             # ISO 형식과 공백 구분자 형식 모두 지원
-            for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S']:
+            for fmt in ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"]:
                 try:
                     return datetime.strptime(v, fmt)
                 except ValueError:
@@ -71,7 +84,7 @@ class APIModel(BaseModel):
 class APIResponse(APIModel):
     """
     표준 API 응답 형식
-    
+
     모든 API 응답은 이 형식을 따라야 함:
     {
         "success": boolean,      # 요청 성공 여부
@@ -80,6 +93,7 @@ class APIResponse(APIModel):
         "error_code": string     # 오류 코드 (실패 시)
     }
     """
+
     success: bool
     message: str
     data: Any = None
