@@ -7,10 +7,13 @@ from sqlalchemy.sql import func
 from pydantic import Field
 from typing import Optional, List
 from datetime import datetime
+from sqlalchemy.orm import relationship
+from sqlalchemy import Enum
+from enum import Enum as PyEnum
 
 from backend.database import Base
 from backend.models.model_config import APIModel
-from backend.models.dashboard import LockStatus
+from backend.schemas.dashboard_schema import LockStatus
 
 
 class Handover(Base):
@@ -19,15 +22,27 @@ class Handover(Base):
     __tablename__ = "handover"
 
     handover_id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)
-    update_by = Column(
-        String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False
+    order_id = Column(Integer, ForeignKey("dashboard.dashboard_id"), nullable=False)
+    item_name = Column(String(255), nullable=False)
+    item_code = Column(String(50), nullable=True)
+    quantity = Column(Integer, nullable=False)
+    status = Column(
+        Enum(HandoverStatus), nullable=False, default=HandoverStatus.REQUESTED
     )
-    is_notice = Column(Boolean, default=False)
-    create_at = Column(DateTime, nullable=False)
-    update_at = Column(DateTime, nullable=False)
-    is_locked = Column(Boolean, default=False)  # DB 스키마와 일치하도록 필드 위치 이동
+    request_time = Column(DateTime, default=func.now())
+    requester_id = Column(String(50), ForeignKey("user.user_id"), nullable=False)
+    processor_id = Column(String(50), ForeignKey("user.user_id"), nullable=True)
+    process_start_time = Column(DateTime, nullable=True)
+    process_end_time = Column(DateTime, nullable=True)
+    remark = Column(Text, nullable=True)
+    updated_by = Column(String(50), nullable=True)
+    update_at = Column(DateTime, onupdate=func.now())
+    is_locked = Column(Boolean, default=False)
+
+    # 관계 설정
+    requester = relationship("User", foreign_keys=[requester_id])
+    processor = relationship("User", foreign_keys=[processor_id])
+    order = relationship("Dashboard")
 
 
 # API 요청/응답 모델
@@ -91,3 +106,11 @@ class GetHandoverResponse(APIModel):
 
 # 락/언락 응답은 Dashboard의 LockResponse 재사용 가능
 # 기본 성공 응답은 Dashboard의 BasicSuccessResponse 재사용 가능
+
+
+# HandoverStatus Enum 정의
+class HandoverStatus(str, PyEnum):
+    REQUESTED = "REQUESTED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
