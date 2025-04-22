@@ -4,120 +4,136 @@
 
 from datetime import datetime, timedelta
 from typing import Tuple, Optional
+from dateutil import parser
+from backend.utils.logger import logger
 
 
-def get_date_range(start_date: Optional[str], end_date: Optional[str]) -> Tuple[datetime, datetime]:
+def get_date_range(
+    start_date: Optional[str], end_date: Optional[str]
+) -> Tuple[datetime, datetime]:
     """
-    시작일과 종료일을 기반으로 날짜 범위 반환
-    
-    Args:
-        start_date: 날짜 문자열 (YYYY-MM-DD 또는 YYYY-MM-DD HH:MM:SS 또는 YYYY-MM-DDThh:mm:ss)
-        end_date: 날짜 문자열 (YYYY-MM-DD 또는 YYYY-MM-DD HH:MM:SS 또는 YYYY-MM-DDThh:mm:ss)
-        
-    Returns:
-        시작 datetime과 종료 datetime 튜플
+    문자열 형식의 시작일과 종료일을 기반으로 날짜 범위(naive datetime) 반환.
+    다양한 날짜 형식을 지원 (YYYY-MM-DD HH:mm:ss 포함).
+    파싱 실패 시 기본값 사용.
     """
     now = datetime.now()
-    
-    # 시작일이 없는 경우 오늘 날짜의 시작으로 설정
-    if not start_date:
-        start_datetime = datetime(now.year, now.month, now.day, 0, 0, 0)
+    start_datetime, end_datetime = None, None
+
+    # 시작일 파싱 (ignoretz=True 로 타임존 무시)
+    if start_date:
+        try:
+            start_datetime = parser.parse(start_date, ignoretz=True)
+            # 시간 정보가 없는 경우 00:00:00으로 설정
+            if (
+                start_datetime.hour == 0
+                and start_datetime.minute == 0
+                and start_datetime.second == 0
+            ):
+                start_datetime = start_datetime.replace(microsecond=0)  # 밀리초 제거
+        except Exception as e:
+            logger.warn(f"시작 날짜 파싱 실패: '{start_date}', 오류: {e}. 기본값 사용.")
+            start_datetime = now.replace(hour=0, minute=0, second=0, microsecond=0)
     else:
-        # 시간 정보가 없으면 00:00:00 추가
-        if "T" not in start_date and " " not in start_date:
-            start_date = f"{start_date} 00:00:00"  # 공백 구분자 사용
-        
-        start_datetime = parse_datetime(start_date)
-        if not start_datetime:
-            # 파싱 실패 시 오늘 날짜의 시작으로 설정
-            start_datetime = datetime(now.year, now.month, now.day, 0, 0, 0)
-    
-    # 종료일이 없는 경우 내일 날짜의 시작으로 설정
-    if not end_date:
-        tomorrow = now + timedelta(days=1)
-        end_datetime = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0)
+        # 기본값: 오늘 시작
+        start_datetime = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 종료일 파싱 (ignoretz=True 로 타임존 무시)
+    if end_date:
+        try:
+            end_datetime = parser.parse(end_date, ignoretz=True)
+            # 시간 정보가 없는 경우 23:59:59.999999 로 설정되므로, 이를 명시적으로 조정 준비
+            if (
+                end_datetime.hour == 0
+                and end_datetime.minute == 0
+                and end_datetime.second == 0
+            ):
+                # 날짜만 입력된 경우, 해당 일자의 끝으로 설정 (23:59:59)
+                end_datetime = end_datetime.replace(
+                    hour=23, minute=59, second=59, microsecond=999999
+                )
+            else:
+                # 시간까지 명시된 경우 그대로 사용 (밀리초 유지 가능)
+                pass  # end_datetime은 파싱된 값 그대로 사용
+        except Exception as e:
+            logger.warn(f"종료 날짜 파싱 실패: '{end_date}', 오류: {e}. 기본값 사용.")
+            # 기본값: 내일 시작 (오늘 자정 + 1일)
+            end_datetime = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
     else:
-        # 시간 정보가 없으면 23:59:59 추가
-        if "T" not in end_date and " " not in end_date:
-            end_date = f"{end_date} 23:59:59"  # 공백 구분자 사용
-        
-        end_datetime = parse_datetime(end_date)
-        if not end_datetime:
-            # 파싱 실패 시 내일 날짜의 시작으로 설정
-            tomorrow = now + timedelta(days=1)
-            end_datetime = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0)
-    
+        # 기본값: 내일 시작 (오늘 자정 + 1일)
+        end_datetime = now.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+
+    # 종료일 최종 조정: 23:59:59... 인 경우 다음날 00:00:00으로 만들어 '<' 비교 용이하게 함
+    if (
+        end_datetime
+        and end_datetime.hour == 23
+        and end_datetime.minute == 59
+        and end_datetime.second == 59
+    ):
+        end_datetime = end_datetime.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+
+    # 시작일/종료일 유효성 검사 (필요시 추가)
+    if start_datetime and end_datetime and end_datetime < start_datetime:
+        logger.warn(
+            f"종료일({end_datetime})이 시작일({start_datetime})보다 빠릅니다. 기본 범위 사용."
+        )
+        start_datetime = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # 종료일도 시작일에 맞춰 재설정
+        end_datetime = start_datetime.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+
     return start_datetime, end_datetime
 
 
 def format_datetime(dt: datetime) -> str:
     """
     datetime 객체를 'YYYY-MM-DD HH:MM:SS' 형식의 문자열로 변환
-    
+
     Args:
         dt: 변환할 datetime 객체
-        
+
     Returns:
         형식화된 문자열
     """
     if not dt:
         return ""
-    
+
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def format_date(dt: datetime) -> str:
     """
     datetime 객체를 'YYYY-MM-DD' 형식의 문자열로 변환
-    
+
     Args:
         dt: 변환할 datetime 객체
-        
+
     Returns:
         형식화된 문자열
     """
     if not dt:
         return ""
-    
+
     return dt.strftime("%Y-%m-%d")
 
 
 def parse_datetime(date_str: str) -> Optional[datetime]:
     """
-    다양한 형식의 날짜 문자열을 datetime 객체로 변환
-    
-    Args:
-        date_str: 날짜 문자열 (YYYY-MM-DD HH:MM:SS 또는 YYYY-MM-DDThh:mm:ss)
-        
-    Returns:
-        datetime 객체 또는 None (변환 실패 시)
+    다양한 형식의 날짜 문자열을 datetime 객체로 변환 (dateutil 사용)
     """
     if not date_str:
         return None
-    
-    # 여러 형식 지원
-    formats = [
-        '%Y-%m-%d %H:%M:%S',  # 공백 구분자 형식 (선호)
-        '%Y-%m-%dT%H:%M:%S',  # ISO 형식
-        '%Y-%m-%d',           # 날짜만 있는 경우
-    ]
-    
-    # 타임존 정보 처리
-    if date_str.endswith('Z'):
-        date_str = date_str[:-1] + '+00:00'
-    
-    # 여러 형식 시도
-    for fmt in formats:
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    
-    # 모든 형식 실패 시
     try:
-        # fromisoformat 시도 (최신 Python 버전 호환성)
-        return datetime.fromisoformat(date_str.replace('Z', '+00:00').replace('T', ' '))
-    except ValueError:
+        # 타임존 정보 무시하고 파싱 (필요 시 조정)
+        return parser.parse(date_str, ignoretz=True)
+    except Exception as e:
+        logger.warn(f"날짜 파싱 실패 (parse_datetime): '{date_str}', 오류: {e}")
         return None
 
 

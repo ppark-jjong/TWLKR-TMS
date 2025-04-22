@@ -20,12 +20,15 @@ security = HTTPBasic()
 
 from pydantic import BaseModel
 
+
 # 로그인 요청 데이터 모델
 class LoginRequest(BaseModel):
     username: str
     password: str
 
+
 from backend.utils.response_utils import success_response, error_response
+
 
 @router.post("/login")
 async def login(
@@ -38,7 +41,7 @@ async def login(
     """
     # 핵심 로그: 로그인 시도
     logger.auth(f"로그인 시도: {login_data.username}")
-    
+
     # DB에서 사용자 조회
     user = db.query(User).filter(User.user_id == login_data.username).first()
 
@@ -65,16 +68,19 @@ async def login(
         samesite="lax",
     )
 
-    # 일관된 응답 형식 사용
+    # 일관된 응답 형식 사용 (camelCase 키 사용)
     return_data = success_response(
         message="로그인 성공",
         data={
-            "user_id": user.user_id,
-            "user_role": user.user_role,
-            "user_department": user.user_department,
-        }
+            "userId": user.user_id,
+            "userRole": user.user_role,
+            "userDepartment": user.user_department,
+        },
     )
-    
+
+    # 디버깅을 위한 로그 추가
+    logger.info(f"로그인 응답 데이터: {return_data}")
+
     # 응답 객체에 적용
     return Response(
         content=json.dumps(return_data),

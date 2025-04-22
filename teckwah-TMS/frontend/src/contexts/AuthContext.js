@@ -38,7 +38,18 @@ export const AuthProvider = ({ children }) => {
       console.log('인증 확인 응답:', response);
 
       if (response.success) {
-        setCurrentUser(response.data);
+        // 백엔드에서 받은 userRole 값 확인 로그 추가
+        console.log('백엔드에서 받은 사용자 권한:', response.data.userRole);
+
+        // userRole이 소문자로 오는 경우를 대비해 대문자로 통일
+        const userData = {
+          ...response.data,
+          userRole: response.data.userRole
+            ? response.data.userRole.toUpperCase()
+            : response.data.userRole,
+        };
+
+        setCurrentUser(userData);
         setIsAuthenticated(true);
         if (!silent) {
           console.log('세션 유효성 확인 성공');
@@ -54,7 +65,9 @@ export const AuthProvider = ({ children }) => {
           console.log('로그인 페이지로 이동 중...');
           // 현재 경로를 저장하여 로그인 후 돌아올 수 있게 함
           const currentPath = window.location.pathname;
-          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+          window.location.href = `/login?redirect=${encodeURIComponent(
+            currentPath
+          )}`;
         }
       }
     } catch (error) {
@@ -69,7 +82,9 @@ export const AuthProvider = ({ children }) => {
         setTimeout(() => {
           // 현재 경로를 저장하여 로그인 후 돌아올 수 있게 함
           const currentPath = window.location.pathname;
-          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+          window.location.href = `/login?redirect=${encodeURIComponent(
+            currentPath
+          )}`;
         }, 1000);
       }
     } finally {
@@ -116,7 +131,18 @@ export const AuthProvider = ({ children }) => {
       console.log('로그인 응답:', response);
 
       if (response.success) {
-        setCurrentUser(response.data);
+        // 백엔드에서 받은 userRole 값 확인 로그 추가
+        console.log('백엔드에서 받은 사용자 권한:', response.data.userRole);
+
+        // userRole이 소문자로 오는 경우를 대비해 대문자로 통일
+        const userData = {
+          ...response.data,
+          userRole: response.data.userRole
+            ? response.data.userRole.toUpperCase()
+            : response.data.userRole,
+        };
+
+        setCurrentUser(userData);
         setIsAuthenticated(true);
         setLastChecked(new Date());
 

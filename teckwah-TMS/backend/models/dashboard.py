@@ -11,11 +11,12 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Boolean,
+    Computed,
 )
 from sqlalchemy.sql import func
 from enum import Enum as PyEnum
 from pydantic import Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 
 from backend.database import Base
@@ -49,7 +50,6 @@ class Dashboard(Base):
     __tablename__ = "dashboard"
 
     dashboard_id = Column(Integer, primary_key=True, autoincrement=True)
-    is_locked = Column(Boolean, default=False)
     order_no = Column(String(255), nullable=False, index=True)
     type = Column(Enum("DELIVERY", "RETURN", name="type_enum"), nullable=False)
     status = Column(
@@ -77,9 +77,12 @@ class Dashboard(Base):
     city = Column(String(21), nullable=True)
     county = Column(String(51), nullable=True)
     district = Column(String(51), nullable=True)
+    # region: Use SQLAlchemy's Computed construct
     region = Column(
-        String(153), nullable=True, info={"generated": True}
-    )  # 계산 필드 명시적 추가
+        String(153),
+        Computed("CONCAT(city, ' ', county, ' ', district)", persisted=True),
+        nullable=True,
+    )
     distance = Column(Integer, nullable=True)
     duration_time = Column(Integer, nullable=True)
     address = Column(Text, nullable=False)
@@ -90,6 +93,7 @@ class Dashboard(Base):
     updated_by = Column(String(50), nullable=True)
     remark = Column(Text, nullable=True)
     update_at = Column(DateTime, nullable=True)
+    is_locked = Column(Boolean, default=False)
 
 
 # API 요청/응답 모델
@@ -152,12 +156,12 @@ class OrderDeleteMultiple(APIModel):
 class OrderResponse(APIModel):
     dashboard_id: int = Field(..., alias="dashboardId")
     order_no: str = Field(..., alias="orderNo")
-    type: str
-    status: str
-    department: str
-    warehouse: str
-    sla: str
-    eta: datetime
+    type: OrderType = Field(..., alias="type")
+    status: OrderStatus = Field(..., alias="status")
+    department: Department = Field(..., alias="department")
+    warehouse: Warehouse = Field(..., alias="warehouse")
+    sla: str = Field(..., alias="sla")
+    eta: datetime = Field(..., alias="eta")
     create_time: datetime = Field(..., alias="createTime")
     depart_time: Optional[datetime] = Field(None, alias="departTime")
     complete_time: Optional[datetime] = Field(None, alias="completeTime")
@@ -174,7 +178,7 @@ class OrderResponse(APIModel):
     driver_name: Optional[str] = Field(None, alias="driverName")
     driver_contact: Optional[str] = Field(None, alias="driverContact")
     updated_by: Optional[str] = Field(None, alias="updatedBy")
-    remark: Optional[str] = None
+    remark: Optional[str] = Field(None, alias="remark")
     update_at: Optional[datetime] = Field(None, alias="updateAt")
 
 
@@ -184,3 +188,122 @@ class OrderFilter(APIModel):
     )
     end_date: Optional[datetime] = Field(None, description="종료 날짜", alias="endDate")
     # 클라이언트 측 필터링을 위해 다른 필드들은 제거
+
+
+class LockStatus(APIModel):
+    """락 상태 응답 모델"""
+
+    locked: bool
+    editable: bool
+    message: str
+
+
+class OrderListFilterResponse(APIModel):
+    """주문 목록 필터 정보 응답 모델"""
+
+    start_date: Optional[datetime] = Field(None, alias="startDate")
+    end_date: Optional[datetime] = Field(None, alias="endDate")
+
+
+class OrderListResponseData(APIModel):
+    """주문 목록 조회 응답 데이터 부분 모델"""
+
+    items: List[OrderResponse]
+    total: int
+    page: int
+    limit: int
+    status_counts: Dict[str, int] = Field(..., alias="statusCounts")
+    filter: OrderListFilterResponse
+
+
+class OrderListResponse(APIModel):
+    """주문 목록 조회 전체 응답 모델"""
+
+    success: bool = True
+    message: str = "주문 목록 조회 성공"
+    data: OrderListResponseData
+
+
+class GetOrderResponseData(OrderResponse):
+    """주문 상세 조회 응답 데이터 부분 모델 (락 정보 포함)"""
+
+    locked_info: Optional[LockStatus] = Field(
+        None, alias="lockedInfo"
+    )  # 락 정보를 data 내부에 포함
+
+
+class GetOrderResponse(APIModel):
+    """주문 상세 조회 전체 응답 모델"""
+
+    success: bool = True
+    message: str = "주문 조회 성공"
+    data: GetOrderResponseData
+
+
+class LockResponseData(APIModel):
+    """락/언락 응답 데이터 모델"""
+
+    locked: bool
+    editable: bool
+    message: str
+
+
+class LockResponse(APIModel):
+    """락/언락 전체 응답 모델"""
+
+    success: bool
+    message: str
+    lock_status: LockResponseData = Field(
+        ..., alias="lockStatus"
+    )  # lock_status를 camelCase로
+
+
+class BasicSuccessResponse(APIModel):
+    """기본 성공 응답 모델 (데이터 없음)"""
+
+    success: bool = True
+    message: str
+
+
+class DeleteMultipleResponseData(APIModel):
+    """다중 삭제 응답 데이터 모델"""
+
+    deleted_count: int = Field(..., alias="deletedCount")
+    forbidden_ids: List[int] = Field(..., alias="forbiddenIds")
+
+
+class DeleteMultipleResponse(APIModel):
+    """다중 삭제 전체 응답 모델"""
+
+    success: bool
+    message: str
+    data: Optional[DeleteMultipleResponseData] = None
+
+
+class StatusUpdateMultipleResponseData(APIModel):
+    """상태 일괄 변경 응답 데이터 모델"""
+
+    updated_count: int = Field(..., alias="updatedCount")
+    forbidden_ids: List[int] = Field(..., alias="forbiddenIds")
+
+
+class StatusUpdateMultipleResponse(APIModel):
+    """상태 일괄 변경 전체 응답 모델"""
+
+    success: bool
+    message: str
+    data: StatusUpdateMultipleResponseData
+
+
+class AssignDriverResponseData(APIModel):
+    """기사 배정 응답 데이터 모델"""
+
+    assigned_count: int = Field(..., alias="assignedCount")
+
+
+class AssignDriverResponse(APIModel):
+    """기사 배정 전체 응답 모델"""
+
+    success: bool = True
+    message: str = "기사 배정 성공"
+    data: AssignDriverResponseData

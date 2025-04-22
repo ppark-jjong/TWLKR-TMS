@@ -23,6 +23,12 @@ const MainLayout = ({ children }) => {
   const { currentUser, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
+  // 사용자 정보 디버깅 로그 추가
+  useEffect(() => {
+    console.log('현재 사용자 정보:', currentUser);
+    console.log('사용자 권한:', currentUser?.userRole);
+  }, [currentUser]);
+
   // 화면 크기에 따라 사이드바 자동 접기 구현
   useEffect(() => {
     const handleResize = () => {
@@ -104,9 +110,11 @@ const MainLayout = ({ children }) => {
     },
   ];
 
-  // 사용자 권한에 따른 메뉴 아이템 선택
+  // 사용자 권한에 따른 메뉴 아이템 선택 (대소문자 구분 없이 비교)
   const menuItems =
-    currentUser?.userRole === 'ADMIN' ? adminMenuItems : userMenuItems;
+    currentUser?.userRole?.toUpperCase() === 'ADMIN'
+      ? adminMenuItems
+      : userMenuItems;
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#ffffff' }}>

@@ -21,6 +21,15 @@ from backend.models.dashboard import (
     OrderStatus,
     OrderFilter,
     OrderDeleteMultiple,
+    OrderListResponse,
+    GetOrderResponse,
+    LockResponse,
+    BasicSuccessResponse,
+    DeleteMultipleResponse,
+    StatusUpdateMultipleResponse,
+    AssignDriverResponse,
+    AssignDriverResponseData,
+    GetOrderResponseData,
 )
 from backend.middleware.auth import get_current_user, admin_required
 from backend.models.user import UserRole
@@ -30,74 +39,116 @@ from backend.utils.lock import (
     validate_lock,
     check_lock_status,
 )
+from backend.services.dashboard_service import (
+    get_dashboard_orders as service_get_dashboard_orders,
+    create_order as service_create_order,
+    update_order as service_update_order,
+    delete_order as service_delete_order,
+    delete_multiple_orders as service_delete_multiple_orders,
+    update_multiple_orders_status as service_update_multiple_orders_status,
+    assign_driver_to_orders as service_assign_driver_to_orders,
+)
 
 router = APIRouter()
 
 
-from backend.services.dashboard_service import get_dashboard_orders as service_get_dashboard_orders
-
-@router.get("/", response_model=Dict[str, Any])
+@router.get("/", response_model=OrderListResponse)
 async def get_dashboard_orders(
     start_date: Optional[str] = Query(None, description="시작 날짜 (ISO 형식)"),
     end_date: Optional[str] = Query(None, description="종료 날짜 (ISO 형식)"),
     page: int = Query(1, ge=1, description="페이지 번호"),
     limit: int = Query(10, ge=1, le=100, description="페이지당 항목 수"),
+    order_no: Optional[str] = Query(None, description="주문 번호", alias="orderNo"),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> OrderListResponse:
     """
-    대시보드 주문 목록 조회 (개선됨)
-    - 날짜 기간으로만 필터링 (ETA 기준)
-    - 클라이언트 측에서 추가 필터링 처리
+    대시보드 주문 목록 조회 (response_model 사용) + 디버깅 로그 추가
     """
-    # 간결한 요청 정보 로깅
-    logger.api(f"주문 목록 조회 - 사용자: {current_user['user_id']}, 날짜: {start_date or '오늘'} ~ {end_date or '오늘+1일'}, 페이지: {page}")
-    
+    logger.api(
+        f"주문 목록 조회 - 사용자: {current_user['user_id']}, 날짜: {start_date or '오늘'} ~ {end_date or '오늘+1일'}, 페이지: {page}"
+    )
+
     # 서비스 레이어 호출
-    response_data = service_get_dashboard_orders(
+    response_data_dict = service_get_dashboard_orders(
         db=db,
         start_date=start_date,
         end_date=end_date,
         page=page,
         limit=limit,
-        current_user_id=current_user["user_id"]
+        order_no=order_no,
+        current_user_id=current_user["user_id"],
     )
-    
-    # 로그 간소화
-    logger.api(f"주문 목록 응답 - 페이지: {page}, 결과: {len(response_data['data']['items'])}건")
-    
-    return response_data
+
+    # --- 응답 모델 변환 전 로그 추가 ---
+    logger.debug(
+        f"서비스 반환 데이터 구조 (타입: {type(response_data_dict)}): {response_data_dict}"
+    )
+    if isinstance(response_data_dict, dict) and "data" in response_data_dict:
+        # 수정: OrderListResponse 모델 구조에 맞게 접근
+        data_part = response_data_dict["data"]
+        raw_items = data_part.get("items", []) if isinstance(data_part, dict) else []
+        logger.debug(f"서비스 반환 raw_items 개수: {len(raw_items)}")
+        for i, item in enumerate(raw_items):
+            # OrderResponse로 변환될 객체의 타입과 주요 값 로깅
+            logger.debug(
+                f"  Item {i} (타입: {type(item)}): ID={getattr(item, 'dashboard_id', 'N/A')}, "
+                f"OrderNo={getattr(item, 'order_no', 'N/A')}, "
+                f"Status={getattr(item, 'status', 'N/A')}, "
+                f"ETA={getattr(item, 'eta', 'N/A')}"
+            )
+    # -------------------------------
+
+    # 서비스가 Pydantic 모델 객체를 반환하는 경우 바로 반환
+    if isinstance(response_data_dict, OrderListResponse):
+        logger.debug("서비스가 OrderListResponse 객체를 반환하여 바로 사용.")
+        return response_data_dict
+    # 서비스가 딕셔너리를 반환하는 경우 (또는 다른 처리 필요시 추가)
+    elif isinstance(response_data_dict, dict):
+        try:
+            logger.debug(
+                "서비스가 딕셔너리를 반환. 구조가 OrderListResponse와 일치해야 함."
+            )
+            # 직접 반환 시 FastAPI가 response_model 기준으로 검증
+            # FastAPI v1.x: response_model 검증은 성공 시 자동으로 이루어짐
+            # Pydantic v2 호환성을 위해 명시적 변환 고려:
+            # return OrderListResponse(**response_data_dict)
+            return response_data_dict  # FastAPI가 검증하도록 위임
+        except Exception as e:
+            logger.error(f"OrderListResponse 변환/검증 실패: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500, detail="주문 목록 응답 처리 중 오류 발생"
+            )
+    else:
+        logger.error(f"서비스에서 예기치 않은 타입 반환: {type(response_data_dict)}")
+        raise HTTPException(
+            status_code=500, detail="주문 목록 응답 처리 중 내부 오류 발생"
+        )
 
 
-from backend.services.dashboard_service import create_order as service_create_order
-
-@router.post("/", response_model=Dict[str, Any])
+@router.post("/", response_model=OrderResponse)
 async def create_order(
     order: OrderCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dashboard:
     """
-    새 주문 생성
+    새 주문 생성 (response_model 사용)
     """
-    # 서비스 레이어 호출
     new_order = service_create_order(
-        db=db,
-        order_data=order.dict(),
-        current_user_id=current_user["user_id"]
+        db=db, order_data=order.dict(), current_user_id=current_user["user_id"]
     )
-    
-    return {"success": True, "message": "주문 생성 성공", "data": new_order}
+    return new_order
 
 
-@router.get("/{order_id}", response_model=Dict[str, Any])
+@router.get("/{order_id}", response_model=GetOrderResponse)
 async def get_order(
     order_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> GetOrderResponse:
     """
-    특정 주문 조회
+    특정 주문 조회 (response_model 사용) + 디버깅 로그 추가
     """
     order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
 
@@ -106,25 +157,52 @@ async def get_order(
             status_code=status.HTTP_404_NOT_FOUND, detail="주문을 찾을 수 없습니다"
         )
 
-    # 락 상태 확인
-    lock_status = check_lock_status(db, Dashboard, order_id, current_user["user_id"])
+    lock_status_dict = check_lock_status(
+        db, Dashboard, order_id, current_user["user_id"]
+    )
 
-    return {
-        "success": True,
-        "message": "주문 조회 성공",
-        "data": order,
-        "lock_status": lock_status,
-    }
+    # --- from_orm 호출 전 로그 추가 ---
+    logger.debug(f"GetOrderResponseData.from_orm 호출 전:")
+    logger.debug(f"  Order 객체 타입: {type(order)}")
+    logger.debug(
+        f"  Order 데이터: ID={order.dashboard_id}, OrderNo={order.order_no}, Status={order.status}"
+    )
+    logger.debug(f"  Lock Status Dict: {lock_status_dict}")
+    # ---------------------------------
+    try:
+        # from_orm 변환 시도
+        # GetOrderResponseData 모델 정의에 맞게 from_orm 사용 (두 번째 인자 제거)
+        order_resp_data = GetOrderResponseData.from_orm(order)
+        # 락 정보는 별도로 할당
+        order_resp_data.locked_info = LockStatus(**lock_status_dict)
+
+        # --- from_orm 호출 후 로그 추가 ---
+        logger.debug(f"GetOrderResponseData.from_orm 변환 성공:")
+        logger.debug(f"  Pydantic 객체 타입: {type(order_resp_data)}")
+        logger.debug(
+            f"  Pydantic 데이터 (일부): ID={order_resp_data.dashboard_id}, OrderNo={order_resp_data.order_no}, Status={order_resp_data.status}, LockedInfo={order_resp_data.locked_info}"
+        )
+        # ---------------------------------
+
+        # 최종 응답 모델 생성
+        final_response = GetOrderResponse(data=order_resp_data)
+        return final_response
+    except Exception as e:
+        logger.error(
+            f"GetOrderResponseData.from_orm 변환 실패 (Order ID: {order_id}): {e}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="주문 상세 정보 처리 중 오류 발생")
 
 
-@router.post("/{order_id}/lock", response_model=Dict[str, Any])
+@router.post("/{order_id}/lock", response_model=LockResponse)
 async def lock_order(
     order_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> LockResponse:
     """
-    주문 락 획득
+    주문 락 획득 (response_model 사용)
     """
     order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
 
@@ -138,34 +216,34 @@ async def lock_order(
 
     if not lock_acquired:
         # 현재 락 상태 확인
-        lock_status = check_lock_status(
+        lock_status_data = check_lock_status(
             db, Dashboard, order_id, current_user["user_id"]
         )
-        return {
-            "success": False,
-            "message": lock_status["message"],
-            "lock_status": lock_status,
-        }
+        return LockResponse(
+            success=False,
+            message=lock_status_data["message"],
+            lock_status=lock_status_data,
+        )
 
-    return {
-        "success": True,
-        "message": "주문 락 획득 성공",
-        "lock_status": {
+    return LockResponse(
+        success=True,
+        message="주문 락 획득 성공",
+        lock_status={
             "locked": True,
             "editable": True,
             "message": "현재 사용자가 편집 중입니다",
         },
-    }
+    )
 
 
-@router.post("/{order_id}/unlock", response_model=Dict[str, Any])
+@router.post("/{order_id}/unlock", response_model=LockResponse)
 async def unlock_order(
     order_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> LockResponse:
     """
-    주문 락 해제
+    주문 락 해제 (response_model 사용)
     """
     order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
 
@@ -179,276 +257,163 @@ async def unlock_order(
 
     if not lock_released:
         # 현재 락 상태 확인
-        lock_status = check_lock_status(
+        lock_status_data = check_lock_status(
             db, Dashboard, order_id, current_user["user_id"]
         )
-        return {
-            "success": False,
-            "message": "락을 해제할 권한이 없습니다",
-            "lock_status": lock_status,
-        }
+        return LockResponse(
+            success=False,
+            message="락을 해제할 권한이 없습니다",
+            lock_status=lock_status_data,
+        )
 
-    return {
-        "success": True,
-        "message": "주문 락 해제 성공",
-        "lock_status": {
+    return LockResponse(
+        success=True,
+        message="주문 락 해제 성공",
+        lock_status={
             "locked": False,
             "editable": True,
             "message": "편집 가능합니다",
         },
-    }
+    )
 
 
-from backend.services.dashboard_service import update_order as service_update_order
-
-@router.put("/{order_id}", response_model=Dict[str, Any])
+@router.put("/{order_id}", response_model=OrderResponse)
 async def update_order(
     order_id: int,
     order_update: OrderUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> OrderResponse:  # 반환 타입 수정
     """
-    주문 정보 업데이트 (상태 변경 제외)
-    - 상태 변경은 status-multiple API를 통해서만 가능
+    주문 정보 업데이트 (response_model 사용) + 디버깅 로그 추가
     """
-    # 락 검증
     validate_lock(db, Dashboard, order_id, current_user["user_id"])
-
-    # 기존 주문 조회
     order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
-
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="주문을 찾을 수 없습니다"
         )
-
-    # 상태 변경 불가능 처리 - 경고 로그 간소화
     if order_update.status is not None:
-        logger.warning(f"부적절한 상태 변경 시도 - 주문 ID: {order_id}, 사용자: {current_user['user_id']}")
+        logger.warning(
+            f"부적절한 상태 변경 시도 - 주문 ID: {order_id}, 사용자: {current_user['user_id']}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="주문 수정 API에서는 상태를 변경할 수 없습니다. status-multiple API를 사용하세요.",
         )
 
-    # 서비스 레이어로 주문 업데이트 위임
     updated_order = service_update_order(
         db=db,
         order_id=order_id,
         order_data=order_update.dict(exclude_unset=True, exclude={"status"}),
-        current_user_id=current_user["user_id"]
+        current_user_id=current_user["user_id"],
     )
 
-    return {"success": True, "message": "주문 업데이트 성공", "data": updated_order}
+    # --- 응답 모델 변환 전 로그 추가 ---
+    logger.debug(f"Service update_order 반환 객체 타입: {type(updated_order)}")
+    if updated_order:
+        logger.debug(
+            f"  Order 데이터: ID={updated_order.dashboard_id}, OrderNo={updated_order.order_no}, Status={updated_order.status}"
+        )
+    # ---------------------------------
+    try:
+        # 서비스가 SQLAlchemy 객체를 반환하므로 명시적 변환
+        if updated_order:
+            response_obj = OrderResponse.from_orm(updated_order)
+            logger.debug(f"OrderResponse 변환 성공 (Order ID: {order_id})")
+            return response_obj
+        else:
+            # 서비스에서 None을 반환한 경우 (업데이트 실패 등)
+            logger.error(f"서비스 update_order가 None 반환 (Order ID: {order_id})")
+            raise HTTPException(status_code=500, detail="주문 업데이트 실패")
+    except Exception as e:
+        logger.error(
+            f"OrderResponse 변환/검증 실패 (Order ID: {order_id}): {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail="주문 업데이트 응답 처리 중 오류 발생"
+        )
 
 
-@router.delete("/{order_id}", response_model=Dict[str, Any])
+@router.delete("/{order_id}", response_model=BasicSuccessResponse)
 async def delete_order(
     order_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> BasicSuccessResponse:
     """
-    단일 주문 삭제 (일괄 삭제 API로 리다이렉트)
+    주문 삭제 (response_model 사용)
     """
-    # 개선: 개별 삭제도 일괄 삭제 로직을 사용하도록 리다이렉트
-    delete_data = OrderDeleteMultiple(order_ids=[order_id])
-    return await delete_multiple_orders(delete_data, current_user, db)
+    success = service_delete_order(db, order_id, current_user["user_id"])
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="삭제할 주문을 찾을 수 없습니다",
+        )
+    return BasicSuccessResponse(message="주문 삭제 성공")
 
 
-@router.post("/delete-multiple", response_model=Dict[str, Any])
+@router.post("/delete-multiple", response_model=DeleteMultipleResponse)
 async def delete_multiple_orders(
     delete_data: OrderDeleteMultiple,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> DeleteMultipleResponse:
     """
-    여러 주문 일괄 삭제
-    권한 제한: 관리자는 모든 항목, 일반 사용자는 본인 생성 항목만 삭제 가능
+    주문 다중 삭제 (response_model 사용)
     """
-    logger.api(f"주문 일괄 삭제 요청 - 사용자: {current_user['user_id']}, 대상: {len(delete_data.order_ids)}건")
-    # 관리자만 삭제 가능하도록 제한 (개선사항)
-    if current_user["user_role"] != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="관리자만 주문을 삭제할 수 있습니다",
-        )
-
-    if not delete_data.order_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="삭제할 주문을 선택해주세요"
-        )
-
-    # 주문 목록 조회
-    orders = (
-        db.query(Dashboard)
-        .filter(Dashboard.dashboard_id.in_(delete_data.order_ids))
-        .all()
+    result = service_delete_multiple_orders(
+        db, delete_data.order_ids, current_user["user_id"]
     )
-
-    if not orders:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="선택한 주문을 찾을 수 없습니다",
-        )
-
-    # 락 검증
-    locked_orders = []
-    for order in orders:
-        lock_status = check_lock_status(
-            db, Dashboard, order.dashboard_id, current_user["user_id"]
-        )
-        if lock_status["locked"] and not lock_status["editable"]:
-            locked_orders.append(order.dashboard_id)
-
-    if locked_orders:
-        locked_msg = f"일부 주문({locked_orders})이 다른 사용자에 의해 잠겨 있습니다"
-        logger.lock(f"락 충돌 발생 - {locked_msg}, 요청자: {current_user['user_id']}")
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail=locked_msg,
-        )
-
-    # 삭제 실행
-    deleted_ids = []
-    for order in orders:
-        deleted_ids.append(order.dashboard_id)
-        db.delete(order)
-
-    db.commit()
-
-    logger.db(f"주문 삭제 완료 - {len(deleted_ids)}건, 처리자: {current_user['user_id']}")
-
-    return {
-        "success": True,
-        "message": f"{len(deleted_ids)}개 주문 삭제 성공",
-        "data": {
-            "deleted_count": len(deleted_ids),
-            "deleted_ids": deleted_ids,
-        },
-    }
+    return DeleteMultipleResponse(**result)
 
 
 # 상태 일괄 변경 API 명시적 파라미터 정의를 위한 모델
 class StatusUpdateMultiple(BaseModel):
-    order_ids: List[int] = Field(..., description="주문 ID 목록")
+    order_ids: List[int] = Field(..., description="주문 ID 목록", alias="orderIds")
     status: OrderStatus = Field(..., description="변경할 상태")
 
 
-from backend.services.dashboard_service import update_multiple_orders_status as service_update_status
-
-@router.post("/status-multiple", response_model=Dict[str, Any])
+@router.post("/status-multiple", response_model=StatusUpdateMultipleResponse)
 async def update_multiple_orders_status(
     status_data: StatusUpdateMultiple,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> StatusUpdateMultipleResponse:
     """
-    여러 주문 상태 일괄 변경 (개선됨)
+    주문 상태 일괄 변경 (response_model 사용)
     """
-    # 요청 로깅 간소화
-    logger.api(f"상태 일괄 변경 요청 - 상태: {status_data.status}, 대상: {len(status_data.order_ids)}건, 사용자: {current_user['user_id']}")
-
-    if not status_data.order_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="변경할 주문을 선택해주세요"
-        )
-        
-    # 락 검증
-    orders = (
-        db.query(Dashboard)
-        .filter(Dashboard.dashboard_id.in_(status_data.order_ids))
-        .all()
+    result = service_update_multiple_orders_status(
+        db, status_data.order_ids, status_data.status, current_user
     )
-    
-    # 락 검증
-    locked_orders = []
-    for order in orders:
-        lock_status = check_lock_status(
-            db, Dashboard, order.dashboard_id, current_user["user_id"]
-        )
-        if lock_status["locked"] and not lock_status["editable"]:
-            locked_orders.append(order.dashboard_id)
-
-    if locked_orders:
-        error_msg = f"일부 주문(IDs: {locked_orders})이 다른 사용자에 의해 잠겨 있습니다"
-        logger.lock(f"상태 변경 락 충돌 - {error_msg}, 요청자: {current_user['user_id']}")
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail=error_msg,
-        )
-
-    # 서비스 레이어 호출
-    response = service_update_status(
-        db=db,
-        order_ids=status_data.order_ids,
-        status=status_data.status,
-        current_user=current_user
-    )
-    
-    return response
+    return StatusUpdateMultipleResponse(**result)
 
 
 # 기사 배정용 요청 모델 추가
 class DriverAssignRequest(BaseModel):
-    order_ids: List[int] = Field(..., description="주문 ID 목록")
-    driver_name: str = Field(..., description="기사 이름")
-    driver_contact: Optional[str] = Field(None, description="기사 연락처")
+    order_ids: List[int] = Field(..., description="주문 ID 목록", alias="orderIds")
+    driver_name: str = Field(..., description="기사 이름", alias="driverName")
+    driver_contact: Optional[str] = Field(
+        None, description="기사 연락처", alias="driverContact"
+    )
 
 
-@router.post("/assign-driver", response_model=Dict[str, Any])
+@router.post("/assign-driver", response_model=AssignDriverResponse)
 async def assign_driver(
     driver_data: DriverAssignRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> AssignDriverResponse:
     """
-    여러 주문에 기사 일괄 배정
+    기사 일괄 배정 (response_model 사용)
     """
-    logger.api(f"기사 배정 요청 - 기사: {driver_data.driver_name}, 대상: {len(driver_data.order_ids)}건, 사용자: {current_user['user_id']}")
-
-    if not driver_data.order_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="배정할 주문을 선택해주세요"
-        )
-
-    # 주문 목록 조회
-    orders = (
-        db.query(Dashboard)
-        .filter(Dashboard.dashboard_id.in_(driver_data.order_ids))
-        .all()
+    assigned_count = service_assign_driver_to_orders(
+        db,
+        driver_data.order_ids,
+        driver_data.driver_name,
+        driver_data.driver_contact,
+        current_user["user_id"],
     )
-
-    logger.db(f"기사 배정 대상 조회됨 - {len(orders)}건")
-
-    if not orders:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="선택한 주문을 찾을 수 없습니다",
-        )
-
-    # 락 검증
-    locked_orders = []
-    for order in orders:
-        lock_status = check_lock_status(
-            db, Dashboard, order.dashboard_id, current_user["user_id"]
-        )
-        if lock_status["locked"] and not lock_status["editable"]:
-            locked_orders.append(order.dashboard_id)
-
-    if locked_orders:
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail=f"일부 주문({locked_orders})이 다른 사용자에 의해 잠겨 있습니다",
-        )
-
-    # 기사 정보 배정
-    for order in orders:
-        order.driver_name = driver_data.driver_name
-        order.driver_contact = driver_data.driver_contact
-        order.updated_by = current_user["user_id"]
-        order.update_at = datetime.now()
-
-    db.commit()
-
-    return {"success": True, "message": f"{len(orders)}개 주문에 기사 배정 성공"}
+    return AssignDriverResponse(
+        data=AssignDriverResponseData(assigned_count=assigned_count)
+    )

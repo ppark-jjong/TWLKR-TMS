@@ -5,7 +5,7 @@
 from sqlalchemy import Column, String, Enum
 from enum import Enum as PyEnum
 from pydantic import Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from backend.database import Base
 from backend.models.model_config import APIModel
@@ -53,3 +53,11 @@ class UserResponse(APIModel):
     user_id: str = Field(..., description="사용자 ID", alias="userId")
     user_department: Department = Field(..., description="소속 부서", alias="userDepartment")
     user_role: UserRole = Field(..., description="사용자 권한", alias="userRole")
+
+
+# 사용자 목록 응답
+class UserListResponse(APIModel):
+    items: List[UserResponse] = Field(..., description="사용자 목록")
+    total: int = Field(..., description="전체 사용자 수")
+    page: int = Field(..., description="현재 페이지")
+    limit: int = Field(..., description="페이지당 항목 수")

@@ -43,6 +43,11 @@ class APIModel(BaseModel):
     날짜 형식:
     - 모든 datetime 필드는 'YYYY-MM-DD HH:MM:SS' 형식으로 직렬화됨
     - ISO 형식(T 구분자)과 공백 구분자 형식 모두 파싱 가능
+    
+    API 요청/응답 규칙:
+    - 모든 필드는 camelCase 형식의 alias를 가져야 함
+    - 모든 snake_case 필드는 자동으로 camelCase로 변환되어 API 응답에 포함됨
+    - 모든 API 응답은 {"success": boolean, "message": string, "data": any, "error_code"?: string} 형식을 따름
     """
     model_config = API_MODEL_CONFIG
     
@@ -60,3 +65,22 @@ class APIModel(BaseModel):
                 except ValueError:
                     continue
         return v
+
+
+# 표준 API 응답 형식
+class APIResponse(APIModel):
+    """
+    표준 API 응답 형식
+    
+    모든 API 응답은 이 형식을 따라야 함:
+    {
+        "success": boolean,      # 요청 성공 여부
+        "message": string,       # 응답 메시지
+        "data": any | null,      # 응답 데이터 (선택적)
+        "error_code": string     # 오류 코드 (실패 시)
+    }
+    """
+    success: bool
+    message: str
+    data: Any = None
+    error_code: str = None

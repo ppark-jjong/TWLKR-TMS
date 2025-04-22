@@ -87,10 +87,8 @@ app = FastAPI(
 )
 
 # 미들웨어 추가
-from backend.middleware.response import JSONResponseMiddleware
-
-app.add_middleware(ErrorHandlerMiddleware)
-app.add_middleware(JSONResponseMiddleware)  # 응답 처리 미들웨어 추가 (JSON 응답 표준화)
+# app.add_middleware(JSONResponseMiddleware)  # 응답 처리 미들웨어 임시 비활성화 (JSON 응답 표준화)
+app.add_middleware(ErrorHandlerMiddleware)  # ErrorHandler를 먼저 두는 것이 좋을 수 있음
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -147,23 +145,62 @@ async def health_check():
     }
 
 
-# SPA 라우팅을 위한 폴백 미들웨어
+# --- 정적 파일 경로 설정 및 마운트 ---
+STATIC_FILES_DIR = os.path.join(
+    os.path.dirname(__file__), "../frontend/build"
+)  # build 디렉토리 기준
+if not os.path.exists(STATIC_FILES_DIR):
+    # 로컬 개발 환경 경로 (frontend 디렉토리가 build를 포함한다고 가정)
+    STATIC_FILES_DIR = os.path.join(os.path.dirname(__file__), "../frontend")
+    if not os.path.exists(os.path.join(STATIC_FILES_DIR, "static")):
+        # Docker 환경 경로
+        STATIC_FILES_DIR = "/app/frontend"
+
+# /static 경로에 대해 StaticFiles 마운트 (미들웨어보다 먼저)
+if os.path.exists(os.path.join(STATIC_FILES_DIR, "static")):
+    logger.info(f"정적 파일 서빙 경로 설정: {os.path.join(STATIC_FILES_DIR, 'static')}")
+    app.mount(
+        "/static",
+        StaticFiles(directory=os.path.join(STATIC_FILES_DIR, "static")),
+        name="static",
+    )
+else:
+    logger.warning(
+        f"정적 파일 디렉토리('/static')를 찾을 수 없습니다: {STATIC_FILES_DIR}"
+    )
+
+INDEX_HTML_PATH = os.path.join(STATIC_FILES_DIR, "index.html")
+if not os.path.exists(INDEX_HTML_PATH):
+    logger.warning(f"index.html 파일을 찾을 수 없습니다: {INDEX_HTML_PATH}")
+
+# --- 미들웨어 추가 ---
+# ErrorHandlerMiddleware, JSONResponseMiddleware, CORSMiddleware 순서는 중요할 수 있음
+app.add_middleware(ErrorHandlerMiddleware)
+# app.add_middleware(JSONResponseMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# --- SPA 및 인증 리다이렉션 미들웨어 ---
 @app.middleware("http")
-async def spa_middleware(request: Request, call_next):
+async def spa_redirect_middleware(request: Request, call_next):
     import uuid
 
     request_id = str(uuid.uuid4())[:8]
     path = request.url.path
+    log_level = (
+        logger.debug if path.startswith(("/static", "/favicon.ico")) else logger.info
+    )
 
-    # 로그 레벨 조정 - 자주 요청되는 리소스는 DEBUG 레벨로 낮춤
-    is_common_resource = path.endswith((".js", ".css", ".png", ".jpg", ".ico", ".svg"))
-    log_level = logger.debug if is_common_resource else logger.info
-
-    # 요청 시작 로그
     log_level(f"요청 시작 [ID: {request_id}]: {request.method} {path}")
 
-    # API 요청 처리 - 모든 라우트 명시적 매핑
-    api_routes = [
+    # 1. API 경로 확인
+    api_prefixes = [
         "/auth",
         "/dashboard",
         "/handover",
@@ -174,174 +211,71 @@ async def spa_middleware(request: Request, call_next):
         "/redoc",
         "/openapi.json",
     ]
-
-    # 인증 예외 경로 (로그인 페이지, 인증 API 등)
-    auth_exempt_routes = [
-        "/login",
-        "/auth/login",
-        "/logo.png",
-        "/favicon.ico",
-        "/assets",
-        "/health",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-    ]
-
-    # API 요청인지 확인
-    is_api_request = False
-    for route in api_routes:
-        if path == route or path.startswith(f"{route}/"):
-            is_api_request = True
-            break
-
-    # 정적 파일 요청인지 확인
-    is_static_request = path.startswith("/assets/") or any(
-        path.endswith(ext) for ext in [".js", ".css", ".png", ".jpg", ".svg", ".ico"]
-    )
-
-    # 인증 예외 경로인지 확인
-    is_auth_exempt = is_static_request
-    for exempt_route in auth_exempt_routes:
-        if path == exempt_route or path.startswith(f"{exempt_route}/"):
-            is_auth_exempt = True
-            break
-
-    # 인증이 필요한 API 요청 확인
-    if is_api_request and not is_auth_exempt and not path.startswith("/auth/login"):
-        # 세션 쿠키 확인
-        session_id = request.cookies.get("session_id")
-
-        # 쿠키가 없거나 유효하지 않은 경우 401 응답
-        if not session_id:
-            logger.warning(f"인증되지 않은 API 접근 (쿠키 없음): {path}")
-            return Response(
-                content=json.dumps(
-                    {
-                        "success": False,
-                        "message": "인증이 필요합니다. 로그인 후 다시 시도해주세요.",
-                        "error_code": "UNAUTHORIZED",
-                    }
-                ),
-                status_code=401,
-                media_type="application/json",
-            )
-
-        # 세션 유효성 확인
-        session = get_session(session_id)
-        if not session:
-            logger.warning(
-                f"인증되지 않은 API 접근 (세션 만료): {path}, 세션ID: {session_id[:8]}"
-            )
-            return Response(
-                content=json.dumps(
-                    {
-                        "success": False,
-                        "message": "세션이 만료되었습니다. 다시 로그인해주세요.",
-                        "error_code": "SESSION_EXPIRED",
-                    }
-                ),
-                status_code=401,
-                media_type="application/json",
-            )
-
-        log_level(
-            f"인증 성공: 사용자={session['user_id']}, 권한={session['user_role']}"
-        )
-
-    # API 요청 처리
-    if is_api_request:
-        try:
-            response = await call_next(request)
-            log_level(f"API 응답: {request.method} {path} - {response.status_code}")
-            return response
-        except Exception as e:
-            logger.error(f"API 요청 처리 중 오류: {str(e)}, 경로={path}")
-            import traceback
-
-            logger.error(f"상세 오류: {traceback.format_exc()}")
-            return Response(
-                content=json.dumps(
-                    {
-                        "success": False,
-                        "message": "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-                        "error_code": "INTERNAL_ERROR",
-                    }
-                ),
-                status_code=500,
-                media_type="application/json",
-            )
-
-    # 정적 파일 요청 처리
-    if is_static_request:
-        try:
-            response = await call_next(request)
-            log_level(f"정적 파일 응답: {path} - {response.status_code}")
-            return response
-        except Exception as e:
-            logger.error(f"정적 파일 처리 중 오류: {str(e)}, 경로={path}")
-            return Response(status_code=404)
-
-    # 인증 체크 (프론트엔드 페이지 접근 시)
-    if not is_auth_exempt and not path == "/login":
-        # 세션 쿠키 확인
-        session_id = request.cookies.get("session_id")
-
-        # 쿠키가 없거나 유효하지 않은 경우 로그인 페이지로 리다이렉션
-        if not session_id or not get_session(session_id):
-            logger.warning(f"인증되지 않은 페이지 접근, 로그인으로 리다이렉션: {path}")
-            return Response(
-                content="Redirecting to login...",
-                status_code=302,
-                headers={"Location": "/login"},
-            )
-
-    # 일반 요청 처리
-    try:
+    is_api_path = any(path.startswith(prefix) for prefix in api_prefixes)
+    if is_api_path:
+        log_level(f"API 요청 처리 [ID: {request_id}]: {path}")
+        # API 경로는 FastAPI 라우터 및 의존성 검사(401 등)에 맡김
         response = await call_next(request)
-        log_level(f"페이지 응답: {path} - {response.status_code}")
-
-        # 404인 경우 SPA 라우팅을 위해 index.html로 폴백
-        if response.status_code == 404:
-            logger.info(f"404 응답 감지, SPA 폴백 시도: {path}")
-
-            # 프론트엔드 경로 확인
-            frontend_path = os.path.join(os.path.dirname(__file__), "../frontend")
-            if not os.path.exists(frontend_path):
-                frontend_path = "/app/frontend"
-
-            index_path = os.path.join(frontend_path, "index.html")
-            if os.path.exists(index_path):
-                logger.info(f"SPA 폴백 성공: {path} -> index.html")
-                return FileResponse(index_path)
-            else:
-                logger.warning(
-                    f"SPA 폴백 실패: index.html을 찾을 수 없음 ({index_path})"
-                )
-
-        return response
-    except Exception as e:
-        logger.error(f"요청 처리 중 오류: {str(e)}, 경로={path}")
-        import traceback
-
-        logger.error(f"상세 오류: {traceback.format_exc()}")
-        return Response(
-            content="서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-            status_code=500,
+        log_level(
+            f"API 응답 [ID: {request_id}]: {request.method} {path} - {response.status_code}"
         )
+        return response
 
+    # 2. 정적 파일 경로 확인 (이미 /static으로 마운트됨, FastAPI가 처리)
+    if path.startswith("/static"):
+        log_level(f"정적 파일 요청 처리 위임 [ID: {request_id}]: {path}")
+        # StaticFiles 마운트가 처리하도록 위임
+        response = await call_next(request)
+        # StaticFiles가 파일을 못찾으면 404 반환, 여기서는 추가 처리 없음
+        log_level(
+            f"정적 파일 응답 [ID: {request_id}]: {request.method} {path} - {response.status_code}"
+        )
+        return response
 
-# 프론트엔드 정적 파일 서빙 (Docker 통합 배포용)
-frontend_path = os.path.join(os.path.dirname(__file__), "../frontend")
-if not os.path.exists(frontend_path):
-    # Docker 환경에서의 경로 확인
-    frontend_path = "/app/frontend"
+    # 3. 인증 예외 경로 확인 (로그인 페이지 등)
+    auth_exempt_paths = [
+        "/login",
+        "/favicon.ico",
+        "/logo.png",
+    ]  # 기타 필요한 정적 파일 추가
+    is_auth_exempt = path in auth_exempt_paths
+    if is_auth_exempt:
+        log_level(f"인증 예외 경로 처리 [ID: {request_id}]: {path}")
+        # 로그인 페이지 또는 기타 예외 경로는 그대로 처리 (SPA 폴백 또는 StaticFiles)
+        response = await call_next(request)
+        # 여기서 404가 발생하면 index.html 서빙 시도
+        if response.status_code == 404 and os.path.exists(INDEX_HTML_PATH):
+            log_level(
+                f"인증 예외 경로 404, SPA 폴백 [ID: {request_id}]: {path} -> index.html"
+            )
+            return FileResponse(INDEX_HTML_PATH)
+        log_level(
+            f"인증 예외 경로 응답 [ID: {request_id}]: {request.method} {path} - {response.status_code}"
+        )
+        return response
 
-if os.path.exists(frontend_path):
-    logger.info(f"프론트엔드 정적 파일 서빙 활성화: {frontend_path}")
-    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
-else:
-    logger.warning(f"프론트엔드 정적 파일 경로를 찾을 수 없습니다: {frontend_path}")
+    # 4. 그 외 모든 경로는 인증 확인 후 SPA 처리 또는 로그인 리다이렉션
+    session_id = request.cookies.get("session_id")
+    session = get_session(session_id) if session_id else None
+
+    if not session:
+        logger.info(
+            f"인증 필요, 로그인 리다이렉션 [ID: {request_id}]: {path} -> /login"
+        )
+        return Response(status_code=307, headers={"Location": "/login"})
+    else:
+        log_level(
+            f"인증 완료, SPA 진입 [ID: {request_id}]: {path} (사용자: {session['user_id']})"
+        )
+        # 인증된 사용자는 index.html 반환
+        if os.path.exists(INDEX_HTML_PATH):
+            return FileResponse(INDEX_HTML_PATH)
+        else:
+            logger.error(
+                f"SPA 처리 실패 [ID: {request_id}]: index.html 찾을 수 없음 - {INDEX_HTML_PATH}"
+            )
+            return Response(content="Frontend build not found.", status_code=500)
+
 
 # 서버 실행 (직접 실행 시)
 if __name__ == "__main__":

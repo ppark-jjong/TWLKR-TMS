@@ -3,17 +3,18 @@
 """
 
 from sqlalchemy import Column, String, Integer, Enum, ForeignKey, Index
-from sqlalchemy.orm import relationship
 from pydantic import Field
-from typing import Optional, List
+from typing import Optional
 
 from backend.database import Base
+
+# Warehouse Enum 임포트 (Dashboard 모델에서 가져옴)
 from backend.models.dashboard import Warehouse
 from backend.models.model_config import APIModel
 
 
 class PostalCode(Base):
-    """우편번호 DB 모델"""
+    """우편번호 DB 모델 (init-db.sql 기준)"""
 
     __tablename__ = "postal_code"
 
@@ -24,21 +25,19 @@ class PostalCode(Base):
 
 
 class PostalCodeDetail(Base):
-    """우편번호 상세 정보 DB 모델"""
+    """우편번호 상세 정보 DB 모델 (init-db.sql 기준)"""
 
     __tablename__ = "postal_code_detail"
 
     postal_code = Column(
         String(5), ForeignKey("postal_code.postal_code"), primary_key=True
     )
-    warehouse = Column(
-        Enum("SEOUL", "BUSAN", "GWANGJU", "DAEJEON", name="warehouse_enum"),
-        primary_key=True,
-    )
+    # Warehouse Enum 사용
+    warehouse = Column(Enum(Warehouse), primary_key=True)
     distance = Column(Integer, nullable=False)
     duration_time = Column(Integer, nullable=False)
 
-    # 인덱스 생성
+    # 인덱스 정의 (선택적, 이미 DB 스키마에 있음)
     __table_args__ = (Index("idx_warehouse_postal", "warehouse"),)
 
 
@@ -52,7 +51,7 @@ class PostalCodeResponse(APIModel):
 
 class PostalCodeDetailResponse(APIModel):
     postal_code: str = Field(..., alias="postalCode")
-    warehouse: str
+    warehouse: Warehouse  # Enum 타입 사용
     distance: int
     duration_time: int = Field(..., alias="durationTime")
 

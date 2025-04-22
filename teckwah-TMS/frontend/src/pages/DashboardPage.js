@@ -1,7 +1,7 @@
 /**
  * 대시보드 페이지 컴포넌트
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Button,
   Space,
@@ -20,6 +20,8 @@ import {
   Divider,
   Form,
   InputNumber,
+  Popover,
+  Checkbox,
 } from 'antd';
 import {
   PlusOutlined,
@@ -35,6 +37,7 @@ import {
   WarningOutlined,
   StopOutlined,
   UserOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import MainLayout from '../components/layout/MainLayout';
 import { ErrorResult } from '../components/common';
@@ -60,7 +63,8 @@ const DashboardPage = () => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [data, setData] = useState([]);
+  const [rawData, setRawData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [statusCounts, setStatusCounts] = useState({
     WAITING: 0,
     IN_PROGRESS: 0,
@@ -76,8 +80,8 @@ const DashboardPage = () => {
   });
 
   const [filters, setFilters] = useState({
-    startDate: dayjs().tz('Asia/Seoul').startOf('day').toISOString(),
-    endDate: dayjs().tz('Asia/Seoul').endOf('day').toISOString(),
+    startDate: dayjs().startOf('day').format('YYYY-MM-DD HH:mm:ss'),
+    endDate: dayjs().endOf('day').format('YYYY-MM-DD HH:mm:ss'),
     status: '',
     department: '',
     warehouse: '',
@@ -91,12 +95,28 @@ const DashboardPage = () => {
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isDriverModalVisible, setIsDriverModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
-  const [editMode, setEditMode] = useState(false); // 편집 모드 상태 추가
+  const [editMode, setEditMode] = useState(false);
 
   // 선택된 행 상태
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
-  // 데이터 불러오기
+  // --- 컬럼 커스터마이징 상태 ---
+  const initialVisibleColumns = [
+    'orderNo',
+    'type',
+    'status',
+    'department',
+    'customer',
+    'address',
+    'eta',
+    'createTime',
+    'driverName',
+    'action',
+  ];
+  const [visibleColumns, setVisibleColumns] = useState(initialVisibleColumns);
+  // -----------------------------
+
+  // 데이터 불러오기 (CSR 필터링 위해 수정)
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -113,28 +133,7 @@ const DashboardPage = () => {
       const response = await DashboardService.getOrders(params);
 
       if (response.success) {
-        // 클라이언트 측 필터링 적용
-        let filteredData = response.data.items || [];
-
-        if (filters.status) {
-          filteredData = filteredData.filter(
-            (item) => item.status === filters.status
-          );
-        }
-
-        if (filters.department) {
-          filteredData = filteredData.filter(
-            (item) => item.department === filters.department
-          );
-        }
-
-        if (filters.warehouse) {
-          filteredData = filteredData.filter(
-            (item) => item.warehouse === filters.warehouse
-          );
-        }
-
-        setData(filteredData);
+        setRawData(response.data.items || []);
         setStatusCounts(
           response.data.statusCounts || {
             WAITING: 0,
@@ -144,23 +143,28 @@ const DashboardPage = () => {
             CANCEL: 0,
           }
         );
-
         setPagination({
           ...pagination,
           total: response.data.total || 0,
         });
       } else {
         setError(response.message || '데이터 조회 실패');
+        setRawData([]);
+        setFilteredData([]);
+        setPagination({ ...pagination, total: 0 });
       }
     } catch (error) {
       console.error('데이터 조회 오류:', error);
       setError('데이터를 불러오는 중 오류가 발생했습니다');
+      setRawData([]);
+      setFilteredData([]);
+      setPagination({ ...pagination, total: 0 });
     } finally {
       setLoading(false);
     }
   };
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 및 페이지네이션/검색 조건 변경 시 데이터 재조회
   useEffect(() => {
     fetchData();
   }, [
@@ -171,58 +175,64 @@ const DashboardPage = () => {
     pagination.pageSize,
   ]);
 
-  // 날짜 필터 변경 처리
+  // --- CSR 필터링 로직 ---
+  useEffect(() => {
+    let processedData = [...rawData];
+
+    if (filters.status) {
+      processedData = processedData.filter(
+        (item) => item.status === filters.status
+      );
+    }
+    if (filters.department) {
+      processedData = processedData.filter(
+        (item) => item.department === filters.department
+      );
+    }
+    if (filters.warehouse) {
+      processedData = processedData.filter(
+        (item) => item.warehouse === filters.warehouse
+      );
+    }
+
+    setFilteredData(processedData);
+  }, [rawData, filters.status, filters.department, filters.warehouse]);
+  // -----------------------
+
+  // 날짜 필터 변경 처리 (fetchData 호출 안 함, 상태만 변경)
   const handleDateChange = (dates) => {
     if (!dates || dates.length !== 2) return;
-
     setFilters({
       ...filters,
-      startDate: dates[0].startOf('day').toISOString(),
-      endDate: dates[1].endOf('day').toISOString(),
+      startDate: dates[0].startOf('day').format('YYYY-MM-DD HH:mm:ss'),
+      endDate: dates[1].endOf('day').format('YYYY-MM-DD HH:mm:ss'),
     });
-
-    // 1페이지로 이동
-    setPagination({
-      ...pagination,
-      current: 1,
-    });
+    setPagination({ ...pagination, current: 1 });
   };
 
-  // 오늘 날짜로 설정
+  // 오늘 날짜로 설정 (fetchData 호출 안 함, 상태만 변경)
   const handleSetToday = () => {
-    const today = dayjs().tz('Asia/Seoul');
+    const today = dayjs();
     setFilters({
       ...filters,
-      startDate: today.startOf('day').toISOString(),
-      endDate: today.endOf('day').toISOString(),
+      startDate: today.startOf('day').format('YYYY-MM-DD HH:mm:ss'),
+      endDate: today.endOf('day').format('YYYY-MM-DD HH:mm:ss'),
     });
-
-    // 1페이지로 이동
-    setPagination({
-      ...pagination,
-      current: 1,
-    });
+    setPagination({ ...pagination, current: 1 });
   };
 
-  // 검색 처리
+  // 검색 처리 (fetchData 호출 유지 - 백엔드 검색 필요)
   const handleSearch = () => {
-    // 1페이지로 이동
-    setPagination({
-      ...pagination,
-      current: 1,
-    });
-
-    // 데이터 다시 불러오기
+    setPagination({ ...pagination, current: 1 });
     fetchData();
   };
 
-  // 필터 적용
+  // 필터 적용 버튼 핸들러 (이제 아무 작업 안 함, useEffect가 처리)
   const handleApplyFilter = () => {
-    // 클라이언트 측 필터링만 수행
-    fetchData();
+    console.log('Applying filters (CSR):', filters);
   };
 
-  // 필터 초기화
+  // 필터 초기화 (fetchData 호출 안 함, 상태만 변경)
   const handleResetFilter = () => {
     setFilters({
       ...filters,
@@ -232,13 +242,13 @@ const DashboardPage = () => {
     });
   };
 
-  // 데이터 새로고침
+  // 데이터 새로고침 (fetchData 호출 유지)
   const handleRefresh = () => {
     fetchData();
   };
 
-  // 테이블 변경 처리 (페이지네이션)
-  const handleTableChange = (pagination) => {
+  // 테이블 변경 처리 (페이지네이션만 fetchData 트리거)
+  const handleTableChange = (pagination /* filters, sorter */) => {
     setPagination({
       current: pagination.current,
       pageSize: pagination.pageSize,
@@ -248,52 +258,60 @@ const DashboardPage = () => {
 
   // 주문 상세 모달 열기 (조회 시 락 획득 안함)
   const handleOpenDetailModal = async (orderId) => {
+    setSelectedOrder(orderId);
+    setIsDetailModalVisible(true);
+    setLoading(true);
     try {
-      // 선택한 주문 설정 및 모달 표시 (조회는 락 없이)
-      setSelectedOrder(orderId);
-      setIsDetailModalVisible(true);
-
-      // 상세 정보 로드
       const response = await DashboardService.getOrder(orderId);
       if (response.success) {
-        // 락 상태 확인만 표시
-        if (response.lock_status && !response.lock_status.editable) {
-          message.info(
-            `현재 ${
-              response.lock_status.locked_by || '다른 사용자'
-            }가 편집 중입니다.`
-          );
-        }
         setSelectedOrderData(response.data);
+        setEditMode(response.data.lockedInfo?.editable || false);
+      } else {
+        message.error(response.message || '주문 정보 조회 실패');
+        setIsDetailModalVisible(false);
       }
     } catch (error) {
-      console.error('주문 조회 오류:', error);
-      message.error('주문 정보 로드 중 오류가 발생했습니다');
+      message.error('주문 정보를 불러오는 중 오류 발생');
+      setIsDetailModalVisible(false);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 수정 버튼 클릭 시 락 획득
+  // 편집 모드로 주문 상세 모달 열기 (조회 시 락 획득 안함)
   const handleEditOrderClick = async (orderId) => {
+    setSelectedOrder(orderId);
+    setIsDetailModalVisible(true);
+    setLoading(true);
     try {
-      // 락 획득 시도 - update_by와 update_at 필드는 백엔드에서 자동으로 설정됨
+      // 락 획득 시도
       const lockResponse = await DashboardService.lockOrder(orderId);
-
-      if (!lockResponse.success || !lockResponse.lock_status?.editable) {
-        // 락 획득 실패 시 오류 메시지
-        message.error(
-          lockResponse.message ||
-            '현재 다른 사용자가 편집 중이라 수정할 수 없습니다.'
-        );
-        return false;
+      if (lockResponse.success) {
+        const orderResponse = await DashboardService.getOrder(orderId);
+        if (orderResponse.success) {
+          setSelectedOrderData(orderResponse.data);
+          setEditMode(true); // 편집 모드 활성화
+        } else {
+          message.error(orderResponse.message || '주문 정보 조회 실패');
+          setIsDetailModalVisible(false);
+        }
+      } else {
+        message.warning(lockResponse.message || '주문 잠금 실패');
+        // 잠금 실패 시, 읽기 모드로 열기
+        const orderResponse = await DashboardService.getOrder(orderId);
+        if (orderResponse.success) {
+          setSelectedOrderData(orderResponse.data);
+          setEditMode(false); // 읽기 모드로 설정
+        } else {
+          message.error(orderResponse.message || '주문 정보 조회 실패');
+          setIsDetailModalVisible(false);
+        }
       }
-
-      // 락 획득 성공 시 수정 모드로 변경
-      setEditMode(true);
-      return true;
     } catch (error) {
-      console.error('락 획득 오류:', error);
-      message.error('수정 권한 획득 중 오류가 발생했습니다');
-      return false;
+      message.error('주문 정보를 불러오거나 잠그는 중 오류 발생');
+      setIsDetailModalVisible(false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -302,312 +320,286 @@ const DashboardPage = () => {
     setIsCreateModalVisible(true);
   };
 
-  // 기사 배정 모달 열기 (선택된 주문들에 대한 락 획득)
+  // 기사 배정 모달 열기
   const handleOpenDriverModal = async () => {
     if (selectedRowKeys.length === 0) {
       message.warning('기사를 배정할 주문을 선택해주세요');
       return;
     }
-
-    // 락 획득은 실제 배치 작업 시에만 수행 (모달에서 확인 버튼 클릭 시)
     setIsDriverModalVisible(true);
   };
 
-  // 상태 변경 모달 열기 (선택된 주문들에 대한 락 획득)
+  // 상태 변경 모달 열기
   const handleOpenStatusModal = async () => {
     if (selectedRowKeys.length === 0) {
       message.warning('상태를 변경할 주문을 선택해주세요');
       return;
     }
-
-    // 락 획득은 실제 상태 변경 시에만 수행 (모달에서 확인 버튼 클릭 시)
     setIsStatusModalVisible(true);
   };
 
-  // 배차 처리 확인 (실제 락 획득 및 배차 처리)
+  // 기사 배정 처리
   const handleAssignDriver = async (driverData) => {
-    // 선택된 모든 주문에 대해 락 획득 시도
-    const lockedIds = [];
-    let failCount = 0;
-
-    for (const orderId of selectedRowKeys) {
-      try {
-        const lockResponse = await DashboardService.lockOrder(orderId);
-        if (lockResponse.success && lockResponse.lock_status?.editable) {
-          lockedIds.push(orderId);
-        } else {
-          failCount++;
-        }
-      } catch (error) {
-        console.error(`주문 ID ${orderId} 락 획득 오류:`, error);
-        failCount++;
-      }
-    }
-
-    if (failCount > 0) {
-      message.warning(
-        `${failCount}개 주문에 대한 락 획득 실패로 해당 주문은 처리되지 않습니다.`
-      );
-    }
-
-    if (lockedIds.length > 0) {
-      try {
-        // 실제 배차 처리 요청 - 백엔드 API 메서드명과 일치시킴
-        const response = await DashboardService.assignDriverToOrders(
-          lockedIds,
-          driverData.driverName,
-          driverData.driverContact
-        );
-
-        if (response.success) {
-          message.success(
-            `${lockedIds.length}개 주문에 배차 처리가 완료되었습니다.`
-          );
-          fetchData();
-        } else {
-          message.error(response.message || '배차 처리 실패');
-        }
-      } catch (error) {
-        console.error('배차 처리 오류:', error);
-        message.error('배차 처리 중 오류가 발생했습니다');
-      } finally {
-        // 락 해제
-        for (const orderId of lockedIds) {
-          try {
-            await DashboardService.unlockOrder(orderId);
-          } catch (error) {
-            console.error(`주문 ID ${orderId} 락 해제 오류:`, error);
-          }
-        }
-      }
-    }
-
-    setIsDriverModalVisible(false);
-  };
-
-  // 상태 변경 확인 (실제 락 획득 및 상태 변경)
-  const handleChangeStatus = async (statusData) => {
-    // 선택된 모든 주문에 대해 락 획득 시도
-    const lockedIds = [];
-    let failCount = 0;
-
-    for (const orderId of selectedRowKeys) {
-      try {
-        const lockResponse = await DashboardService.lockOrder(orderId);
-        if (lockResponse.success && lockResponse.lock_status?.editable) {
-          lockedIds.push(orderId);
-        } else {
-          failCount++;
-        }
-      } catch (error) {
-        console.error(`주문 ID ${orderId} 락 획득 오류:`, error);
-        failCount++;
-      }
-    }
-
-    if (failCount > 0) {
-      message.warning(
-        `${failCount}개 주문에 대한 락 획득 실패로 해당 주문은 처리되지 않습니다.`
-      );
-    }
-
-    if (lockedIds.length > 0) {
-      try {
-        // 백엔드 API 메서드명과 일치시킴
-        const response = await DashboardService.updateOrdersStatus(
-          lockedIds,
-          statusData.status
-        );
-
-        if (response.success) {
-          message.success(
-            `${lockedIds.length}개 주문의 상태가 '${statusData.status}'로 변경되었습니다.`
-          );
-          fetchData();
-        } else {
-          message.error(response.message || '상태 변경 실패');
-        }
-      } catch (error) {
-        console.error('상태 변경 오류:', error);
-        message.error('상태 변경 중 오류가 발생했습니다');
-      } finally {
-        // 락 해제
-        for (const orderId of lockedIds) {
-          try {
-            await DashboardService.unlockOrder(orderId);
-          } catch (error) {
-            console.error(`주문 ID ${orderId} 락 해제 오류:`, error);
-          }
-        }
-      }
-    }
-
-    setIsStatusModalVisible(false);
-  };
-
-  // 단일 주문 삭제
-  const handleDeleteOrder = async (orderId) => {
+    setLoading(true);
     try {
-      const response = await DashboardService.deleteOrder(orderId);
-
+      const orderIds = selectedRowKeys;
+      const response = await DashboardService.assignDriverToOrders(
+        orderIds,
+        driverData.driverName,
+        driverData.driverContact
+      );
       if (response.success) {
-        message.success('주문이 삭제되었습니다');
+        message.success('기사 배정 성공');
+        setIsDriverModalVisible(false);
+        setSelectedRowKeys([]);
         fetchData();
       } else {
-        message.error(response.message || '주문 삭제 실패');
+        message.error(response.message || '기사 배정 실패');
       }
     } catch (error) {
-      console.error('주문 삭제 오류:', error);
-      message.error('주문 삭제 중 오류가 발생했습니다');
+      message.error('기사 배정 중 오류 발생');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 다중 주문 삭제
+  // 상태 변경 처리
+  const handleChangeStatus = async (statusData) => {
+    setLoading(true);
+    try {
+      const orderIds = selectedRowKeys;
+      const response = await DashboardService.updateOrdersStatus(
+        orderIds,
+        statusData.status
+      );
+      if (response.success) {
+        message.success('상태 변경 성공');
+        setIsStatusModalVisible(false);
+        setSelectedRowKeys([]);
+        fetchData();
+      } else {
+        message.error(response.message || '상태 변경 실패');
+      }
+    } catch (error) {
+      message.error('상태 변경 중 오류 발생');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 주문 삭제 처리 (개별) - 삭제됨
+
+  // 주문 다중 삭제 처리 (렌더링 조건 확인)
   const handleDeleteMultiple = () => {
     if (selectedRowKeys.length === 0) {
-      message.warning('삭제할 주문을 선택해주세요');
+      message.warning('삭제할 주문을 선택해주세요.');
       return;
     }
 
     confirm({
-      title: '선택한 주문을 삭제하시겠습니까?',
+      title: `${selectedRowKeys.length}개 주문을 삭제하시겠습니까?`,
       icon: <ExclamationCircleOutlined />,
-      content: `${selectedRowKeys.length}개의 주문이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`,
+      content: '삭제된 주문은 복구할 수 없습니다.',
       okText: '삭제',
       okType: 'danger',
       cancelText: '취소',
       onOk: async () => {
+        setLoading(true);
         try {
-          const response = await DashboardService.deleteOrders(
-            selectedRowKeys
-          );
-
+          const response = await DashboardService.deleteOrders(selectedRowKeys);
           if (response.success) {
-            message.success(response.message || '선택한 주문이 삭제되었습니다');
+            message.success(response.message || '선택한 주문 삭제 성공');
             setSelectedRowKeys([]);
             fetchData();
           } else {
             message.error(response.message || '주문 삭제 실패');
           }
         } catch (error) {
-          console.error('다중 주문 삭제 오류:', error);
-          message.error('주문 삭제 중 오류가 발생했습니다');
+          message.error('주문 삭제 중 오류 발생');
+        } finally {
+          setLoading(false);
         }
       },
     });
   };
 
-  // 데이터 다운로드
+  // 데이터 다운로드 (현재 UI 없음)
   const handleDownload = async () => {
-    try {
-      await DashboardService.downloadOrders(filters);
-      message.success('데이터 다운로드가 완료되었습니다');
-    } catch (error) {
-      console.error('다운로드 오류:', error);
-      message.error('데이터 다운로드 중 오류가 발생했습니다');
-    }
+    /* ... */
   };
 
   // 상태에 따른 배지 렌더링
   const renderStatusBadge = (status) => {
-    const statusOption = STATUS_OPTIONS.find(
-      (option) => option.value === status
-    );
-    if (!statusOption) return <span>-</span>;
-
-    return (
-      <div
+    const option = STATUS_OPTIONS.find((opt) => opt.value === status);
+    return option ? (
+      <span
         style={{
-          backgroundColor: statusOption.color,
-          color: statusOption.textColor,
-          padding: '2px 8px',
+          backgroundColor: option.color,
+          color: option.textColor,
+          padding: '3px 8px',
           borderRadius: '12px',
-          display: 'inline-block',
-          fontSize: '0.8rem',
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
+          fontSize: '12px',
+          border: `1px solid ${option.textColor || '#d9d9d9'}`,
         }}
       >
-        {statusOption.icon} {statusOption.label}
-      </div>
+        {option.icon &&
+          React.cloneElement(option.icon, { style: { marginRight: 4 } })}
+        {option.label}
+      </span>
+    ) : (
+      status
     );
   };
 
   // 유형에 따른 배지 렌더링
   const renderTypeBadge = (type) => {
-    const typeOption = TYPE_OPTIONS.find((option) => option.value === type);
-    if (!typeOption) return <span>-</span>;
-
-    return (
-      <div
+    const option = TYPE_OPTIONS.find((opt) => opt.value === type);
+    return option ? (
+      <span
         style={{
-          backgroundColor: typeOption.color,
-          color: typeOption.textColor,
-          padding: '2px 8px',
-          borderRadius: '12px',
-          display: 'inline-block',
-          fontSize: '0.8rem',
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
+          backgroundColor: option.color,
+          color: option.textColor,
+          padding: '3px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
         }}
       >
-        {typeOption.label}
-      </div>
+        {option.label}
+      </span>
+    ) : (
+      type
     );
   };
 
-  // 테이블 컬럼 설정
-  const columns = [
-    {
-      title: '주문번호',
-      dataIndex: 'orderNo',
-      key: 'orderNo',
-      render: (text) => (
-        <div style={{ fontWeight: 500, color: '#1890ff', cursor: 'pointer' }}>
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: '고객',
-      dataIndex: 'customer',
-      key: 'customer',
-    },
-    {
-      title: '유형',
-      dataIndex: 'type',
-      key: 'type',
-      render: renderTypeBadge,
-    },
-    {
-      title: '상태',
-      dataIndex: 'status',
-      key: 'status',
-      render: renderStatusBadge,
-    },
-    {
-      title: '부서',
-      dataIndex: 'department',
-      key: 'department',
-    },
-    {
-      title: '창고',
-      dataIndex: 'warehouse',
-      key: 'warehouse',
-    },
-    {
-      title: 'ETA',
-      dataIndex: 'eta',
-      key: 'eta',
-      render: (date) => dayjs(date).format('YYYY-MM-DD HH:mm'),
-    },
-    {
-      title: '배송기사',
-      dataIndex: 'driverName',
-      key: 'driverName',
-      render: (text) => text || '-',
-    },
-  ];
+  // --- 테이블 컬럼 정의 (개별 삭제 제거) ---
+  const baseColumns = useMemo(
+    () => [
+      {
+        title: '주문번호',
+        dataIndex: 'orderNo',
+        key: 'orderNo',
+        sorter: (a, b) => a.orderNo.localeCompare(b.orderNo),
+        render: (text) => <Tooltip title={text}>{text}</Tooltip>,
+        width: 150,
+        ellipsis: true,
+      },
+      {
+        title: '유형',
+        dataIndex: 'type',
+        key: 'type',
+        render: renderTypeBadge,
+        width: 80,
+      },
+      {
+        title: '상태',
+        dataIndex: 'status',
+        key: 'status',
+        render: renderStatusBadge,
+        width: 100,
+      },
+      {
+        title: '부서',
+        dataIndex: 'department',
+        key: 'department',
+        width: 100,
+      },
+      {
+        title: '고객명',
+        dataIndex: 'customer',
+        key: 'customer',
+        sorter: (a, b) => a.customer.localeCompare(b.customer),
+        width: 120,
+        ellipsis: true,
+      },
+      {
+        title: '주소',
+        dataIndex: 'address',
+        key: 'address',
+        ellipsis: true,
+      },
+      {
+        title: 'ETA',
+        dataIndex: 'eta',
+        key: 'eta',
+        render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm'),
+        sorter: (a, b) => dayjs(a.eta).unix() - dayjs(b.eta).unix(),
+        width: 150,
+      },
+      {
+        title: '접수시간',
+        dataIndex: 'createTime',
+        key: 'createTime',
+        render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm'),
+        sorter: (a, b) =>
+          dayjs(a.createTime).unix() - dayjs(b.createTime).unix(),
+        width: 150,
+      },
+      {
+        title: '기사명',
+        dataIndex: 'driverName',
+        key: 'driverName',
+        render: (text) => text || '-',
+        width: 100,
+      },
+      {
+        title: '동작',
+        key: 'action',
+        fixed: 'right',
+        width: 100,
+        render: (_, record) => (
+          <Space size="small">
+            <Tooltip title="상세 보기">
+              <Button
+                type="link"
+                icon={<SearchOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenDetailModal(record.dashboardId);
+                }}
+              />
+            </Tooltip>
+            <Tooltip title="편집">
+              <Button
+                type="link"
+                icon={<UserSwitchOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditOrderClick(record.dashboardId);
+                }}
+              />
+            </Tooltip>
+          </Space>
+        ),
+      },
+    ],
+    []
+  );
+  // -----------------------------
+
+  // --- 컬럼 커스터마이징 관련 ---
+  const handleVisibleColumnsChange = (checkedValues) => {
+    if (!checkedValues.includes('action')) {
+      setVisibleColumns([...checkedValues, 'action']);
+    } else {
+      setVisibleColumns(checkedValues);
+    }
+  };
+
+  const getVisibleTableColumns = () => {
+    return baseColumns.filter((col) => visibleColumns.includes(col.key));
+  };
+
+  const columnSelectorContent = (
+    <Checkbox.Group
+      options={baseColumns
+        .filter((col) => col.key !== 'action')
+        .map((col) => ({ label: col.title, value: col.key }))}
+      value={visibleColumns.filter((key) => key !== 'action')}
+      onChange={handleVisibleColumnsChange}
+      style={{ display: 'flex', flexDirection: 'column' }}
+    />
+  );
+  // -----------------------------
 
   // 행 선택 설정
   const rowSelection = {
@@ -617,34 +609,33 @@ const DashboardPage = () => {
 
   // 행 클릭 설정
   const handleRowClick = (record) => {
-    return {
-      onClick: () => {
-        handleOpenDetailModal(record.dashboardId);
-      },
-    };
+    handleOpenDetailModal(record.dashboardId);
   };
 
-  // 모달 닫기 (편집 모드인 경우에만 락 해제)
+  // 모달 닫기
   const handleCloseDetailModal = async () => {
-    if (selectedOrder && editMode) {
+    if (selectedOrderData && editMode) {
       try {
-        await DashboardService.unlockOrder(selectedOrder);
+        await DashboardService.unlockOrder(selectedOrderData.dashboardId);
       } catch (error) {
         console.error('락 해제 오류:', error);
       }
-      setEditMode(false);
     }
     setIsDetailModalVisible(false);
+    setSelectedOrder(null);
+    setSelectedOrderData(null);
+    setEditMode(false);
   };
 
-  // 수정 완료 시 락 해제
+  // 수정 완료 시
   const handleUpdateComplete = async () => {
-    if (selectedOrder) {
+    if (selectedOrderData) {
       try {
-        await DashboardService.unlockOrder(selectedOrder);
+        await DashboardService.unlockOrder(selectedOrderData.dashboardId);
         message.success('수정이 완료되었습니다.');
         setEditMode(false);
-        fetchData(); // 데이터 새로고침
+        setIsDetailModalVisible(false);
+        fetchData();
       } catch (error) {
         console.error('락 해제 오류:', error);
         message.error('락 해제 중 오류가 발생했습니다');
@@ -735,10 +726,11 @@ const DashboardPage = () => {
                   }
                   style={{ width: '80px' }}
                 >
-                  <Option value={5}>5행</Option>
-                  <Option value={10}>10행</Option>
-                  <Option value={15}>15행</Option>
-                  <Option value={20}>20행</Option>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <Option key={size} value={size}>
+                      {size}행
+                    </Option>
+                  ))}
                 </Select>
               </div>
             </div>
@@ -751,8 +743,7 @@ const DashboardPage = () => {
               onChange={(e) =>
                 setFilters({ ...filters, orderNo: e.target.value })
               }
-              style={{ width: '200px' }}
-              onPressEnter={handleSearch}
+              style={{ width: 180 }}
             />
             <Button
               type="primary"
@@ -948,7 +939,7 @@ const DashboardPage = () => {
           <Card style={{ flex: 1, minWidth: '200px' }}>
             <Statistic
               title="총 건수"
-              value={data.length}
+              value={filteredData.length}
               suffix="건"
               valueStyle={{ color: '#1890ff' }}
               prefix={<ClockCircleOutlined />}
@@ -996,22 +987,77 @@ const DashboardPage = () => {
           </Card>
         </div>
 
+        {/* 테이블 상단 액션 영역 */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+          }}
+        >
+          <Popover
+            content={columnSelectorContent}
+            title="표시할 컬럼 선택"
+            trigger="click"
+            placement="bottomLeft"
+          >
+            <Button icon={<SettingOutlined />} />
+          </Popover>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Button type="primary" onClick={handleRefresh}>
+              <ReloadOutlined /> 새로고침
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleOpenStatusModal}
+              disabled={selectedRowKeys.length === 0}
+            >
+              <SwapOutlined /> 상태 변경
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleOpenDriverModal}
+              disabled={selectedRowKeys.length === 0}
+            >
+              <UserOutlined /> 배차 처리
+            </Button>
+            <Button type="primary" onClick={handleOpenCreateModal}>
+              <PlusOutlined /> 신규 등록
+            </Button>
+            {currentUser.user_role === 'ADMIN' && (
+              <Button
+                danger
+                onClick={handleDeleteMultiple}
+                disabled={selectedRowKeys.length === 0}
+              >
+                <DeleteOutlined /> 삭제
+              </Button>
+            )}
+          </div>
+        </div>
+
         {/* 테이블 */}
         <Table
-          dataSource={data}
-          columns={columns}
+          columns={getVisibleTableColumns()}
+          dataSource={filteredData}
           rowKey="dashboardId"
           loading={loading}
           pagination={{
             ...pagination,
             showSizeChanger: true,
-            showTotal: (total) => `전체 ${total}개`,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            showTotal: (total, range) =>
+              `${range[0]}-${range[1]} / 전체 ${pagination.total}개`,
             position: ['bottomCenter'],
           }}
           onChange={handleTableChange}
           rowSelection={rowSelection}
-          onRow={handleRowClick}
-          scroll={{ x: 'max-content' }}
+          onRow={(record) => ({
+            onClick: () => handleRowClick(record),
+          })}
+          scroll={{ x: 1500 }}
+          sticky
           bordered
           style={{
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -1056,7 +1102,7 @@ const DashboardPage = () => {
       {/* 여기에 필요한 모달들 추가 */}
       {/* 주문 상세 모달 */}
       <Modal
-        title="주문 상세 정보"
+        title={editMode ? '주문 수정' : '주문 상세 정보'}
         open={isDetailModalVisible}
         onCancel={handleCloseDetailModal}
         width={800}
@@ -1080,26 +1126,15 @@ const DashboardPage = () => {
           ),
         ]}
       >
-        {selectedOrder && selectedOrderData && (
+        {loading && <p>로딩 중...</p>}
+        {!loading && selectedOrderData && (
           <div>
-            <p>주문 ID: {selectedOrder}</p>
-            {editMode ? (
-              <div>
-                <p>편집 모드 - 수정 양식이 여기에 표시됩니다</p>
-                {/* 수정 양식 컴포넌트 */}
-              </div>
-            ) : (
-              <div>
-                <p>읽기 모드 - 상세 정보가 여기에 표시됩니다</p>
-                {/* 상세 정보 표시 컴포넌트 */}
-              </div>
-            )}
-            {selectedOrderData.lock_status &&
-              !selectedOrderData.lock_status.editable && (
+            <pre>{JSON.stringify(selectedOrderData, null, 2)}</pre>
+            {selectedOrderData.lockedInfo &&
+              !selectedOrderData.lockedInfo.editable && (
                 <div style={{ color: 'red', marginTop: '10px' }}>
-                  현재{' '}
-                  {selectedOrderData.lock_status.locked_by || '다른 사용자'}가
-                  편집 중입니다.
+                  현재 {selectedOrderData.lockedInfo.lockedBy || '다른 사용자'}
+                  가 편집 중입니다.
                 </div>
               )}
           </div>
@@ -1111,16 +1146,9 @@ const DashboardPage = () => {
         title="신규 배송 등록"
         open={isCreateModalVisible}
         onCancel={() => setIsCreateModalVisible(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setIsCreateModalVisible(false)}>
-            취소
-          </Button>,
-          <Button key="submit" type="primary">
-            등록하기
-          </Button>,
-        ]}
+        footer={null}
       >
-        <p>신규 주문 생성 폼</p>
+        <p>신규 주문 생성 폼 영역</p>
       </Modal>
 
       {/* 기사 배정 모달 */}
@@ -1128,7 +1156,7 @@ const DashboardPage = () => {
         title="배차 처리"
         open={isDriverModalVisible}
         onCancel={() => setIsDriverModalVisible(false)}
-        footer={null} // 폼 내부에서 버튼 처리
+        footer={null}
       >
         <Form onFinish={handleAssignDriver} layout="vertical">
           <Form.Item
@@ -1164,7 +1192,7 @@ const DashboardPage = () => {
         title="상태 변경"
         open={isStatusModalVisible}
         onCancel={() => setIsStatusModalVisible(false)}
-        footer={null} // 폼 내부에서 버튼 처리
+        footer={null}
       >
         <Form onFinish={handleChangeStatus} layout="vertical">
           <Form.Item
