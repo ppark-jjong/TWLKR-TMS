@@ -224,7 +224,7 @@ if __name__ == "__main__":
             client_id=NAVER_CLIENT_ID,
             client_secret=NAVER_CLIENT_SECRET,
             output_file="./zipcode_address_result_Daejeon.csv",
-            max_rows=8970,  # 750
+            max_rows=5076,
         )
         print("\n실행 완료!")
     except ValueError as ve:
