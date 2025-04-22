@@ -25,11 +25,20 @@ export const formatDate = (dateStr, format = 'YYYY-MM-DD HH:mm') => {
 /**
  * 백엔드로 전송할 날짜 변환 함수
  * @param {Date|dayjs|string} date - 변환할 날짜
- * @returns {string} ISO 형식 날짜 문자열
+ * @returns {string} 공백 구분자 형식 날짜 문자열 (YYYY-MM-DD HH:MM:SS)
+ */
+export const toServerDateFormat = (date) => {
+  if (!date) return null;
+  return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
+};
+
+/**
+ * 기존 코드 호환성을 위한 함수
+ * @deprecated 공백 구분자 형식으로 통일되었으므로 toServerDateFormat 사용 권장
  */
 export const toISOString = (date) => {
-  if (!date) return null;
-  return dayjs(date).toISOString();
+  console.warn('toISOString 대신 toServerDateFormat 사용을 권장합니다');
+  return toServerDateFormat(date);
 };
 
 /**
@@ -76,6 +85,7 @@ export const formatPostalCode = (postalCode) => {
 
 export default {
   formatDate,
+  toServerDateFormat,
   toISOString,
   getCurrentDate,
   getDateRange,

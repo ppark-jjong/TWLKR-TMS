@@ -2,9 +2,9 @@
 응답 형식 표준화 미들웨어
 
 기능:
-1. JSON 응답의 날짜 형식을 일관되게 변환 (ISO 8601 T 제거)
-2. 필드 누락 문제 해결을 위한 응답 처리
-3. 효율적인 JSON 변환 로직
+1. 필드 이름은 Pydantic의 alias 기능을 통해 변환
+2. 날짜 형식은 Pydantic의 json_encoders를 통해 통일 ('YYYY-MM-DD HH:MM:SS' 형식으로)
+3. region 필드 자동 생성과 같은 특수 처리 유지
 """
 
 import json
@@ -18,32 +18,30 @@ import datetime
 from backend.utils.logger import logger
 
 
+# 이 함수는 이제 사용하지 않음 - Pydantic의 json_encoders가 모든 날짜 변환 담당
+# 호환성을 위해 함수는 남겨둠
 def format_datetime(date_str: str) -> str:
-    """ISO 형식 날짜에서 T를 공백으로 변환"""
+    """ISO 형식 날짜에서 T를 공백으로 변환 (레거시 지원)"""
     if not date_str:
         return date_str
     return re.sub(r'(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})', r'\1 \2', date_str)
 
 
 def process_json_value(value: Any) -> Any:
-    """JSON 값 처리 (날짜 변환 및 None 처리)"""
-    if isinstance(value, str) and re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', value):
-        return format_datetime(value)
-    elif isinstance(value, dict):
+    """JSON 값 처리 - Pydantic에서 대부분 처리되므로 간소화"""
+    if isinstance(value, dict):
         return process_json_dict(value)
     elif isinstance(value, list):
         return [process_json_value(item) for item in value]
-    # datetime 객체를 직접 처리
-    elif isinstance(value, datetime.datetime):
-        return value.strftime('%Y-%m-%d %H:%M:%S')
+    # datetime 객체는 이미 Pydantic 모델에서 처리됨
     return value
 
 
 def process_json_dict(data: Dict[str, Any]) -> Dict[str, Any]:
-    """딕셔너리 처리 (중첩 구조 고려)"""
+    """딕셔너리 처리 (필드 이름 변환 없이 값만 처리)"""
     result = {}
     for key, value in data.items():
-        # region 필드가 없는 경우 처리 (Dashboard 모델)
+        # region 필드가 없는 경우 처리는 유지 (Dashboard 모델)
         if key == 'dashboard_id' and 'region' not in data and all(k in data for k in ['city', 'county', 'district']):
             # city, county, district가 있지만 region이 없는 경우, region 필드 생성
             city = data.get('city', '')
@@ -52,7 +50,7 @@ def process_json_dict(data: Dict[str, Any]) -> Dict[str, Any]:
             parts = [p for p in [city, county, district] if p]
             result['region'] = ' '.join(parts)
         
-        # 값 처리 (재귀적으로)
+        # 값 처리 (재귀적으로) - 키 이름은 변경하지 않음
         result[key] = process_json_value(value)
     
     return result
@@ -65,6 +63,7 @@ class JSONResponseMiddleware(BaseHTTPMiddleware):
     JSON 응답 형식을 표준화하는 미들웨어
     - ISO 8601 형식의 날짜 문자열에서 T를 공백으로 변환
     - 누락 필드 자동 보완
+    - 변수명 변환은 제거 (Pydantic alias로 대체)
     """
     async def dispatch(self, request: Request, call_next):
         # 원래 응답 호출
@@ -100,7 +99,7 @@ class JSONResponseMiddleware(BaseHTTPMiddleware):
                 try:
                     data = json.loads(body_str)
                     
-                    # 데이터 처리
+                    # 데이터 처리 (날짜 형식만 변환)
                     processed_data = process_json_dict(data)
                     
                     # 새 JSON 문자열 생성

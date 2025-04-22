@@ -24,6 +24,11 @@ const AuthService = {
       // 핵심 로그: 로그인 성공
       console.log('[인증] 로그인 성공');
       
+      // 세션 쿠키 확인 로깅 (디버깅 목적)
+      const cookies = document.cookie.split(';');
+      const sessionCookie = cookies.find(cookie => cookie.trim().startsWith('session_id='));
+      console.log('[인증] 세션 쿠키 존재:', !!sessionCookie);
+      
       return response.data;
     } catch (error) {
       // 핵심 로그: 로그인 실패
@@ -51,6 +56,9 @@ const AuthService = {
       
       // 핵심 로그: 로그아웃 성공
       console.log('[인증] 로그아웃 완료');
+      
+      // 세션 쿠키 삭제 확인
+      document.cookie = 'session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       
       return response.data;
     } catch (error) {

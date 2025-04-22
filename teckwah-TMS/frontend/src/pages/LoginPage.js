@@ -28,7 +28,9 @@ const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 쿼리 파라미터에서 리다이렉트 정보 가져오기
-  const from = location.state?.from?.pathname || '/dashboard';
+  const searchParams = new URLSearchParams(location.search);
+  const redirectPath = searchParams.get('redirect');
+  const from = redirectPath || location.state?.from?.pathname || '/dashboard';
   const redirectMessage = location.state?.message;
 
   // 컴포넌트 마운트 시 파라미터 메시지 표시
@@ -121,9 +123,9 @@ const LoginPage = () => {
               }} 
             />
             <Title level={3} style={{ marginTop: 8, marginBottom: 0 }}>
-              배송 실시간 관제 시스템
+              TeckWahKRTMS
             </Title>
-            <Text type="secondary">TeckwahKR - TMS</Text>
+            <Text type="secondary">By TeckWahKR Operation Team</Text>
           </Space>
         </div>
 

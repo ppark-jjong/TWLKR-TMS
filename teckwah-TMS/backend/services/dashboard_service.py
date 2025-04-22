@@ -72,7 +72,7 @@ def get_dashboard_orders(
         # 응답 데이터에 락 상태 정보 추가
         setattr(order, "locked_info", order_lock_status)
     
-    # 응답 데이터 구성
+    # 응답 데이터 구성 (camelCase로 일관되게 변경)
     return {
         "success": True,
         "message": "주문 목록 조회 성공",
@@ -81,10 +81,10 @@ def get_dashboard_orders(
             "total": total_count,
             "page": page,
             "limit": limit,
-            "status_counts": status_count_dict,
+            "statusCounts": status_count_dict,  # snake_case에서 camelCase로 변경
             "filter": {
-                "start_date": start_datetime,
-                "end_date": end_datetime,
+                "startDate": start_datetime,  # snake_case에서 camelCase로 변경
+                "endDate": end_datetime,  # snake_case에서 camelCase로 변경
             },
         },
     }
@@ -260,13 +260,13 @@ def update_multiple_orders_status(
     if forbidden_ids:
         result_message += f", {len(forbidden_ids)}개 주문은 권한이 없어 변경되지 않았습니다"
     
-    # 응답 반환
+    # 응답 반환 (camelCase로 일관되게 변경)
     return {
         "success": True,
         "message": result_message,
         "data": {
-            "updated_count": len(updated_ids),
-            "updated_ids": updated_ids,
-            "forbidden_ids": forbidden_ids,
+            "updatedCount": len(updated_ids),  # snake_case에서 camelCase로 변경
+            "updatedIds": updated_ids,  # snake_case에서 camelCase로 변경
+            "forbiddenIds": forbidden_ids,  # snake_case에서 camelCase로 변경
         },
     }

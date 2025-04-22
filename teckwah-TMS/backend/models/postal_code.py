@@ -4,11 +4,12 @@
 
 from sqlalchemy import Column, String, Integer, Enum, ForeignKey, Index
 from sqlalchemy.orm import relationship
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing import Optional, List
 
 from backend.database import Base
 from backend.models.dashboard import Warehouse
+from backend.models.model_config import APIModel
 
 
 class PostalCode(Base):
@@ -42,35 +43,29 @@ class PostalCodeDetail(Base):
 
 
 # API 요청/응답 모델
-class PostalCodeResponse(BaseModel):
-    postal_code: str
+class PostalCodeResponse(APIModel):
+    postal_code: str = Field(..., alias="postalCode")
     city: Optional[str] = None
     county: Optional[str] = None
     district: Optional[str] = None
 
-    class Config:
-        from_attributes = True
 
-
-class PostalCodeDetailResponse(BaseModel):
-    postal_code: str
+class PostalCodeDetailResponse(APIModel):
+    postal_code: str = Field(..., alias="postalCode")
     warehouse: str
     distance: int
-    duration_time: int
-
-    class Config:
-        from_attributes = True
+    duration_time: int = Field(..., alias="durationTime")
 
 
-class PostalCodeCreate(BaseModel):
-    postal_code: str = Field(..., description="우편번호")
+class PostalCodeCreate(APIModel):
+    postal_code: str = Field(..., description="우편번호", alias="postalCode")
     city: Optional[str] = Field(None, description="시")
     county: Optional[str] = Field(None, description="군/구")
     district: Optional[str] = Field(None, description="동/읍/면")
 
 
-class PostalCodeDetailCreate(BaseModel):
-    postal_code: str = Field(..., description="우편번호")
+class PostalCodeDetailCreate(APIModel):
+    postal_code: str = Field(..., description="우편번호", alias="postalCode")
     warehouse: Warehouse = Field(..., description="창고")
     distance: int = Field(..., description="거리(km)")
-    duration_time: int = Field(..., description="소요시간(분)")
+    duration_time: int = Field(..., description="소요시간(분)", alias="durationTime")

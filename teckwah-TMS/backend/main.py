@@ -34,7 +34,6 @@ from backend.routes import (
     handover,
     visualization,
     user,
-    # postal_code 라우터 제거 - 우편번호는 백엔드와 DB 레벨에서만 처리
 )
 from backend.utils.security import cleanup_expired_sessions, sessions, get_session
 
@@ -49,7 +48,7 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("[시스템] 배송 실시간 관제 시스템 API 시작")
     logger.info(f"[시스템] 환경: {'개발' if settings.DEBUG else '운영'} 모드")
-    
+
     # 세션 정리 작업 예약
     try:
         cleanup_expired_sessions()
