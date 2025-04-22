@@ -11,8 +11,9 @@ import traceback
 import json
 
 from backend.database import get_db
-from backend.models.user import (
-    User,
+from backend.models.user import User
+from backend.schemas.user_schema import (
+    UserRole,
     UserCreate,
     UserUpdate,
     UserResponse,
@@ -44,7 +45,7 @@ async def get_users(
     모든 사용자 목록 조회 (관리자 전용) - 페이지네이션 없음
     """
     # --- [임시 권한 확인 추가] ---
-    if current_user["user_role"] != get_current_user.ADMIN:
+    if current_user["user_role"] != UserRole.ADMIN.value:
         logger.warning(
             f"관리자 전용 기능 접근 시도 (임시 확인): {current_user['user_id']}, 경로: /users/"
         )

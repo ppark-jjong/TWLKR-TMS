@@ -1,50 +1,46 @@
 """
-시각화 API 응답 모델
+시각화 데이터 모델
 """
 
-from pydantic import Field
-from typing import List, Dict, Optional
-from datetime import datetime
-
-from backend.models.model_config import APIModel
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
 
 
-# 시간대별 통계 데이터 모델
-class TimeStatEntry(APIModel):
+class TimeStatEntry(BaseModel):
+    """시간대별 통계 항목"""
+
     time_range: str = Field(..., alias="timeRange")
-    CS: int
-    HES: int
-    LENOVO: int
+    총무: int = 0
+    회계: int = 0
+    인사: int = 0
+    영업: int = 0
+    개발: int = 0
+
+    class Config:
+        populate_by_field_name = True
+        allow_population_by_field_name = True
 
 
-# 부서별 상태 통계 데이터 모델
-class DepartmentStatusCounts(APIModel):
-    WAITING: int
-    IN_PROGRESS: int
-    COMPLETE: int
-    ISSUE: int
-    CANCEL: int
+class DepartmentStatEntry(BaseModel):
+    """부서별 통계 항목"""
 
-
-class DepartmentStatEntry(APIModel):
     department: str
     total_count: int = Field(..., alias="totalCount")
-    status_counts: DepartmentStatusCounts = Field(..., alias="statusCounts")
+    status_counts: Dict[str, int] = Field(..., alias="statusCounts")
+
+    class Config:
+        populate_by_field_name = True
+        allow_population_by_field_name = True
 
 
-# 시각화 응답 데이터 부분 모델
-class VisualizationData(APIModel):
-    visualization_type: str = Field(..., alias="visualizationType")
-    start_date: datetime = Field(..., alias="startDate")
-    end_date: datetime = Field(..., alias="endDate")
-    time_stats: Optional[List[TimeStatEntry]] = Field(None, alias="timeStats")
-    department_stats: Optional[List[DepartmentStatEntry]] = Field(
-        None, alias="departmentStats"
-    )
+class VisualizationResponse(BaseModel):
+    """시각화 API 응답 모델"""
 
-
-# 시각화 전체 응답 모델
-class VisualizationResponse(APIModel):
-    success: bool = True
+    success: bool
     message: str
-    data: VisualizationData
+    time_stats: List[TimeStatEntry] = Field([], alias="timeStats")
+    department_stats: List[DepartmentStatEntry] = Field([], alias="departmentStats")
+
+    class Config:
+        populate_by_field_name = True
+        allow_population_by_field_name = True

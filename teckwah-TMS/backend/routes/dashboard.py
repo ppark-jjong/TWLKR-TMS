@@ -30,6 +30,7 @@ from backend.models.dashboard import (
     AssignDriverResponse,
     AssignDriverResponseData,
     GetOrderResponseData,
+    LockResponseData,
 )
 from backend.middleware.auth import get_current_user, admin_required
 from backend.models.user import UserRole
@@ -299,12 +300,14 @@ async def get_order(
 
         # 락 정보는 별도 Pydantic 모델로 변환 후 할당
         try:
-            lock_status_model = LockStatus.model_validate(lock_status_dict)
+            lock_status_model = LockResponseData(**lock_status_dict)
             order_resp_data.locked_info = lock_status_model
-            logger.debug(f"  LockStatus 변환 및 할당 성공: {lock_status_model.dict()}")
+            logger.debug(
+                f"  LockResponseData 변환 및 할당 성공: {lock_status_model.dict()}"
+            )
         except Exception as lock_model_exc:
             logger.error(
-                f"LockStatus 모델 변환 실패 (order_id={order_id}): {lock_model_exc}",
+                f"LockResponseData 모델 변환 실패 (order_id={order_id}): {lock_model_exc}",
                 exc_info=True,
             )
             logger.error(f"  실패한 락 데이터: {lock_status_dict}")
@@ -388,20 +391,23 @@ async def lock_order(
         lock_status_data = check_lock_status(
             db, Dashboard, order_id, current_user["user_id"]
         )
+
+        # lockStatus 필드명으로 명시적으로 반환
         return LockResponse(
             success=False,
             message=lock_status_data["message"],
-            lock_status=lock_status_data,
+            lockStatus=LockResponseData(**lock_status_data),
         )
 
+    # lockStatus 필드명으로 명시적으로 반환
     return LockResponse(
         success=True,
         message="주문 락 획득 성공",
-        lock_status={
-            "locked": True,
-            "editable": True,
-            "message": "현재 사용자가 편집 중입니다",
-        },
+        lockStatus=LockResponseData(
+            locked=True,
+            editable=True,
+            message="현재 사용자가 편집 중입니다",
+        ),
     )
 
 
@@ -429,20 +435,23 @@ async def unlock_order(
         lock_status_data = check_lock_status(
             db, Dashboard, order_id, current_user["user_id"]
         )
+
+        # lockStatus 필드명으로 명시적으로 반환
         return LockResponse(
             success=False,
             message="락을 해제할 권한이 없습니다",
-            lock_status=lock_status_data,
+            lockStatus=LockResponseData(**lock_status_data),
         )
 
+    # lockStatus 필드명으로 명시적으로 반환
     return LockResponse(
         success=True,
         message="주문 락 해제 성공",
-        lock_status={
-            "locked": False,
-            "editable": True,
-            "message": "편집 가능합니다",
-        },
+        lockStatus=LockResponseData(
+            locked=False,
+            editable=True,
+            message="편집 가능합니다",
+        ),
     )
 
 
@@ -703,3 +712,109 @@ def log_final_response(final_response):
 
 
 # ---------------------------------------------
+
+
+# 주문 상태 변경 API 추가 (프론트엔드 호환성을 위해)
+@router.post("/{order_id}/status", response_model=OrderResponse)
+async def update_order_status(
+    order_id: int,
+    status_update: OrderStatusUpdate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OrderResponse:
+    """
+    주문 상태 변경 API (프론트엔드 DashboardService.updateOrderStatus 호환)
+    """
+    logger.debug(
+        f"라우트 update_order_status 시작 - order_id: {order_id}, status: {status_update.status}"
+    )
+
+    # 주문 존재 여부 확인
+    order = db.query(Dashboard).filter(Dashboard.dashboard_id == order_id).first()
+    if not order:
+        logger.error(f"주문 상태 변경 실패 - ID={order_id}, 주문 없음")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="주문을 찾을 수 없습니다"
+        )
+
+    # 사용자 권한 확인
+    user_role = current_user.get("role")
+
+    # 일반 사용자 상태 변경 제한 검증
+    if user_role != UserRole.ADMIN.value:
+        # 일반 사용자의 상태 변경 제한 규칙:
+        # - 대기 → 진행 가능
+        # - 진행 → 완료/이슈/취소 가능
+        # - 역행 불가능
+        current_status = order.status
+        new_status = status_update.status.value
+
+        valid_transitions = {
+            OrderStatus.WAITING.value: [OrderStatus.IN_PROGRESS.value],
+            OrderStatus.IN_PROGRESS.value: [
+                OrderStatus.COMPLETE.value,
+                OrderStatus.ISSUE.value,
+                OrderStatus.CANCEL.value,
+            ],
+        }
+
+        if current_status in valid_transitions and new_status in valid_transitions.get(
+            current_status, []
+        ):
+            logger.debug(
+                f"일반 사용자 상태 변경 검증 통과: {current_status} → {new_status}"
+            )
+        else:
+            logger.error(
+                f"권한 부족: 일반 사용자는 {current_status} → {new_status} 변경 불가"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"권한 부족: 현재 상태 '{current_status}'에서 '{new_status}'로 변경할 권한이 없습니다",
+            )
+
+    # 상태 변경에 따른 시간 자동 기록
+    current_time = datetime.now()
+
+    # 상태가 대기->진행으로 변경될 때 출발 시간 기록
+    if (
+        order.status == OrderStatus.WAITING.value
+        and status_update.status.value == OrderStatus.IN_PROGRESS.value
+    ):
+        order.depart_time = current_time
+        logger.debug(f"출발 시간 자동 기록: {current_time}")
+
+    # 상태가 진행->완료/이슈/취소로 변경될 때 완료 시간 기록
+    if (
+        order.status == OrderStatus.IN_PROGRESS.value
+        and status_update.status.value
+        in [
+            OrderStatus.COMPLETE.value,
+            OrderStatus.ISSUE.value,
+            OrderStatus.CANCEL.value,
+        ]
+    ):
+        order.complete_time = current_time
+        logger.debug(f"완료 시간 자동 기록: {current_time}")
+
+    # 상태 및 업데이트 정보 변경
+    order.status = status_update.status.value
+    order.updated_by = current_user["user_id"]
+    order.update_at = current_time
+
+    try:
+        db.commit()
+        logger.db(f"주문 상태 변경 DB 반영 성공: ID={order_id}, {order.status}")
+    except Exception as db_exc:
+        db.rollback()
+        logger.error(f"주문 상태 변경 DB 반영 실패: {db_exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="주문 상태 변경 중 DB 오류")
+
+    # 응답 생성
+    try:
+        response_obj = OrderResponse.model_validate(order)
+        logger.debug(f"주문 상태 변경 성공: ID={order_id}, 상태={response_obj.status}")
+        return response_obj
+    except Exception as e:
+        logger.error(f"OrderResponse 변환 중 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="응답 생성 중 오류 발생")

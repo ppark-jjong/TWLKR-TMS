@@ -1,7 +1,7 @@
 /**
  * 시각화 페이지 컴포넌트 (관리자 전용)
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Card,
   Row,
@@ -14,14 +14,14 @@ import {
   Empty,
   message,
   Spin,
-} from 'antd';
+} from "antd";
 import {
   ReloadOutlined,
   BarChartOutlined,
   PieChartOutlined,
   LineChartOutlined,
   LoadingOutlined,
-} from '@ant-design/icons';
+} from "@ant-design/icons";
 import {
   BarChart,
   Bar,
@@ -36,50 +36,50 @@ import {
   Legend,
   ResponsiveContainer,
   Cell,
-} from 'recharts';
-import dayjs from 'dayjs';
-import MainLayout from '../components/layout/MainLayout';
-import { PageTitle, PageLoading, ErrorResult } from '../components/common';
-import { VisualizationService } from '../services';
+} from "recharts";
+import dayjs from "dayjs";
+import MainLayout from "../components/layout/MainLayout";
+import { PageTitle, PageLoading, ErrorResult } from "../components/common";
+import { VisualizationService } from "../services";
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 // 차트 색상
-const COLORS = ['#1890ff', '#faad14', '#52c41a', '#f5222d', '#bfbfbf'];
+const COLORS = ["#1890ff", "#faad14", "#52c41a", "#f5222d", "#bfbfbf"];
 
 // 상태별 색상 매핑
 const STATUS_COLORS = {
-  WAITING: '#1890ff',
-  IN_PROGRESS: '#faad14',
-  COMPLETE: '#52c41a',
-  ISSUE: '#f5222d',
-  CANCEL: '#bfbfbf',
+  WAITING: "#1890ff",
+  IN_PROGRESS: "#faad14",
+  COMPLETE: "#52c41a",
+  ISSUE: "#f5222d",
+  CANCEL: "#bfbfbf",
 };
 
 // 상태별 라벨
 const STATUS_LABELS = {
-  WAITING: '대기',
-  IN_PROGRESS: '진행',
-  COMPLETE: '완료',
-  ISSUE: '이슈',
-  CANCEL: '취소',
+  WAITING: "대기",
+  IN_PROGRESS: "진행",
+  COMPLETE: "완료",
+  ISSUE: "이슈",
+  CANCEL: "취소",
 };
 
 // 창고별 색상 매핑
 const WAREHOUSE_COLORS = {
-  SEOUL: '#1890ff',
-  BUSAN: '#faad14',
-  GWANGJU: '#52c41a',
-  DAEJEON: '#f5222d',
+  SEOUL: "#1890ff",
+  BUSAN: "#faad14",
+  GWANGJU: "#52c41a",
+  DAEJEON: "#f5222d",
 };
 
 // 창고별 라벨
 const WAREHOUSE_LABELS = {
-  SEOUL: '서울',
-  BUSAN: '부산',
-  GWANGJU: '광주',
-  DAEJEON: '대전',
+  SEOUL: "서울",
+  BUSAN: "부산",
+  GWANGJU: "광주",
+  DAEJEON: "대전",
 };
 
 const VisualizationPage = () => {
@@ -87,11 +87,11 @@ const VisualizationPage = () => {
   const [error, setError] = useState(null);
   const [vizData, setVizData] = useState(null);
   const [dateRange, setDateRange] = useState([
-    dayjs().subtract(7, 'day').startOf('day'),
-    dayjs().endOf('day'),
+    dayjs().subtract(7, "day").startOf("day"),
+    dayjs().endOf("day"),
   ]);
   const [visualizationType, setVisualizationType] =
-    useState('department_based');
+    useState("department_based");
 
   // 데이터 불러오기
   const fetchData = async () => {
@@ -100,22 +100,25 @@ const VisualizationPage = () => {
 
     try {
       const params = {
-        startDate: dateRange[0].format('YYYY-MM-DD HH:mm:ss'),
-        endDate: dateRange[1].format('YYYY-MM-DD HH:mm:ss'),
-        visualizationType: visualizationType,
+        date_from: dateRange[0].format("YYYY-MM-DD"),
+        date_to: dateRange[1].format("YYYY-MM-DD"),
+        visualization_type:
+          visualizationType === "department_based" ? "department" : "time",
       };
 
       const response = await VisualizationService.getStats(params);
 
       if (response.success) {
-        setVizData(response.data);
+        setVizData(response);
       } else {
-        setError(response.message || '데이터 조회 실패');
+        setError(response.message || "데이터 조회 실패");
+        message.error(response.message || "데이터 조회에 실패했습니다.");
         setVizData(null);
       }
     } catch (error) {
-      console.error('시각화 데이터 조회 오류:', error);
-      setError('데이터를 불러오는 중 오류가 발생했습니다');
+      console.error("시각화 데이터 조회 오류:", error);
+      setError("데이터를 불러오는 중 오류가 발생했습니다");
+      message.error("데이터를 불러오는 중 오류가 발생했습니다.");
       setVizData(null);
     } finally {
       setLoading(false);
@@ -153,7 +156,11 @@ const VisualizationPage = () => {
 
   // 상태 분포 데이터 변환
   const getStatusDistributionData = () => {
-    if (!vizData || !vizData.departmentStats) {
+    if (
+      !vizData ||
+      !vizData.departmentStats ||
+      vizData.departmentStats.length === 0
+    ) {
       return [];
     }
 
@@ -164,17 +171,20 @@ const VisualizationPage = () => {
       ISSUE: 0,
       CANCEL: 0,
     };
+
     vizData.departmentStats.forEach((deptStat) => {
       Object.keys(statusTotals).forEach((status) => {
         statusTotals[status] += deptStat.statusCounts[status] || 0;
       });
     });
 
-    return Object.entries(statusTotals).map(([status, count]) => ({
-      name: STATUS_LABELS[status] || status,
-      value: count,
-      color: STATUS_COLORS[status] || '#1890ff',
-    }));
+    return Object.entries(statusTotals)
+      .filter(([_, count]) => count > 0)
+      .map(([status, count]) => ({
+        name: STATUS_LABELS[status] || status,
+        value: count,
+        color: STATUS_COLORS[status] || "#1890ff",
+      }));
   };
 
   // 부서별 분포 데이터 변환
@@ -186,21 +196,23 @@ const VisualizationPage = () => {
     return vizData.departmentStats.map((item) => ({
       name: item.department,
       value: item.totalCount,
-      color: '#1890ff',
+      color: "#1890ff",
     }));
   };
 
   // 시간대별 주문 데이터 변환
   const getTimeStatsData = () => {
-    if (!vizData || !vizData.timeStats) {
+    if (!vizData || !vizData.timeStats || vizData.timeStats.length === 0) {
       return [];
     }
 
     return vizData.timeStats.map((item) => ({
       timeRange: item.timeRange,
-      CS: item.CS,
-      HES: item.HES,
-      LENOVO: item.LENOVO,
+      총무: item.총무 || 0,
+      회계: item.회계 || 0,
+      인사: item.인사 || 0,
+      영업: item.영업 || 0,
+      개발: item.개발 || 0,
     }));
   };
 
@@ -248,9 +260,9 @@ const VisualizationPage = () => {
       <MainLayout>
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            marginBottom: '16px',
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: "16px",
           }}
         >
           {pageExtra}
@@ -270,9 +282,9 @@ const VisualizationPage = () => {
       <MainLayout>
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            marginBottom: '16px',
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: "16px",
           }}
         >
           {pageExtra}
@@ -292,9 +304,9 @@ const VisualizationPage = () => {
     0
   );
   const completedOrders =
-    statusDistribution.find((item) => item.name === '완료')?.value || 0;
+    statusDistribution.find((item) => item.name === "완료")?.value || 0;
   const issueOrders =
-    statusDistribution.find((item) => item.name === '이슈')?.value || 0;
+    statusDistribution.find((item) => item.name === "이슈")?.value || 0;
   const completionRate =
     totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0;
   const issueRate =
@@ -304,9 +316,9 @@ const VisualizationPage = () => {
     <MainLayout>
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginBottom: '16px',
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "16px",
         }}
       >
         {pageExtra}
@@ -348,7 +360,7 @@ const VisualizationPage = () => {
 
       {/* 그래프 영역 */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '50px 0' }}>
+        <div style={{ textAlign: "center", padding: "50px 0" }}>
           <Spin indicator={<LoadingOutlined style={{ fontSize: 36 }} spin />} />
         </div>
       )}
@@ -358,7 +370,7 @@ const VisualizationPage = () => {
       {!loading && vizData && (
         <Row gutter={16}>
           {/* 시간대별 통계 (time_based 선택 시) */}
-          {visualizationType === 'time_based' && (
+          {visualizationType === "time_based" && (
             <Col xs={24} style={{ marginBottom: 16 }}>
               <Card
                 title={
@@ -384,23 +396,37 @@ const VisualizationPage = () => {
                       <Legend />
                       <Line
                         type="monotone"
-                        dataKey="CS"
-                        name="CS"
+                        dataKey="총무"
+                        name="총무"
                         stroke="#1890ff"
                         activeDot={{ r: 6 }}
                       />
                       <Line
                         type="monotone"
-                        dataKey="HES"
-                        name="HES"
+                        dataKey="회계"
+                        name="회계"
                         stroke="#52c41a"
                         activeDot={{ r: 6 }}
                       />
                       <Line
                         type="monotone"
-                        dataKey="LENOVO"
-                        name="LENOVO"
+                        dataKey="인사"
+                        name="인사"
                         stroke="#faad14"
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="영업"
+                        name="영업"
+                        stroke="#f5222d"
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="개발"
+                        name="개발"
+                        stroke="#bfbfbf"
                         activeDot={{ r: 6 }}
                       />
                     </LineChart>
@@ -411,7 +437,7 @@ const VisualizationPage = () => {
           )}
 
           {/* 부서별 통계 (department_based 선택 시) */}
-          {visualizationType === 'department_based' && (
+          {visualizationType === "department_based" && (
             <>
               {/* 상태별 분포 */}
               <Col xs={24} md={12} lg={8} style={{ marginBottom: 16 }}>

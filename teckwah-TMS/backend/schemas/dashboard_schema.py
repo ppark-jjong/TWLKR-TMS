@@ -120,21 +120,21 @@ class OrderResponse(APIModel):
     remark: Optional[str] = Field(None, alias="remark")
     update_at: Optional[datetime] = Field(None, alias="updateAt")
 
-    # ORM 모드 활성화 (Pydantic v2 스타일)
-    model_config = {"from_attributes": True}
+    # Pydantic v2 스타일로 ORM 모드 설정
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
-class OrderFilter(
-    APIModel
-):  # 이 스키마는 현재 사용되지 않을 수 있음 (서비스 로직 확인 필요)
+class OrderFilter(APIModel):
+    """주문 목록 필터링을 위한 스키마"""
+
     start_date: Optional[datetime] = Field(
         None, description="시작 날짜", alias="startDate"
     )
     end_date: Optional[datetime] = Field(None, description="종료 날짜", alias="endDate")
 
 
-class LockStatus(APIModel):
-    """락 상태 응답 모델"""
+class LockResponseData(APIModel):
+    """락 상태 응답 데이터 모델"""
 
     locked: bool
     editable: bool
@@ -170,7 +170,7 @@ class OrderListResponse(APIModel):
 class GetOrderResponseData(OrderResponse):
     """주문 상세 조회 응답 데이터 부분 모델 (락 정보 포함)"""
 
-    locked_info: Optional[LockStatus] = Field(
+    locked_info: Optional[LockResponseData] = Field(
         None, alias="lockedInfo"
     )  # 락 정보를 data 내부에 포함
 
@@ -183,22 +183,12 @@ class GetOrderResponse(APIModel):
     data: GetOrderResponseData
 
 
-class LockResponseData(APIModel):
-    """락/언락 응답 데이터 모델"""
-
-    locked: bool
-    editable: bool
-    message: str
-
-
 class LockResponse(APIModel):
     """락/언락 전체 응답 모델"""
 
     success: bool
     message: str
-    lock_status: LockResponseData = Field(
-        ..., alias="lockStatus"
-    )  # lock_status를 camelCase로
+    lockStatus: LockResponseData  # camelCase 형식으로 직접 필드 이름 지정
 
 
 class BasicSuccessResponse(APIModel):

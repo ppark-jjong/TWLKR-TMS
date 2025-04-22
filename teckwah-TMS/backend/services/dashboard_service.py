@@ -272,17 +272,24 @@ def create_order(
     새 주문 생성 (우편번호 기반 자동 정보 업데이트 포함) + 상세 로깅
     """
     logger.debug(f"create_order 서비스 시작. 입력 data: {order_data}")
-    postal_code = order_data.get("postalCode")
+    postal_code = order_data.get("postalCode") or order_data.get(
+        "postal_code"
+    )  # 두 가지 키 모두 확인
     warehouse = order_data.get("warehouse")
     city, county, district, distance, duration_time = None, None, None, None, None
 
     if postal_code:
-        # 우편번호 5자리 표준화
+        # 우편번호 5자리 표준화 - 모든 경우에 대해 처리
         if len(str(postal_code)) < 5:
             postal_code = str(postal_code).zfill(5)
             logger.db(
-                f"우편번호 자동 보정: '{order_data.get('postalCode')}' → '{postal_code}'"
+                f"우편번호 자동 보정: '{order_data.get('postalCode') or order_data.get('postal_code')}' → '{postal_code}'"
             )
+            # 원본 데이터도 업데이트 (캐멀 케이스와 스네이크 케이스 모두 처리)
+            if "postalCode" in order_data:
+                order_data["postalCode"] = postal_code
+            if "postal_code" in order_data:
+                order_data["postal_code"] = postal_code
 
         # PostalCode 테이블에서 city, county, district 조회
         pc_info = (
@@ -321,10 +328,15 @@ def create_order(
         else:
             logger.warn(f"우편번호 상세 정보 조회를 위한 창고 정보 누락: {postal_code}")
 
+    # 데이터 일관성을 위해 직렬화된 키 이름을 snake_case로 통일
+    order_no = order_data.get("orderNo") or order_data.get("order_no")
+    driver_name = order_data.get("driverName") or order_data.get("driver_name")
+    driver_contact = order_data.get("driverContact") or order_data.get("driver_contact")
+
     new_order = Dashboard(
-        order_no=order_data.get("orderNo"),
+        order_no=order_no,
         type=order_data.get("type"),
-        status=OrderStatus.WAITING,
+        status=OrderStatus.WAITING.value,  # Enum 값으로 저장
         department=order_data.get("department"),
         warehouse=warehouse,
         sla=order_data.get("sla"),
@@ -341,8 +353,8 @@ def create_order(
         address=order_data.get("address"),
         customer=order_data.get("customer"),
         contact=order_data.get("contact"),
-        driver_name=order_data.get("driverName"),
-        driver_contact=order_data.get("driverContact"),
+        driver_name=driver_name,
+        driver_contact=driver_contact,
         remark=order_data.get("remark"),
         updated_by=current_user_id,
         update_at=datetime.now(),
@@ -426,6 +438,17 @@ def update_order(
                     postal_code_changed = True
                     new_postal_code = value
                 update_dict["postal_code"] = value  # 보정된 값으로 다시 저장
+            elif key == "postalCode":  # camelCase 키도 처리
+                original_postal_code = value
+                if value and len(str(value)) < 5:
+                    value = str(value).zfill(5)
+                    logger.db(
+                        f"    우편번호 자동 보정: '{original_postal_code}' → '{value}'"
+                    )
+                if order.postal_code != value:
+                    postal_code_changed = True
+                    new_postal_code = value
+                update_dict["postal_code"] = value  # 보정된 값으로 snake_case 키에 저장
             elif key == "warehouse":
                 if order.warehouse != value:
                     warehouse_changed = True

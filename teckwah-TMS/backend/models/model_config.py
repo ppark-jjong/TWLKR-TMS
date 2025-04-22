@@ -57,11 +57,15 @@ class APIModel(BaseModel):
     """
 
     model_config = ConfigDict(
-        from_attributes=True,  # ORM 모드 활성화
-        populate_by_name=True,  # alias 이름으로도 필드 값 채우기 허용
+        from_attributes=True,  # ORM 모델에서 데이터 변환 허용
+        populate_by_name=True,  # 필드 이름으로 데이터 매핑 허용 (alias 지원)
+        alias_generator=None,  # 자동 alias 생성 비활성화 (수동 관리)
+        validate_assignment=True,  # 속성 할당 시 유효성 검사
+        extra="ignore",  # 추가 필드는 무시
         json_encoders={
-            datetime: lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")
-        },  # datetime 직렬화 형식 지정
+            # datetime 객체를 공백 구분자 형식으로 직렬화
+            datetime: lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S") if dt else None
+        },
     )
 
     @classmethod

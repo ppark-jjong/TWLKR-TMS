@@ -1,101 +1,57 @@
 """
-간소화된 로깅 시스템 - 핵심 실행 포인트 기록을 위한 설정
+통합 로깅 시스템 (간소화)
 """
 
 import logging
+import os
 import sys
 from datetime import datetime
 
-# 간단한 로깅 포맷
-LOG_FORMAT = "%(asctime)s [%(levelname)s] [%(module)s] - %(message)s"
+# 로그 레벨 설정
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
+# 로거 생성
+logger = logging.getLogger("teckwah-tms")
+logger.setLevel(getattr(logging, LOG_LEVEL))
 
-def setup_logger():
-    """간소화된 로깅 설정"""
-    # 애플리케이션 로거 설정
-    logger = logging.getLogger("teckwah-tms")
-    logger.setLevel(logging.DEBUG)  # 로거 기본 레벨을 DEBUG로 변경
-
-    # 로거 핸들러 초기화 (중복 방지)
-    if logger.handlers:
-        for handler in logger.handlers:
-            logger.removeHandler(handler)
-
-    # 콘솔 핸들러
+# 처리기가 없으면 기본 처리기 추가
+if not logger.handlers:
+    # 콘솔 출력 핸들러
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # 콘솔 핸들러 레벨도 DEBUG로 변경
-    console_format = logging.Formatter(LOG_FORMAT)
-    console_handler.setFormatter(console_format)
+    console_handler.setLevel(getattr(logging, LOG_LEVEL))
+
+    # 로그 포맷 설정
+    log_format = "%(asctime)s [%(levelname)s] %(message)s"
+    formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
+    console_handler.setFormatter(formatter)
+
     logger.addHandler(console_handler)
 
-    # 루트 로거로 전파하지 않음 (중복 로깅 방지)
-    logger.propagate = False
+    # 개발 환경에서만 파일 로깅
+    if os.environ.get("ENVIRONMENT") != "production":
+        try:
+            log_dir = "logs"
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = f"{log_dir}/app_{datetime.now().strftime('%Y%m%d')}.log"
 
-    return logger
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(getattr(logging, LOG_LEVEL))
+            file_handler.setFormatter(formatter)
 
+            logger.addHandler(file_handler)
+        except Exception as e:
+            logger.warning(f"파일 로깅 설정 중 오류 발생: {e}")
 
-# 로거 초기화 - 애플리케이션 전체에서 공유하는 단일 인스턴스
-_logger = setup_logger()
+# 간편 API 추가
+logger.api = lambda method, url, data=None: logger.info(f"API {method} {url}")
+logger.db = lambda msg: logger.debug(f"DB: {msg}")
+logger.auth = lambda msg: logger.info(f"AUTH: {msg}")
+logger.lock = lambda msg: logger.info(f"LOCK: {msg}")
+logger.response = lambda url, success=True: logger.info(
+    f"RESPONSE {url}: {'성공' if success else '실패'}"
+)
+logger.service = lambda service, method, params=None: logger.info(
+    f"SERVICE {service}.{method}"
+)
 
-
-# 핵심 카테고리 로깅 함수 - 간소화된 버전
-def api(message):
-    """API 호출 및 응답 관련 핵심 로그"""
-    _logger.info(f"[API] {message}")
-
-
-def db(message):
-    """데이터베이스 작업 관련 핵심 로그"""
-    _logger.info(f"[DB] {message}")
-
-
-def auth(message):
-    """인증 작업 관련 핵심 로그"""
-    _logger.info(f"[AUTH] {message}")
-
-
-def error(message, exc=None):
-    """오류 관련 로그"""
-    if exc:
-        _logger.error(f"[ERROR] {message} - {str(exc)}")
-    else:
-        _logger.error(f"[ERROR] {message}")
-
-
-# 외부에서 사용할 로거 객체 - 기존 코드와의 호환성 유지
-class Logger:
-    """로거 호환성 래퍼 - 핵심 로깅 기능만 유지"""
-
-    def api(self, message):
-        """API 호출 및 응답 관련 핵심 로그"""
-        api(message)
-
-    def db(self, message):
-        """데이터베이스 작업 관련 핵심 로그"""
-        db(message)
-
-    def auth(self, message):
-        """인증 작업 관련 핵심 로그"""
-        auth(message)
-
-    def error(self, message, error=None, exc_info=False):
-        """오류 관련 로그 (exc_info 추가)"""
-        log_message = f"[ERROR] {message}"
-        if error:
-            log_message += f" - {str(error)}"
-        _logger.error(log_message, exc_info=exc_info)
-
-    def debug(self, message):
-        _logger.debug(f"[DEBUG] {message}")
-
-    def info(self, message):
-        _logger.info(message)
-
-    def warning(self, message):
-        _logger.warning(f"[WARN] {message}")
-
-    def lock(self, message):
-        _logger.info(f"[LOCK] {message}")
-
-
-logger = Logger()
+# 불필요한 로깅 함수 제거 및 필수 함수 유지
