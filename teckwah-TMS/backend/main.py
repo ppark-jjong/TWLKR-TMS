@@ -216,15 +216,10 @@ async def spa_redirect_middleware(request: Request, call_next):
         "/handover",
         "/visualization",
         "/users",
-        "/health",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
     ]
     is_api_path = any(path.startswith(prefix) for prefix in api_prefixes)
     if is_api_path:
         log_level(f"API 요청 처리 [ID: {request_id}]: {path}")
-        # API 경로는 FastAPI 라우터 및 의존성 검사(401 등)에 맡김
         response = await call_next(request)
         log_level(
             f"API 응답 [ID: {request_id}]: {request.method} {path} - {response.status_code}"
