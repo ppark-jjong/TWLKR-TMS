@@ -103,22 +103,16 @@ const DashboardService = {
   },
 
   /**
-   * 주문 삭제
+   * 주문 삭제 (단일)
+   * 백엔드에서 개별 삭제 API가 제거되어 일괄 삭제 API를 사용하도록 수정
    * @param {number} orderId 주문 ID
    * @returns {Promise} 삭제 결과
    */
   deleteOrder: async (orderId) => {
-    const url = `/dashboard/${orderId}`;
-    try {
-      logger.service(SERVICE_NAME, 'deleteOrder', { orderId });
-      logger.api('DELETE', url);
-      const response = await api.delete(url);
-      logger.response(url, response.data?.success);
-      return response.data;
-    } catch (error) {
-      logger.error(`주문 삭제 실패: ID=${orderId}`, error);
-      throw error;
-    }
+    logger.service(SERVICE_NAME, 'deleteOrder', { orderId });
+    logger.info('개별 삭제 대신 일괄 삭제 API 사용');
+    // 단일 ID를 배열에 담아 일괄 삭제 API 호출
+    return DashboardService.deleteOrders([orderId]);
   },
 
   /**
@@ -143,26 +137,17 @@ const DashboardService = {
   },
 
   /**
-   * 주문 상태 변경
+   * 주문 상태 변경 (단일)
+   * 백엔드에서 개별 상태 변경 API가 제거되어 일괄 상태 변경 API를 사용하도록 수정
    * @param {number} orderId 주문 ID
    * @param {string} status 변경할 상태
    * @returns {Promise} 변경 결과
    */
   updateOrderStatus: async (orderId, status) => {
-    try {
-      logger.service(SERVICE_NAME, 'updateOrderStatus', { orderId, status });
-      logger.api('POST', `/dashboard/${orderId}/status`);
-
-      const response = await api.post(`/dashboard/${orderId}/status`, {
-        status,
-      });
-
-      logger.response(`/dashboard/${orderId}/status`, response.data?.success);
-      return response.data;
-    } catch (error) {
-      logger.error(`주문 상태 변경 실패: ID=${orderId}, 상태=${status}`, error);
-      throw error;
-    }
+    logger.service(SERVICE_NAME, 'updateOrderStatus', { orderId, status });
+    logger.info('개별 상태 변경 대신 일괄 상태 변경 API 사용');
+    // 단일 ID를 배열에 담아 일괄 상태 변경 API 호출
+    return DashboardService.updateOrdersStatus([orderId], status);
   },
 
   /**
@@ -256,42 +241,69 @@ const DashboardService = {
 
   /**
    * 주문 데이터 다운로드
+   * 백엔드에 해당 API가 없는 것으로 보이므로 기존 조회 API 활용
    * @param {Object} params 검색 조건
    * @returns {Promise} 다운로드 처리
    */
   downloadOrders: async (params) => {
-    const url = '/dashboard/download';
     try {
       logger.service(SERVICE_NAME, 'downloadOrders');
-      logger.api('GET', url);
-
-      // 실제 REST API에서는 api.get('/dashboard/download', {params})가 될 수 있음
-      // 현재는 기존 주문 조회 기능을 활용
-      const response = await api.get(url, {
-        params,
-        responseType: 'blob', // Blob 형태로 받기
+      
+      // 일반 주문 목록 조회 API 사용
+      logger.info('다운로드용 API가 없어 일반 목록 조회 API 활용');
+      const response = await DashboardService.getOrders({
+        ...params,
+        limit: 1000 // 다운로드를 위해 많은 데이터 요청
       });
-
-      // Excel 파일로 저장
-      const blob = new Blob([response.data], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
+      
+      if (!response.success) {
+        throw new Error(response.message || '데이터 조회 실패');
+      }
+      
+      // 데이터를 CSV 형식으로 변환
+      const orders = response.data.items || [];
+      
+      // 헤더 생성
+      const headers = [
+        'ID', '주문번호', '유형', '상태', '부서', '창고', 
+        '고객명', '주소', '우편번호', 'ETA', '생성시간'
+      ].join(',');
+      
+      // 데이터 행 생성
+      const rows = orders.map(order => [
+        order.dashboardId,
+        order.orderNo,
+        order.type,
+        order.status,
+        order.department,
+        order.warehouse,
+        order.customer ? order.customer.replace(/,/g, ' ') : '',
+        order.address ? order.address.replace(/,/g, ' ') : '',
+        order.postalCode,
+        order.eta,
+        order.createTime
+      ].join(','));
+      
+      // CSV 내용 생성
+      const csvContent = [headers, ...rows].join('\n');
+      
+      // Blob 생성 및 다운로드
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-
-      // 다운로드 파일명 설정 (yyyy-MM-dd_orders.xlsx)
+      
+      // 다운로드 파일명 설정
       const today = new Date();
       const date = today.toISOString().split('T')[0];
-      a.download = `${date}_orders.xlsx`;
-
+      a.download = `${date}_orders.csv`;
+      
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
-      logger.response(url, true);
-      return { success: true };
+      
+      return { success: true, message: '데이터 다운로드 완료' };
     } catch (error) {
       logger.error('주문 데이터 다운로드 실패', error);
       throw error;

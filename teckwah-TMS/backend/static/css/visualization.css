@@ -1,0 +1,154 @@
+/* 시각화 페이지 스타일 */
+.visualization-container {
+  width: 100%;
+}
+
+.visualization-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.date-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.date-button {
+  background-color: #f0f0f0;
+  color: #666;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.date-button:hover {
+  background-color: #e8e8e8;
+}
+
+.date-button.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* 시각화 그리드 레이아웃 */
+.visualization-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+/* 요약 카드 스타일 */
+.visualization-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 16px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* 요약 통계 카드 */
+.summary-card {
+  grid-column: span 2;
+}
+
+.summary-content {
+  display: flex;
+  justify-content: space-around;
+}
+
+.summary-item {
+  text-align: center;
+  padding: 16px;
+}
+
+.summary-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: var(--primary-color);
+  margin-bottom: 8px;
+}
+
+.summary-label {
+  font-size: 14px;
+  color: #666;
+}
+
+/* 차트 카드 스타일 */
+.chart-card {
+  min-height: 300px;
+}
+
+.chart-container {
+  height: 250px;
+  position: relative;
+}
+
+/* 반응형 그리드 */
+@media (max-width: 992px) {
+  .visualization-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    grid-column: span 1;
+  }
+}
+
+/* 데이터 로딩 중 상태 표시 */
+.loading-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.7);
+  z-index: 10;
+}
+
+.loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* 차트 데이터 없음 표시 */
+.no-data {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #999;
+  font-size: 14px;
+}

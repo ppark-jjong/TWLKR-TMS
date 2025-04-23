@@ -17,8 +17,8 @@ const AuthService = {
       
       // 백엔드 명명 규칙에 맞춰 요청
       const response = await api.post('/auth/login', {
-        username: userId,  // 백엔드 필드명: username
-        password: password
+        userId: userId,  // 백엔드 필드명과 일치하도록 수정
+        userPassword: password  // 백엔드 필드명과 일치하도록 수정
       });
       
       // 핵심 로그: 로그인 성공
@@ -57,8 +57,7 @@ const AuthService = {
       // 핵심 로그: 로그아웃 성공
       console.log('[인증] 로그아웃 완료');
       
-      // 세션 쿠키 삭제 확인
-      document.cookie = 'session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      // 세션 쿠키 삭제 코드 제거 (httpOnly 쿠키는 JavaScript에서 접근 불가)
       
       return response.data;
     } catch (error) {

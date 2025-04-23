@@ -1,5 +1,5 @@
 """
-로깅 유틸리티
+로깅 유틸리티 - 중복 로그 문제 해결 버전
 """
 
 import os
@@ -8,6 +8,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import traceback
 import platform
+from backend.utils.config import get_settings
 
 # 현재 운영체제에 따라 로그 경로 설정
 if platform.system() == "Windows":
@@ -19,9 +20,13 @@ else:
 # 로그 디렉토리가 없다면 생성
 os.makedirs(LOG_DIR, exist_ok=True)
 
-# 로거 생성
+# 로거 생성 (이미 존재하는 핸들러 제거 후 초기화)
 logger = logging.getLogger("delivery_tms")
 logger.setLevel(logging.INFO)
+
+# 기존 핸들러 제거 (중복 로그 방지)
+if logger.handlers:
+    logger.handlers.clear()
 
 # 로그 포맷 설정
 log_format = logging.Formatter(
@@ -43,11 +48,11 @@ file_handler = RotatingFileHandler(
 file_handler.setFormatter(log_format)
 logger.addHandler(file_handler)
 
-# 디버그 모드인 경우 디버그 레벨로 설정
-import backend.config as config
+# 루트 로거 전파 방지 (중복 로깅 방지)
+logger.propagate = False
 
 try:
-    if config.get_settings().DEBUG:
+    if get_settings().DEBUG:
         logger.setLevel(logging.DEBUG)
         logger.debug("디버그 모드 활성화됨")
 except Exception as e:

@@ -1,0 +1,216 @@
+/* 사용자 관리 페이지 스타일 */
+.users-container {
+  width: 100%;
+}
+
+.users-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.create-button {
+  background-color: var(--primary-color);
+  color: white;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+}
+
+.users-filters {
+  background-color: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
+}
+
+.users-list {
+  background-color: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.users-table {
+  width: 100%;
+}
+
+.user-row:hover {
+  background-color: #f5f5f5;
+}
+
+.role-badge,
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.role-badge.admin {
+  background-color: #fff1f0;
+  color: var(--primary-color);
+}
+
+.role-badge.user {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+
+.status-badge.active {
+  background-color: #f6ffed;
+  color: #52c41a;
+}
+
+.status-badge.inactive {
+  background-color: #fff1f0;
+  color: #f5222d;
+}
+
+.edit-button,
+.reset-pw-button,
+.status-button {
+  font-size: 12px;
+  padding: 4px 8px;
+  margin-right: 4px;
+}
+
+.edit-button {
+  background-color: #1890ff;
+  color: white;
+}
+
+.reset-pw-button {
+  background-color: #722ed1;
+  color: white;
+}
+
+.active-button {
+  background-color: #52c41a;
+  color: white;
+}
+
+.inactive-button {
+  background-color: #f5222d;
+  color: white;
+}
+
+/* 알림 컨테이너 */
+.alert-container {
+  margin-bottom: 16px;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.alert-success {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.alert-error {
+  background-color: #fff1f0;
+  border: 1px solid #ffa39e;
+  color: #f5222d;
+}
+
+.alert-warning {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  color: #faad14;
+}
+
+.alert .close-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+}
+
+/* 사용자 폼 */
+.user-form {
+  width: 100%;
+}
+
+/* 폼 스타일 */
+.user-form .form-group {
+  margin-bottom: 16px;
+}
+
+.user-form label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.user-form input,
+.user-form select {
+  width: 100%;
+  padding: 8px 12px;
+}
+
+/* 모달 버튼 */
+.cancel-button {
+  background-color: #f0f0f0;
+  color: #666;
+  margin-left: 8px;
+}
+
+/* 페이지네이션 */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.pagination-link,
+.pagination-current,
+.pagination-arrow {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 4px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.pagination-link {
+  color: #666;
+  border: 1px solid #eee;
+}
+
+.pagination-link:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.pagination-current {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.pagination-arrow {
+  color: #666;
+  border: 1px solid #eee;
+}
+
+.pagination-arrow:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}

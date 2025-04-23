@@ -1,0 +1,190 @@
+/* 인수인계 페이지 스타일 */
+.handover-container {
+  width: 100%;
+}
+
+.handover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.create-button {
+  background-color: var(--primary-color);
+  color: white;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+}
+
+.handover-filters {
+  background-color: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
+}
+
+.handover-list {
+  background-color: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.handover-table {
+  width: 100%;
+}
+
+.handover-row:hover {
+  background-color: #f5f5f5;
+}
+
+.title-cell {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-button {
+  background-color: #1890ff;
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+  margin-left: 4px;
+}
+
+/* 페이지네이션 */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.pagination-link,
+.pagination-current,
+.pagination-arrow {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 4px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.pagination-link {
+  color: #666;
+  border: 1px solid #eee;
+}
+
+.pagination-link:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.pagination-current {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.pagination-arrow {
+  color: #666;
+  border: 1px solid #eee;
+}
+
+.pagination-arrow:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* 모달 스타일 */
+.handover-form {
+  width: 100%;
+}
+
+.handover-form textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  resize: vertical;
+}
+
+/* 락 관련 스타일 */
+.lock-indicator {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: #faad14;
+  margin-left: 8px;
+}
+
+.lock-indicator::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #faad14;
+  margin-right: 4px;
+}
+
+/* 상세 보기 스타일 */
+.handover-detail {
+  padding: 16px 0;
+}
+
+.handover-detail-header {
+  margin-bottom: 24px;
+}
+
+.handover-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.handover-meta {
+  display: flex;
+  color: #666;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.handover-meta div:not(:last-child)::after {
+  content: '|';
+  margin: 0 8px;
+  color: #ddd;
+}
+
+.handover-content {
+  padding: 16px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  min-height: a200px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* 행 락 상태 표시 */
+.row-locked {
+  background-color: #fff7e6;
+}
+
+.lock-message {
+  background-color: #fffbe6;
+  padding: 8px 16px;
+  border: 1px solid #ffe58f;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  color: #d48806;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}

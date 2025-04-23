@@ -41,15 +41,8 @@ export const AuthProvider = ({ children }) => {
         // 백엔드에서 받은 userRole 값 확인 로그 추가
         console.log('백엔드에서 받은 사용자 권한:', response.data.userRole);
 
-        // userRole이 소문자로 오는 경우를 대비해 대문자로 통일
-        const userData = {
-          ...response.data,
-          userRole: response.data.userRole
-            ? response.data.userRole.toUpperCase()
-            : response.data.userRole,
-        };
-
-        setCurrentUser(userData);
+        // 수정: 불필요한 변환 로직 제거 - 백엔드에서 이미 대문자로 전송됨
+        setCurrentUser(response.data);
         setIsAuthenticated(true);
         if (!silent) {
           console.log('세션 유효성 확인 성공');
@@ -134,15 +127,8 @@ export const AuthProvider = ({ children }) => {
         // 백엔드에서 받은 userRole 값 확인 로그 추가
         console.log('백엔드에서 받은 사용자 권한:', response.data.userRole);
 
-        // userRole이 소문자로 오는 경우를 대비해 대문자로 통일
-        const userData = {
-          ...response.data,
-          userRole: response.data.userRole
-            ? response.data.userRole.toUpperCase()
-            : response.data.userRole,
-        };
-
-        setCurrentUser(userData);
+        // 수정: 불필요한 변환 로직 제거 - 백엔드에서 이미 대문자로 전송됨
+        setCurrentUser(response.data);
         setIsAuthenticated(true);
         setLastChecked(new Date());
 
@@ -187,17 +173,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setLastChecked(null);
 
-      // 쿠키 삭제
-      const cookies = document.cookie.split(';');
-      const sessionCookie = cookies.find((cookie) =>
-        cookie.trim().startsWith('session_id=')
-      );
-      if (sessionCookie) {
-        document.cookie = sessionCookie
-          .replace(/;?[^=]*$/, '')
-          .replace(/^[^=]+=/, '');
-      }
-
+      // 수정: httpOnly 쿠키는 JavaScript에서 접근할 수 없으므로 백엔드에서 처리해야 함
       console.log('로그아웃 완료');
     } catch (error) {
       console.error('로그아웃 처리 오류:', error);

@@ -59,17 +59,8 @@ def test_db_connection():
         return False
 
 
-# 애플리케이션 시작 시 DB 연결 테스트
-connection_result = test_db_connection()
-
-# 연결 실패 시 서버 시작을 계속할지 선택
-if not connection_result and settings.DEBUG:
-    from backend.utils.logger import logger
-
-    logger.warning(
-        "데이터베이스 연결 실패했으나 디버그 모드에서 서버 시작을 계속합니다."
-    )
-    logger.warning("일부 기능이 제대로 작동하지 않을 수 있습니다.")
+# 주의: 초기 DB 연결 테스트는 main.py에서 한 번만 수행합니다.
+# 여기서는 별도로 초기화하지 않고 함수만 제공합니다.
 
 
 # FastAPI의 Depends와 함께 사용하기 위한 의존성 함수

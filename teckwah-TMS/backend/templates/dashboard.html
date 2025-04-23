@@ -1,0 +1,196 @@
+{% extends "layout.html" %}
+
+{% block title %}대시보드 - TeckWahKRTMS{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/dashboard.css">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="/static/images/logo.png" alt="Logo" class="header-logo">
+            <h1 class="header-title">배송 관제 시스템</h1>
+        </div>
+        <div class="header-right">
+            <span class="user-info">{{ user.user_department }} | {{ user.user_id }} ({{ '관리자' if user.user_role == 'ADMIN' else '일반사용자' }})</span>
+            <button class="logout-button" onclick="logout()">로그아웃</button>
+        </div>
+    </header>
+
+    <nav class="dashboard-nav">
+        <ul class="nav-menu">
+            <li class="nav-item active"><a href="/dashboard">대시보드</a></li>
+            <li class="nav-item"><a href="/handover">인수인계</a></li>
+            {% if user.user_role == 'ADMIN' %}
+            <li class="nav-item"><a href="/visualization">데이터 시각화</a></li>
+            <li class="nav-item"><a href="/users">사용자 관리</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+
+    <main class="dashboard-content">
+        <section class="dashboard-filters">
+            <h2 class="section-title">배송 주문 조회</h2>
+            <form id="filterForm" class="filter-form">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label for="date_range">기간</label>
+                        <select id="date_range" name="date_range">
+                            <option value="today" {% if filter.date_range == 'today' %}selected{% endif %}>오늘</option>
+                            <option value="tomorrow" {% if filter.date_range == 'tomorrow' %}selected{% endif %}>내일</option>
+                            <option value="week" {% if filter.date_range == 'week' %}selected{% endif %}>이번 주</option>
+                            <option value="custom" {% if filter.date_range == 'custom' %}selected{% endif %}>직접 입력</option>
+                        </select>
+                    </div>
+                    {% if filter.date_range == 'custom' %}
+                    <div class="filter-group" id="dateInputs">
+                        <label for="start_date">시작일</label>
+                        <input type="date" id="start_date" name="start_date" value="{{ filter.start_date }}">
+                        <label for="end_date">종료일</label>
+                        <input type="date" id="end_date" name="end_date" value="{{ filter.end_date }}">
+                    </div>
+                    {% endif %}
+                    <div class="filter-group">
+                        <label for="status">상태</label>
+                        <select id="status" name="status">
+                            <option value="all" {% if filter.status == 'all' %}selected{% endif %}>전체</option>
+                            <option value="pending" {% if filter.status == 'pending' %}selected{% endif %}>배차대기</option>
+                            <option value="assigned" {% if filter.status == 'assigned' %}selected{% endif %}>배차완료</option>
+                            <option value="in_progress" {% if filter.status == 'in_progress' %}selected{% endif %}>배송중</option>
+                            <option value="delivered" {% if filter.status == 'delivered' %}selected{% endif %}>배송완료</option>
+                            <option value="cancelled" {% if filter.status == 'cancelled' %}selected{% endif %}>취소</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="search_type">검색</label>
+                        <select id="search_type" name="search_type">
+                            <option value="order_id" {% if filter.search_type == 'order_id' %}selected{% endif %}>주문번호</option>
+                            <option value="customer_name" {% if filter.search_type == 'customer_name' %}selected{% endif %}>고객명</option>
+                            <option value="driver" {% if filter.search_type == 'driver' %}selected{% endif %}>배송기사</option>
+                            <option value="address" {% if filter.search_type == 'address' %}selected{% endif %}>주소</option>
+                        </select>
+                        <input type="text" id="search_value" name="search_value" value="{{ filter.search_value }}" placeholder="검색어 입력">
+                    </div>
+                </div>
+                <div class="filter-buttons">
+                    <button type="submit" class="search-button">검색</button>
+                    <button type="button" class="reset-button" onclick="resetFilters()">초기화</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="dashboard-results">
+            <div class="results-header">
+                <h3>검색 결과: 총 <span class="count-badge">{{ orders|length }}</span>건</h3>
+                <div class="results-actions">
+                    <button id="refreshButton" onclick="refreshOrders()" class="refresh-button">새로고침</button>
+                </div>
+            </div>
+
+            <div class="order-table-container">
+                <table class="order-table">
+                    <thead>
+                        <tr>
+                            <th>주문번호</th>
+                            <th>상태</th>
+                            <th>ETA</th>
+                            <th>배송지</th>
+                            <th>고객명</th>
+                            <th>배송기사</th>
+                            <th>액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr data-order-id="{{ order.order_id }}" class="order-row {{ order.status }}">
+                            <td>{{ order.order_id }}</td>
+                            <td>
+                                <span class="status-badge {{ order.status }}">
+                                    {% if order.status == 'pending' %}
+                                        배차대기
+                                    {% elif order.status == 'assigned' %}
+                                        배차완료
+                                    {% elif order.status == 'in_progress' %}
+                                        배송중
+                                    {% elif order.status == 'delivered' %}
+                                        배송완료
+                                    {% elif order.status == 'cancelled' %}
+                                        취소
+                                    {% else %}
+                                        {{ order.status }}
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>{{ order.eta }}</td>
+                            <td>{{ order.address }}</td>
+                            <td>{{ order.customer_name }}</td>
+                            <td>{{ order.driver_name or '-' }}</td>
+                            <td>
+                                <button class="view-button" onclick="viewOrderDetail('{{ order.order_id }}')">상세보기</button>
+                                {% if order.status == 'pending' %}
+                                <button class="assign-button" onclick="assignDriver('{{ order.order_id }}')">배차하기</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="no-results">검색 결과가 없습니다.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 주문 상세 모달은 JavaScript로 동적 생성 -->
+        <div id="orderDetailModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>주문 상세 정보</h2>
+                    <span class="modal-close" onclick="closeModal()">&times;</span>
+                </div>
+                <div class="modal-body" id="orderDetailContent">
+                    <!-- 동적으로 내용 채워짐 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 배차 모달은 JavaScript로 동적 생성 -->
+        <div id="assignDriverModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>배송기사 배정</h2>
+                    <span class="modal-close" onclick="closeModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="assignDriverForm">
+                        <input type="hidden" id="assignOrderId" name="order_id">
+                        <div class="form-group">
+                            <label for="driver_id">배송기사 선택</label>
+                            <select id="driver_id" name="driver_id" required>
+                                <option value="">배송기사 선택</option>
+                                {% for driver in drivers %}
+                                <option value="{{ driver.id }}">{{ driver.name }} ({{ driver.vehicle_type }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="submit-button">배차하기</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="dashboard-footer">
+        <p>© 2025 TeckWahKR Operation Team. All rights reserved.</p>
+    </footer>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %} 
