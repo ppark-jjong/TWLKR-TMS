@@ -1,0 +1,50 @@
+<!-- 공통 스크립트 -->
+<script>
+  // 사이드바 토글 기능
+  document.addEventListener('DOMContentLoaded', function() {
+    const app = document.getElementById('app');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const isMobile = window.innerWidth < 768;
+    
+    // 초기 모바일 체크
+    if (isMobile) {
+      app.classList.add('sidebar-collapsed');
+    }
+    
+    // 토글 버튼 클릭 이벤트
+    sidebarToggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      app.classList.toggle('sidebar-collapsed');
+    });
+    
+    // 화면 크기 변경 감지
+    window.addEventListener('resize', function() {
+      if (window.innerWidth < 768) {
+        app.classList.add('sidebar-collapsed');
+      }
+    });
+  });
+  
+  // 로그아웃 함수
+  function logout() {
+    fetch('/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+    .then(response => {
+      if (response.ok) {
+        window.location.href = '/login';
+      } else {
+        console.error('로그아웃 실패');
+      }
+    })
+    .catch(error => {
+      console.error('로그아웃 처리 중 오류:', error);
+    });
+  }
+</script>

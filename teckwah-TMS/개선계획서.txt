@@ -1,0 +1,153 @@
+# 배송 관제 시스템 개선 계획서
+
+## 1. 현황 분석 및 문제점
+
+에러 로그와 프로젝트 규칙 문서를 분석한 결과, 다음과 같은 문제점들이 확인되었습니다:
+
+### 1.1 백엔드 이슈
+- **SQLAlchemy 쿼리 실행 오류**: 일부 SQL 쿼리가 `text()` 함수로 래핑되지 않음
+- **Pydantic 응답 검증 오류**: NULL 허용 필드(`contact` 등)가 필수 문자열로 정의됨
+- **Pydantic 버전 호환성 문제**: Pydantic V2로 마이그레이션이 완전히 이루어지지 않음
+- **락 상태 확인 로직 오류**: 락 확인 과정에서 SQL 쿼리 실행 문제 발생
+
+### 1.2 프론트엔드 이슈
+- **모달창 버튼 클릭 이벤트 작동 불량**: 상세 정보 모달에서 버튼 이벤트가 전파되지 않음
+- **정적 리소스 404 오류**: 일부 이미지 파일(user-icon.svg, lock-icon.svg) 누락
+- **region 필드 처리 문제**: 데이터 모델과 UI 표시 간 불일치 발생
+
+## 2. 버전 호환성 개선 방안
+
+기존 로그에서 확인된 Python 3.12.9와 MySQL 8.0을 기준으로, 다음 라이브러리 버전으로 통일합니다:
+
+```
+fastapi==0.110.0
+uvicorn==0.27.0
+pydantic==2.6.0
+sqlalchemy==2.0.23
+jinja2==3.1.2
+mysql-connector-python==8.2.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+```
+
+## 3. 단계별 개선 계획
+
+### 3.1 백엔드 코드 개선 (2일)
+
+#### 3.1.1 SQLAlchemy 쿼리 문제 해결
+- `text()` 함수 사용 패턴 적용
+```python
+from sqlalchemy import text
+
+# 수정 전
+result = db.execute("\n SELECT is_locked...")
+
+# 수정 후
+result = db.execute(text("\n SELECT is_locked..."))
+```
+
+#### 3.1.2 Pydantic 모델 수정
+- 응답 모델의 NULL 허용 필드 처리
+```python
+from typing import Optional
+
+class OrderResponse(BaseModel):
+    # 수정 전: contact: str
+    # 수정 후:
+    contact: Optional[str] = None
+```
+
+#### 3.1.3 Pydantic V2 마이그레이션 완료
+- Config 클래스 속성 이름 변경
+```python
+# 수정 전
+class Config:
+    orm_mode = True
+    schema_extra = {...}
+
+# 수정 후
+class Config:
+    from_attributes = True
+    json_schema_extra = {...}
+```
+
+#### 3.1.4 락 상태 확인 로직 개선
+- 행 단위 락 검증 로직 재작성
+- 예외 처리 강화 및 락 상태 확인 안정성 개선
+
+### 3.2 프론트엔드 이슈 개선 (1.5일)
+
+#### 3.2.1 정적 리소스 파일 문제 해결
+- 누락된 이미지 파일(user-icon.svg, lock-icon.svg) 추가
+- 정적 파일 경로 구조 점검 및 최적화
+
+#### 3.2.2 모달창 버튼 이벤트 수정
+- 이벤트 전파 문제 수정
+```javascript
+// 이벤트 버블링 방지 코드 추가
+document.querySelectorAll('.modal-button').forEach(button => {
+    button.addEventListener('click', function(e) {
+        e.stopPropagation();
+        // 기존 처리 코드
+    });
+});
+```
+
+#### 3.2.3 region 필드 처리 개선
+- 데이터 모델과 UI 표시 일관성 확보
+- 필드 매핑 및 검증 로직 추가
+
+### 3.3 배포 및 테스트 개선 (0.5일)
+
+#### 3.3.1 Docker 설정 최적화
+- Docker 컨테이너 내부 환경 설정 점검
+- 배포 스크립트 개선
+
+#### 3.3.2 테스트 자동화
+- 핵심 API 엔드포인트 테스트 케이스 작성
+- 모달 동작 테스트를 위한 E2E 테스트 추가
+
+## 4. 구체적 개선 작업 목록
+
+### 4.1 백엔드 파일 수정 목록
+
+| 파일 경로 | 수정 내용 | 우선순위 |
+|---------|----------|---------|
+| `/app/main/utils/database.py` | SQLAlchemy 쿼리 패턴 수정, 락 로직 개선 | 상 |
+| `/app/main/models/*.py` | Pydantic 모델 업데이트(Optional 필드, Config 수정) | 상 |
+| `/app/main/routers/dashboard.py` | 주문 API 응답 검증 로직 수정 | 상 |
+| `/app/main/dependencies.py` | 세션 관리 및 인증 로직 최적화 | 중 |
+
+### 4.2 프론트엔드 파일 수정 목록
+
+| 파일 경로 | 수정 내용 | 우선순위 |
+|---------|----------|---------|
+| `/app/static/images/` | 누락된 아이콘 파일 추가 | 중 |
+| `/app/static/js/dashboard/modals.js` | 모달 버튼 이벤트 수정 | 상 |
+| `/app/static/js/dashboard/table.js` | 테이블 데이터 렌더링 개선 | 중 |
+| `/app/templates/dashboard/*.html` | region 필드 표시 수정 | 중 |
+
+## 5. 테스트 계획
+
+1. **단위 테스트**:
+   - 각 API 엔드포인트 호출 테스트
+   - Pydantic 모델 검증 테스트
+
+2. **통합 테스트**:
+   - 락 메커니즘 동작 검증
+   - 데이터 조회/필터링 기능 검증
+   - 모달 창 작동 및 버튼 이벤트 검증
+
+3. **Docker 환경 테스트**:
+   - 로컬 Docker 환경에서 전체 애플리케이션 동작 검증
+   - 환경 변수 설정 검증
+
+
+## 7. 유의사항
+
+- Pydantic V2 마이그레이션 시 기존 코드와의 호환성 주의
+- 행 단위 락 로직 변경 시 데이터 정합성 검증 필수
+- SQLAlchemy 쿼리 수정 시 기존 로직 동작 검증
+- 프로젝트 규칙에 명시된 "YAGNI" 원칙 준수(과도한 추상화나 미래 확장성 고려 지양)
+
+이 계획서에 따라 체계적으로 개선 작업을 진행하면 현재 발생 중인 데이터 조회 및 UI 상호작용 문제를 효과적으로 해결할 수 있을 것입니다.

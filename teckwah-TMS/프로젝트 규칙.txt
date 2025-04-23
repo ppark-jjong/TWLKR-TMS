@@ -204,7 +204,6 @@ init-db.sql를 기반으로 이미 데이터 스키마와 실제 데이터들이
 - **폴더구조**: `backend/`, `frontend/`, `deploy/` 세 개의 최상위 폴더를 사용하며, 각각의 내부 구조는 현재 패턴을 유지합니다.
   - `backend/templates/`: Jinja2 템플릿 파일 보관
   - `backend/static/`: 정적 자원(CSS, JS, 이미지 등) 보관
-- **API 경로**: `/리소스명/동작` 또는 `/리소스명//동작` 형식으로 일관성 있게 유지  
 - **주석 작성**: JSDoc 형식을 사용하고, 복잡한 로직에만 한국어 설명을 추가  
 - **개발 환경**: Windows + PowerShell + Cursor 에디터 + Docker 사용
 - **템플릿 명명 규칙**: `{기능명}_{세부기능}.html` 형식으로 통일

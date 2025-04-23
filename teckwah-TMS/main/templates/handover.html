@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+
+{% block title %}인수인계 - TeckWahKRTMS{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/handover.css" />
+{% endblock %}
+
+{% block content %}
+<div class="handover-container">
+  <!-- 공지사항 섹션 -->
+  <section class="notice-section">
+    <h2 class="section-title">공지사항</h2>
+    <table class="handover-table">
+      <thead>
+        <tr>
+          <th width="10%">번호</th>
+          <th width="50%">제목</th>
+          <th width="15%">작성자</th>
+          <th width="15%">작성일시</th>
+          <th width="10%">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in notices %}
+        <tr data-id="{{ item.id }}" class="handover-row">
+          <td>{{ item.id }}</td>
+          <td class="title-cell">{{ item.title }}</td>
+          <td>{{ item.writer }}</td>
+          <td>{{ item.created_at }}</td>
+          <td>
+            <button
+              class="view-button"
+              onclick="viewHandover('{{ item.id }}')"
+            >
+              보기
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="no-results">공지사항이 없습니다.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 인수인계 섹션 -->
+  <section class="handover-header">
+    <h2 class="section-title">인수인계 목록</h2>
+    <button class="create-button" onclick="openCreateModal()">
+      인수인계 작성
+    </button>
+  </section>
+
+  <section class="handover-list">
+    <table class="handover-table">
+      <thead>
+        <tr>
+          <th width="10%">번호</th>
+          <th width="50%">제목</th>
+          <th width="15%">작성자</th>
+          <th width="15%">작성일시</th>
+          <th width="10%">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in handovers %}
+        <tr data-id="{{ item.id }}" class="handover-row">
+          <td>{{ item.id }}</td>
+          <td class="title-cell">{{ item.title }}</td>
+          <td>{{ item.writer }}</td>
+          <td>{{ item.created_at }}</td>
+          <td>
+            <button
+              class="view-button"
+              onclick="viewHandover('{{ item.id }}')"
+            >
+              보기
+            </button>
+            {% if user.user_id == item.writer_id or user.user_role ==
+            'ADMIN' %}
+            <button
+              class="edit-button"
+              onclick="editHandover('{{ item.id }}')"
+            >
+              수정
+            </button>
+            {% endif %} {% if user.user_role == 'ADMIN' %}
+            <button
+              class="delete-button"
+              onclick="deleteHandover('{{ item.id }}')"
+            >
+              삭제
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="no-results">인수인계 내역이 없습니다.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if current_page > 1 %}
+      <a href="?page={{ current_page - 1 }}" class="pagination-arrow"
+        >&lt;</a
+      >
+      {% endif %} {% for page in range(1, total_pages + 1) %} {% if page ==
+      current_page %}
+      <span class="pagination-current">{{ page }}</span>
+      {% else %}
+      <a href="?page={{ page }}" class="pagination-link">{{ page }}</a>
+      {% endif %} {% endfor %} {% if current_page < total_pages %}
+      <a href="?page={{ current_page + 1 }}" class="pagination-arrow"
+        >&gt;</a
+      >
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+<!-- 인수인계 상세 모달 -->
+<div id="handoverDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>인수인계 상세</h2>
+      <span class="modal-close" onclick="closeModal()">&times;</span>
+    </div>
+    <div class="modal-body" id="handoverDetailContent">
+      <!-- 동적으로 내용 채워짐 -->
+    </div>
+  </div>
+</div>
+
+<!-- 인수인계 작성 모달 -->
+<div id="handoverCreateModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalTitle">인수인계 작성</h2>
+      <span class="modal-close" onclick="closeModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="handoverForm" class="handover-form">
+        <input type="hidden" id="handoverId" name="id" value="" />
+        <div class="form-group">
+          <label for="title">제목</label>
+          <input type="text" id="title" name="title" required />
+        </div>
+        <div class="form-group">
+          <label for="content">내용</label>
+          <textarea
+            id="content"
+            name="content"
+            rows="10"
+            required
+          ></textarea>
+        </div>
+        {% if user.user_role == 'ADMIN' %}
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" id="isNotice" name="is_notice" />
+            공지사항으로 등록
+          </label>
+        </div>
+        {% endif %}
+        <div class="form-group">
+          <button type="submit" class="submit-button">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div id="deleteConfirmModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>삭제 확인</h2>
+      <span class="modal-close" onclick="closeModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p>이 인수인계를 삭제하시겠습니까?</p>
+      <div class="form-group">
+        <input type="hidden" id="deleteHandoverId" value="" />
+        <button class="submit-button" onclick="confirmDelete()">
+          삭제
+        </button>
+        <button class="cancel-button" onclick="closeModal()">취소</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/handover.js"></script>
+{% endblock %}

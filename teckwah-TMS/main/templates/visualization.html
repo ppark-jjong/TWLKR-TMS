@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+
+{% block title %}배송 현황 대시보드 - TeckWahKRTMS{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/visualization.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1 class="dashboard-title">배송 현황 대시보드</h1>
+    <div class="date-filter">
+      <button class="date-button active" data-period="today">오늘</button>
+      <button class="date-button" data-period="week">최근 7일</button>
+      <button class="date-button" data-period="month">최근 30일</button>
+    </div>
+  </div>
+
+  <div class="summary-cards">
+    <div class="summary-card">
+      <div class="card-title">총 주문</div>
+      <div class="card-value" id="total-orders">0</div>
+      <div class="loading-indicator">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="card-title">진행 중</div>
+      <div class="card-value" id="pending-orders">0</div>
+      <div class="loading-indicator">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="card-title">완료</div>
+      <div class="card-value" id="completed-orders">0</div>
+      <div class="loading-indicator">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="card-title">지연</div>
+      <div class="card-value" id="delayed-orders">0</div>
+      <div class="loading-indicator">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-section">
+    <div class="chart-container">
+      <h2 class="chart-title">시간대별 배송 현황</h2>
+      <div class="chart-wrapper">
+        <canvas id="time-chart"></canvas>
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <h2 class="chart-title">일별 주문 추세</h2>
+      <div class="chart-wrapper">
+        <canvas id="trend-chart"></canvas>
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-container full-width">
+      <h2 class="chart-title">부서별 배송 상태</h2>
+      <div id="department-chart" class="department-chart">
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/visualization.js"></script>
+{% endblock %}

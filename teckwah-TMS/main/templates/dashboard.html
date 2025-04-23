@@ -1,0 +1,1820 @@
+{% extends "layout.html" %}
+
+{% block title %}TMS 대시보드 - TeckWahKRTMS{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/dashboard.css">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <h1 class="page-title">대시보드</h1>
+  
+  <!-- 상단 필터 영역 -->
+  <div class="filter-section">
+    <div class="date-filter">
+      <div class="date-picker-group">
+        <input type="date" id="startDate" class="date-input">
+        <span class="date-separator">~</span>
+        <input type="date" id="endDate" class="date-input">
+        <button type="button" class="search-btn" id="searchBtn">
+          <i class="fas fa-search"></i> 조회
+        </button>
+        <button type="button" class="today-btn" id="todayBtn">오늘</button>
+      </div>
+    </div>
+
+    <div class="order-search">
+      <input type="text" id="orderNoSearch" placeholder="주문번호 검색" class="search-input">
+      <button type="button" class="search-btn" id="orderSearchBtn">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- 필터와 액션 버튼 영역 -->
+  <div class="filter-action-section">
+    <div class="filter-panel">
+      <div class="filter-row">
+        <div class="filter-group">
+          <label for="statusFilter">상태</label>
+          <select id="statusFilter" class="filter-select">
+            <option value="">전체</option>
+            {% for status in statuses %}
+            <option value="{{ status.value }}">{{ status.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="departmentFilter">부서</label>
+          <select id="departmentFilter" class="filter-select">
+            <option value="">전체</option>
+            {% for dept in departments %}
+            <option value="{{ dept.value }}">{{ dept.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="warehouseFilter">창고</label>
+          <select id="warehouseFilter" class="filter-select">
+            <option value="">전체</option>
+            {% for warehouse in warehouses %}
+            <option value="{{ warehouse.value }}">{{ warehouse.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="button" class="reset-btn" id="resetFilterBtn">초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 요약 카드 영역 -->
+  <div class="summary-cards">
+    <div class="summary-card">
+      <div class="card-title">총 건수</div>
+      <div class="card-value">{{ stats.total or 0 }}</div>
+      <div class="card-icon total-icon">
+        <i class="fas fa-clipboard-list"></i>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-title">대기</div>
+      <div class="card-value">{{ stats.waiting or 0 }}</div>
+      <div class="card-icon waiting-icon">
+        <i class="fas fa-clock"></i>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-title">진행</div>
+      <div class="card-value">{{ stats.in_progress or 0 }}</div>
+      <div class="card-icon progress-icon">
+        <i class="fas fa-exchange-alt"></i>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-title">완료</div>
+      <div class="card-value">{{ stats.complete or 0 }}</div>
+      <div class="card-icon complete-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-title">이슈+취소</div>
+      <div class="card-value">{{ (stats.issue or 0) + (stats.cancel or 0) }}</div>
+      <div class="card-icon issue-icon">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- 테이블 상단 액션 영역 -->
+  <div class="table-actions">
+    <div class="column-selector">
+      <button type="button" class="column-selector-btn" id="columnSelectorBtn">
+        <i class="fas fa-cog"></i>
+      </button>
+      <div class="column-selector-dropdown" id="columnSelectorDropdown" style="display: none;">
+        <div class="column-selector-header">표시할 컬럼 선택</div>
+        <div class="column-selector-content" id="columnSelectorContent">
+          <!-- 여기에 컬럼 선택 체크박스가 동적으로 추가됩니다 -->
+        </div>
+      </div>
+    </div>
+    
+    <div class="table-actions-right">
+      <select id="pageSizeSelect" class="page-size-select">
+        <option value="10">10행</option>
+        <option value="30">30행</option>
+        <option value="50">50행</option>
+      </select>
+      
+      <button type="button" class="action-btn refresh-btn" id="refreshBtn">
+        <i class="fas fa-sync-alt"></i> 새로고침
+      </button>
+      
+      <button type="button" class="action-btn create-btn" id="createOrderBtn">
+        <i class="fas fa-plus"></i> 신규 등록
+      </button>
+    </div>
+  </div>
+  
+  <!-- 선택된 행 액션 패널 (테이블 위로 이동) -->
+  <div class="selected-actions" id="selectedActions">
+    <span class="selected-count" id="selectedCount"></span>
+    <div class="selected-buttons">
+      <button type="button" class="action-btn status-btn" id="selectedStatusBtn">
+        <i class="fas fa-exchange-alt"></i> 상태 변경
+      </button>
+      <button type="button" class="action-btn driver-btn" id="selectedDriverBtn">
+        <i class="fas fa-user"></i> 배차 처리
+      </button>
+      {% if user.user_role == 'ADMIN' %}
+      <button type="button" class="action-btn delete-btn" id="selectedDeleteBtn">
+        <i class="fas fa-trash"></i> 삭제
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 주문 테이블 -->
+  <div class="order-table-container">
+    <table class="order-table" id="orderTable">
+      <thead>
+        <tr>
+          <th class="checkbox-column">
+            <input type="checkbox" id="selectAllCheckbox">
+          </th>
+          <th class="column-department">부서</th>
+          <th class="column-type">유형</th>
+          <th class="column-warehouse">창고</th>
+          <th class="column-order-no">주문번호</th>
+          <th class="column-eta">ETA</th>
+          <th class="column-status">상태</th>
+          <th class="column-region">도착지</th>
+          <th class="column-customer">고객명</th>
+          <th class="column-driver">기사명</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr data-id="{{ order.dashboardId }}" class="clickable-row status-row-{{ order.status }}">
+          <td class="checkbox-column">
+            <input type="checkbox" class="row-checkbox" data-id="{{ order.dashboardId }}">
+          </td>
+          <td class="column-department">{{ order.department }}</td>
+          <td class="column-type">{{ order.type_label }}</td>
+          <td class="column-warehouse">{{ order.warehouse }}</td>
+          <td class="column-order-no">{{ order.orderNo }}</td>
+          <td class="column-eta">{{ order.eta }}</td>
+          <td class="column-status">{{ order.status_label }}</td>
+          <td class="column-region">{{ order.region or '-' }}</td>
+          <td class="column-customer">{{ order.customer }}</td>
+          <td class="column-driver">{{ order.driverName or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr class="no-data-row">
+          <td colspan="11" class="no-data-cell">데이터가 없습니다</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 페이지네이션 -->
+  <div class="pagination" id="pagination">
+    <span class="pagination-info" data-total="{{ pagination.total }}" data-total-pages="{{ pagination.total_pages }}">총 {{ pagination.total }}개 항목 중 {{ pagination.start }}-{{ pagination.end }} 표시</span>
+    <div class="pagination-controls">
+      <button type="button" class="pagination-btn" id="prevPageBtn" {% if pagination.current <= 1 %}disabled{% endif %}>
+        <i class="fas fa-chevron-left"></i>
+      </button>
+      
+      <!-- 페이지 번호 버튼들은 JavaScript로 동적 생성 -->
+      <span class="page-number-container" id="pageNumberContainer"></span>
+      
+      <button type="button" class="pagination-btn" id="nextPageBtn" {% if pagination.current >= pagination.total_pages %}disabled{% endif %}>
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- 선택된 행 액션 패널은 이제 테이블 위에 표시되므로 여기서 제거 -->
+</div>
+
+<!-- 주문 상세 모달 -->
+<div class="modal" id="orderDetailModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">주문 상세 정보</h2>
+        <button type="button" class="close-btn" id="closeDetailModalBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="orderDetailContent">
+        <!-- 상세 정보 내용은 JavaScript로 동적 생성 -->
+        <div class="loading-spinner" id="modalLoadingSpinner">
+          <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn secondary-btn" id="closeModalBtn">닫기</button>
+        <button type="button" class="btn primary-btn" id="editOrderBtn">수정하기</button>
+        <button type="button" class="btn primary-btn" id="saveOrderBtn" style="display: none;">저장하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 주문 생성 모달 -->
+<div class="modal" id="createOrderModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">신규 배송 등록</h2>
+        <button type="button" class="close-btn" id="closeCreateModalBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="createOrderForm" class="order-form">
+          <!-- 주문 생성 폼 필드 -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="createOrderNo">주문번호 *</label>
+              <input type="text" id="createOrderNo" name="orderNo" required>
+            </div>
+            <div class="form-group">
+              <label for="createType">유형 *</label>
+              <select id="createType" name="type" required>
+                <option value="">선택하세요</option>
+                {% for type in types %}
+                <option value="{{ type.value }}">{{ type.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="createDepartment">부서 *</label>
+              <select id="createDepartment" name="department" required>
+                <option value="">선택하세요</option>
+                {% for dept in departments %}
+                <option value="{{ dept.value }}">{{ dept.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="createWarehouse">창고 *</label>
+              <select id="createWarehouse" name="warehouse" required>
+                <option value="">선택하세요</option>
+                {% for warehouse in warehouses %}
+                <option value="{{ warehouse.value }}">{{ warehouse.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="createSLA">SLA *</label>
+              <input type="text" id="createSLA" name="sla" required>
+            </div>
+            <div class="form-group">
+              <label for="createETA">ETA *</label>
+              <input type="datetime-local" id="createETA" name="eta" required>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="createPostalCode">우편번호 *</label>
+              <input type="text" id="createPostalCode" name="postalCode" required maxlength="5" pattern="[0-9]*">
+            </div>
+            <div class="form-group full-width">
+              <label for="createAddress">주소 *</label>
+              <input type="text" id="createAddress" name="address" required>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="createCustomer">고객명 *</label>
+              <input type="text" id="createCustomer" name="customer" required>
+            </div>
+            <div class="form-group">
+              <label for="createContact">연락처 *</label>
+              <input type="text" id="createContact" name="contact" required pattern="010-[0-9]{4}-[0-9]{4}">
+              <small class="form-hint">형식: 010-XXXX-XXXX</small>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn secondary-btn" id="cancelCreateBtn">취소</button>
+        <button type="button" class="btn primary-btn" id="submitCreateBtn">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 기사 배정 모달 -->
+<div class="modal" id="driverAssignModal">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">배차 처리</h2>
+        <button type="button" class="close-btn" id="closeDriverModalBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="driverAssignForm" class="driver-form">
+          <div class="form-group">
+            <label for="assignDriverName">기사 이름 *</label>
+            <input type="text" id="assignDriverName" name="driverName" required>
+          </div>
+          <div class="form-group">
+            <label for="assignDriverContact">기사 번호</label>
+            <input type="text" id="assignDriverContact" name="driverContact" pattern="010-[0-9]{4}-[0-9]{4}">
+            <small class="form-hint">형식: 010-XXXX-XXXX</small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn secondary-btn" id="cancelDriverBtn">취소</button>
+        <button type="button" class="btn primary-btn" id="submitDriverBtn">배차 확인 (<span id="driverAssignCount">0</span>건)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 상태 변경 모달 -->
+<div class="modal" id="statusChangeModal">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">상태 변경</h2>
+        <button type="button" class="close-btn" id="closeStatusModalBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="statusChangeForm" class="status-form">
+          <div class="form-group">
+            <label for="changeStatus">변경할 상태 *</label>
+            <select id="changeStatus" name="status" required>
+              <option value="">선택하세요</option>
+              {% for status in statuses %}
+              <option value="{{ status.value }}">{{ status.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn secondary-btn" id="cancelStatusBtn">취소</button>
+        <button type="button" class="btn primary-btn" id="submitStatusBtn">확인 (<span id="statusChangeCount">0</span>건)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal" id="deleteConfirmModal">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">주문 삭제</h2>
+        <button type="button" class="close-btn" id="closeDeleteModalBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>선택한 <span id="deleteOrderCount">0</span>개 주문을 삭제하시겠습니까?</p>
+        <p class="delete-warning">삭제된 주문은 복구할 수 없습니다.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn secondary-btn" id="cancelDeleteBtn">취소</button>
+        <button type="button" class="btn delete-btn" id="confirmDeleteBtn">삭제</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- 간단하게 정리된 직접 이벤트 등록 -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('대시보드 페이지 초기화');
+    
+    // 유틸리티 함수: 오늘 날짜 구하기
+    function getTodayDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // 날짜 입력 필드 초기화
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    
+    // 날짜 값이 없으면 오늘 날짜로 설정
+    if (startDateInput && !startDateInput.value) {
+      startDateInput.value = getTodayDate();
+    }
+    
+    if (endDateInput && !endDateInput.value) {
+      endDateInput.value = getTodayDate();
+    }
+    
+    // 폼 제출 함수
+    function submitFilterForm() {
+      try {
+        console.log('폼 제출 시작');
+        
+        // 날짜 값 가져오기
+        const startDate = startDateInput ? startDateInput.value : getTodayDate();
+        const endDate = endDateInput ? endDateInput.value : getTodayDate();
+        const status = document.getElementById('statusFilter')?.value || '';
+        const department = document.getElementById('departmentFilter')?.value || '';
+        const warehouse = document.getElementById('warehouseFilter')?.value || '';
+        const orderNo = document.getElementById('orderNoSearch')?.value || '';
+        
+        // URL 생성
+        const url = new URL(window.location.href);
+        
+        // 파라미터 설정
+        url.searchParams.set('startDate', `${startDate} 00:00:00`);
+        url.searchParams.set('endDate', `${endDate} 23:59:59`);
+        
+        if (status) url.searchParams.set('status', status);
+        else url.searchParams.delete('status');
+        
+        if (department) url.searchParams.set('department', department);
+        else url.searchParams.delete('department');
+        
+        if (warehouse) url.searchParams.set('warehouse', warehouse);
+        else url.searchParams.delete('warehouse');
+        
+        if (orderNo) url.searchParams.set('orderNo', orderNo);
+        else url.searchParams.delete('orderNo');
+        
+        // 페이지 번호 리셋
+        url.searchParams.set('page', '1');
+        
+        // 현재 페이지 크기 유지
+        const pageSizeSelect = document.getElementById('pageSizeSelect');
+        if (pageSizeSelect) {
+          url.searchParams.set('limit', pageSizeSelect.value);
+        }
+        
+        console.log('이동할 URL:', url.toString());
+        window.location.href = url.toString();
+      } catch (error) {
+        console.error('폼 제출 오류:', error);
+        alert('조회 중 오류가 발생했습니다: ' + error.message);
+      }
+    }
+    
+    // 테이블 이벤트 초기화
+    function initTableEvents() {
+      // 컬럼 선택기 초기화
+      initColumnSelector();
+      
+      // 행 체크박스 이벤트
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+      
+      if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+          checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+          });
+          
+          updateSelectedCount();
+        });
+      }
+      
+      checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function(event) {
+          // 체크박스 클릭 시 이벤트 전파 중지
+          event.stopPropagation();
+          updateSelectedCount();
+        });
+      });
+      
+      // 선택된 행 개수 업데이트
+      function updateSelectedCount() {
+        const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        const selectedCountElement = document.getElementById('selectedCount');
+        const selectedActions = document.getElementById('selectedActions');
+        
+        if (selectedCountElement) {
+          selectedCountElement.textContent = `${selectedCount}개 선택됨`;
+        }
+        
+        if (selectedActions) {
+          if (selectedCount > 0) {
+            selectedActions.style.display = 'flex';
+          } else {
+            selectedActions.style.display = 'none';
+          }
+        }
+        
+        // 버튼 참조 변경 (이제 상단 패널의 버튼만 존재)
+        const selectedStatusBtn = document.getElementById('selectedStatusBtn');
+        const selectedDriverBtn = document.getElementById('selectedDriverBtn');
+        const selectedDeleteBtn = document.getElementById('selectedDeleteBtn');
+      }
+    }
+    
+    // 컬럼 선택기 초기화
+    function initColumnSelector() {
+      const columnSelectorBtn = document.getElementById('columnSelectorBtn');
+      const columnSelectorDropdown = document.getElementById('columnSelectorDropdown');
+      const columnSelectorContent = document.getElementById('columnSelectorContent');
+      
+      if (columnSelectorBtn && columnSelectorDropdown && columnSelectorContent) {
+        // 컬럼 정의
+        const columns = [
+          { id: 'department', label: '부서', default: true },
+          { id: 'type', label: '유형', default: true },
+          { id: 'warehouse', label: '창고', default: true },
+          { id: 'order-no', label: '주문번호', default: true },
+          { id: 'eta', label: 'ETA', default: true },
+          { id: 'status', label: '상태', default: true },
+          { id: 'region', label: '도착지', default: true },
+          { id: 'customer', label: '고객명', default: true },
+          { id: 'driver', label: '기사명', default: true }
+        ];
+        
+        // 선택기 내용 생성
+        columnSelectorContent.innerHTML = '';
+        columns.forEach(column => {
+          const item = document.createElement('div');
+          item.className = 'column-selector-item';
+          
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = `column-${column.id}`;
+          checkbox.checked = getColumnVisibility(column.id, column.default);
+          checkbox.addEventListener('change', function() {
+            setColumnVisibility(column.id, this.checked);
+          });
+          
+          const label = document.createElement('label');
+          label.htmlFor = `column-${column.id}`;
+          label.textContent = column.label;
+          
+          item.appendChild(checkbox);
+          item.appendChild(label);
+          columnSelectorContent.appendChild(item);
+        });
+        
+        // 버튼 클릭 시 드롭다운 표시/숨김
+        columnSelectorBtn.addEventListener('click', function(event) {
+          event.stopPropagation();
+          columnSelectorDropdown.style.display = columnSelectorDropdown.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        // 드롭다운 외부 클릭 시 닫기
+        document.addEventListener('click', function(event) {
+          if (!columnSelectorDropdown.contains(event.target) && event.target !== columnSelectorBtn) {
+            columnSelectorDropdown.style.display = 'none';
+          }
+        });
+        
+        // 컬럼 표시 상태 초기화
+        applyColumnVisibility();
+      }
+    }
+    
+    // 컬럼 표시 상태 저장
+    function setColumnVisibility(columnId, visible) {
+      const settings = JSON.parse(localStorage.getItem('columnSettings') || '{}');
+      settings[columnId] = visible;
+      localStorage.setItem('columnSettings', JSON.stringify(settings));
+      applyColumnVisibility();
+    }
+    
+    // 컬럼 표시 상태 불러오기
+    function getColumnVisibility(columnId, defaultValue) {
+      const settings = JSON.parse(localStorage.getItem('columnSettings') || '{}');
+      return settings[columnId] !== undefined ? settings[columnId] : defaultValue;
+    }
+    
+    // 컬럼 표시 상태 적용
+    function applyColumnVisibility() {
+      const table = document.getElementById('orderTable');
+      if (!table) return;
+      
+      const columns = ['department', 'type', 'warehouse', 'order-no', 'eta', 'status', 'region', 'customer', 'driver'];
+      
+      columns.forEach(columnId => {
+        const visible = getColumnVisibility(columnId, true);
+        const headerCells = table.querySelectorAll(`.column-${columnId}`);
+        const dataCells = table.querySelectorAll(`.column-${columnId}`);
+        
+        headerCells.forEach(cell => {
+          cell.style.display = visible ? '' : 'none';
+        });
+        
+        dataCells.forEach(cell => {
+          cell.style.display = visible ? '' : 'none';
+        });
+      });
+    }
+    
+    // 모든 버튼 이벤트 등록
+    function registerAllEvents() {
+      // 조회 버튼
+      const searchBtn = document.getElementById('searchBtn');
+      if (searchBtn) {
+        searchBtn.addEventListener('click', submitFilterForm);
+      }
+      
+      // 오늘 버튼
+      const todayBtn = document.getElementById('todayBtn');
+      if (todayBtn) {
+        todayBtn.addEventListener('click', function() {
+          const today = getTodayDate();
+          if (startDateInput) startDateInput.value = today;
+          if (endDateInput) endDateInput.value = today;
+          submitFilterForm();
+        });
+      }
+      
+      // 주문번호 검색 버튼
+      const orderSearchBtn = document.getElementById('orderSearchBtn');
+      if (orderSearchBtn) {
+        orderSearchBtn.addEventListener('click', submitFilterForm);
+      }
+      
+      // 주문번호 검색 Enter 키
+      const orderNoSearch = document.getElementById('orderNoSearch');
+      if (orderNoSearch) {
+        orderNoSearch.addEventListener('keypress', function(event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            submitFilterForm();
+          }
+        });
+      }
+      
+      // 초기화 버튼
+      const resetFilterBtn = document.getElementById('resetFilterBtn');
+      if (resetFilterBtn) {
+        resetFilterBtn.addEventListener('click', function() {
+          const statusFilter = document.getElementById('statusFilter');
+          const departmentFilter = document.getElementById('departmentFilter');
+          const warehouseFilter = document.getElementById('warehouseFilter');
+          
+          if (statusFilter) statusFilter.value = '';
+          if (departmentFilter) departmentFilter.value = '';
+          if (warehouseFilter) warehouseFilter.value = '';
+          if (orderNoSearch) orderNoSearch.value = '';
+          
+          submitFilterForm();
+        });
+      }
+      
+      // 새로고침 버튼
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+          window.location.reload();
+        });
+      }
+      
+      // 페이지 크기 변경
+      const pageSizeSelect = document.getElementById('pageSizeSelect');
+      if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+          const url = new URL(window.location.href);
+          url.searchParams.set('limit', this.value);
+          url.searchParams.set('page', '1');
+          window.location.href = url.toString();
+        });
+      }
+      
+      // 주문 생성 버튼
+      const createOrderBtn = document.getElementById('createOrderBtn');
+      if (createOrderBtn) {
+        createOrderBtn.addEventListener('click', function() {
+          const createOrderModal = document.getElementById('createOrderModal');
+          if (createOrderModal) {
+            // 주문 생성 폼 초기화
+            document.getElementById('createOrderForm').reset();
+            
+            // ETA 기본값 설정 (현재 시간으로부터 1시간 후)
+            const now = new Date();
+            now.setHours(now.getHours() + 1);
+            document.getElementById('createETA').value = formatDateTimeForInput(now);
+            
+            // 모달 표시
+            createOrderModal.style.display = 'block';
+            
+            // 제출 버튼 이벤트 등록
+            const submitCreateBtn = document.getElementById('submitCreateBtn');
+            if (submitCreateBtn) {
+              submitCreateBtn.onclick = createNewOrder;
+            }
+          }
+        });
+      }
+      
+      // 신규 주문 생성 함수
+      function createNewOrder() {
+        const form = document.getElementById('createOrderForm');
+        
+        if (form) {
+          // 폼 데이터 유효성 검사
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+          
+          // 폼 데이터 수집
+          const formData = new FormData(form);
+          const orderData = {};
+          
+          formData.forEach((value, key) => {
+            // 우편번호 자동 보완 (4자리일 경우 앞에 '0' 추가)
+            if (key === 'postalCode' && value.length === 4) {
+              orderData[key] = '0' + value;
+            } else {
+              orderData[key] = value;
+            }
+          });
+          
+          // 기본 상태 설정 (신규 생성 시 항상 '대기' 상태)
+          orderData.status = 'WAITING';
+          
+          // API 요청 (주문 생성)
+          fetch('/dashboard/api/orders', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(orderData),
+            credentials: 'include'
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('주문 생성 중 오류가 발생했습니다.');
+            }
+            return response.json();
+          })
+          .then(result => {
+            if (result.success) {
+              // 주문 생성 모달 닫기
+              document.getElementById('createOrderModal').style.display = 'none';
+              
+              // 결과 알림
+              alert('주문이 성공적으로 생성되었습니다.');
+              
+              // 페이지 새로고침
+              window.location.reload();
+            } else {
+              throw new Error(result.message || '주문 생성 실패');
+            }
+          })
+          .catch(error => {
+            alert(error.message);
+          });
+        }
+      }
+      
+      // 상태 변경 버튼
+      const statusChangeBtn = document.getElementById('statusChangeBtn');
+      if (statusChangeBtn) {
+        statusChangeBtn.addEventListener('click', function() {
+          showStatusChangeModal();
+        });
+      }
+      
+      // 배차 처리 버튼
+      const driverAssignBtn = document.getElementById('driverAssignBtn');
+      if (driverAssignBtn) {
+        driverAssignBtn.addEventListener('click', function() {
+          showDriverAssignModal();
+        });
+      }
+      
+      // 상태 변경 모달 표시 함수
+      function showStatusChangeModal() {
+        const statusChangeModal = document.getElementById('statusChangeModal');
+        const changeStatus = document.getElementById('changeStatus');
+        const selectedIds = getSelectedOrderIds();
+        
+        if (statusChangeModal && changeStatus && selectedIds.length > 0) {
+          document.getElementById('statusChangeCount').textContent = selectedIds.length;
+          
+          // 권한에 따라 상태 옵션 설정 (일반 사용자 vs 관리자)
+          const userRole = '{{ user.user_role }}'; // Jinja2 템플릿에서 사용자 역할 가져오기
+          
+          // 현재 선택된 주문의 상태 확인
+          const selectedOrders = getSelectedOrders();
+          const allSameStatus = selectedOrders.every(order => order.status === selectedOrders[0].status);
+          const currentStatus = allSameStatus ? selectedOrders[0].status : '';
+          
+          // 상태 옵션 초기화
+          changeStatus.innerHTML = '<option value="">선택하세요</option>';
+          
+          if (userRole === 'ADMIN') {
+            // 관리자: 모든 상태 변경 가능
+            changeStatus.innerHTML += `
+              <option value="WAITING">대기</option>
+              <option value="IN_PROGRESS">진행</option>
+              <option value="COMPLETE">완료</option>
+              <option value="ISSUE">이슈</option>
+              <option value="CANCEL">취소</option>
+            `;
+          } else {
+            // 일반 사용자: 제한된 상태 변경
+            if (allSameStatus) {
+              if (currentStatus === 'WAITING') {
+                // 대기 → 진행만 가능
+                changeStatus.innerHTML += '<option value="IN_PROGRESS">진행</option>';
+              } else if (currentStatus === 'IN_PROGRESS') {
+                // 진행 → 완료/이슈/취소 가능
+                changeStatus.innerHTML += `
+                  <option value="COMPLETE">완료</option>
+                  <option value="ISSUE">이슈</option>
+                  <option value="CANCEL">취소</option>
+                `;
+              } else {
+                // 이미 완료/이슈/취소 상태인 경우 변경 불가
+                alert('이미 완료/이슈/취소 상태인 주문은 일반 사용자가 상태를 변경할 수 없습니다.');
+                return;
+              }
+            } else {
+              // 여러 상태가 섞여 있는 경우
+              alert('다양한 상태의 주문을 선택했습니다. 동일한 상태의 주문만 선택해주세요.');
+              return;
+            }
+          }
+          
+          // 상태 변경 모달 표시
+          statusChangeModal.style.display = 'block';
+          
+          // 상태 변경 제출 버튼 이벤트
+          const submitStatusBtn = document.getElementById('submitStatusBtn');
+          if (submitStatusBtn) {
+            submitStatusBtn.onclick = function() {
+              changeOrderStatus(selectedIds);
+            };
+          }
+        } else {
+          alert('변경할 주문을 선택해주세요.');
+        }
+      }
+      
+      // 배차 처리 모달 표시 함수
+      function showDriverAssignModal() {
+        const driverAssignModal = document.getElementById('driverAssignModal');
+        const selectedIds = getSelectedOrderIds();
+        
+        if (driverAssignModal && selectedIds.length > 0) {
+          document.getElementById('driverAssignCount').textContent = selectedIds.length;
+          
+          // 배차 처리 모달 표시
+          driverAssignModal.style.display = 'block';
+          
+          // 배차 처리 제출 버튼 이벤트
+          const submitDriverBtn = document.getElementById('submitDriverBtn');
+          if (submitDriverBtn) {
+            submitDriverBtn.onclick = function() {
+              assignDriver(selectedIds);
+            };
+          }
+        } else {
+          alert('배차할 주문을 선택해주세요.');
+        }
+      }
+      
+      // 주문 상태 변경 함수
+      async function changeOrderStatus(orderIds) {
+        const newStatus = document.getElementById('changeStatus').value;
+        
+        if (!newStatus) {
+          alert('변경할 상태를 선택해주세요.');
+          return;
+        }
+        
+        // 각 주문에 대해 락 획득 확인
+        const lockedIds = [];
+        const unlockedIds = [];
+        
+        // 락 상태 확인 프로그레스 표시
+        document.getElementById('submitStatusBtn').innerHTML = `<i class="fas fa-spinner fa-spin"></i> 락 확인 중...`;
+        document.getElementById('submitStatusBtn').disabled = true;
+        
+        // 각 주문에 대해 락 상태 확인
+        for (const id of orderIds) {
+          const lockStatus = await checkLockStatus(id);
+          if (lockStatus.editable) {
+            unlockedIds.push(id);
+          } else {
+            lockedIds.push({
+              id,
+              lockedBy: lockStatus.lockedBy || '다른 사용자',
+              lockedAt: lockStatus.lockedAt || '알 수 없는 시간'
+            });
+          }
+        }
+        
+        // 락 상태 확인 완료 후 버튼 복원
+        document.getElementById('submitStatusBtn').innerHTML = `확인 (<span id="statusChangeCount">${orderIds.length}</span>건)`;
+        document.getElementById('submitStatusBtn').disabled = false;
+        
+        // 락이 걸린 주문이 있는 경우 알림
+        if (lockedIds.length > 0) {
+          let message = '다음 주문은 다른 사용자가 작업 중이어서 상태를 변경할 수 없습니다:\n\n';
+          
+          lockedIds.forEach(item => {
+            message += `- 주문 ID ${item.id}: ${item.lockedBy}님이 작업 중 (${item.lockedAt})\n`;
+          });
+          
+          if (unlockedIds.length === 0) {
+            alert(message + '\n\n변경할 주문이 없습니다.');
+            return;
+          } else {
+            message += `\n${unlockedIds.length}개 주문만 상태를 변경하시겠습니까?`;
+            if (!confirm(message)) {
+              return;
+            }
+          }
+        }
+        
+        // 락 획득이 가능한 주문만 상태 변경 진행
+        const requestData = {
+          ids: unlockedIds,
+          status: newStatus
+        };
+        
+        try {
+          // API 요청 (상태 변경)
+          const response = await fetch('/dashboard/api/status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData),
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('상태 변경 중 오류가 발생했습니다.');
+          }
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 상태 변경 모달 닫기
+            document.getElementById('statusChangeModal').style.display = 'none';
+            
+            // 성공/실패 건수 계산
+            const successCount = result.results?.filter(r => r.success).length || 0;
+            const failCount = unlockedIds.length - successCount;
+            
+            // 결과 알림
+            alert(`상태 변경 결과:\n- 성공: ${successCount}건\n- 실패: ${failCount}건\n- 락 상태로 제외: ${lockedIds.length}건`);
+            
+            // 페이지 새로고침
+            window.location.reload();
+          } else {
+            throw new Error(result.message || '상태 변경 실패');
+          }
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+      
+      // 기사 배정 함수
+      async function assignDriver(orderIds) {
+        const driverName = document.getElementById('assignDriverName').value;
+        const driverContact = document.getElementById('assignDriverContact').value;
+        
+        if (!driverName) {
+          alert('기사 이름을 입력해주세요.');
+          return;
+        }
+        
+        // 연락처 형식 검증 (입력된 경우)
+        if (driverContact && !/^010-\d{4}-\d{4}$/.test(driverContact)) {
+          alert('기사 연락처 형식이 올바르지 않습니다. 형식: 010-XXXX-XXXX');
+          return;
+        }
+        
+        // 각 주문에 대해 락 획득 확인
+        const lockedIds = [];
+        const unlockedIds = [];
+        
+        // 락 상태 확인 프로그레스 표시
+        document.getElementById('submitDriverBtn').innerHTML = `<i class="fas fa-spinner fa-spin"></i> 락 확인 중...`;
+        document.getElementById('submitDriverBtn').disabled = true;
+        
+        // 각 주문에 대해 락 상태 확인
+        for (const id of orderIds) {
+          const lockStatus = await checkLockStatus(id);
+          if (lockStatus.editable) {
+            unlockedIds.push(id);
+          } else {
+            lockedIds.push({
+              id,
+              lockedBy: lockStatus.lockedBy || '다른 사용자',
+              lockedAt: lockStatus.lockedAt || '알 수 없는 시간'
+            });
+          }
+        }
+        
+        // 락 상태 확인 완료 후 버튼 복원
+        document.getElementById('submitDriverBtn').innerHTML = `배차 확인 (<span id="driverAssignCount">${orderIds.length}</span>건)`;
+        document.getElementById('submitDriverBtn').disabled = false;
+        
+        // 락이 걸린 주문이 있는 경우 알림
+        if (lockedIds.length > 0) {
+          let message = '다음 주문은 다른 사용자가 작업 중이어서 기사를 배정할 수 없습니다:\n\n';
+          
+          lockedIds.forEach(item => {
+            message += `- 주문 ID ${item.id}: ${item.lockedBy}님이 작업 중 (${item.lockedAt})\n`;
+          });
+          
+          if (unlockedIds.length === 0) {
+            alert(message + '\n\n배차할 주문이 없습니다.');
+            return;
+          } else {
+            message += `\n${unlockedIds.length}개 주문만 기사를 배정하시겠습니까?`;
+            if (!confirm(message)) {
+              return;
+            }
+          }
+        }
+        
+        // API 요청 데이터
+        const requestData = {
+          ids: unlockedIds,
+          driver_name: driverName,
+          driver_contact: driverContact || ""
+        };
+        
+        try {
+          // API 요청 (기사 배정)
+          const response = await fetch('/dashboard/api/driver', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData),
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('기사 배정 중 오류가 발생했습니다.');
+          }
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 배차 모달 닫기
+            document.getElementById('driverAssignModal').style.display = 'none';
+            
+            // 성공/실패 건수 계산
+            const successCount = result.results?.filter(r => r.success).length || 0;
+            const failCount = unlockedIds.length - successCount;
+            
+            // 결과 알림
+            alert(`기사 배정 결과:\n- 성공: ${successCount}건\n- 실패: ${failCount}건\n- 락 상태로 제외: ${lockedIds.length}건`);
+            
+            // 페이지 새로고침
+            window.location.reload();
+          } else {
+            throw new Error(result.message || '기사 배정 실패');
+          }
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+      
+      // 선택된 주문 ID 배열 반환 함수
+      function getSelectedOrderIds() {
+        const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+        return Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-id'));
+      }
+      
+      // 선택된 주문 정보 반환 함수
+      function getSelectedOrders() {
+        const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+        return Array.from(checkboxes).map(checkbox => {
+          const row = checkbox.closest('tr');
+          return {
+            id: checkbox.getAttribute('data-id'),
+            status: row.querySelector('.status-badge').classList.toString().split('status-')[1].split(' ')[0]
+          };
+        });
+      }
+      
+      // 삭제 버튼
+      const deleteOrderBtn = document.getElementById('deleteOrderBtn');
+      if (deleteOrderBtn) {
+        deleteOrderBtn.addEventListener('click', function() {
+          showDeleteConfirmModal();
+        });
+      }
+      
+      // 삭제 확인 모달 표시 함수
+      function showDeleteConfirmModal() {
+        const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+        const selectedIds = getSelectedOrderIds();
+        
+        if (deleteConfirmModal && selectedIds.length > 0) {
+          document.getElementById('deleteOrderCount').textContent = selectedIds.length;
+          
+          // 삭제 확인 모달 표시
+          deleteConfirmModal.style.display = 'block';
+          
+          // 삭제 확인 버튼 이벤트
+          const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+          if (confirmDeleteBtn) {
+            confirmDeleteBtn.onclick = function() {
+              deleteOrders(selectedIds);
+            };
+          }
+        } else {
+          alert('삭제할 주문을 선택해주세요.');
+        }
+      }
+      
+      // 주문 삭제 함수
+      async function deleteOrders(orderIds) {
+        // 관리자 권한 확인
+        const userRole = '{{ user.user_role }}';
+        if (userRole !== 'ADMIN') {
+          alert('관리자만 주문을 삭제할 수 있습니다.');
+          return;
+        }
+        
+        // 각 주문에 대해 락 획득 확인
+        const lockedIds = [];
+        const unlockedIds = [];
+        
+        // 락 상태 확인 프로그레스 표시
+        document.getElementById('confirmDeleteBtn').innerHTML = `<i class="fas fa-spinner fa-spin"></i> 락 확인 중...`;
+        document.getElementById('confirmDeleteBtn').disabled = true;
+        
+        // 각 주문에 대해 락 상태 확인
+        for (const id of orderIds) {
+          const lockStatus = await checkLockStatus(id);
+          if (lockStatus.editable) {
+            unlockedIds.push(id);
+          } else {
+            lockedIds.push({
+              id,
+              lockedBy: lockStatus.lockedBy || '다른 사용자',
+              lockedAt: lockStatus.lockedAt || '알 수 없는 시간'
+            });
+          }
+        }
+        
+        // 락 상태 확인 완료 후 버튼 복원
+        document.getElementById('confirmDeleteBtn').innerHTML = '삭제';
+        document.getElementById('confirmDeleteBtn').disabled = false;
+        
+        // 락이 걸린 주문이 있는 경우 알림
+        if (lockedIds.length > 0) {
+          let message = '다음 주문은 다른 사용자가 작업 중이어서 삭제할 수 없습니다:\n\n';
+          
+          lockedIds.forEach(item => {
+            message += `- 주문 ID ${item.id}: ${item.lockedBy}님이 작업 중 (${item.lockedAt})\n`;
+          });
+          
+          if (unlockedIds.length === 0) {
+            alert(message + '\n\n삭제할 주문이 없습니다.');
+            return;
+          } else {
+            message += `\n${unlockedIds.length}개 주문만 삭제하시겠습니까?`;
+            if (!confirm(message)) {
+              return;
+            }
+          }
+        }
+        
+        // API 요청 데이터
+        const requestData = {
+          ids: unlockedIds
+        };
+        
+        try {
+          // API 요청 (주문 삭제)
+          const response = await fetch('/dashboard/api/delete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData),
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('주문 삭제 중 오류가 발생했습니다.');
+          }
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 삭제 확인 모달 닫기
+            document.getElementById('deleteConfirmModal').style.display = 'none';
+            
+            // 성공/실패 건수 계산
+            const successCount = result.results?.filter(r => r.success).length || 0;
+            const failCount = unlockedIds.length - successCount;
+            
+            // 결과 알림
+            alert(`주문 삭제 결과:\n- 성공: ${successCount}건\n- 실패: ${failCount}건\n- 락 상태로 제외: ${lockedIds.length}건`);
+            
+            // 페이지 새로고침
+            window.location.reload();
+          } else {
+            throw new Error(result.message || '주문 삭제 실패');
+          }
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+      
+      // 선택된 항목들에 대한 버튼 이벤트
+      const selectedStatusBtn = document.getElementById('selectedStatusBtn');
+      if (selectedStatusBtn) {
+        selectedStatusBtn.addEventListener('click', function() {
+          const statusChangeModal = document.getElementById('statusChangeModal');
+          if (statusChangeModal) {
+            const count = document.querySelectorAll('.row-checkbox:checked').length;
+            document.getElementById('statusChangeCount').textContent = count;
+            statusChangeModal.style.display = 'block';
+          }
+        });
+      }
+      
+      const selectedDriverBtn = document.getElementById('selectedDriverBtn');
+      if (selectedDriverBtn) {
+        selectedDriverBtn.addEventListener('click', function() {
+          const driverAssignModal = document.getElementById('driverAssignModal');
+          if (driverAssignModal) {
+            const count = document.querySelectorAll('.row-checkbox:checked').length;
+            document.getElementById('driverAssignCount').textContent = count;
+            driverAssignModal.style.display = 'block';
+          }
+        });
+      }
+      
+      const selectedDeleteBtn = document.getElementById('selectedDeleteBtn');
+      if (selectedDeleteBtn) {
+        selectedDeleteBtn.addEventListener('click', function() {
+          const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+          if (deleteConfirmModal) {
+            const count = document.querySelectorAll('.row-checkbox:checked').length;
+            document.getElementById('deleteOrderCount').textContent = count;
+            deleteConfirmModal.style.display = 'block';
+          }
+        });
+      }
+      
+      // 모달 닫기 버튼들 (모든 모달의 닫기 버튼에 이벤트 등록)
+      const closeModalBtns = document.querySelectorAll('.close-btn, .secondary-btn, [id^="close"][id$="Btn"], [id^="cancel"][id$="Btn"]');
+      closeModalBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          const modal = this.closest('.modal');
+          if (modal) {
+            modal.style.display = 'none';
+          }
+        });
+      });
+    }
+    
+    // 행 클릭 이벤트 (상세 보기)
+    function initRowEvents() {
+      // 행 클릭 이벤트 (상세 보기)
+      const viewBtns = document.querySelectorAll('.view-btn');
+      viewBtns.forEach(btn => {
+        btn.addEventListener('click', function(event) {
+          event.stopPropagation(); // 이벤트 버블링 방지
+          const id = this.getAttribute('data-id');
+          if (id) {
+            showOrderDetail(id);
+          }
+        });
+      });
+      
+      // 수정 버튼 이벤트
+      const editBtns = document.querySelectorAll('.edit-btn');
+      editBtns.forEach(btn => {
+        btn.addEventListener('click', function(event) {
+          event.stopPropagation(); // 이벤트 버블링 방지
+          const id = this.getAttribute('data-id');
+          if (id) {
+            showOrderEdit(id);
+          }
+        });
+      });
+      
+      // 행 클릭 시 상세 보기 (체크박스 영역 제외)
+      const rows = document.querySelectorAll('tr[data-id]');
+      rows.forEach(row => {
+        row.addEventListener('click', function(event) {
+          // 체크박스나 체크박스 셀을 클릭한 경우 상세 정보 표시하지 않음
+          if (event.target.type === 'checkbox' || 
+              event.target.classList.contains('checkbox-column') || 
+              event.target.closest('.checkbox-column')) {
+            event.stopPropagation();
+            return;
+          }
+          
+          const id = this.getAttribute('data-id');
+          if (id) {
+            showOrderDetail(id);
+          }
+        });
+      });
+    }
+    
+    // 전역 변수로 현재 조회/수정 중인 주문 ID와 데이터 저장
+    let currentOrderId = null;
+    let currentOrderData = null;
+    
+    // 주문 상세 정보 표시
+    async function showOrderDetail(id) {
+      const orderDetailModal = document.getElementById('orderDetailModal');
+      const orderDetailContent = document.getElementById('orderDetailContent');
+      const modalLoadingSpinner = document.getElementById('modalLoadingSpinner');
+      const editOrderBtn = document.getElementById('editOrderBtn');
+      const saveOrderBtn = document.getElementById('saveOrderBtn');
+      
+      // 수정 버튼 보이고 저장 버튼 숨기기
+      if (editOrderBtn) editOrderBtn.style.display = 'inline-block';
+      if (saveOrderBtn) saveOrderBtn.style.display = 'none';
+      
+      if (orderDetailModal && orderDetailContent) {
+        orderDetailModal.style.display = 'block';
+        
+        if (modalLoadingSpinner) {
+          modalLoadingSpinner.style.display = 'block';
+        }
+        
+        // API 요청을 통해 데이터 가져오기
+        const url = `/dashboard/api/orders/${id}`;
+        
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('데이터를 불러오는 중 오류가 발생했습니다.');
+          }
+          
+          const data = await response.json();
+          
+          // 전역 변수에 현재 주문 데이터 저장
+          currentOrderId = id;
+          currentOrderData = data;
+          
+          // 데이터 표시
+          if (modalLoadingSpinner) {
+            modalLoadingSpinner.style.display = 'none';
+          }
+          
+          // 락 상태에 따른 수정 버튼 활성화/비활성화
+          if (data.isLocked && !data.editable) {
+            // 다른 사용자가 락을 소유하고 있는 경우 수정 버튼 비활성화
+            if (editOrderBtn) editOrderBtn.disabled = true;
+          } else {
+            // 락이 없거나 내가 소유 중인 경우 수정 버튼 활성화
+            if (editOrderBtn) editOrderBtn.disabled = false;
+          }
+          
+          // 보기 모드 HTML 생성
+          const detailHtml = `
+            <div class="detail-container">
+              <h3>주문 #${data.orderNo || id}</h3>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <label>상태:</label>
+                  <span>${data.statusLabel || data.status}</span>
+                </div>
+                <div class="detail-item">
+                  <label>유형:</label>
+                  <span>${data.typeLabel || data.type}</span>
+                </div>
+                <div class="detail-item">
+                  <label>부서:</label>
+                  <span>${data.department || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>창고:</label>
+                  <span>${data.warehouse || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>SLA:</label>
+                  <span>${data.sla || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>ETA:</label>
+                  <span>${data.eta || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>우편번호:</label>
+                  <span>${data.postalCode || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>주소:</label>
+                  <span>${data.address || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>고객명:</label>
+                  <span>${data.customer || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>연락처:</label>
+                  <span>${data.contact || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>기사명:</label>
+                  <span>${data.driverName || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>기사 연락처:</label>
+                  <span>${data.driverContact || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>접수시간:</label>
+                  <span>${data.createTime || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>출발시간:</label>
+                  <span>${data.departTime || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>완료시간:</label>
+                  <span>${data.completeTime || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>마지막 수정:</label>
+                  <span>${data.updateAt || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>수정자:</label>
+                  <span>${data.updatedBy || '-'}</span>
+                </div>
+                <div class="detail-item">
+                  <label>비고:</label>
+                  <span>${data.remark || '-'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          orderDetailContent.innerHTML = detailHtml;
+          
+          // 수정 버튼 이벤트 등록
+          const editBtn = document.getElementById('editOrderBtn');
+          if (editBtn) {
+            editBtn.onclick = async function() {
+              // 락 획득 시도
+              const canEdit = await acquireLock(id);
+              if (canEdit) {
+                showOrderEdit(id, data);
+              }
+            };
+          }
+        } catch (error) {
+          if (modalLoadingSpinner) {
+            modalLoadingSpinner.style.display = 'none';
+          }
+          
+          orderDetailContent.innerHTML = `
+            <div class="error-message">
+              <i class="fas fa-exclamation-triangle"></i>
+              <p>${error.message}</p>
+            </div>
+          `;
+        }
+      }
+    }
+    
+    // 주문 수정 모드 표시
+    function showOrderEdit(id, data) {
+      const orderDetailContent = document.getElementById('orderDetailContent');
+      const editOrderBtn = document.getElementById('editOrderBtn');
+      const saveOrderBtn = document.getElementById('saveOrderBtn');
+      
+      // 수정 버튼 숨기고 저장 버튼 보이기
+      if (editOrderBtn) editOrderBtn.style.display = 'none';
+      if (saveOrderBtn) saveOrderBtn.style.display = 'inline-block';
+      
+      if (orderDetailContent) {
+        // 수정 모드 HTML 생성
+        const editFormHtml = `
+          <form id="editOrderForm" class="order-form">
+            <input type="hidden" id="editDashboardId" name="dashboardId" value="${id}">
+            
+            <h3>주문 #${data.orderNo || id} 수정</h3>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editOrderNo">주문번호 *</label>
+                <input type="text" id="editOrderNo" name="orderNo" value="${data.orderNo || ''}" required>
+              </div>
+              <div class="form-group">
+                <label for="editType">유형 *</label>
+                <select id="editType" name="type" required>
+                  <option value="DELIVERY" ${data.type === 'DELIVERY' ? 'selected' : ''}>배송</option>
+                  <option value="RETURN" ${data.type === 'RETURN' ? 'selected' : ''}>회수</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editDepartment">부서 *</label>
+                <select id="editDepartment" name="department" required>
+                  <option value="CS" ${data.department === 'CS' ? 'selected' : ''}>CS</option>
+                  <option value="HES" ${data.department === 'HES' ? 'selected' : ''}>HES</option>
+                  <option value="LENOVO" ${data.department === 'LENOVO' ? 'selected' : ''}>LENOVO</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="editWarehouse">창고 *</label>
+                <select id="editWarehouse" name="warehouse" required>
+                  <option value="SEOUL" ${data.warehouse === 'SEOUL' ? 'selected' : ''}>서울</option>
+                  <option value="BUSAN" ${data.warehouse === 'BUSAN' ? 'selected' : ''}>부산</option>
+                  <option value="GWANGJU" ${data.warehouse === 'GWANGJU' ? 'selected' : ''}>광주</option>
+                  <option value="DAEJEON" ${data.warehouse === 'DAEJEON' ? 'selected' : ''}>대전</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editSLA">SLA *</label>
+                <input type="text" id="editSLA" name="sla" value="${data.sla || ''}" required>
+              </div>
+              <div class="form-group">
+                <label for="editETA">ETA *</label>
+                <input type="datetime-local" id="editETA" name="eta" value="${formatDateTimeForInput(data.eta)}" required>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editPostalCode">우편번호 *</label>
+                <input type="text" id="editPostalCode" name="postalCode" value="${data.postalCode || ''}" required maxlength="5" pattern="[0-9]*">
+              </div>
+              <div class="form-group full-width">
+                <label for="editAddress">주소 *</label>
+                <input type="text" id="editAddress" name="address" value="${data.address || ''}" required>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editCustomer">고객명 *</label>
+                <input type="text" id="editCustomer" name="customer" value="${data.customer || ''}" required>
+              </div>
+              <div class="form-group">
+                <label for="editContact">연락처 *</label>
+                <input type="text" id="editContact" name="contact" value="${data.contact || ''}" required pattern="010-[0-9]{4}-[0-9]{4}">
+                <small class="form-hint">형식: 010-XXXX-XXXX</small>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editDriverName">기사명</label>
+                <input type="text" id="editDriverName" name="driverName" value="${data.driverName || ''}">
+              </div>
+              <div class="form-group">
+                <label for="editDriverContact">기사 연락처</label>
+                <input type="text" id="editDriverContact" name="driverContact" value="${data.driverContact || ''}" pattern="010-[0-9]{4}-[0-9]{4}">
+                <small class="form-hint">형식: 010-XXXX-XXXX</small>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group full-width">
+                <label for="editRemark">비고</label>
+                <textarea id="editRemark" name="remark" rows="3">${data.remark || ''}</textarea>
+              </div>
+            </div>
+          </form>
+        `;
+        
+        orderDetailContent.innerHTML = editFormHtml;
+        
+        // 저장 버튼 이벤트 등록
+        const saveBtn = document.getElementById('saveOrderBtn');
+        if (saveBtn) {
+          saveBtn.onclick = function() {
+            saveOrderChanges(id);
+          };
+        }
+      }
+    }
+    
+    // 주문 수정 사항 저장
+    async function saveOrderChanges(id) {
+      const form = document.getElementById('editOrderForm');
+      
+      if (form) {
+        // 폼 데이터 유효성 검사
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        
+        // 락 상태 다시 확인
+        const lockStatus = await checkLockStatus(id);
+        if (!lockStatus.editable) {
+          alert('편집 권한이 없습니다. 다른 사용자가 현재 이 주문을 편집 중입니다.');
+          return;
+        }
+        
+        // 폼 데이터 수집
+        const formData = new FormData(form);
+        const orderData = {};
+        
+        formData.forEach((value, key) => {
+          // 우편번호 자동 보완 (4자리일 경우 앞에 '0' 추가)
+          if (key === 'postalCode' && value.length === 4) {
+            orderData[key] = '0' + value;
+          } else {
+            orderData[key] = value;
+          }
+        });
+        
+        try {
+          // API 요청 (주문 수정)
+          const response = await fetch(`/dashboard/api/orders/${id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(orderData),
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('주문 수정 중 오류가 발생했습니다.');
+          }
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            alert('주문이 성공적으로 수정되었습니다.');
+            // 수정 후 상세 정보 다시 로드
+            showOrderDetail(id);
+            // 테이블 새로고침 (필요 시)
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          } else {
+            throw new Error(result.message || '주문 수정 실패');
+          }
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+    }
+    
+    // datetime-local 입력용 날짜 포맷팅 함수
+    function formatDateTimeForInput(dateTimeStr) {
+      if (!dateTimeStr) return '';
+      
+      const date = new Date(dateTimeStr);
+      if (isNaN(date.getTime())) return '';
+      
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    
+    // 모든 이벤트 등록
+    registerAllEvents();
+    
+    // 테이블 이벤트 초기화
+    initTableEvents();
+    
+    // 행 이벤트 초기화
+    initRowEvents();
+    
+    // 락 관련 함수 추가
+    
+    // 락 상태 확인 함수
+    async function checkLockStatus(orderId) {
+      try {
+        const response = await fetch(`/dashboard/api/lock/${orderId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error('락 상태 확인 중 오류가 발생했습니다.');
+        }
+        
+        const result = await response.json();
+        return result;
+      } catch (error) {
+        console.error('락 상태 확인 오류:', error);
+        return { success: false, message: error.message };
+      }
+    }
+    
+    // 행 단위 락 획득 및 확인
+    async function acquireLock(orderId) {
+      try {
+        // 락 상태 확인
+        const lockStatus = await checkLockStatus(orderId);
+        
+        // 이미 락이 걸려있고 다른 사용자가 소유 중인 경우
+        if (!lockStatus.editable) {
+          // 알림 표시
+          const lockOwner = lockStatus.lockedBy || '다른 사용자';
+          const lockTime = lockStatus.lockedAt || '알 수 없는 시간';
+          
+          // SweetAlert2가 있으면 사용, 없으면 기본 alert 사용
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              title: '락 획득 실패',
+              html: `해당 주문은 현재 <strong>${lockOwner}</strong>님이 작업 중입니다.<br>
+                     락 획득 시간: ${lockTime}<br><br>
+                     다른 주문을 선택하거나 잠시 후 다시 시도해주세요.`,
+              icon: 'warning',
+              confirmButtonText: '확인'
+            });
+          } else {
+            alert(`해당 주문은 현재 ${lockOwner}님이 작업 중입니다.\n락 획득 시간: ${lockTime}\n\n다른 주문을 선택하거나 잠시 후 다시 시도해주세요.`);
+          }
+          return false;
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('락 획득 오류:', error);
+        alert('락 획득 중 오류가 발생했습니다: ' + error.message);
+        return false;
+      }
+    }
+    
+    // URL 파라미터에 날짜가 없으면 자동으로 조회 실행
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasDateParams = urlParams.has('startDate') || urlParams.has('endDate');
+    
+    if (!hasDateParams && !urlParams.has('orderNo')) {
+      console.log('날짜 파라미터 없음, 자동 조회 실행');
+      submitFilterForm();
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+<!-- 사이드바 -->
+<div class="sidebar" id="sidebar">
+  <!-- 로고 및 시스템명 -->
+  <div class="sidebar-header">
+    <!-- 사이드바 토글 버튼 추가 -->
+    <button id="sidebarToggleBtn" class="sidebar-toggle">
+      <i class="fas fa-bars"></i>
+    </button>
+    <h1 class="sidebar-title">
+      <span id="fullTitle">TWLKR-TMS</span>
+      <span id="shortTitle">TMS</span>
+    </h1>
+  </div>
+
+  <!-- 사용자 정보 (user 객체가 있을 때만 표시) -->
+  {% if user is defined %}
+  <div class="user-info-section">
+    <div class="user-avatar">
+      <i class="fas fa-user"></i>
+    </div>
+    <div class="user-details">
+      <div class="user-name">{{ user.user_id }}</div>
+      <div class="user-role">{{ user.user_department }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 메뉴 항목 -->
+  <nav class="sidebar-menu">
+    <ul>
+      {% if request.url.path != '/login' %}
+      <li class="menu-item {% if request.url.path == '/dashboard' %}active{% endif %}">
+        <a href="/dashboard">
+          <i class="fas fa-tachometer-alt"></i>
+          <span>TMS</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path == '/handover' %}active{% endif %}">
+        <a href="/handover">
+          <i class="fas fa-exchange-alt"></i>
+          <span>Work-Notice</span>
+        </a>
+      </li>
+      {% if user is defined and user.user_role == 'ADMIN' %}
+      <li class="menu-item {% if request.url.path == '/visualization' %}active{% endif %}">
+        <a href="/visualization">
+          <i class="fas fa-chart-bar"></i>
+          <span>Visualization</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path == '/users' %}active{% endif %}">
+        <a href="/users">
+          <i class="fas fa-users"></i>
+          <span>사용자 관리</span>
+        </a>
+      </li>
+      {% endif %}
+      {% else %}
+      <li class="menu-item active">
+        <a href="/login">
+          <i class="fas fa-sign-in-alt"></i>
+          <span>로그인</span>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+
+  <!-- 하단 로그아웃 버튼 (로그인 상태일때만) -->
+  <div class="sidebar-footer">
+    {% if request.url.path != '/login' and user is defined %}
+    <button class="logout-button" onclick="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>로그아웃</span>
+    </button>
+    {% endif %}
+    <!-- 로고 표시 -->
+    <div class="bottom-logo">
+      <img src="/static/images/logo.png" alt="Teckwah 로고" />
+    </div>
+  </div>
+</div>
