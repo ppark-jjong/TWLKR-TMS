@@ -1,371 +1,202 @@
 """
-인수인계 관련 서비스 레이어
+인수인계 관련 서비스
 """
 
+from typing import Dict, List, Optional, Tuple, Any, Union
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
-from typing import Dict, Any, List, Optional
+from sqlalchemy import func, desc, asc, and_, or_, text
 from datetime import datetime
-from pydantic import ValidationError
 
-from backend.models.handover import (
-    Handover,
-    HandoverCreate,
-    HandoverUpdate,
-    HandoverResponse,
-    HandoverListResponse,
-    HandoverListResponseData,
-    GetHandoverResponseData,
-    GetHandoverResponse,
-)
-from backend.schemas.dashboard_schema import LockStatus
-from backend.schemas.user_schema import UserRole
+from backend.models.handover import Handover
+from backend.schemas.handover import HandoverCreate, HandoverUpdate
 from backend.utils.logger import logger
-from backend.utils.lock import check_lock_status, validate_lock, release_lock
+from backend.utils.lock import acquire_lock, release_lock, check_lock_status
 
 
-def get_handovers(
-    db: Session, page: int = 1, limit: int = 10, current_user_id: str = None
-) -> HandoverListResponse:
-    """
-    인수인계 목록 조회 서비스 (Pydantic 모델 반환) + 상세 로깅
-    """
-    logger.debug(
-        f"인수인계 목록 조회 서비스 시작: page={page}, limit={limit}, user={current_user_id}"
-    )
-
-    # --- DB 조회 (공지사항) ---
-    try:
-        notices_query = db.query(Handover).filter(Handover.is_notice == True)
-        notices = notices_query.order_by(Handover.update_at.desc()).all()
-        logger.db(f"  공지사항 DB 조회 성공: {len(notices)} 건")
-        if notices:
-            logger.debug(f"    첫번째 Notice 객체 타입: {type(notices[0])}")
-            logger.debug(
-                f"    첫번째 Notice 데이터 (일부): ID={notices[0].handover_id}, Title={notices[0].title}, UpdateBy={notices[0].update_by}"
-            )
-    except Exception as e:
-        logger.error(f"공지사항 DB 조회 실패: {e}", exc_info=True)
-        notices = []
-    # -----------------------
-
-    # --- DB 조회 (일반 목록) ---
-    try:
-        items_query = db.query(Handover).filter(Handover.is_notice == False)
-        total_count = items_query.count()
-        items = (
-            items_query.order_by(Handover.update_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-            .all()
-        )
-        logger.db(
-            f"  일반 인수인계 DB 조회 성공: {len(items)} 건 조회 (전체 {total_count} 건)"
-        )
-        if items:
-            logger.debug(f"    첫번째 Item 객체 타입: {type(items[0])}")
-            logger.debug(
-                f"    첫번째 Item 데이터 (일부): ID={items[0].handover_id}, Title={items[0].title}, UpdateBy={items[0].update_by}"
-            )
-    except Exception as e:
-        logger.error(f"일반 인수인계 DB 조회 실패: {e}", exc_info=True)
-        items = []
-        total_count = 0
-    # ------------------------
-
-    # --- HandoverResponse 변환 및 로깅 ---
-    notice_responses = []
-    if notices:
-        for i, notice in enumerate(notices):
-            try:
-                logger.debug(
-                    f"  Notice HandoverResponse 변환 시도 [{i}]: ID={getattr(notice, 'handover_id', 'N/A')}"
-                )
-                notice_responses.append(HandoverResponse.from_orm(notice))
-                logger.debug(f"    Notice HandoverResponse 변환 성공 [{i}]")
-            except ValidationError as ve:
-                logger.error(
-                    f"Notice HandoverResponse.from_orm 유효성 검사 실패 [{i}]: ID={getattr(notice, 'handover_id', 'N/A')}, 오류={ve.errors()}"
-                )
-                try:
-                    item_dict = {
-                        c.name: getattr(notice, c.name, None)
-                        for c in notice.__table__.columns
-                    }
-                    logger.error(f"    실패한 ORM 객체 데이터 (Notice): {item_dict}")
-                except Exception as e_dict:
-                    logger.error(
-                        f"    실패한 ORM 객체 dict 변환 중 오류 (Notice): {e_dict}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Notice HandoverResponse.from_orm 변환 중 일반 오류 [{i}]: ID={getattr(notice, 'handover_id', 'N/A')}, 오류={e}",
-                    exc_info=True,
-                )
-
-    item_responses = []
-    if items:
-        for i, item in enumerate(items):
-            try:
-                logger.debug(
-                    f"  Item HandoverResponse 변환 시도 [{i}]: ID={getattr(item, 'handover_id', 'N/A')}"
-                )
-                item_responses.append(HandoverResponse.from_orm(item))
-                logger.debug(f"    Item HandoverResponse 변환 성공 [{i}]")
-            except ValidationError as ve:
-                logger.error(
-                    f"Item HandoverResponse.from_orm 유효성 검사 실패 [{i}]: ID={getattr(item, 'handover_id', 'N/A')}, 오류={ve.errors()}"
-                )
-                try:
-                    item_dict = {
-                        c.name: getattr(item, c.name, None)
-                        for c in item.__table__.columns
-                    }
-                    logger.error(f"    실패한 ORM 객체 데이터 (Item): {item_dict}")
-                except Exception as e_dict:
-                    logger.error(
-                        f"    실패한 ORM 객체 dict 변환 중 오류 (Item): {e_dict}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Item HandoverResponse.from_orm 변환 중 일반 오류 [{i}]: ID={getattr(item, 'handover_id', 'N/A')}, 오류={e}",
-                    exc_info=True,
-                )
-    logger.debug(
-        f"  HandoverResponse 변환 완료: Notices={len(notice_responses)}/{len(notices) if notices else 0}, Items={len(item_responses)}/{len(items) if items else 0}"
-    )
-    # --------------------------------
-
-    # --- 최종 응답 모델 생성 전 데이터 로깅 ---
-    response_data_payload = {
-        "items": item_responses,
-        "total": total_count,
-        "page": page,
-        "limit": limit,
-        "notices": notice_responses,
-    }
-    logger.debug(
-        f"HandoverListResponseData 생성 전 payload (타입 요약): items_len={len(item_responses)}, total={type(total_count)}, notices_len={len(notice_responses)}"
-    )
-    # ------------------------------------
-
-    try:
-        response_data = HandoverListResponseData(**response_data_payload)
-        logger.debug(
-            f"  생성된 HandoverListResponseData: items_len={len(response_data.items)}, total={response_data.total}, notices_len={len(response_data.notices)}"
-        )
-
-        final_response = HandoverListResponse(data=response_data)
-        logger.debug(
-            f"  최종 반환될 HandoverListResponse: success={final_response.success}, message={final_response.message}, data.total={final_response.data.total}"
-        )
-        return final_response
-    except Exception as e:
-        logger.error(f"최종 HandoverListResponse(Data) 생성 실패: {e}", exc_info=True)
-        logger.error(f"  실패 시점 payload: {response_data_payload}")
-        empty_data = HandoverListResponseData(
-            items=[], total=0, page=page, limit=limit, notices=[]
-        )
-        return HandoverListResponse(
-            success=False, message="데이터 처리 중 오류 발생", data=empty_data
-        )
-
-
-def get_handover(db: Session, handover_id: int, current_user_id: str) -> Dict[str, Any]:
-    """
-    인수인계 상세 조회 서비스 (GetHandoverResponse 구조에 맞는 Dict 반환) + 상세 로깅
-    """
-    logger.debug(
-        f"인수인계 상세 조회 서비스 시작: ID={handover_id}, user={current_user_id}"
-    )
-    try:
-        handover = (
-            db.query(Handover).filter(Handover.handover_id == handover_id).first()
-        )
+class HandoverService:
+    """인수인계 관련 서비스 클래스"""
+    
+    TABLE_NAME = "handover"
+    
+    @staticmethod
+    def get_handover(db: Session, handover_id: int, user_id: str) -> Optional[Dict[str, Any]]:
+        """인수인계 상세 정보를 조회합니다."""
+        handover = db.query(Handover).filter(Handover.handover_id == handover_id).first()
+        
         if not handover:
-            logger.warn(f"인수인계 없음 - ID: {handover_id}")
-            return {
-                "success": False,
-                "message": "항목을 찾을 수 없습니다",
-                "error_code": "NOT_FOUND",
-                "data": None,
-            }
-        logger.db(
-            f"  인수인계 DB 조회 성공: ID={handover.handover_id}, Title={handover.title}"
-        )
-
-        # --- 락 상태 확인 및 로깅 ---
-        lock_status_dict = check_lock_status(
-            db, "handover", handover_id, current_user_id
-        )
-        logger.debug(f"  락 상태 확인 결과: {lock_status_dict}")
-        # --------------------------
-
-        # --- HandoverResponse 변환 및 로깅 ---
-        handover_response = None
+            return None
+        
+        # ORM 객체를 딕셔너리로 변환
+        handover_dict = {c.name: getattr(handover, c.name) for c in handover.__table__.columns}
+        
+        # 락 정보 추가
+        lock_status = check_lock_status(db, HandoverService.TABLE_NAME, handover_id, user_id)
+        handover_dict["locked_info"] = lock_status
+        
+        return handover_dict
+    
+    @staticmethod
+    def get_handovers(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        is_notice: Optional[bool] = None
+    ) -> Tuple[List[Handover], int, List[Handover]]:
+        """인수인계 목록을 조회합니다."""
+        # 공지사항 쿼리
+        notices_query = db.query(Handover).filter(Handover.is_notice == True)
+        notices = notices_query.order_by(desc(Handover.create_at)).all()
+        
+        # 인수인계 쿼리
+        query = db.query(Handover)
+        
+        # 필터 적용
+        if is_notice is not None:
+            query = query.filter(Handover.is_notice == is_notice)
+        
+        # 전체 수 계산
+        total = query.count()
+        
+        # 페이지네이션 및 정렬 적용
+        handovers = query.order_by(desc(Handover.create_at)).offset(skip).limit(limit).all()
+        
+        return handovers, total, notices
+    
+    @staticmethod
+    def create_handover(db: Session, handover_data: HandoverCreate, user_id: str) -> Handover:
+        """새 인수인계를 생성합니다."""
         try:
-            handover_response = HandoverResponse.from_orm(handover)
-            logger.debug(
-                f"  HandoverResponse 변환 성공: ID={handover_response.handover_id}, Title={handover_response.title}"
+            # 현재 시간 설정
+            now = datetime.now()
+            
+            # 새 인수인계 생성
+            new_handover = Handover(
+                title=handover_data.title,
+                content=handover_data.content,
+                is_notice=handover_data.is_notice,
+                update_by=user_id,
+                create_at=now,
+                update_at=now,
+                is_locked=False
             )
+            
+            db.add(new_handover)
+            db.commit()
+            db.refresh(new_handover)
+            logger.info(f"새 인수인계 생성 완료: {handover_data.title} (ID: {new_handover.handover_id})")
+            return new_handover
+        
         except Exception as e:
-            logger.error(
-                f"HandoverResponse.from_orm 변환 실패 (서비스): ID={handover_id}, 오류={e}",
-                exc_info=True,
-            )
-            # 변환 실패 시에도 오류 반환하지 않고 진행 (라우터에서 처리)
-            return {
-                "success": False,
-                "message": "데이터 변환 오류",
-                "error_code": "INTERNAL_ERROR",
+            db.rollback()
+            logger.error(f"인수인계 생성 중 오류: {str(e)}")
+            raise
+    
+    @staticmethod
+    def update_handover(
+        db: Session, 
+        handover_id: int, 
+        handover_data: HandoverUpdate, 
+        user_id: str
+    ) -> Optional[Handover]:
+        """인수인계 정보를 수정합니다."""
+        # 락 확인
+        lock_info = check_lock_status(db, HandoverService.TABLE_NAME, handover_id, user_id)
+        if not lock_info.get("editable", False):
+            logger.warning(f"락 없이 인수인계 수정 시도: ID {handover_id}, 사용자 {user_id}")
+            raise ValueError(lock_info.get("message", "이 인수인계를 수정할 권한이 없습니다"))
+        
+        handover = db.query(Handover).filter(Handover.handover_id == handover_id).first()
+        if not handover:
+            return None
+        
+        # 작성자가 아니고 관리자도 아닌 경우 수정 불가
+        if handover.update_by != user_id:
+            # 여기서는 단순히 확인만 함. 실제 권한 체크는 컨트롤러에서 관리자 여부 확인
+            logger.warning(f"본인 작성 글이 아닌 인수인계 수정 시도: ID {handover_id}, 작성자 {handover.update_by}, 수정 시도 사용자 {user_id}")
+        
+        try:
+            # 수정 가능한 필드 목록
+            updatable_fields = ['title', 'content', 'is_notice']
+            
+            # 필드 업데이트
+            for field in updatable_fields:
+                if hasattr(handover_data, field) and getattr(handover_data, field) is not None:
+                    setattr(handover, field, getattr(handover_data, field))
+            
+            # 수정자 및 수정 시간 업데이트
+            handover.update_by = user_id
+            handover.update_at = datetime.now()
+            
+            db.commit()
+            db.refresh(handover)
+            logger.info(f"인수인계 정보 수정 완료: ID {handover_id} ({handover.title})")
+            
+            # 수정 완료 후 락 해제
+            release_lock(db, HandoverService.TABLE_NAME, handover_id, user_id)
+            return handover
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"인수인계 정보 수정 중 오류: {str(e)}")
+            raise
+    
+    @staticmethod
+    def delete_handover(db: Session, handover_id: int, user_id: str) -> bool:
+        """인수인계를 삭제합니다."""
+        # 락 획득 시도
+        success, lock_info = acquire_lock(db, HandoverService.TABLE_NAME, handover_id, user_id)
+        if not success:
+            logger.warning(f"락 획득 실패로 인수인계 삭제 불가: ID {handover_id}, 사용자 {user_id}")
+            raise ValueError(lock_info.get("message", "이 인수인계를 삭제할 권한이 없습니다"))
+        
+        handover = db.query(Handover).filter(Handover.handover_id == handover_id).first()
+        if not handover:
+            return False
+        
+        try:
+            db.delete(handover)
+            db.commit()
+            logger.info(f"인수인계 삭제 완료: ID {handover_id} ({handover.title})")
+            return True
+        except Exception as e:
+            db.rollback()
+            logger.error(f"인수인계 삭제 중 오류: {str(e)}")
+            raise
+        finally:
+            # 성공하든 실패하든 락 해제 시도
+            release_lock(db, HandoverService.TABLE_NAME, handover_id, user_id)
+    
+    @staticmethod
+    def lock_handover(db: Session, handover_id: int, user_id: str) -> Dict[str, Any]:
+        """인수인계에 편집 락을 설정합니다."""
+        success, lock_info = acquire_lock(db, HandoverService.TABLE_NAME, handover_id, user_id)
+        
+        if success:
+            logger.info(f"인수인계 락 획득 성공: ID {handover_id}, 사용자 {user_id}")
+        else:
+            logger.warning(f"인수인계 락 획득 실패: ID {handover_id}, 사용자 {user_id}")
+        
+        return {
+            "success": success,
+            "message": lock_info.get("message", "락 상태 확인 실패"),
+            "lock_status": {
+                "editable": lock_info.get("editable", False),
+                "locked_by": lock_info.get("locked_by", None),
+                "locked_at": lock_info.get("locked_at", None)
             }
-
-        # --- 최종 반환 데이터 구성 및 로깅 ---
-        final_data = handover_response.dict(
-            by_alias=True
-        )  # Pydantic 객체를 dict로 변환
-        final_data["lockedInfo"] = lock_status_dict  # 락 정보 추가 (camelCase)
-        logger.debug(f"  최종 반환 data 딕셔너리 (키 목록): {list(final_data.keys())}")
-        logger.debug(f"    lockedInfo 값: {final_data.get('lockedInfo')}")
-        # --------------------------------
-
-        return {
-            "success": True,
-            "message": "인수인계 조회 성공",
-            "data": final_data,
         }
-
-    except Exception as e:
-        logger.error(
-            f"인수인계 조회 중 오류 발생 (ID: {handover_id}): {e}", exc_info=True
-        )
+    
+    @staticmethod
+    def unlock_handover(db: Session, handover_id: int, user_id: str) -> Dict[str, Any]:
+        """인수인계의 편집 락을 해제합니다."""
+        success, lock_info = release_lock(db, HandoverService.TABLE_NAME, handover_id, user_id)
+        
+        if success:
+            logger.info(f"인수인계 락 해제 성공: ID {handover_id}, 사용자 {user_id}")
+        else:
+            logger.warning(f"인수인계 락 해제 실패: ID {handover_id}, 사용자 {user_id}")
+        
         return {
-            "success": False,
-            "message": "조회 중 오류 발생",
-            "error_code": "INTERNAL_ERROR",
+            "success": success,
+            "message": lock_info.get("message", "락 해제 상태 확인 실패")
         }
-
-
-def create_handover(
-    db: Session,
-    handover_data: Dict[str, Any],
-    current_user_id: str,
-    current_user_role: str,
-) -> Dict[str, Any]:
-    """
-    인수인계 생성 서비스 (라우트에서 Pydantic 변환)
-    """
-    logger.db(
-        f"인수인계 생성 요청 - 사용자: {current_user_id}, 공지 여부: {handover_data.get('isNotice', False)}"
-    )
-
-    if handover_data.get("isNotice", False) and current_user_role != UserRole.ADMIN:
-        logger.warn(f"공지사항 등록 권한 없음 - 사용자: {current_user_id}")
-        return {
-            "success": False,
-            "message": "공지사항 등록은 관리자만 가능합니다",
-            "error_code": "PERMISSION_DENIED",
-        }
-
-    new_handover = Handover(
-        title=handover_data["title"],
-        content=handover_data["content"],
-        is_notice=handover_data.get("isNotice", False),
-        create_at=datetime.now(),
-        update_by=current_user_id,
-        update_at=datetime.now(),
-    )
-
-    db.add(new_handover)
-    db.commit()
-    db.refresh(new_handover)
-    logger.db(
-        f"인수인계 생성 완료 - ID: {new_handover.handover_id}, 사용자: {current_user_id}"
-    )
-
-    return {"success": True, "message": "인수인계 생성 성공", "data": new_handover}
-
-
-def update_handover(
-    db: Session,
-    handover_id: int,
-    handover_data: Dict[str, Any],
-    current_user_id: str,
-    current_user_role: str,
-) -> Dict[str, Any]:
-    """
-    인수인계 수정 서비스 (라우트에서 Pydantic 변환)
-    """
-    logger.db(f"인수인계 수정 요청 - ID: {handover_id}, 사용자: {current_user_id}")
-    handover = db.query(Handover).filter(Handover.handover_id == handover_id).first()
-    if not handover:
-        logger.warn(f"인수인계 없음 - ID: {handover_id}")
-        return {
-            "success": False,
-            "message": "인수인계를 찾을 수 없습니다",
-            "error_code": "NOT_FOUND",
-        }
-
-    if handover.update_by != current_user_id and current_user_role != UserRole.ADMIN:
-        logger.warn(
-            f"인수인계 수정 권한 없음 - ID: {handover_id}, 요청자: {current_user_id}, 작성자: {handover.update_by}"
-        )
-        return {
-            "success": False,
-            "message": "인수인계 수정 권한이 없습니다. 작성자 또는 관리자만 수정할 수 있습니다.",
-            "error_code": "PERMISSION_DENIED",
-        }
-
-    is_notice_update = handover_data.get("isNotice", handover.is_notice)
-    if handover.is_notice != is_notice_update and current_user_role != UserRole.ADMIN:
-        logger.warn(f"공지사항 변경 권한 없음 - 사용자: {current_user_id}")
-        return {
-            "success": False,
-            "message": "공지사항 설정 변경은 관리자만 가능합니다",
-            "error_code": "PERMISSION_DENIED",
-        }
-
-    handover.title = handover_data.get("title", handover.title)
-    handover.content = handover_data.get("content", handover.content)
-    handover.is_notice = is_notice_update
-    handover.update_at = datetime.now()
-    handover.update_by = current_user_id
-
-    db.commit()
-    db.refresh(handover)
-    logger.db(f"인수인계 수정 완료 - ID: {handover_id}, 사용자: {current_user_id}")
-
-    return {"success": True, "message": "인수인계 수정 성공", "data": handover}
-
-
-def delete_handover(
-    db: Session, handover_id: int, current_user_id: str, current_user_role: str
-) -> Dict[str, Any]:
-    """
-    인수인계 삭제 서비스 (라우트에서 처리)
-    """
-    logger.db(f"인수인계 삭제 요청 - ID: {handover_id}, 사용자: {current_user_id}")
-    handover = db.query(Handover).filter(Handover.handover_id == handover_id).first()
-    if not handover:
-        logger.warn(f"인수인계 없음 - ID: {handover_id}")
-        return {
-            "success": False,
-            "message": "인수인계를 찾을 수 없습니다",
-            "error_code": "NOT_FOUND",
-        }
-
-    if handover.update_by != current_user_id and current_user_role != UserRole.ADMIN:
-        logger.warn(
-            f"인수인계 삭제 권한 없음 - ID: {handover_id}, 요청자: {current_user_id}, 작성자: {handover.update_by}"
-        )
-        return {
-            "success": False,
-            "message": "인수인계 삭제 권한이 없습니다. 작성자 또는 관리자만 삭제할 수 있습니다.",
-            "error_code": "PERMISSION_DENIED",
-        }
-
-    db.delete(handover)
-    db.commit()
-    logger.db(f"인수인계 삭제 완료 - ID: {handover_id}, 사용자: {current_user_id}")
-
-    return {"success": True, "message": "인수인계 삭제 성공", "data": None}

@@ -1,57 +1,110 @@
 """
-통합 로깅 시스템 (간소화)
+로깅 유틸리티
 """
 
-import logging
 import os
 import sys
-from datetime import datetime
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
+import platform
 
-# 로그 레벨 설정
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+# 현재 운영체제에 따라 로그 경로 설정
+if platform.system() == "Windows":
+    LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+else:
+    # Docker 환경이나 Linux 서버 환경
+    LOG_DIR = "/app/backend/logs"
+
+# 로그 디렉토리가 없다면 생성
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # 로거 생성
-logger = logging.getLogger("teckwah-tms")
-logger.setLevel(getattr(logging, LOG_LEVEL))
+logger = logging.getLogger("delivery_tms")
+logger.setLevel(logging.INFO)
 
-# 처리기가 없으면 기본 처리기 추가
-if not logger.handlers:
-    # 콘솔 출력 핸들러
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(getattr(logging, LOG_LEVEL))
-
-    # 로그 포맷 설정
-    log_format = "%(asctime)s [%(levelname)s] %(message)s"
-    formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(console_handler)
-
-    # 개발 환경에서만 파일 로깅
-    if os.environ.get("ENVIRONMENT") != "production":
-        try:
-            log_dir = "logs"
-            os.makedirs(log_dir, exist_ok=True)
-            log_file = f"{log_dir}/app_{datetime.now().strftime('%Y%m%d')}.log"
-
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setLevel(getattr(logging, LOG_LEVEL))
-            file_handler.setFormatter(formatter)
-
-            logger.addHandler(file_handler)
-        except Exception as e:
-            logger.warning(f"파일 로깅 설정 중 오류 발생: {e}")
-
-# 간편 API 추가
-logger.api = lambda method, url, data=None: logger.info(f"API {method} {url}")
-logger.db = lambda msg: logger.debug(f"DB: {msg}")
-logger.auth = lambda msg: logger.info(f"AUTH: {msg}")
-logger.lock = lambda msg: logger.info(f"LOCK: {msg}")
-logger.response = lambda url, success=True: logger.info(
-    f"RESPONSE {url}: {'성공' if success else '실패'}"
-)
-logger.service = lambda service, method, params=None: logger.info(
-    f"SERVICE {service}.{method}"
+# 로그 포맷 설정
+log_format = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-# 불필요한 로깅 함수 제거 및 필수 함수 유지
+# 콘솔 핸들러 추가
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_format)
+logger.addHandler(console_handler)
+
+# 파일 핸들러 추가 (일별 로테이션)
+file_handler = RotatingFileHandler(
+    os.path.join(LOG_DIR, "delivery_tms.log"),
+    maxBytes=10 * 1024 * 1024,  # 10MB
+    backupCount=10,
+    encoding="utf-8",
+)
+file_handler.setFormatter(log_format)
+logger.addHandler(file_handler)
+
+# 디버그 모드인 경우 디버그 레벨로 설정
+import backend.config as config
+
+try:
+    if config.get_settings().DEBUG:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("디버그 모드 활성화됨")
+except Exception as e:
+    logger.warning(f"설정 로드 중 오류: {str(e)}")
+
+
+# 서비스 로그 함수
+def service(service_name, method_name, data=None):
+    """서비스 로그"""
+    message = f"[서비스] {service_name}.{method_name}()"
+    if data:
+        message += f" - 파라미터: {str(data)}"
+    logger.debug(message)
+
+
+# API 요청 로그 함수
+def api(method, url, data=None):
+    """API 요청 로그"""
+    message = f"[API] {method} {url}"
+    if data:
+        message += f" - 데이터: {str(data)}"
+    logger.debug(message)
+
+
+# API 응답 로그 함수
+def response(url, success, data=None):
+    """API 응답 로그"""
+    status = "성공" if success else "실패"
+    message = f"[응답] {url} - {status}"
+    if data and not success:
+        message += f" - 데이터: {str(data)}"
+    logger.debug(message)
+
+
+# 에러 로그 함수 (간소화)
+def error(message, exception=None):
+    """에러 로그"""
+    if exception:
+        logger.error(f"{message}: {str(exception)}")
+        logger.error(traceback.format_exc())
+    else:
+        logger.error(message)
+
+
+# 정보 로그 함수
+def info(message):
+    """정보 로그"""
+    logger.info(message)
+
+
+# 경고 로그 함수
+def warn(message):
+    """경고 로그"""
+    logger.warning(message)
+
+
+# 디버그 로그 함수
+def debug(message):
+    """디버그 로그"""
+    logger.debug(message)

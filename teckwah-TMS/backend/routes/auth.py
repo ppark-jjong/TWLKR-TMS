@@ -1,129 +1,132 @@
 """
-인증 관련 라우트
+인증 관련 라우터
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from backend.utils.logger import logger
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import APIRouter, Depends, Cookie, Response, Request, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Dict, Any
-import json
+from typing import Optional, Dict, Any
 
 from backend.database import get_db
-from backend.models.user import User, UserResponse
-from backend.utils.security import verify_password, create_session, delete_session
-from backend.middleware.auth import get_current_user
+from backend.services.user_service import UserService
+from backend.schemas.user import UserLogin, UserResponse, SessionData
+from backend.utils.security import (
+    create_session, 
+    get_session, 
+    delete_session, 
+    get_current_user
+)
+from backend.utils.logger import logger
 
 router = APIRouter()
-security = HTTPBasic()
-
-
-# Pydantic 모델 정의는 schemas/auth_schema.py로 이동
-# from pydantic import BaseModel
-# class LoginRequest(BaseModel): ...
-
-
-from backend.utils.response_utils import success_response, error_response
 
 
 @router.post("/login")
 async def login(
-    # login_data 타입을 추후 schemas.auth_schema.LoginRequest로 변경 필요
-    login_data: Any,  # 임시로 Any 처리 (추후 수정)
-    db: Session = Depends(get_db),
-    response: Response = None,
+    login_data: UserLogin,
+    response: Response,
+    db: Session = Depends(get_db)
 ):
     """
-    로그인 처리 및 세션 생성
+    사용자 로그인 처리
+    - 성공 시 세션 쿠키 설정
     """
-    # 핵심 로그: 로그인 시도
-    logger.auth(f"로그인 시도: {login_data.username}")
-
-    # DB에서 사용자 조회
-    user = db.query(User).filter(User.user_id == login_data.username).first()
-
-    # 인증 실패 시 401 반환
-    if not user or not verify_password(login_data.password, user.user_password):
-        logger.auth(f"로그인 실패: {login_data.username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="아이디 또는 비밀번호가 올바르지 않습니다",
-        )
-
+    # 사용자 인증
+    user = UserService.verify_user(db, login_data.user_id, login_data.user_password)
+    
+    if not user:
+        logger.warning(f"로그인 실패: {login_data.user_id}")
+        return {
+            "success": False,
+            "message": "아이디 또는 비밀번호가 올바르지 않습니다"
+        }
+    
     # 세션 생성
-    session_id = create_session(user.user_id, user.user_role)
-    logger.auth(f"로그인 성공: {user.user_id}, 권한: {user.user_role}")
-
-    # 쿠키 설정 - response 객체가 있는지 여부와 관계없이 항상 설정
-    response = Response() if response is None else response
+    session_data = {
+        "user_id": user.user_id,
+        "user_role": user.user_role,
+        "user_department": user.user_department
+    }
+    
+    session_id = create_session(session_data)
+    
+    # 쿠키 설정
     response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
-        max_age=3600 * 24,  # 1일
-        secure=False,  # 개발 환경에서는 False, 프로덕션에서는 True
+        secure=False,  # HTTPS 사용 시 True로 변경
         samesite="lax",
+        max_age=24 * 3600  # 24시간
     )
-
-    # 일관된 응답 형식 사용 (camelCase 키 사용)
-    return_data = success_response(
-        message="로그인 성공",
-        data={
-            "userId": user.user_id,
-            "userRole": user.user_role,
-            "userDepartment": user.user_department,
-        },
-    )
-
-    # 디버깅을 위한 로그 추가
-    logger.info(f"로그인 응답 데이터: {return_data}")
-
-    # 응답 객체에 적용
-    return Response(
-        content=json.dumps(return_data),
-        media_type="application/json",
-        headers=dict(response.headers),
-        status_code=200,
-    )
+    
+    logger.info(f"로그인 성공: {login_data.user_id}")
+    
+    # 응답 데이터
+    return {
+        "success": True,
+        "message": "로그인 성공",
+        "data": UserResponse(
+            userId=user.user_id,
+            userDepartment=user.user_department,
+            userRole=user.user_role
+        ).model_dump()
+    }
 
 
 @router.post("/logout")
 async def logout(
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    response: Response = None,
+    response: Response,
+    session_id: Optional[str] = Cookie(None)
 ):
     """
-    로그아웃 처리 및 세션 삭제
+    사용자 로그아웃 처리
+    - 세션 삭제 및 쿠키 제거
     """
-    # 세션 삭제
-    delete_session(current_user["session_id"])
-    logger.info(f"로그아웃: {current_user['user_id']}")
+    # 세션 존재 확인
+    session_data = get_session(session_id)
+    
+    if session_data:
+        # 세션 삭제
+        delete_session(session_id)
+        logger.info(f"로그아웃: {session_data.get('user_id')}")
+    
+    # 쿠키 제거
+    response.delete_cookie(key="session_id")
+    
+    return {
+        "success": True,
+        "message": "로그아웃 성공"
+    }
 
-    # 쿠키 삭제
-    if response:  # response가 None이 아닌 경우에만 쿠키 삭제
-        response.delete_cookie(key="session_id")
 
-    # 응답 반환
-    return {"success": True, "message": "로그아웃 성공"}
-
-
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_current_user_info(
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    request: Request,
+    session_id: Optional[str] = Cookie(None)
 ):
     """
     현재 로그인한 사용자 정보 조회
+    - 세션 유효성 검사
     """
-    # DB에서 사용자 조회
-    user = db.query(User).filter(User.user_id == current_user["user_id"]).first()
-
-    # 사용자가 없으면 404 반환
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="사용자를 찾을 수 없습니다",
-        )
-
+    # 세션 존재 확인
+    session_data = get_session(session_id)
+    
+    if not session_data:
+        logger.warning("인증 실패: 세션 없음")
+        return {
+            "success": False,
+            "message": "인증이 필요합니다"
+        }
+    
     # 사용자 정보 반환
-    return user
+    logger.info(f"인증된 사용자: {session_data.get('user_id')}")
+    
+    return {
+        "success": True,
+        "message": "인증 성공",
+        "data": {
+            "userId": session_data.get("user_id"),
+            "userRole": session_data.get("user_role"),
+            "userDepartment": session_data.get("user_department")
+        }
+    }
