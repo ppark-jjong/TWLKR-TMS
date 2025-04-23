@@ -173,125 +173,220 @@ function applyColumnVisibility(visibleColumns) {
  * 체크박스 초기화
  */
 function initializeCheckboxes() {
-  const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-  const rowCheckboxes = document.querySelectorAll('.row-checkbox');
-  const selectedActions = document.getElementById('selectedActions');
-  const selectedCount = document.getElementById('selectedCount');
-  
-  // 선택된 항목 수 확인 및 액션 패널 표시
-  function updateSelectedCount() {
-    const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+  try {
+    console.log('체크박스 초기화 시작...');
     
-    if (checkedCount > 0) {
-      selectedCount.textContent = `${checkedCount}개 주문 선택됨`;
-      selectedActions.style.display = 'flex';
-      
-      // 버튼 활성화
-      document.getElementById('statusChangeBtn').disabled = false;
-      document.getElementById('driverAssignBtn').disabled = false;
-      
-      const deleteOrderBtn = document.getElementById('deleteOrderBtn');
-      if (deleteOrderBtn) deleteOrderBtn.disabled = false;
-      
-      // 모달 카운트 업데이트
-      document.getElementById('statusChangeCount').textContent = checkedCount;
-      document.getElementById('driverAssignCount').textContent = checkedCount;
-      document.getElementById('deleteOrderCount').textContent = checkedCount;
-    } else {
-      selectedActions.style.display = 'none';
-      
-      // 버튼 비활성화
-      document.getElementById('statusChangeBtn').disabled = true;
-      document.getElementById('driverAssignBtn').disabled = true;
-      
-      const deleteOrderBtn = document.getElementById('deleteOrderBtn');
-      if (deleteOrderBtn) deleteOrderBtn.disabled = true;
-    }
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+    const selectedActions = document.getElementById('selectedActions');
+    const selectedCount = document.getElementById('selectedCount');
     
-    // 전체 선택 체크박스 상태 업데이트
-    if (rowCheckboxes.length > 0) {
-      if (checkedCount === 0) {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = false;
-      } else if (checkedCount === rowCheckboxes.length) {
-        selectAllCheckbox.checked = true;
-        selectAllCheckbox.indeterminate = false;
-      } else {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = true;
+    console.log(`체크박스 초기화: 전체 선택 체크박스 ${selectAllCheckbox ? '발견' : '없음'}, 행 체크박스 ${rowCheckboxes.length}개 발견`);
+    
+    // 초기 선택 상태 업데이트
+    updateSelectedCount();
+    
+    // 선택된 항목 수 확인 및 액션 패널 표시
+    function updateSelectedCount() {
+      const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+      
+      console.log(`선택된 항목 수 업데이트: ${checkedCount}개 선택됨`);
+      
+      if (selectedCount) {
+        selectedCount.textContent = `${checkedCount}개 주문 선택됨`;
+      }
+      
+      if (selectedActions) {
+        if (checkedCount > 0) {
+          selectedActions.style.display = 'flex';
+          console.log('액션 패널 표시');
+          
+          // 버튼 활성화
+          const statusChangeBtn = document.getElementById('statusChangeBtn');
+          const driverAssignBtn = document.getElementById('driverAssignBtn');
+          const deleteOrderBtn = document.getElementById('deleteOrderBtn');
+          
+          if (statusChangeBtn) statusChangeBtn.disabled = false;
+          if (driverAssignBtn) driverAssignBtn.disabled = false;
+          if (deleteOrderBtn) deleteOrderBtn.disabled = false;
+          
+          // 모달 카운트 업데이트
+          const statusChangeCount = document.getElementById('statusChangeCount');
+          const driverAssignCount = document.getElementById('driverAssignCount');
+          const deleteOrderCount = document.getElementById('deleteOrderCount');
+          
+          if (statusChangeCount) statusChangeCount.textContent = checkedCount;
+          if (driverAssignCount) driverAssignCount.textContent = checkedCount;
+          if (deleteOrderCount) deleteOrderCount.textContent = checkedCount;
+        } else {
+          selectedActions.style.display = 'none';
+          console.log('액션 패널 숨김');
+          
+          // 버튼 비활성화
+          const statusChangeBtn = document.getElementById('statusChangeBtn');
+          const driverAssignBtn = document.getElementById('driverAssignBtn');
+          const deleteOrderBtn = document.getElementById('deleteOrderBtn');
+          
+          if (statusChangeBtn) statusChangeBtn.disabled = true;
+          if (driverAssignBtn) driverAssignBtn.disabled = true;
+          if (deleteOrderBtn) deleteOrderBtn.disabled = true;
+        }
+      }
+      
+      // 전체 선택 체크박스 상태 업데이트
+      if (selectAllCheckbox && rowCheckboxes.length > 0) {
+        if (checkedCount === 0) {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = false;
+        } else if (checkedCount === rowCheckboxes.length) {
+          selectAllCheckbox.checked = true;
+          selectAllCheckbox.indeterminate = false;
+        } else {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = true;
+        }
       }
     }
-  }
-  
-  // 전체 선택 체크박스 이벤트
-  if (selectAllCheckbox) {
-    selectAllCheckbox.addEventListener('change', function() {
-      const isChecked = this.checked;
+    
+    // 전체 선택 체크박스 이벤트
+    if (selectAllCheckbox) {
+      // 기존 이벤트 리스너 제거 (중복 방지)
+      selectAllCheckbox.removeEventListener('change', handleSelectAllChange);
       
-      rowCheckboxes.forEach(checkbox => {
-        checkbox.checked = isChecked;
-      });
+      // 새 이벤트 리스너 추가
+      selectAllCheckbox.addEventListener('change', handleSelectAllChange);
       
-      updateSelectedCount();
-    });
-  }
-  
-  // 행 체크박스 이벤트
-  rowCheckboxes.forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
-      updateSelectedCount();
+      function handleSelectAllChange() {
+        const isChecked = this.checked;
+        console.log(`전체 선택 체크박스 변경: ${isChecked ? '선택됨' : '선택 해제'}`);
+        
+        rowCheckboxes.forEach(checkbox => {
+          checkbox.checked = isChecked;
+        });
+        
+        updateSelectedCount();
+      }
+    }
+    
+    // 행 체크박스 이벤트
+    rowCheckboxes.forEach(checkbox => {
+      // 기존 이벤트 리스너 제거 (중복 방지)
+      checkbox.removeEventListener('change', handleRowCheckboxChange);
+      checkbox.removeEventListener('click', handleRowCheckboxClick);
+      
+      // 새 이벤트 리스너 추가
+      checkbox.addEventListener('change', handleRowCheckboxChange);
+      checkbox.addEventListener('click', handleRowCheckboxClick);
+      
+      function handleRowCheckboxChange() {
+        console.log(`행 체크박스 변경: ID ${this.getAttribute('data-id')}, ${this.checked ? '선택됨' : '선택 해제'}`);
+        updateSelectedCount();
+      }
+      
+      function handleRowCheckboxClick(event) {
+        // 클릭 이벤트 전파 방지
+        event.stopPropagation();
+      }
     });
     
-    // 클릭 이벤트 전파 방지
-    checkbox.addEventListener('click', function(event) {
-      event.stopPropagation();
-    });
-  });
+    console.log('체크박스 초기화 완료');
+    
+    // 전역으로 함수 노출
+    window.DashboardTable.updateSelectedCount = updateSelectedCount;
+    
+  } catch (error) {
+    console.error('체크박스 초기화 중 오류 발생:', error);
+  }
 }
 
 /**
  * 테이블 이벤트 등록
  */
 function registerTableEvents() {
-  // 체크박스 이벤트
-  initializeCheckboxes();
-  
-  // 주문 상세 보기 버튼 클릭
-  const viewButtons = document.querySelectorAll('.view-btn');
-  viewButtons.forEach(button => {
-    button.addEventListener('click', function(event) {
-      event.stopPropagation();
-      const orderId = this.getAttribute('data-id');
-      if (orderId) {
-        DashboardModals.openOrderDetailModal(orderId);
-      }
-    });
-  });
-  
-  // 주문 편집 버튼 클릭
-  const editButtons = document.querySelectorAll('.edit-btn');
-  editButtons.forEach(button => {
-    button.addEventListener('click', function(event) {
-      event.stopPropagation();
-      const orderId = this.getAttribute('data-id');
-      if (orderId) {
-        DashboardModals.openOrderEditModal(orderId);
-      }
-    });
-  });
-  
-  // 행 클릭 이벤트
-  const rows = document.querySelectorAll('#orderTable tbody tr');
-  rows.forEach(row => {
-    row.addEventListener('click', function() {
-      if (!this.classList.contains('no-data-row')) {
+  try {
+    console.log('테이블 이벤트 등록 시작...');
+    
+    // 체크박스 이벤트
+    initializeCheckboxes();
+    
+    // 주문 상세 보기 버튼 클릭
+    const viewButtons = document.querySelectorAll('.view-btn');
+    console.log(`상세 보기 버튼 ${viewButtons.length}개 발견`);
+    
+    viewButtons.forEach(button => {
+      // 기존 이벤트 리스너 제거 (중복 방지)
+      button.removeEventListener('click', handleViewButtonClick);
+      
+      // 새 이벤트 리스너 추가
+      button.addEventListener('click', handleViewButtonClick);
+      
+      function handleViewButtonClick(event) {
+        event.stopPropagation();
         const orderId = this.getAttribute('data-id');
+        console.log(`상세 보기 버튼 클릭됨: ID ${orderId}`);
+        
         if (orderId) {
           DashboardModals.openOrderDetailModal(orderId);
         }
       }
     });
-  });
+    
+    // 주문 편집 버튼 클릭
+    const editButtons = document.querySelectorAll('.edit-btn');
+    console.log(`편집 버튼 ${editButtons.length}개 발견`);
+    
+    editButtons.forEach(button => {
+      // 기존 이벤트 리스너 제거 (중복 방지)
+      button.removeEventListener('click', handleEditButtonClick);
+      
+      // 새 이벤트 리스너 추가
+      button.addEventListener('click', handleEditButtonClick);
+      
+      function handleEditButtonClick(event) {
+        event.stopPropagation();
+        const orderId = this.getAttribute('data-id');
+        console.log(`편집 버튼 클릭됨: ID ${orderId}`);
+        
+        if (orderId) {
+          DashboardModals.openOrderEditModal(orderId);
+        }
+      }
+    });
+    
+    // 행 클릭 이벤트
+    const rows = document.querySelectorAll('#orderTable tbody tr');
+    console.log(`테이블 행 ${rows.length}개 발견`);
+    
+    rows.forEach(row => {
+      // 기존 이벤트 리스너 제거 (중복 방지)
+      row.removeEventListener('click', handleRowClick);
+      
+      // 새 이벤트 리스너 추가
+      row.addEventListener('click', handleRowClick);
+      
+      function handleRowClick(event) {
+        // 체크박스 영역 클릭 시 상세 정보 표시하지 않음
+        if (event.target.type === 'checkbox' || 
+            event.target.closest('.checkbox-column') ||
+            event.target.closest('.row-checkbox')) {
+          return;
+        }
+        
+        if (!this.classList.contains('no-data-row')) {
+          const orderId = this.getAttribute('data-id');
+          console.log(`행 클릭됨: ID ${orderId}`);
+          
+          if (orderId) {
+            DashboardModals.openOrderDetailModal(orderId);
+          }
+        }
+      }
+    });
+    
+    console.log('테이블 이벤트 등록 완료');
+  } catch (error) {
+    console.error('테이블 이벤트 등록 중 오류 발생:', error);
+  }
 }
 
 /**

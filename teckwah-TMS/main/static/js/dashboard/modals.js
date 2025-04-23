@@ -95,19 +95,25 @@ function initializeModalEvents() {
   const submitDriverBtn = document.getElementById('submitDriverBtn');
   
   if (closeDriverModalBtn) {
-    closeDriverModalBtn.addEventListener('click', function() {
+    closeDriverModalBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
       Modal.close(driverAssignModal);
+      console.log('기사 배정 모달 닫기 버튼 클릭됨');
     });
   }
   
   if (cancelDriverBtn) {
-    cancelDriverBtn.addEventListener('click', function() {
+    cancelDriverBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
       Modal.close(driverAssignModal);
+      console.log('기사 배정 취소 버튼 클릭됨');
     });
   }
   
   if (submitDriverBtn) {
-    submitDriverBtn.addEventListener('click', function() {
+    submitDriverBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('기사 배정 제출 버튼 클릭됨');
       submitDriverAssign();
     });
   }
@@ -119,19 +125,25 @@ function initializeModalEvents() {
   const submitStatusBtn = document.getElementById('submitStatusBtn');
   
   if (closeStatusModalBtn) {
-    closeStatusModalBtn.addEventListener('click', function() {
+    closeStatusModalBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
       Modal.close(statusChangeModal);
+      console.log('상태 변경 모달 닫기 버튼 클릭됨');
     });
   }
   
   if (cancelStatusBtn) {
-    cancelStatusBtn.addEventListener('click', function() {
+    cancelStatusBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
       Modal.close(statusChangeModal);
+      console.log('상태 변경 취소 버튼 클릭됨');
     });
   }
   
   if (submitStatusBtn) {
-    submitStatusBtn.addEventListener('click', function() {
+    submitStatusBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('상태 변경 제출 버튼 클릭됨');
       submitStatusChange();
     });
   }
@@ -143,21 +155,32 @@ function initializeModalEvents() {
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
   
   if (closeDeleteModalBtn) {
-    closeDeleteModalBtn.addEventListener('click', function() {
+    closeDeleteModalBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
       Modal.close(deleteConfirmModal);
+      console.log('삭제 모달 닫기 버튼 클릭됨');
     });
   }
   
   if (cancelDeleteBtn) {
-    cancelDeleteBtn.addEventListener('click', function() {
+    cancelDeleteBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
       Modal.close(deleteConfirmModal);
+      console.log('삭제 취소 버튼 클릭됨');
     });
   }
   
   if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener('click', function() {
+    confirmDeleteBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('삭제 확인 버튼 클릭됨');
       submitDeleteOrders();
     });
+  }
+  
+  console.log('모든 모달 이벤트 초기화 완료');
+  } catch (error) {
+    console.error('모달 이벤트 초기화 중 오류 발생:', error);
   }
 }
 

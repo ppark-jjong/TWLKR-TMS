@@ -6,35 +6,70 @@
  * 액션 버튼 초기화
  */
 function initializeActionButtons() {
-  // 상태 변경 버튼
-  const statusChangeBtn = document.getElementById('statusChangeBtn');
-  const selectedStatusBtn = document.getElementById('selectedStatusBtn');
-  
-  if (statusChangeBtn) {
-    statusChangeBtn.addEventListener('click', function() {
-      DashboardModals.openStatusChangeModal();
-    });
-  }
-  
-  if (selectedStatusBtn) {
-    selectedStatusBtn.addEventListener('click', function() {
-      DashboardModals.openStatusChangeModal();
-    });
-  }
+  try {
+    console.log('액션 버튼 초기화 시작...');
+    
+    // 상태 변경 버튼
+    const statusChangeBtn = document.getElementById('statusChangeBtn');
+    const selectedStatusBtn = document.getElementById('selectedStatusBtn');
+    
+    if (statusChangeBtn) {
+      statusChangeBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // 이벤트 전파 중지
+        console.log('상태 변경 버튼 클릭됨');
+        
+        const selectedIds = DashboardTable.getSelectedOrderIds();
+        if (selectedIds && selectedIds.length > 0) {
+          DashboardModals.openStatusChangeModal();
+        } else {
+          alert('상태를 변경할 주문을 선택해주세요.');
+        }
+      });
+    }
+    
+    if (selectedStatusBtn) {
+      selectedStatusBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); // 이벤트 전파 중지
+        console.log('선택 항목 상태 변경 버튼 클릭됨');
+        
+        const selectedIds = DashboardTable.getSelectedOrderIds();
+        if (selectedIds && selectedIds.length > 0) {
+          DashboardModals.openStatusChangeModal();
+        } else {
+          alert('상태를 변경할 주문을 선택해주세요.');
+        }
+      });
+    }
   
   // 배차 처리 버튼
   const driverAssignBtn = document.getElementById('driverAssignBtn');
   const selectedDriverBtn = document.getElementById('selectedDriverBtn');
   
   if (driverAssignBtn) {
-    driverAssignBtn.addEventListener('click', function() {
-      DashboardModals.openDriverAssignModal();
+    driverAssignBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('배차 처리 버튼 클릭됨');
+      
+      const selectedIds = DashboardTable.getSelectedOrderIds();
+      if (selectedIds && selectedIds.length > 0) {
+        DashboardModals.openDriverAssignModal();
+      } else {
+        alert('배차할 주문을 선택해주세요.');
+      }
     });
   }
   
   if (selectedDriverBtn) {
-    selectedDriverBtn.addEventListener('click', function() {
-      DashboardModals.openDriverAssignModal();
+    selectedDriverBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('선택 항목 배차 처리 버튼 클릭됨');
+      
+      const selectedIds = DashboardTable.getSelectedOrderIds();
+      if (selectedIds && selectedIds.length > 0) {
+        DashboardModals.openDriverAssignModal();
+      } else {
+        alert('배차할 주문을 선택해주세요.');
+      }
     });
   }
   
@@ -42,7 +77,9 @@ function initializeActionButtons() {
   const createOrderBtn = document.getElementById('createOrderBtn');
   
   if (createOrderBtn) {
-    createOrderBtn.addEventListener('click', function() {
+    createOrderBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('신규 등록 버튼 클릭됨');
       DashboardModals.openCreateOrderModal();
     });
   }
@@ -52,15 +89,36 @@ function initializeActionButtons() {
   const selectedDeleteBtn = document.getElementById('selectedDeleteBtn');
   
   if (deleteOrderBtn) {
-    deleteOrderBtn.addEventListener('click', function() {
-      DashboardModals.openDeleteConfirmModal();
+    deleteOrderBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('삭제 버튼 클릭됨');
+      
+      const selectedIds = DashboardTable.getSelectedOrderIds();
+      if (selectedIds && selectedIds.length > 0) {
+        DashboardModals.openDeleteConfirmModal();
+      } else {
+        alert('삭제할 주문을 선택해주세요.');
+      }
     });
   }
   
   if (selectedDeleteBtn) {
-    selectedDeleteBtn.addEventListener('click', function() {
-      DashboardModals.openDeleteConfirmModal();
+    selectedDeleteBtn.addEventListener('click', function(e) {
+      e.stopPropagation(); // 이벤트 전파 중지
+      console.log('선택 항목 삭제 버튼 클릭됨');
+      
+      const selectedIds = DashboardTable.getSelectedOrderIds();
+      if (selectedIds && selectedIds.length > 0) {
+        DashboardModals.openDeleteConfirmModal();
+      } else {
+        alert('삭제할 주문을 선택해주세요.');
+      }
     });
+  }
+  
+  console.log('모든 액션 버튼 초기화 완료');
+  } catch (error) {
+    console.error('액션 버튼 초기화 중 오류 발생:', error);
   }
 }
 
