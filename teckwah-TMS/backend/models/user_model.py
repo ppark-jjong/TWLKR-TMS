@@ -4,7 +4,7 @@
 
 from sqlalchemy import Column, String, Enum
 from sqlalchemy.orm import relationship
-from backend.database import Base
+from backend.utils.database import Base
 
 
 class User(Base):

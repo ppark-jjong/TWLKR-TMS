@@ -9,7 +9,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 from fastapi import Depends, HTTPException, Request, status
-from backend.config import get_settings
+from backend.utils.config import get_settings
 from backend.utils.logger import logger
 
 settings = get_settings()

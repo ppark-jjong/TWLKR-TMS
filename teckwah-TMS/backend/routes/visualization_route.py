@@ -2,15 +2,24 @@
 시각화 관련 라우터
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Path, Body
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Request,
+    Query,
+    Path,
+    Body,
+)
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, distinct, text
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
-from backend.database import get_db
-from backend.models.dashboard import Dashboard
-from backend.schemas.common import SuccessResponse, ErrorResponse
+from backend.utils.database import get_db
+from backend.models.dashboard_model import Dashboard
+from backend.schemas.common_schema import SuccessResponse, ErrorResponse
 from backend.utils.security import get_current_user, get_admin_user
 from backend.utils.logger import logger
 
@@ -22,7 +31,7 @@ async def get_time_stats(
     request: Request = None,
     start_date: Optional[datetime] = Query(None, alias="startDate"),
     end_date: Optional[datetime] = Query(None, alias="endDate"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     시간대별 접수량 통계 (관리자 전용)
@@ -31,13 +40,17 @@ async def get_time_stats(
     try:
         # 관리자 권한 확인
         admin_data = get_admin_user(get_current_user(request))
-        
+
         # 기본 날짜 설정 (기간이 지정되지 않은 경우 기본값 설정)
         if not start_date:
-            start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=7)
+            start_date = datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) - timedelta(days=7)
         if not end_date:
-            end_date = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999)
-        
+            end_date = datetime.now().replace(
+                hour=23, minute=59, second=59, microsecond=999
+            )
+
         # 시간대 별 접수량 통계 쿼리
         # - 09~18시: 1시간 단위
         # - 18~20, 20~00, 00~09: 구간별
@@ -79,21 +92,18 @@ async def get_time_stats(
                 WHEN '20-00' THEN 12
             END
         """
-        
+
         time_stats_result = db.execute(
-            text(time_stats_query), 
-            {"start_date": start_date, "end_date": end_date}
+            text(time_stats_query), {"start_date": start_date, "end_date": end_date}
         ).fetchall()
-        
+
         # 결과 가공
         time_stats = []
         for row in time_stats_result:
-            time_stats.append({
-                "department": row[0],
-                "timeRange": row[1],
-                "count": row[2]
-            })
-        
+            time_stats.append(
+                {"department": row[0], "timeRange": row[1], "count": row[2]}
+            )
+
         # 응답 데이터
         return SuccessResponse(
             success=True,
@@ -102,20 +112,16 @@ async def get_time_stats(
                 "visualizationType": "time_stats",
                 "startDate": start_date,
                 "endDate": end_date,
-                "timeStats": time_stats
-            }
+                "timeStats": time_stats,
+            },
         ).model_dump()
-        
+
     except HTTPException as e:
-        return ErrorResponse(
-            success=False,
-            message=e.detail
-        ).model_dump()
+        return ErrorResponse(success=False, message=e.detail).model_dump()
     except Exception as e:
         logger.error(f"시간대별 접수량 통계 조회 중 오류: {str(e)}")
         return ErrorResponse(
-            success=False,
-            message="시간대별 접수량 통계 조회 중 오류가 발생했습니다"
+            success=False, message="시간대별 접수량 통계 조회 중 오류가 발생했습니다"
         ).model_dump()
 
 
@@ -124,7 +130,7 @@ async def get_department_stats(
     request: Request = None,
     start_date: Optional[datetime] = Query(None, alias="startDate"),
     end_date: Optional[datetime] = Query(None, alias="endDate"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     부서별 상태 현황 통계 (관리자 전용)
@@ -133,13 +139,17 @@ async def get_department_stats(
     try:
         # 관리자 권한 확인
         admin_data = get_admin_user(get_current_user(request))
-        
+
         # 기본 날짜 설정 (기간이 지정되지 않은 경우 기본값 설정)
         if not start_date:
-            start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=7)
+            start_date = datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) - timedelta(days=7)
         if not end_date:
-            end_date = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999)
-        
+            end_date = datetime.now().replace(
+                hour=23, minute=59, second=59, microsecond=999
+            )
+
         # 부서별 상태 현황 쿼리
         department_stats_query = """
         SELECT 
@@ -151,21 +161,19 @@ async def get_department_stats(
         GROUP BY department, status
         ORDER BY department, status
         """
-        
+
         department_stats_result = db.execute(
-            text(department_stats_query), 
-            {"start_date": start_date, "end_date": end_date}
+            text(department_stats_query),
+            {"start_date": start_date, "end_date": end_date},
         ).fetchall()
-        
+
         # 결과 가공
         department_stats = []
         for row in department_stats_result:
-            department_stats.append({
-                "department": row[0],
-                "status": row[1],
-                "count": row[2]
-            })
-        
+            department_stats.append(
+                {"department": row[0], "status": row[1], "count": row[2]}
+            )
+
         # 응답 데이터
         return SuccessResponse(
             success=True,
@@ -174,18 +182,14 @@ async def get_department_stats(
                 "visualizationType": "department_stats",
                 "startDate": start_date,
                 "endDate": end_date,
-                "departmentStats": department_stats
-            }
+                "departmentStats": department_stats,
+            },
         ).model_dump()
-        
+
     except HTTPException as e:
-        return ErrorResponse(
-            success=False,
-            message=e.detail
-        ).model_dump()
+        return ErrorResponse(success=False, message=e.detail).model_dump()
     except Exception as e:
         logger.error(f"부서별 상태 현황 통계 조회 중 오류: {str(e)}")
         return ErrorResponse(
-            success=False,
-            message="부서별 상태 현황 통계 조회 중 오류가 발생했습니다"
+            success=False, message="부서별 상태 현황 통계 조회 중 오류가 발생했습니다"
         ).model_dump()

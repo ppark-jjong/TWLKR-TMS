@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
-from backend.config import get_settings
+from backend.utils.config import get_settings
 
 settings = get_settings()
 

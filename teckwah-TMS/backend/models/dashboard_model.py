@@ -2,36 +2,62 @@
 대시보드(주문) 모델
 """
 
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, Boolean, ForeignKey, Index
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Enum,
+    DateTime,
+    Text,
+    Boolean,
+    ForeignKey,
+    Index,
+)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from backend.database import Base
+from backend.utils.database import Base
 
 
 class Dashboard(Base):
     """대시보드(주문) 테이블 모델"""
+
     __tablename__ = "dashboard"
 
     dashboard_id = Column(Integer, primary_key=True, autoincrement=True)
     order_no = Column(String(255), nullable=False)
-    type = Column(Enum('DELIVERY', 'RETURN', name='dashboard_type_enum'), nullable=False)
-    status = Column(
-        Enum('WAITING', 'IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL', name='dashboard_status_enum'), 
-        nullable=False, 
-        default='WAITING'
+    type = Column(
+        Enum("DELIVERY", "RETURN", name="dashboard_type_enum"), nullable=False
     )
-    department = Column(Enum('CS', 'HES', 'LENOVO', name='dashboard_department_enum'), nullable=False)
-    warehouse = Column(Enum('SEOUL', 'BUSAN', 'GWANGJU', 'DAEJEON', name='dashboard_warehouse_enum'), nullable=False)
+    status = Column(
+        Enum(
+            "WAITING",
+            "IN_PROGRESS",
+            "COMPLETE",
+            "ISSUE",
+            "CANCEL",
+            name="dashboard_status_enum",
+        ),
+        nullable=False,
+        default="WAITING",
+    )
+    department = Column(
+        Enum("CS", "HES", "LENOVO", name="dashboard_department_enum"), nullable=False
+    )
+    warehouse = Column(
+        Enum("SEOUL", "BUSAN", "GWANGJU", "DAEJEON", name="dashboard_warehouse_enum"),
+        nullable=False,
+    )
     sla = Column(String(10), nullable=False)
     eta = Column(DateTime, nullable=False)
     create_time = Column(DateTime, nullable=False, default=func.now())
     depart_time = Column(DateTime, nullable=True)
     complete_time = Column(DateTime, nullable=True)
-    postal_code = Column(String(5), ForeignKey('postal_code.postal_code'), nullable=False)
+    postal_code = Column(
+        String(5), ForeignKey("postal_code.postal_code"), nullable=False
+    )
     city = Column(String(21), nullable=True)
     county = Column(String(51), nullable=True)
     district = Column(String(51), nullable=True)
-    # region 필드는 Generated column이므로 SQLAlchemy에서는 명시적으로 선언하지 않음
     distance = Column(Integer, nullable=True)
     duration_time = Column(Integer, nullable=True)
     address = Column(Text, nullable=False)
@@ -49,7 +75,7 @@ class Dashboard(Base):
 
     # 인덱스 설정 (init-db.sql에 언급된 인덱스 추가)
     __table_args__ = (
-        Index('idx_eta', 'eta'),
-        Index('idx_department', 'department'),
-        Index('idx_order_no', 'order_no'),
+        Index("idx_eta", "eta"),
+        Index("idx_department", "department"),
+        Index("idx_order_no", "order_no"),
     )
