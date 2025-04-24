@@ -7,16 +7,12 @@ import sys
 # ============================
 # 데이터베이스 설정 (로컬 MySQL)
 # ============================
-MYSQL_USER = "root"  # MySQL 사용자 이름
-MYSQL_PASSWORD = "1234"  # MySQL 비밀번호
-MYSQL_HOST = "localhost"  # 로컬 MySQL 서버 주소
-MYSQL_PORT = 3306  # MySQL 포트 (보통 3306)
-MYSQL_DATABASE = "delivery_system"  # 데이터베이스 이름
-MYSQL_CHARSET = "utf8mb4"  # 문자셋
-
-# Cloud SQL Proxy를 사용할 경우, 아래 주석된 설정을 참고하세요.
-# MYSQL_HOST = '127.0.0.1'
-# unix_socket='/cloudsql/your-instance-connection-name'
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "1234"
+MYSQL_HOST = "localhost"
+MYSQL_PORT = 3306
+MYSQL_DATABASE = "delivery_system"
+MYSQL_CHARSET = "utf8mb4"
 
 
 def get_mysql_connection():
@@ -28,9 +24,6 @@ def get_mysql_connection():
             database=MYSQL_DATABASE,
             port=MYSQL_PORT,
             charset=MYSQL_CHARSET,
-            # Cloud SQL Proxy 사용 시:
-            # host='127.0.0.1',
-            # unix_socket='/cloudsql/your-instance-connection-name',
         )
         return connection
     except mysql.connector.Error as e:
@@ -104,10 +97,40 @@ def list_users():
         print("등록된 사용자가 없습니다")
 
 
+def check_password(user_id, input_password):
+    query = "SELECT user_password FROM user WHERE user_id = %s"
+    result = execute_query(query, (user_id,), fetch=True)
+    if not result:
+        print("사용자를 찾을 수 없습니다.")
+        return False
+
+    stored_hash = result[0][0].encode("utf-8")
+    input_bytes = input_password.encode("utf-8")
+    if bcrypt.checkpw(input_bytes, stored_hash):
+        print("비밀번호가 일치합니다.")
+        return True
+    else:
+        print("비밀번호가 일치하지 않습니다.")
+        return False
+
+
+def update_password(user_id, old_password, new_password):
+    if not check_password(user_id, old_password):
+        print("기존 비밀번호 확인 실패")
+        return
+
+    new_hashed = hash_password(new_password)
+    query = "UPDATE user SET user_password = %s WHERE user_id = %s"
+    result = execute_query(query, (new_hashed, user_id))
+    if result:
+        print(f"'{user_id}'의 비밀번호가 성공적으로 변경되었습니다.")
+    else:
+        print("비밀번호 변경 실패")
+
+
 def interactive_cli():
-    """대화형 CLI 모드"""
     print("대화형 사용자 관리 CLI에 오신 것을 환영합니다.")
-    print("명령: create, delete, list, exit")
+    print("명령: create, delete, list, check-pw, update-pw, exit")
     while True:
         command = input("> ").strip().lower()
         if command == "exit":
@@ -124,17 +147,25 @@ def interactive_cli():
             delete_user(user_id)
         elif command == "list":
             list_users()
+        elif command == "check-pw":
+            user_id = input("사용자 ID: ").strip()
+            password = input("비밀번호: ").strip()
+            check_password(user_id, password)
+        elif command == "update-pw":
+            user_id = input("사용자 ID: ").strip()
+            old_pw = input("기존 비밀번호: ").strip()
+            new_pw = input("새 비밀번호: ").strip()
+            update_password(user_id, old_pw, new_pw)
         else:
-            print("알 수 없는 명령입니다. 사용 가능한 명령: create, delete, list, exit")
+            print(
+                "알 수 없는 명령입니다. 사용 가능한 명령: create, delete, list, check-pw, update-pw, exit"
+            )
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="사용자 관리 CLI")
     parser.add_argument(
-        "action",
-        nargs="?",
-        choices=["create", "delete", "list"],
-        help="수행할 작업 (인자가 없으면 대화형 모드로 진입)",
+        "action", nargs="?", choices=["create", "delete", "list"], help="수행할 작업"
     )
     parser.add_argument("--user-id", help="사용자 ID")
     parser.add_argument("--password", help="비밀번호")
@@ -145,18 +176,12 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-
-    # 인자 없이 실행하면 대화형 모드로 진입
     if not args.action:
         interactive_cli()
         return
-
-    # 커맨드라인 인자를 이용한 실행
     if args.action == "create":
         if not all([args.user_id, args.password, args.department, args.role]):
-            print(
-                "사용자 생성에 필요한 모든 인자(user-id, password, department, role)를 입력하세요"
-            )
+            print("모든 인자(user-id, password, department, role)를 입력하세요")
             return
         create_user(args.user_id, args.password, args.department, args.role)
     elif args.action == "delete":
