@@ -194,14 +194,25 @@ async function openOrderDetailModal(orderId) {
   const content = document.getElementById('orderDetailContent');
   const editBtn = document.getElementById('editOrderBtn');
   const saveBtn = document.getElementById('saveOrderBtn');
+  const modalTitle = document.getElementById('modalTitle');
   
   if (modal && spinner && content) {
     // 모달 열기
-    Modal.open(modal);
+    if (typeof Modal !== 'undefined' && Modal.open) {
+      Modal.open(modal);
+    } else {
+      modal.style.display = 'block';
+    }
+    
+    // 모달 제목 설정
+    if (modalTitle) modalTitle.textContent = '주문 상세 정보';
     
     // 로딩 표시
     spinner.style.display = 'flex';
     content.innerHTML = '';
+    
+    // ID 속성 추가 (편집 시 사용)
+    content.setAttribute('data-id', orderId);
     
     // 편집/저장 버튼 상태 초기화
     if (editBtn) editBtn.style.display = '';
@@ -209,19 +220,35 @@ async function openOrderDetailModal(orderId) {
     
     try {
       // 주문 정보 불러오기
-      const data = await Api.getOrderDetail(orderId);
+      const response = await Api.getOrderDetail(orderId);
+      
+      if (!response) {
+        throw new Error('데이터를 받아올 수 없습니다.');
+      }
+      
+      const data = response;
       
       // 데이터 표시
       renderOrderDetail(content, data);
       spinner.style.display = 'none';
       
-      // 편집 버튼 이벤트 설정
+      // 편집 버튼 활성화/비활성화 (락 상태에 따라)
       if (editBtn) {
-        editBtn.onclick = function() {
-          openOrderEditModal(orderId);
-        };
+        if (data.isLocked && !data.editable) {
+          editBtn.disabled = true;
+          editBtn.title = '다른 사용자가 편집 중입니다';
+        } else {
+          editBtn.disabled = false;
+          editBtn.title = '주문 정보 수정';
+          
+          // 편집 버튼 이벤트 설정
+          editBtn.onclick = function() {
+            openOrderEditModal(orderId);
+          };
+        }
       }
     } catch (error) {
+      console.error('주문 상세 정보 불러오기 오류:', error);
       content.innerHTML = `<div class="error-message">주문 정보를 불러오는 중 오류가 발생했습니다.<br>${error.message}</div>`;
       spinner.style.display = 'none';
     }
@@ -241,8 +268,14 @@ async function openOrderEditModal(orderId) {
   const saveBtn = document.getElementById('saveOrderBtn');
   
   if (modal && spinner && content) {
-    // 모달 열기
-    Modal.open(modal);
+    // 모달이 이미 열려있지 않다면 열기
+    if (modal.style.display !== 'block') {
+      if (typeof Modal !== 'undefined' && Modal.open) {
+        Modal.open(modal);
+      } else {
+        modal.style.display = 'block';
+      }
+    }
     
     // 제목 변경
     if (modalTitle) modalTitle.textContent = '주문 수정';
@@ -253,29 +286,38 @@ async function openOrderEditModal(orderId) {
     
     // 편집/저장 버튼 상태 변경
     if (editBtn) editBtn.style.display = 'none';
-    if (saveBtn) saveBtn.style.display = '';
+    if (saveBtn) {
+      saveBtn.style.display = '';
+      saveBtn.disabled = false; // 버튼 활성화
+    }
     
     try {
-      // 주문 정보 불러오기 및 락 획득
-      const lockResult = await Api.lockOrder(orderId);
+      // 주문 정보 불러오기
+      const response = await Api.getOrderDetail(orderId);
       
-      if (lockResult.success) {
-        const data = await Api.getOrderDetail(orderId);
-        
-        // 편집 폼 렌더링
-        renderOrderEditForm(content, data);
-        spinner.style.display = 'none';
-        
-        // 저장 버튼 이벤트 설정
-        if (saveBtn) {
-          saveBtn.onclick = function() {
-            submitOrderUpdate(orderId);
-          };
-        }
-      } else {
-        throw new Error(lockResult.message || '주문을 편집할 수 없습니다.');
+      if (!response) {
+        throw new Error('데이터를 받아올 수 없습니다.');
+      }
+      
+      // 락 상태 확인
+      const data = response;
+      
+      if (data.isLocked && !data.editable) {
+        throw new Error(`현재 ${data.updatedBy || '다른 사용자'}가 이 주문을 편집 중입니다.`);
+      }
+      
+      // 편집 폼 렌더링
+      renderOrderEditForm(content, data);
+      spinner.style.display = 'none';
+      
+      // 저장 버튼 이벤트 설정
+      if (saveBtn) {
+        saveBtn.onclick = function() {
+          submitOrderUpdate(orderId);
+        };
       }
     } catch (error) {
+      console.error('주문 편집 모달 오류:', error);
       content.innerHTML = `<div class="error-message">주문 수정을 위한 준비 중 오류가 발생했습니다.<br>${error.message}</div>`;
       spinner.style.display = 'none';
       
@@ -432,6 +474,10 @@ function renderOrderDetail(container, data) {
         <div class="detail-item">
           <div class="detail-label">우편번호</div>
           <div class="detail-value">${data.postalCode || '-'}</div>
+        </div>
+        <div class="detail-item full-width">
+          <div class="detail-label">지역</div>
+          <div class="detail-value">${data.region || '-'}</div>
         </div>
         <div class="detail-item full-width">
           <div class="detail-label">주소</div>
@@ -749,7 +795,19 @@ async function submitCreateOrder() {
   
   // 폼 데이터 수집
   const formData = new FormData(form);
-  const data = Utils.formDataToObject(formData);
+  const data = {};
+  
+  // FormData를 객체로 변환
+  formData.forEach((value, key) => {
+    // 우편번호 자동 보완 (4자리일 경우 앞에 '0' 추가)
+    if (key === 'postalCode' && value.length === 4) {
+      data[key] = '0' + value;
+    } else {
+      data[key] = value;
+    }
+  });
+  
+  console.log('주문 생성 데이터:', data);
   
   try {
     // API 호출
@@ -757,10 +815,19 @@ async function submitCreateOrder() {
     
     if (result.success) {
       // 성공 메시지 표시
-      Modal.alert('새 주문이 성공적으로 생성되었습니다.', 'success');
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert('새 주문이 성공적으로 생성되었습니다.', 'success');
+      } else {
+        alert('새 주문이 성공적으로 생성되었습니다.');
+      }
       
       // 모달 닫기
-      Modal.close(document.getElementById('createOrderModal'));
+      const createOrderModal = document.getElementById('createOrderModal');
+      if (typeof Modal !== 'undefined' && Modal.close) {
+        Modal.close(createOrderModal);
+      } else {
+        createOrderModal.style.display = 'none';
+      }
       
       // 페이지 새로고침
       setTimeout(() => {
@@ -768,11 +835,19 @@ async function submitCreateOrder() {
       }, 1000);
     } else {
       // 오류 메시지 표시
-      Modal.alert(result.message || '주문 생성 중 오류가 발생했습니다.', 'error');
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(result.message || '주문 생성 중 오류가 발생했습니다.', 'error');
+      } else {
+        alert(result.message || '주문 생성 중 오류가 발생했습니다.');
+      }
     }
   } catch (error) {
     console.error('주문 생성 오류:', error);
-    Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    } else {
+      alert('서버 통신 중 오류가 발생했습니다.');
+    }
   }
 }
 
@@ -792,7 +867,11 @@ async function submitDriverAssign() {
   const selectedIds = DashboardTable.getSelectedOrderIds();
   
   if (selectedIds.length === 0) {
-    Modal.alert('배차 처리할 주문을 선택해주세요.', 'warning');
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('배차 처리할 주문을 선택해주세요.', 'warning');
+    } else {
+      alert('배차 처리할 주문을 선택해주세요.');
+    }
     return;
   }
   
@@ -801,16 +880,61 @@ async function submitDriverAssign() {
   const driverName = formData.get('driverName');
   const driverContact = formData.get('driverContact');
   
+  if (!driverName) {
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('기사 이름을 입력해주세요.', 'warning');
+    } else {
+      alert('기사 이름을 입력해주세요.');
+    }
+    return;
+  }
+  
+  console.log('기사 배정 요청:', { ids: selectedIds, driver_name: driverName, driver_contact: driverContact });
+  
   try {
+    // 기사 배정 버튼 비활성화 및 로딩 표시
+    const submitBtn = document.getElementById('submitDriverBtn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 처리 중...';
+    }
+    
     // API 호출
     const result = await Api.assignDriverToOrders(selectedIds, driverName, driverContact);
     
+    // 버튼 상태 복원
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `배차 확인 (<span id="driverAssignCount">${selectedIds.length}</span>건)`;
+      
+      // 카운트 요소 다시 설정
+      const countSpan = submitBtn.querySelector('#driverAssignCount');
+      if (countSpan) countSpan.textContent = selectedIds.length;
+    }
+    
     if (result.success) {
+      // 결과 분석
+      const totalCount = selectedIds.length;
+      const successCount = result.results?.filter(r => r.success).length || 0;
+      const failCount = totalCount - successCount;
+      
       // 성공 메시지 표시
-      Modal.alert('기사 배정이 성공적으로 완료되었습니다.', 'success');
+      let message = `기사 배정 결과:\n- 성공: ${successCount}건`;
+      if (failCount > 0) message += `\n- 실패: ${failCount}건`;
+      
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(message, 'success');
+      } else {
+        alert(message);
+      }
       
       // 모달 닫기
-      Modal.close(document.getElementById('driverAssignModal'));
+      const driverAssignModal = document.getElementById('driverAssignModal');
+      if (typeof Modal !== 'undefined' && Modal.close) {
+        Modal.close(driverAssignModal);
+      } else {
+        driverAssignModal.style.display = 'none';
+      }
       
       // 페이지 새로고침
       setTimeout(() => {
@@ -818,11 +942,31 @@ async function submitDriverAssign() {
       }, 1000);
     } else {
       // 오류 메시지 표시
-      Modal.alert(result.message || '기사 배정 중 오류가 발생했습니다.', 'error');
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(result.message || '기사 배정 중 오류가 발생했습니다.', 'error');
+      } else {
+        alert(result.message || '기사 배정 중 오류가 발생했습니다.');
+      }
     }
   } catch (error) {
     console.error('기사 배정 오류:', error);
-    Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    
+    // 버튼 상태 복원
+    const submitBtn = document.getElementById('submitDriverBtn');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `배차 확인 (<span id="driverAssignCount">${selectedIds.length}</span>건)`;
+      
+      // 카운트 요소 다시 설정
+      const countSpan = submitBtn.querySelector('#driverAssignCount');
+      if (countSpan) countSpan.textContent = selectedIds.length;
+    }
+    
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    } else {
+      alert('서버 통신 중 오류가 발생했습니다.');
+    }
   }
 }
 
@@ -842,7 +986,11 @@ async function submitStatusChange() {
   const selectedIds = DashboardTable.getSelectedOrderIds();
   
   if (selectedIds.length === 0) {
-    Modal.alert('상태를 변경할 주문을 선택해주세요.', 'warning');
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('상태를 변경할 주문을 선택해주세요.', 'warning');
+    } else {
+      alert('상태를 변경할 주문을 선택해주세요.');
+    }
     return;
   }
   
@@ -850,16 +998,61 @@ async function submitStatusChange() {
   const formData = new FormData(form);
   const status = formData.get('status');
   
+  if (!status) {
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('변경할 상태를 선택해주세요.', 'warning');
+    } else {
+      alert('변경할 상태를 선택해주세요.');
+    }
+    return;
+  }
+  
+  console.log('상태 변경 요청:', { ids: selectedIds, status: status });
+  
   try {
+    // 상태 변경 버튼 비활성화 및 로딩 표시
+    const submitBtn = document.getElementById('submitStatusBtn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 처리 중...';
+    }
+    
     // API 호출
     const result = await Api.updateOrdersStatus(selectedIds, status);
     
+    // 버튼 상태 복원
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `확인 (<span id="statusChangeCount">${selectedIds.length}</span>건)`;
+      
+      // 카운트 요소 다시 설정
+      const countSpan = submitBtn.querySelector('#statusChangeCount');
+      if (countSpan) countSpan.textContent = selectedIds.length;
+    }
+    
     if (result.success) {
+      // 결과 분석
+      const totalCount = selectedIds.length;
+      const successCount = result.results?.filter(r => r.success).length || 0;
+      const failCount = totalCount - successCount;
+      
       // 성공 메시지 표시
-      Modal.alert('주문 상태가 성공적으로 변경되었습니다.', 'success');
+      let message = `상태 변경 결과:\n- 성공: ${successCount}건`;
+      if (failCount > 0) message += `\n- 실패: ${failCount}건`;
+      
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(message, 'success');
+      } else {
+        alert(message);
+      }
       
       // 모달 닫기
-      Modal.close(document.getElementById('statusChangeModal'));
+      const statusChangeModal = document.getElementById('statusChangeModal');
+      if (typeof Modal !== 'undefined' && Modal.close) {
+        Modal.close(statusChangeModal);
+      } else {
+        statusChangeModal.style.display = 'none';
+      }
       
       // 페이지 새로고침
       setTimeout(() => {
@@ -867,11 +1060,31 @@ async function submitStatusChange() {
       }, 1000);
     } else {
       // 오류 메시지 표시
-      Modal.alert(result.message || '상태 변경 중 오류가 발생했습니다.', 'error');
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(result.message || '상태 변경 중 오류가 발생했습니다.', 'error');
+      } else {
+        alert(result.message || '상태 변경 중 오류가 발생했습니다.');
+      }
     }
   } catch (error) {
     console.error('상태 변경 오류:', error);
-    Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    
+    // 버튼 상태 복원
+    const submitBtn = document.getElementById('submitStatusBtn');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `확인 (<span id="statusChangeCount">${selectedIds.length}</span>건)`;
+      
+      // 카운트 요소 다시 설정
+      const countSpan = submitBtn.querySelector('#statusChangeCount');
+      if (countSpan) countSpan.textContent = selectedIds.length;
+    }
+    
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    } else {
+      alert('서버 통신 중 오류가 발생했습니다.');
+    }
   }
 }
 
@@ -883,20 +1096,56 @@ async function submitDeleteOrders() {
   const selectedIds = DashboardTable.getSelectedOrderIds();
   
   if (selectedIds.length === 0) {
-    Modal.alert('삭제할 주문을 선택해주세요.', 'warning');
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('삭제할 주문을 선택해주세요.', 'warning');
+    } else {
+      alert('삭제할 주문을 선택해주세요.');
+    }
     return;
   }
   
+  console.log('주문 삭제 요청:', { ids: selectedIds });
+  
   try {
+    // 삭제 버튼 비활성화 및 로딩 표시
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 처리 중...';
+    }
+    
     // API 호출
     const result = await Api.deleteOrders(selectedIds);
     
+    // 버튼 상태 복원
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = '삭제';
+    }
+    
     if (result.success) {
+      // 결과 분석
+      const totalCount = selectedIds.length;
+      const successCount = result.results?.filter(r => r.success).length || 0;
+      const failCount = totalCount - successCount;
+      
       // 성공 메시지 표시
-      Modal.alert('선택한 주문이 성공적으로 삭제되었습니다.', 'success');
+      let message = `주문 삭제 결과:\n- 성공: ${successCount}건`;
+      if (failCount > 0) message += `\n- 실패: ${failCount}건`;
+      
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(message, 'success');
+      } else {
+        alert(message);
+      }
       
       // 모달 닫기
-      Modal.close(document.getElementById('deleteConfirmModal'));
+      const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+      if (typeof Modal !== 'undefined' && Modal.close) {
+        Modal.close(deleteConfirmModal);
+      } else {
+        deleteConfirmModal.style.display = 'none';
+      }
       
       // 페이지 새로고침
       setTimeout(() => {
@@ -904,11 +1153,27 @@ async function submitDeleteOrders() {
       }, 1000);
     } else {
       // 오류 메시지 표시
-      Modal.alert(result.message || '주문 삭제 중 오류가 발생했습니다.', 'error');
+      if (typeof Modal !== 'undefined' && Modal.alert) {
+        Modal.alert(result.message || '주문 삭제 중 오류가 발생했습니다.', 'error');
+      } else {
+        alert(result.message || '주문 삭제 중 오류가 발생했습니다.');
+      }
     }
   } catch (error) {
     console.error('주문 삭제 오류:', error);
-    Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    
+    // 버튼 상태 복원
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = '삭제';
+    }
+    
+    if (typeof Modal !== 'undefined' && Modal.alert) {
+      Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    } else {
+      alert('서버 통신 중 오류가 발생했습니다.');
+    }
   }
 }
 

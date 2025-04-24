@@ -33,11 +33,13 @@ def acquire_lock(
     """
     try:
         # 락 정보 조회 쿼리 생성
-        query = text(f"""
-        SELECT is_locked, update_by, update_at 
+        query = text(
+            f"""
+        SELECT is_locked, updated_by, updated_at 
         FROM {table_name} 
         WHERE {table_name}_id = :row_id
-        """)
+        """
+        )
 
         # 쿼리 실행 및 결과 가져오기
         result = db.execute(query, {"row_id": row_id}).fetchone()
@@ -106,11 +108,13 @@ def release_lock(
     """
     try:
         # 락 정보 조회 쿼리 생성
-        query = text(f"""
-        SELECT is_locked, update_by 
+        query = text(
+            f"""
+        SELECT is_locked, updated_by 
         FROM {table_name} 
         WHERE {table_name}_id = :row_id
-        """)
+        """
+        )
 
         # 쿼리 실행 및 결과 가져오기
         result = db.execute(query, {"row_id": row_id}).fetchone()
@@ -168,11 +172,13 @@ def check_lock_status(
     """
     try:
         # 락 정보 조회 쿼리 생성
-        query = text(f"""
-        SELECT is_locked, update_by, update_at 
+        query = text(
+            f"""
+        SELECT is_locked, updated_by, updated_at 
         FROM {table_name} 
         WHERE {table_name}_id = :row_id
-        """)
+        """
+        )
 
         # 쿼리 실행 및 결과 가져오기
         result = db.execute(query, {"row_id": row_id}).fetchone()
@@ -231,12 +237,14 @@ def release_expired_locks(db: Session) -> int:
     try:
         for table in tables_with_locks:
             # 만료된 락 해제 쿼리 생성
-            query = text(f"""
+            query = text(
+                f"""
             UPDATE {table}
             SET is_locked = False
             WHERE is_locked = True
-            AND update_at < :lock_timeout
-            """)
+            AND updated_at < :lock_timeout
+            """
+            )
 
             # 쿼리 실행 및 영향 받은 행 수 가져오기
             result = db.execute(query, {"lock_timeout": lock_timeout})
@@ -279,8 +287,8 @@ def _update_lock(
     try:
         update_data = {
             "is_locked": lock_status,
-            "update_by": user_id if lock_status else None,
-            "update_at": datetime.now() if lock_status else None,
+            "updated_by": user_id if lock_status else None,
+            "updated_at": datetime.now() if lock_status else None,
         }
 
         # 락 업데이트 쿼리 생성
@@ -295,11 +303,13 @@ def _update_lock(
                 column_sets.append(f"{key} = :{key}")
 
         column_set_str = ", ".join(column_sets)
-        query = text(f"""
+        query = text(
+            f"""
         UPDATE {table_name}
         SET {column_set_str}
         WHERE {table_name}_id = :row_id
-        """)
+        """
+        )
 
         # 쿼리 실행
         db.execute(query, params)
@@ -311,7 +321,9 @@ def _update_lock(
         result = {"message": f"락 {action} 성공", "editable": lock_status}
 
         if lock_status:
-            result.update({"locked_by": user_id, "locked_at": update_data["update_at"]})
+            result.update(
+                {"locked_by": user_id, "locked_at": update_data["updated_at"]}
+            )
 
         return True, result
 

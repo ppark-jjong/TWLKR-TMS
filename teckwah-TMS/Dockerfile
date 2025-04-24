@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && dpkg-reconfigure -f noninteractive tzdata
 
 # 환경 변수 파일 복사
-COPY deploy/.env ./
+COPY .env ./
 
 # Python 종속성 설치
 COPY main/requirements.txt ./

@@ -377,7 +377,22 @@ function registerTableEvents() {
           console.log(`행 클릭됨: ID ${orderId}`);
           
           if (orderId) {
-            DashboardModals.openOrderDetailModal(orderId);
+            try {
+              // 클릭한 행에 시각적 효과 추가
+              this.classList.add('clicked-row');
+              
+              // 상세 정보 모달 열기
+              DashboardModals.openOrderDetailModal(orderId);
+              
+              // 효과 제거 (0.5초 후)
+              setTimeout(() => {
+                this.classList.remove('clicked-row');
+              }, 500);
+            } catch (error) {
+              console.error(`행 클릭 처리 중 오류: ${error.message}`);
+              this.classList.remove('clicked-row');
+              alert('주문 상세 정보를 불러오는 중 오류가 발생했습니다.');
+            }
           }
         }
       }

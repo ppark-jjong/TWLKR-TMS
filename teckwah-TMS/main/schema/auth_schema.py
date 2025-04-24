@@ -19,7 +19,7 @@ class LoginRequest(BaseModel):
         # 필드 이름으로 직접 속성에 접근 가능하도록 설정
         populate_by_field_name = True
         # 스키마 예시
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "user_id": "user1",
                 "password": "password123"

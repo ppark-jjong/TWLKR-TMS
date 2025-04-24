@@ -107,8 +107,13 @@ app.add_middleware(
 
 # --- 라우터 포함 ---
 # 주의: 라우터 파일 내부에 APIRouter 인스턴스가 'router' 변수명으로 정의되어 있어야 합니다.
+from main.routes import auth_route, dashboard_route, handover_route, visualization_route, users_route
+
 app.include_router(auth_route.router, prefix="/auth", tags=["Authentication"])
 app.include_router(dashboard_route.router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(handover_route.router, prefix="/handover", tags=["Handover"])
+app.include_router(visualization_route.router, prefix="/visualization", tags=["Visualization"])
+app.include_router(users_route.router, prefix="/users", tags=["Users"])
 
 
 # --- 정적 파일 서빙 --- (규칙 4.3.1)

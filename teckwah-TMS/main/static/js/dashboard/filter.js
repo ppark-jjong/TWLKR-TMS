@@ -260,23 +260,163 @@ function submitFilterForm() {
     const warehouse = warehouseFilter ? warehouseFilter.value : '';
     const orderNo = orderNoSearch ? orderNoSearch.value : '';
     
-    // URL 생성
-    const url = new URL(window.location.href);
+    // 클라이언트 사이드 필터링 체크
+    // orderNo가 입력된 경우 서버 API 호출 (DB 검색)
+    // 그외의 필터링은 클라이언트 사이드에서 처리
+    if (orderNo) {
+      // 서버 API 검색 (주문번호 검색은 항상 서버로 요청)
+      applyServerSideFilters(startDate, endDate, status, department, warehouse, orderNo);
+    } else if (hasDateChanged(startDate, endDate)) {
+      // 날짜 필터가 변경된 경우에만 서버 요청 (날짜는 항상 서버쪽 변경)
+      applyServerSideFilters(startDate, endDate, status, department, warehouse, orderNo);
+    } else {
+      // 날짜 필터가 변경되지 않고, 주문번호 검색이 아닌 경우
+      // 클라이언트 사이드 필터링 적용
+      applyClientSideFilters(status, department, warehouse);
+    }
+  } catch (error) {
+    console.error('필터 폼 제출 중 오류 발생:', error);
+    alert('조회 중 오류가 발생했습니다: ' + error.message);
+  }
+}
+
+/**
+ * 날짜 필터 변경 여부 체크
+ * @param {string} startDate - 시작 날짜
+ * @param {string} endDate - 종료 날짜
+ * @returns {boolean} 날짜 변경 여부
+ */
+function hasDateChanged(startDate, endDate) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentStartDate = urlParams.get('startDate')?.split(' ')[0] || Utils.getTodayDate();
+  const currentEndDate = urlParams.get('endDate')?.split(' ')[0] || Utils.getTodayDate();
+  
+  return startDate !== currentStartDate || endDate !== currentEndDate;
+}
+
+/**
+ * 서버 사이드 필터링 (URL 파라미터 변경으로 API 호출)
+ */
+function applyServerSideFilters(startDate, endDate, status, department, warehouse, orderNo) {
+  // URL 생성
+  const url = new URL(window.location.href);
+  
+  console.log('서버 필터링 적용:', {
+    startDate,
+    endDate,
+    status,
+    department,
+    warehouse,
+    orderNo
+  });
+  
+  // 날짜 설정 (시간 포함)
+  url.searchParams.set('startDate', `${startDate} 00:00:00`);
+  url.searchParams.set('endDate', `${endDate} 23:59:59`);
+  
+  // 필터 설정
+  if (status) {
+    url.searchParams.set('status', status);
+  } else {
+    url.searchParams.delete('status');
+  }
+  
+  if (department) {
+    url.searchParams.set('department', department);
+  } else {
+    url.searchParams.delete('department');
+  }
+  
+  if (warehouse) {
+    url.searchParams.set('warehouse', warehouse);
+  } else {
+    url.searchParams.delete('warehouse');
+  }
+  
+  if (orderNo) {
+    url.searchParams.set('orderNo', orderNo);
+  } else {
+    url.searchParams.delete('orderNo');
+  }
+  
+  // 페이지 번호 리셋
+  url.searchParams.set('page', '1');
+  
+  // 현재 페이지 크기 유지
+  const pageSizeSelect = document.getElementById('pageSizeSelect');
+  const currentPageSize = pageSizeSelect ? pageSizeSelect.value : null;
+  
+  if (currentPageSize) {
+    url.searchParams.set('limit', currentPageSize);
+  }
+  
+  console.log('이동할 URL:', url.toString());
+  
+  // URL 이동 (서버 요청)
+  window.location.href = url.toString();
+}
+
+/**
+ * 클라이언트 사이드 필터링 (이미 로드된 테이블 데이터 필터링)
+ */
+function applyClientSideFilters(status, department, warehouse) {
+  console.log('클라이언트 필터링 적용:', {
+    status,
+    department,
+    warehouse
+  });
+  
+  try {
+    // 테이블 참조
+    const table = document.getElementById('orderTable');
+    const rows = table.querySelectorAll('tbody tr');
     
-    console.log('폼 데이터:', {
-      startDate,
-      endDate,
-      status,
-      department,
-      warehouse,
-      orderNo
+    // 필터링 적용 카운터
+    let visibleCount = 0;
+    
+    // 각 행에 대한 필터링
+    rows.forEach(row => {
+      // 'no-data-row' 클래스가 있는 행은 건너뜀 (데이터 없음 행)
+      if (row.classList.contains('no-data-row')) {
+        row.style.display = 'none';
+        return;
+      }
+      
+      // 행에서 필터 조건 추출
+      const rowStatus = row.querySelector('.column-status')?.getAttribute('data-status') || '';
+      const rowDept = row.querySelector('.column-department')?.textContent.trim() || '';
+      const rowWarehouse = row.querySelector('.column-warehouse')?.textContent.trim() || '';
+      
+      // 조건에 맞지 않으면 숨김 처리
+      const statusMatch = !status || rowStatus === status;
+      const deptMatch = !department || rowDept === department;
+      const warehouseMatch = !warehouse || rowWarehouse === warehouse;
+      
+      // 모든 조건이 일치할 때만 표시
+      const shouldShow = statusMatch && deptMatch && warehouseMatch;
+      
+      // 행 표시/숨김 설정
+      row.style.display = shouldShow ? '' : 'none';
+      
+      // 표시되는 행 카운트
+      if (shouldShow) {
+        visibleCount++;
+      }
     });
     
-    // 날짜 설정 (시간 포함)
-    url.searchParams.set('startDate', `${startDate} 00:00:00`);
-    url.searchParams.set('endDate', `${endDate} 23:59:59`);
+    // 결과가 없을 경우 "데이터 없음" 행 표시
+    const noDataRow = document.querySelector('.no-data-row');
     
-    // 필터 설정
+    if (visibleCount === 0 && noDataRow) {
+      noDataRow.style.display = '';
+    } else if (noDataRow) {
+      noDataRow.style.display = 'none';
+    }
+    
+    // 필터 적용 결과 URL 파라미터 변경 (새로고침 없음)
+    // URL 히스토리 변경으로 필터 상태를 URL에 반영
+    const url = new URL(window.location.href);
+    
     if (status) {
       url.searchParams.set('status', status);
     } else {
@@ -295,30 +435,21 @@ function submitFilterForm() {
       url.searchParams.delete('warehouse');
     }
     
-    if (orderNo) {
-      url.searchParams.set('orderNo', orderNo);
-    } else {
-      url.searchParams.delete('orderNo');
+    // 현재 URL 업데이트 (페이지 새로고침 없이)
+    window.history.replaceState({}, '', url.toString());
+    
+    // 필터링 결과 업데이트
+    const paginationInfo = document.querySelector('.pagination-info');
+    if (paginationInfo) {
+      const totalCount = visibleCount;
+      paginationInfo.textContent = `총 ${totalCount}개 항목 표시 중`;
     }
     
-    // 페이지 번호 리셋
-    url.searchParams.set('page', '1');
-    
-    // 현재 페이지 크기 유지
-    const pageSizeSelect = document.getElementById('pageSizeSelect');
-    const currentPageSize = pageSizeSelect ? pageSizeSelect.value : null;
-    
-    if (currentPageSize) {
-      url.searchParams.set('limit', currentPageSize);
-    }
-    
-    console.log('이동할 URL:', url.toString());
-    
-    // URL 이동
-    window.location.href = url.toString();
+    console.log(`클라이언트 필터링 완료: ${visibleCount}개 행 표시`);
   } catch (error) {
-    console.error('필터 폼 제출 중 오류 발생:', error);
-    alert('조회 중 오류가 발생했습니다: ' + error.message);
+    console.error('클라이언트 필터링 오류:', error);
+    // 오류 발생 시 기본 서버 사이드 필터링으로 폴백
+    applyServerSideFilters(startDate, endDate, status, department, warehouse, '');
   }
 }
 

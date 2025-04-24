@@ -1,8 +1,8 @@
 services:
   app:
     build:
-      context: ..
-      dockerfile: ./deploy/Dockerfile
+      context: .
+      dockerfile: ./Dockerfile
     image: teckwah-tms:latest
     container_name: teckwah-tms
     restart: none

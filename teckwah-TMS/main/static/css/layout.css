@@ -223,8 +223,10 @@
 }
 
 .bottom-logo img {
-  width: 80px;
+  width: calc(var(--sidebar-width) - 60px);
+  max-width: 100%;
   height: auto;
+  transition: width var(--transition-speed);
 }
 
 /* 메인 콘텐츠 영역 */

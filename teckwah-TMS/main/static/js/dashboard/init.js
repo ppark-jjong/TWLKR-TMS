@@ -221,12 +221,17 @@ function registerEventListeners() {
       pageSizeSelect.addEventListener('change', handlePageSizeChange);
       console.log('페이지 크기 변경 이벤트 등록 완료');
       
-      // 현재 URL에서 페이지 크기 파라미터가 있으면 선택
+      // 현재 URL에서 페이지 크기 파라미터가 있으면 선택, 없으면 저장된 값 사용
       const urlParams = new URLSearchParams(window.location.search);
-      const currentPageSize = urlParams.get('limit');
-      if (currentPageSize) {
+      const currentPageSize = urlParams.get('limit') || localStorage.getItem('preferred_page_size') || '10';
+      
+      // 값 설정 및 유효성 확인
+      const validSizes = ['10', '30', '50'];
+      if (validSizes.includes(currentPageSize)) {
         pageSizeSelect.value = currentPageSize;
         console.log('현재 페이지 크기 설정:', currentPageSize);
+      } else {
+        pageSizeSelect.value = '10'; // 기본값
       }
     }
     
@@ -242,12 +247,27 @@ function registerEventListeners() {
 function handlePageSizeChange() {
   try {
     console.log('페이지 크기 변경됨:', this.value);
+    
+    // 선택된 값 저장 (로컬 스토리지)
+    localStorage.setItem('preferred_page_size', this.value);
+    
+    // URL 파라미터 업데이트
     const url = new URL(window.location.href);
     url.searchParams.set('limit', this.value);
     url.searchParams.set('page', '1'); // 페이지 번호 리셋
-    window.location.href = url.toString();
+    
+    // 변경 표시
+    const btnText = this.options[this.selectedIndex].text;
+    this.style.fontWeight = 'bold';
+    
+    // 약간의 딜레이 후 페이지 이동 (UI 반응을 볼 수 있도록)
+    setTimeout(() => {
+      window.location.href = url.toString();
+    }, 100);
+    
   } catch (error) {
     console.error('페이지 크기 변경 처리 중 오류 발생:', error);
+    alert('페이지 크기 변경 중 오류가 발생했습니다.');
   }
 }
 

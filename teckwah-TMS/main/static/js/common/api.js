@@ -141,13 +141,13 @@ async function del(url, data = null) {
  * @returns {Promise<Object>} 주문 상세 정보
  */
 async function getOrderDetail(orderId) {
-  const result = await get(`/dashboard/${orderId}`);
+  const result = await get(`/dashboard/api/orders/${orderId}`);
   
   if (!result.success) {
     throw new Error(result.message || '주문 정보를 불러올 수 없습니다.');
   }
   
-  return result.data;
+  return result;
 }
 
 /**
@@ -156,7 +156,7 @@ async function getOrderDetail(orderId) {
  * @returns {Promise<Object>} 락 획득 결과
  */
 async function lockOrder(orderId) {
-  return post(`/dashboard/${orderId}/lock`);
+  return get(`/dashboard/api/lock/${orderId}`);
 }
 
 /**
@@ -165,7 +165,7 @@ async function lockOrder(orderId) {
  * @returns {Promise<Object>} 락 해제 결과
  */
 async function unlockOrder(orderId) {
-  return post(`/dashboard/${orderId}/unlock`);
+  return get(`/dashboard/api/lock/${orderId}`);
 }
 
 /**
@@ -174,7 +174,7 @@ async function unlockOrder(orderId) {
  * @returns {Promise<Object>} 생성 결과
  */
 async function createOrder(orderData) {
-  return post('/dashboard', orderData);
+  return post('/dashboard/api/orders', orderData);
 }
 
 /**
@@ -184,7 +184,7 @@ async function createOrder(orderData) {
  * @returns {Promise<Object>} 수정 결과
  */
 async function updateOrder(orderId, orderData) {
-  return put(`/dashboard/${orderId}`, orderData);
+  return put(`/dashboard/api/orders/${orderId}`, orderData);
 }
 
 /**
@@ -193,7 +193,7 @@ async function updateOrder(orderId, orderData) {
  * @returns {Promise<Object>} 삭제 결과
  */
 async function deleteOrders(orderIds) {
-  return del('/dashboard', { orderIds });
+  return post('/dashboard/api/delete', { ids: orderIds });
 }
 
 /**
@@ -203,7 +203,7 @@ async function deleteOrders(orderIds) {
  * @returns {Promise<Object>} 변경 결과
  */
 async function updateOrdersStatus(orderIds, status) {
-  return post('/dashboard/orders/update-status', { orderIds, status });
+  return post('/dashboard/api/status', { ids: orderIds, status: status });
 }
 
 /**
@@ -214,7 +214,7 @@ async function updateOrdersStatus(orderIds, status) {
  * @returns {Promise<Object>} 배정 결과
  */
 async function assignDriverToOrders(orderIds, driverName, driverContact) {
-  return post('/dashboard/orders/assign-driver', { orderIds, driverName, driverContact });
+  return post('/dashboard/api/driver', { ids: orderIds, driver_name: driverName, driver_contact: driverContact });
 }
 
 // 공개 API

@@ -1,0 +1,3 @@
+.\cloud-sql-proxy.exe `
+    "prefab-faculty-452705-t2:asia-northeast3:teckwah-kr-tms-clouddb" `
+    --credentials "C:\MyMain\teckwah-dashboard\cloud\gcloud-credentials.json"
