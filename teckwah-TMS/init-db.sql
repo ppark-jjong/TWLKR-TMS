@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
   contact VARCHAR(20) NULL, 
   driver_name VARCHAR(153) NULL,
   driver_contact VARCHAR(50) NULL,
-  updated_by VARCHAR(50) NULL,
+  update_by VARCHAR(50) NULL,
   remark TEXT NULL,
   update_at DATETIME NULL,
   is_locked BOOLEAN DEFAULT FALSE,
@@ -80,10 +80,9 @@ CREATE TABLE IF NOT EXISTS handover (
     handover_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
+    update_at DATETIME NOT NULL,
     update_by VARCHAR(50) NOT NULL,
     is_notice BOOLEAN DEFAULT FALSE,
-    create_at DATETIME NOT NULL,
-    update_at DATETIME NOT NULL,
     is_locked BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB

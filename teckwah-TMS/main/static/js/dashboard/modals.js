@@ -220,21 +220,22 @@ async function openOrderDetailModal(orderId) {
     
     try {
       // 주문 정보 불러오기
+      console.log('주문 정보 요청 ID:', orderId);
       const response = await Api.getOrderDetail(orderId);
       
       if (!response) {
         throw new Error('데이터를 받아올 수 없습니다.');
       }
       
-      const data = response;
+      console.log('불러온 주문 데이터:', response);
       
       // 데이터 표시
-      renderOrderDetail(content, data);
+      renderOrderDetail(content, response);
       spinner.style.display = 'none';
       
       // 편집 버튼 활성화/비활성화 (락 상태에 따라)
       if (editBtn) {
-        if (data.isLocked && !data.editable) {
+        if (response.isLocked && !response.editable) {
           editBtn.disabled = true;
           editBtn.title = '다른 사용자가 편집 중입니다';
         } else {
@@ -416,13 +417,14 @@ function openDeleteConfirmModal() {
  * @param {Object} data - 주문 상세 데이터
  */
 function renderOrderDetail(container, data) {
+  console.log('주문 상세 데이터:', data);
   // 여기에서 주문 정보를 표시하는 HTML 생성
   let html = '<div class="order-detail">';
   
   // 락 정보 표시
-  if (data.lockedInfo && !data.lockedInfo.editable) {
+  if (data.isLocked && !data.editable) {
     html += `<div class="lock-info">
-      <i class="fas fa-lock"></i> 현재 ${data.lockedInfo.lockedBy || '다른 사용자'}가 편집 중입니다.
+      <i class="fas fa-lock"></i> 현재 ${data.updatedBy || '다른 사용자'}가 편집 중입니다.
     </div>`;
   }
   
@@ -438,13 +440,13 @@ function renderOrderDetail(container, data) {
         <div class="detail-item">
           <div class="detail-label">상태</div>
           <div class="detail-value">
-            <span class="status-badge status-${data.status}">${data.status_label || data.status || '-'}</span>
+            <span class="status-badge status-${data.status?.toLowerCase()}">${data.statusLabel || data.status || '-'}</span>
           </div>
         </div>
         <div class="detail-item">
           <div class="detail-label">유형</div>
           <div class="detail-value">
-            <span class="type-badge type-${data.type}">${data.type_label || data.type || '-'}</span>
+            <span class="type-badge type-${data.type?.toLowerCase()}">${data.typeLabel || data.type || '-'}</span>
           </div>
         </div>
         <div class="detail-item">
@@ -469,7 +471,7 @@ function renderOrderDetail(container, data) {
       <div class="detail-grid">
         <div class="detail-item">
           <div class="detail-label">ETA</div>
-          <div class="detail-value">${data.eta || '-'}</div>
+          <div class="detail-value">${data.eta ? new Date(data.eta).toLocaleString() : '-'}</div>
         </div>
         <div class="detail-item">
           <div class="detail-label">우편번호</div>
@@ -509,11 +511,11 @@ function renderOrderDetail(container, data) {
         </div>
         <div class="detail-item">
           <div class="detail-label">출발 시간</div>
-          <div class="detail-value">${data.departTime || '-'}</div>
+          <div class="detail-value">${data.departTime ? new Date(data.departTime).toLocaleString() : '-'}</div>
         </div>
         <div class="detail-item">
           <div class="detail-label">완료 시간</div>
-          <div class="detail-value">${data.completeTime || '-'}</div>
+          <div class="detail-value">${data.completeTime ? new Date(data.completeTime).toLocaleString() : '-'}</div>
         </div>
       </div>
     </div>`;
@@ -525,19 +527,15 @@ function renderOrderDetail(container, data) {
       <div class="detail-grid">
         <div class="detail-item">
           <div class="detail-label">생성 시간</div>
-          <div class="detail-value">${data.createTime || '-'}</div>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">생성자</div>
-          <div class="detail-value">${data.createUser || '-'}</div>
+          <div class="detail-value">${data.createTime ? new Date(data.createTime).toLocaleString() : '-'}</div>
         </div>
         <div class="detail-item">
           <div class="detail-label">마지막 수정 시간</div>
-          <div class="detail-value">${data.updateTime || '-'}</div>
+          <div class="detail-value">${data.updateAt ? new Date(data.updateAt).toLocaleString() : '-'}</div>
         </div>
         <div class="detail-item">
           <div class="detail-label">마지막 수정자</div>
-          <div class="detail-value">${data.updateUser || '-'}</div>
+          <div class="detail-value">${data.updatedBy || '-'}</div>
         </div>
       </div>
     </div>`;
@@ -553,6 +551,7 @@ function renderOrderDetail(container, data) {
  * @param {Object} data - 주문 상세 데이터
  */
 function renderOrderEditForm(container, data) {
+  console.log('주문 편집 데이터:', data);
   // 여기에서 주문 편집 폼 HTML 생성
   let html = `
     <form id="orderEditForm" class="order-form">
@@ -674,9 +673,10 @@ function renderOrderEditForm(container, data) {
   ];
   
   const warehouses = [
-    { value: 'GIMPO', label: '김포창고' },
-    { value: 'ANSAN', label: '안산창고' },
-    { value: 'HWASEONG', label: '화성창고' }
+    { value: 'SEOUL', label: '서울' },
+    { value: 'BUSAN', label: '부산' },
+    { value: 'GWANGJU', label: '광주' },
+    { value: 'DAEJEON', label: '대전' }
   ];
   
   const statuses = [
@@ -730,9 +730,13 @@ function renderOrderEditForm(container, data) {
   // ETA 날짜시간 설정
   const etaInput = document.getElementById('editETA');
   if (data.eta) {
-    // 서버에서 받은 날짜를 ISO 형식으로 변환
-    const etaDate = new Date(data.eta);
-    etaInput.value = Utils.formatDateTimeForInput(etaDate);
+    try {
+      // 서버에서 받은 날짜를 ISO 형식으로 변환
+      const etaDate = new Date(data.eta);
+      etaInput.value = Utils.formatDateTimeForInput(etaDate);
+    } catch (error) {
+      console.error('날짜 변환 오류:', error);
+    }
   }
 }
 
@@ -753,11 +757,28 @@ async function submitOrderUpdate(orderId) {
   const formData = new FormData(form);
   const data = Utils.formDataToObject(formData);
   
+  console.log('주문 업데이트 데이터:', data);
+  
   try {
+    // 업데이트 버튼 비활성화 및 로딩 표시
+    const saveBtn = document.getElementById('saveOrderBtn');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
+    }
+    
     // API 호출
     const result = await Api.updateOrder(orderId, data);
     
-    if (result.success) {
+    console.log('업데이트 결과:', result);
+    
+    // 버튼 상태 복원
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '저장';
+    }
+    
+    if (result && result.success) {
       // 락 해제
       await Api.unlockOrder(orderId);
       
@@ -773,11 +794,18 @@ async function submitOrderUpdate(orderId) {
       }, 1000);
     } else {
       // 오류 메시지 표시
-      Modal.alert(result.message || '주문 업데이트 중 오류가 발생했습니다.', 'error');
+      Modal.alert(result?.message || '주문 업데이트 중 오류가 발생했습니다.', 'error');
     }
   } catch (error) {
     console.error('주문 업데이트 오류:', error);
     Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
+    
+    // 버튼 상태 복원
+    const saveBtn = document.getElementById('saveOrderBtn');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '저장';
+    }
   }
 }
 
@@ -810,10 +838,25 @@ async function submitCreateOrder() {
   console.log('주문 생성 데이터:', data);
   
   try {
+    // 생성 버튼 비활성화 및 로딩 표시
+    const submitBtn = document.getElementById('submitCreateBtn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 생성 중...';
+    }
+    
     // API 호출
     const result = await Api.createOrder(data);
     
-    if (result.success) {
+    console.log('생성 결과:', result);
+    
+    // 버튼 상태 복원
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '저장';
+    }
+    
+    if (result && result.success) {
       // 성공 메시지 표시
       if (typeof Modal !== 'undefined' && Modal.alert) {
         Modal.alert('새 주문이 성공적으로 생성되었습니다.', 'success');
@@ -836,9 +879,9 @@ async function submitCreateOrder() {
     } else {
       // 오류 메시지 표시
       if (typeof Modal !== 'undefined' && Modal.alert) {
-        Modal.alert(result.message || '주문 생성 중 오류가 발생했습니다.', 'error');
+        Modal.alert(result?.message || '주문 생성 중 오류가 발생했습니다.', 'error');
       } else {
-        alert(result.message || '주문 생성 중 오류가 발생했습니다.');
+        alert(result?.message || '주문 생성 중 오류가 발생했습니다.');
       }
     }
   } catch (error) {
@@ -847,6 +890,13 @@ async function submitCreateOrder() {
       Modal.alert('서버 통신 중 오류가 발생했습니다.', 'error');
     } else {
       alert('서버 통신 중 오류가 발생했습니다.');
+    }
+    
+    // 버튼 상태 복원
+    const submitBtn = document.getElementById('submitCreateBtn');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '저장';
     }
   }
 }
@@ -902,6 +952,8 @@ async function submitDriverAssign() {
     // API 호출
     const result = await Api.assignDriverToOrders(selectedIds, driverName, driverContact);
     
+    console.log('기사 배정 결과:', result);
+    
     // 버튼 상태 복원
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -912,7 +964,7 @@ async function submitDriverAssign() {
       if (countSpan) countSpan.textContent = selectedIds.length;
     }
     
-    if (result.success) {
+    if (result && result.success) {
       // 결과 분석
       const totalCount = selectedIds.length;
       const successCount = result.results?.filter(r => r.success).length || 0;
@@ -943,9 +995,9 @@ async function submitDriverAssign() {
     } else {
       // 오류 메시지 표시
       if (typeof Modal !== 'undefined' && Modal.alert) {
-        Modal.alert(result.message || '기사 배정 중 오류가 발생했습니다.', 'error');
+        Modal.alert(result?.message || '기사 배정 중 오류가 발생했습니다.', 'error');
       } else {
-        alert(result.message || '기사 배정 중 오류가 발생했습니다.');
+        alert(result?.message || '기사 배정 중 오류가 발생했습니다.');
       }
     }
   } catch (error) {
@@ -1020,6 +1072,8 @@ async function submitStatusChange() {
     // API 호출
     const result = await Api.updateOrdersStatus(selectedIds, status);
     
+    console.log('상태 변경 결과:', result);
+    
     // 버튼 상태 복원
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -1030,15 +1084,21 @@ async function submitStatusChange() {
       if (countSpan) countSpan.textContent = selectedIds.length;
     }
     
-    if (result.success) {
+    if (result && result.success) {
       // 결과 분석
       const totalCount = selectedIds.length;
       const successCount = result.results?.filter(r => r.success).length || 0;
       const failCount = totalCount - successCount;
       
+      // 롤백 항목 확인
+      const rollbackItems = result.results?.filter(r => r.rollback) || [];
+      
       // 성공 메시지 표시
       let message = `상태 변경 결과:\n- 성공: ${successCount}건`;
       if (failCount > 0) message += `\n- 실패: ${failCount}건`;
+      if (rollbackItems.length > 0) {
+        message += `\n\n※ ${rollbackItems.length}건의 상태 롤백이 포함되어 있습니다.`;
+      }
       
       if (typeof Modal !== 'undefined' && Modal.alert) {
         Modal.alert(message, 'success');
@@ -1061,9 +1121,9 @@ async function submitStatusChange() {
     } else {
       // 오류 메시지 표시
       if (typeof Modal !== 'undefined' && Modal.alert) {
-        Modal.alert(result.message || '상태 변경 중 오류가 발생했습니다.', 'error');
+        Modal.alert(result?.message || '상태 변경 중 오류가 발생했습니다.', 'error');
       } else {
-        alert(result.message || '상태 변경 중 오류가 발생했습니다.');
+        alert(result?.message || '상태 변경 중 오류가 발생했습니다.');
       }
     }
   } catch (error) {

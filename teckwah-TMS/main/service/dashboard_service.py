@@ -4,7 +4,7 @@
 
 from typing import Optional, List, Dict, Tuple, Any
 from datetime import datetime, timedelta, date
-from sqlalchemy import and_, or_, func, text, desc, case
+from sqlalchemy import and_, or_, func, text, desc, case, extract
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException, status
@@ -304,7 +304,7 @@ def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashbo
             contact=data.contact,
             driver_name=data.driver_name,
             driver_contact=data.driver_contact,
-            updated_by=user_id,
+            update_by=user_id,
             update_at=datetime.now(),
             remark=data.remark,
             is_locked=False,
@@ -419,7 +419,7 @@ def update_dashboard(
             order.remark = data.remark
 
         # 업데이트 정보 갱신
-        order.updated_by = user_id
+        order.update_by = user_id
         order.update_at = datetime.now()
 
         db.flush()
@@ -575,7 +575,7 @@ def change_status(
                     is_rollback = True
 
             # 업데이트 정보 갱신
-            order.updated_by = user_id
+            order.update_by = user_id
             order.update_at = datetime.now()
 
             # 락 해제
@@ -679,7 +679,7 @@ def assign_driver(
             order.driver_contact = driver_contact
 
             # 업데이트 정보 갱신
-            order.updated_by = user_id
+            order.update_by = user_id
             order.update_at = datetime.now()
 
             # 락 해제

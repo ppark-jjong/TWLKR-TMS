@@ -225,7 +225,7 @@ async def dashboard_page(
     )
 
 
-@router.get("/api/orders", response_model=DashboardListResponse)
+@router.get("/orders", response_model=DashboardListResponse)
 async def get_orders(
     request: Request,
     db: Session = Depends(get_db),
@@ -308,7 +308,7 @@ async def get_orders(
     }
 
 
-@router.get("/api/search", response_model=DashboardListResponse)
+@router.get("/search", response_model=DashboardListResponse)
 async def search_order(
     request: Request,
     order_no: str,
@@ -380,7 +380,7 @@ async def search_order(
     }
 
 
-@router.get("/api/orders/{dashboard_id}", response_model=DashboardResponse)
+@router.get("/orders/{dashboard_id}", response_model=DashboardResponse)
 async def get_order_detail(
     request: Request,
     dashboard_id: int = Path(..., ge=1),
@@ -446,7 +446,7 @@ async def get_order_detail(
     return order_data
 
 
-@router.post("/api/orders", status_code=status.HTTP_201_CREATED)
+@router.post("/orders", status_code=status.HTTP_201_CREATED)
 async def create_order(
     request: Request,
     order_data: DashboardCreate,
@@ -479,7 +479,7 @@ async def create_order(
         )
 
 
-@router.put("/api/orders/{dashboard_id}")
+@router.put("/orders/{dashboard_id}")
 async def update_order(
     request: Request,
     dashboard_id: int = Path(..., ge=1),
@@ -519,7 +519,7 @@ async def update_order(
         )
 
 
-@router.post("/api/status")
+@router.post("/status")
 async def change_order_status(
     request: Request,
     status_data: StatusChangeRequest,
@@ -556,7 +556,7 @@ async def change_order_status(
         )
 
 
-@router.post("/api/driver")
+@router.post("/driver")
 async def assign_order_driver(
     request: Request,
     driver_data: DriverAssignRequest,
@@ -593,7 +593,7 @@ async def assign_order_driver(
         )
 
 
-@router.post("/api/delete")
+@router.post("/delete")
 async def delete_order(
     request: Request,
     delete_data: DashboardDeleteRequest,
@@ -636,7 +636,7 @@ async def delete_order(
         )
 
 
-@router.get("/api/lock/{dashboard_id}")
+@router.get("/lock/{dashboard_id}")
 async def check_order_lock(
     request: Request,
     dashboard_id: int = Path(..., ge=1),

@@ -65,7 +65,7 @@ class Dashboard(Base):
     contact = Column(String(20), nullable=True)
     driver_name = Column(String(153), nullable=True)
     driver_contact = Column(String(50), nullable=True)
-    updated_by = Column(String(50), nullable=True)
+    update_by = Column(String(50), nullable=True)  # updated_by -> update_by로 변경
     remark = Column(Text, nullable=True)
     update_at = Column(DateTime, nullable=True, onupdate=func.now())
     is_locked = Column(Boolean, default=False)

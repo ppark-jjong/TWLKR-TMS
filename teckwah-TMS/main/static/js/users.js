@@ -6,6 +6,7 @@
 document.addEventListener('DOMContentLoaded', function () {
   setupFilterForm();
   setupUserForm();
+  setupModalClose();
 });
 
 // 필터 폼 설정
@@ -25,9 +26,7 @@ function setupFilterForm() {
     }
 
     // 현재 URL 경로 유지하면서 쿼리 파라미터만 변경
-    window.location.href = `${
-      window.location.pathname
-    }?${queryParams.toString()}`;
+    window.location.href = `${window.location.pathname}?${queryParams.toString()}`;
   });
 }
 
@@ -54,9 +53,45 @@ function setupUserForm() {
   });
 }
 
+// 모달 닫기 버튼 설정
+function setupModalClose() {
+  const closeButtons = document.querySelectorAll('.modal-close');
+  
+  closeButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      closeModal();
+    });
+  });
+  
+  // ESC 키로 모달 닫기
+  window.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
+  
+  // 모달 외부 클릭으로 닫기
+  const modals = document.querySelectorAll('.modal');
+  modals.forEach(modal => {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+  });
+}
+
 // 필터 초기화
 function resetFilters() {
   window.location.href = window.location.pathname;
+}
+
+// 모달 닫기
+function closeModal() {
+  const modals = document.querySelectorAll('.modal');
+  modals.forEach(modal => {
+    modal.style.display = 'none';
+  });
 }
 
 // 사용자 추가 모달 열기
@@ -88,9 +123,12 @@ function openCreateModal() {
 
 // 사용자 수정 모달 열기
 function editUser(userId) {
+  showLoading(true);
+  
   // 사용자 정보 조회
   apiRequest(`/users/${userId}`)
     .then((result) => {
+      showLoading(false);
       if (result.success) {
         openEditModal(result.data);
       } else {
@@ -101,6 +139,7 @@ function editUser(userId) {
       }
     })
     .catch((error) => {
+      showLoading(false);
       showAlert('사용자 정보를 불러오는 중 오류가 발생했습니다.', 'error');
       console.error('사용자 정보 조회 오류:', error);
     });
@@ -136,6 +175,41 @@ function openEditModal(userData) {
   modal.style.display = 'block';
 }
 
+// 폼 데이터를 JSON으로 변환
+function formToJson(form) {
+  const formData = new FormData(form);
+  const data = {};
+  
+  for (const [key, value] of formData.entries()) {
+    data[key] = value;
+  }
+  
+  return data;
+}
+
+// API 요청 함수
+function apiRequest(url, method = 'GET', data = null) {
+  const options = {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  };
+
+  if (data && (method === 'POST' || method === 'PUT')) {
+    options.body = JSON.stringify(data);
+  }
+
+  return fetch(url, options)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    });
+}
+
 // 사용자 데이터 제출
 function submitUserForm(form) {
   const formData = formToJson(form);
@@ -151,8 +225,11 @@ function submitUserForm(form) {
   const url = isEdit ? `/users/${formData.user_id}` : '/users';
   const method = isEdit ? 'PUT' : 'POST';
 
+  showLoading(true);
+  
   apiRequest(url, method, formData)
     .then((result) => {
+      showLoading(false);
       if (result.success) {
         showAlert(
           isEdit ? '사용자 정보가 수정되었습니다.' : '사용자가 추가되었습니다.',
@@ -168,6 +245,7 @@ function submitUserForm(form) {
       }
     })
     .catch((error) => {
+      showLoading(false);
       showAlert('처리 중 오류가 발생했습니다.', 'error');
       console.error('사용자 저장 오류:', error);
     });
@@ -193,8 +271,11 @@ function confirmResetPassword() {
     return;
   }
 
+  showLoading(true);
+  
   apiRequest(`/users/${userId}/reset-password`, 'POST')
     .then((result) => {
+      showLoading(false);
       if (result.success) {
         showAlert('비밀번호가 초기화되었습니다.', 'success');
         closeModal();
@@ -207,6 +288,7 @@ function confirmResetPassword() {
       }
     })
     .catch((error) => {
+      showLoading(false);
       showAlert('비밀번호 초기화 중 오류가 발생했습니다.', 'error');
       console.error('비밀번호 초기화 오류:', error);
       closeModal();
@@ -248,10 +330,13 @@ function confirmStatusChange() {
     return;
   }
 
-  apiRequest(`/users/${userId}/${action}`, 'POST')
+  showLoading(true);
+  
+  apiRequest(`/users/${userId}/toggle-status`, 'POST')
     .then((result) => {
+      showLoading(false);
       if (result.success) {
-        const actionText = action === 'activate' ? '활성화' : '비활성화';
+        const actionText = result.user_status === 'ACTIVE' ? '활성화' : '비활성화';
         showAlert(`사용자가 ${actionText}되었습니다.`, 'success');
         closeModal();
         // 페이지 새로고침
@@ -267,10 +352,42 @@ function confirmStatusChange() {
       }
     })
     .catch((error) => {
+      showLoading(false);
       showAlert('상태 변경 중 오류가 발생했습니다.', 'error');
       console.error('상태 변경 오류:', error);
       closeModal();
     });
+}
+
+// 로그아웃 처리
+function logout() {
+  window.location.href = '/logout';
+}
+
+// 로딩 표시
+function showLoading(show) {
+  // 로딩 인디케이터가 없으면 생성
+  let loadingEl = document.querySelector('.loading-overlay');
+  
+  if (!loadingEl && show) {
+    loadingEl = document.createElement('div');
+    loadingEl.className = 'loading-overlay';
+    loadingEl.innerHTML = `
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
+    `;
+    document.body.appendChild(loadingEl);
+  }
+  
+  // 표시/숨김 처리
+  if (loadingEl) {
+    if (show) {
+      loadingEl.style.display = 'flex';
+    } else {
+      loadingEl.style.display = 'none';
+    }
+  }
 }
 
 // 알림 표시
@@ -281,16 +398,35 @@ function showAlert(message, type = 'info') {
   const alert = document.createElement('div');
   alert.className = `alert alert-${type}`;
   alert.innerHTML = `
-        <span>${message}</span>
-        <button class="close-btn" onclick="this.parentNode.remove()">×</button>
-    `;
+    <span>${message}</span>
+    <button class="close-btn" onclick="this.parentNode.remove()">×</button>
+  `;
+
+  // 기존 같은 유형의 알림 제거 (중복 방지)
+  const existingAlerts = container.querySelectorAll(`.alert-${type}`);
+  existingAlerts.forEach(existingAlert => {
+    const existingMessage = existingAlert.querySelector('span').textContent;
+    if (existingMessage === message) {
+      existingAlert.remove();
+    }
+  });
 
   container.appendChild(alert);
+
+  // 알림에 애니메이션 효과 추가
+  setTimeout(() => {
+    alert.classList.add('alert-show');
+  }, 10);
 
   // 5초 후 자동 제거
   setTimeout(() => {
     if (alert.parentNode) {
-      alert.remove();
+      alert.classList.add('alert-hide');
+      setTimeout(() => {
+        if (alert.parentNode) {
+          alert.remove();
+        }
+      }, 300);
     }
   }, 5000);
 }

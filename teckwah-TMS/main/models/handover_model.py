@@ -1,5 +1,5 @@
 """
-인수인계 모델
+인수인계 모델 - init-db.sql 스키마와 정확히 일치하도록 수정됨
 """
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
@@ -13,19 +13,14 @@ class Handover(Base):
 
     __tablename__ = "handover"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)  # handover_id 대신 id로 변경
+    handover_id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
-    writer_id = Column(  # update_by 대신 writer_id로 변경
+    update_by = Column(
         String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False
     )
-    writer = Column(String(50), nullable=False)  # 작성자 이름 추가
     is_notice = Column(Boolean, default=False)
-    created_at = Column(DateTime, nullable=False, default=func.now())  # create_at 대신 created_at으로 변경
-    updated_at = Column(  # update_at 대신 updated_at으로 변경
-        DateTime, nullable=True, onupdate=func.now()
-    )
-    updated_by = Column(String(50), nullable=True)  # 수정자 추가
+    update_at = Column(DateTime, nullable=False, default=func.now())  # create_at 제거, nullable=False로 변경
     is_locked = Column(Boolean, default=False)
 
     # 관계 설정

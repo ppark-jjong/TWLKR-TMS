@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from main.core.templating import templates
 from main.utils.database import get_db
 from main.utils.security import get_current_user, get_admin_user
+from main.utils.lock import check_lock_status
 from main.utils.logger import logger
 from main.schema.handover_schema import (
     HandoverCreate,
@@ -36,6 +37,7 @@ async def handover_page(
     current_user: Dict[str, Any] = Depends(get_current_user),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = Query(None, description="검색어 (제목 기준)")
 ):
     """
     인수인계 페이지 렌더링
@@ -52,10 +54,14 @@ async def handover_page(
         handovers, pagination = get_handover_list(
             db=db,
             page=page,
-            page_size=limit
+            page_size=limit,
+            search_term=search
         )
         
-        logger.info(f"인수인계 페이지 접근: 공지사항 {len(notices)}개, 인수인계 {len(handovers)}개")
+        log_message = f"인수인계 페이지 접근: 공지사항 {len(notices)}개, 인수인계 {len(handovers)}개"
+        if search:
+            log_message += f", 검색어: '{search}'"
+        logger.info(log_message)
         
         # 템플릿 렌더링
         return templates.TemplateResponse(
@@ -67,6 +73,7 @@ async def handover_page(
                 "handovers": handovers,
                 "current_page": page,
                 "total_pages": pagination["total_pages"],
+                "search_term": search
             }
         )
     except Exception as e:
@@ -82,7 +89,7 @@ async def handover_page(
             status_code=500
         )
 
-@router.get("/api/handovers/{handover_id}")
+@router.get("/handovers/{handover_id}")
 async def get_handover_detail(
     request: Request,
     handover_id: int = Path(..., ge=1),
@@ -103,17 +110,14 @@ async def get_handover_detail(
             
         # 응답 데이터 구성
         handover_data = {
-            "id": handover.id,
+            "id": handover.handover_id,
             "title": handover.title,
             "content": handover.content,
             "is_notice": handover.is_notice,
-            "writer_id": handover.writer_id,
-            "writer": handover.writer,
-            "created_at": handover.created_at.strftime("%Y-%m-%d %H:%M"),
-            "updated_at": handover.updated_at.strftime("%Y-%m-%d %H:%M") if handover.updated_at else None,
-            "updated_by": handover.updated_by,
+            "writer_id": handover.update_by,
+            "updated_at": handover.update_at.strftime("%Y-%m-%d %H:%M") if handover.update_at else None,
             # 편집 권한 확인 (작성자 또는 관리자만 가능)
-            "can_edit": current_user.get("user_id") == handover.writer_id or current_user.get("user_role") == "ADMIN",
+            "can_edit": current_user.get("user_id") == handover.update_by or current_user.get("user_role") == "ADMIN",
             # 삭제 권한 확인 (관리자만 가능)
             "can_delete": current_user.get("user_role") == "ADMIN"
         }
@@ -126,7 +130,7 @@ async def get_handover_detail(
             content={"success": False, "message": "인수인계 상세 조회 중 오류가 발생했습니다."}
         )
 
-@router.post("/api/handovers")
+@router.post("/handovers")
 async def create_handover_item(
     request: Request,
     handover_data: HandoverCreate,
@@ -151,13 +155,13 @@ async def create_handover_item(
             content=handover_data.content,
             is_notice=handover_data.is_notice,
             writer_id=current_user.get("user_id"),
-            writer=current_user.get("user_name", current_user.get("user_id"))
+            writer_name=current_user.get("user_name", current_user.get("user_id"))
         )
         
         return {
             "success": True, 
             "message": "인수인계가 성공적으로 등록되었습니다.",
-            "id": new_handover.id
+            "id": new_handover.handover_id
         }
     except Exception as e:
         logger.error(f"인수인계 생성 중 오류 발생: {str(e)}", exc_info=True)
@@ -166,7 +170,7 @@ async def create_handover_item(
             content={"success": False, "message": "인수인계 등록 중 오류가 발생했습니다."}
         )
 
-@router.put("/api/handovers/{handover_id}")
+@router.put("/handovers/{handover_id}")
 async def update_handover_item(
     request: Request,
     handover_id: int = Path(..., ge=1),
@@ -188,7 +192,7 @@ async def update_handover_item(
             )
             
         # 수정 권한 확인 (작성자 또는 관리자만 가능)
-        if current_user.get("user_id") != handover.writer_id and current_user.get("user_role") != "ADMIN":
+        if current_user.get("user_id") != handover.update_by and current_user.get("user_role") != "ADMIN":
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={"success": False, "message": "인수인계 수정 권한이 없습니다."}
@@ -214,7 +218,7 @@ async def update_handover_item(
         return {
             "success": True, 
             "message": "인수인계가 성공적으로 수정되었습니다.",
-            "id": updated_handover.id
+            "id": updated_handover.handover_id
         }
     except Exception as e:
         logger.error(f"인수인계 수정 중 오류 발생: {str(e)}", exc_info=True)
@@ -223,7 +227,33 @@ async def update_handover_item(
             content={"success": False, "message": "인수인계 수정 중 오류가 발생했습니다."}
         )
 
-@router.delete("/api/handovers/{handover_id}")
+@router.get("/lock/{handover_id}")
+async def check_handover_lock(
+    request: Request,
+    handover_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    인수인계 락 상태 확인 API
+    """
+    try:
+        # 락 상태 확인
+        lock_status = check_lock_status(
+            db, "handover", handover_id, current_user.get("user_id")
+        )
+        return lock_status
+    except Exception as e:
+        logger.error(f"락 상태 확인 중 오류 발생: {str(e)}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": "락 상태 확인 중 오류가 발생했습니다.",
+            },
+        )
+
+@router.delete("/handovers/{handover_id}")
 async def delete_handover_item(
     request: Request,
     handover_id: int = Path(..., ge=1),

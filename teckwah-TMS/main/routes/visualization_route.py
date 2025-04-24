@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query, Path, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from main.models.dashboard_model import Dashboard
 
 from main.core.templating import templates
 from main.utils.database import get_db
@@ -54,7 +55,7 @@ async def visualization_page(
             status_code=500
         )
 
-@router.get("/api/time-blocks")
+@router.get("/time-blocks")
 async def get_time_block_chart_data(
     request: Request,
     db: Session = Depends(get_db),
@@ -127,7 +128,7 @@ async def get_time_block_chart_data(
             content={"success": False, "message": "시간대별 통계 조회 중 오류가 발생했습니다."}
         )
 
-@router.get("/api/department-status")
+@router.get("/department-status")
 async def get_department_status_data(
     request: Request,
     db: Session = Depends(get_db),
@@ -209,7 +210,7 @@ async def get_department_status_data(
             content={"success": False, "message": "부서별 상태 통계 조회 중 오류가 발생했습니다."}
         )
 
-@router.get("/api/daily-trend")
+@router.get("/daily-trend")
 async def get_daily_trend_data(
     request: Request,
     db: Session = Depends(get_db),
@@ -275,7 +276,7 @@ async def get_daily_trend_data(
             content={"success": False, "message": "일별 추세 통계 조회 중 오류가 발생했습니다."}
         )
 
-@router.get("/api/summary")
+@router.get("/summary")
 async def get_summary_stats(
     request: Request,
     db: Session = Depends(get_db),
@@ -302,18 +303,40 @@ async def get_summary_stats(
             start_date = today
             end_date = today
             
-        # 각 API 호출하여 통계 데이터 조합
-        # (실제로는 더 효율적인 통합 쿼리를 만들겠지만, 예시로 기존 API 재사용)
+        # 날짜 범위에 해당하는 주문 통계 조회
+        query = db.query(Dashboard).filter(
+            Dashboard.eta.between(
+                datetime.combine(start_date, datetime.min.time()),
+                datetime.combine(end_date, datetime.max.time())
+            )
+        )
         
-        # 임의의 예시 데이터 (실제로는 DB 쿼리 결과를 사용)
+        # 전체 개수
+        total = query.count()
+        
+        # 상태별 개수
+        waiting = query.filter(Dashboard.status == "WAITING").count()
+        in_progress = query.filter(Dashboard.status == "IN_PROGRESS").count()
+        complete = query.filter(Dashboard.status == "COMPLETE").count()
+        issue = query.filter(Dashboard.status == "ISSUE").count()
+        cancel = query.filter(Dashboard.status == "CANCEL").count()
+        
+        # 지연된 배송 (현재 시간 기준으로 ETA를 초과한 주문 중 완료되지 않은 것)
+        now = datetime.now()
+        delayed = query.filter(
+            Dashboard.eta < now,
+            Dashboard.status.in_(["WAITING", "IN_PROGRESS"])
+        ).count()
+        
+        # 통계 데이터 구성
         summary_data = {
-            "total": 120,
-            "waiting": 25,
-            "in_progress": 35,
-            "complete": 40,
-            "issue": 15,
-            "cancel": 5,
-            "delayed": 10,  # 지연된 배송 (ETA를 초과한 배송)
+            "total": total,
+            "waiting": waiting,
+            "in_progress": in_progress,
+            "complete": complete,
+            "issue": issue,
+            "cancel": cancel,
+            "delayed": delayed,
         }
         
         return {

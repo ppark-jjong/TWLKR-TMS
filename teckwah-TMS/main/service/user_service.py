@@ -1,24 +1,19 @@
 """
-사용자 관리 관련 서비스
+사용자 관리 관련 서비스 - 기본 기능만 유지
 """
 
-from typing import Dict, Any, List, Tuple, Optional
-from datetime import datetime
+from typing import Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func, and_, or_
 from fastapi import HTTPException, status
 
 from main.utils.logger import logger
-from main.models.user_model import User  # 모델 임포트
+from main.models.user_model import User
 
 
 def get_user_list(
     db: Session, 
     page: int = 1, 
-    page_size: int = 10,
-    role: Optional[str] = None,
-    search_type: Optional[str] = None,
-    search_value: Optional[str] = None
+    page_size: int = 10
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     사용자 목록 조회 (페이지네이션)
@@ -27,43 +22,23 @@ def get_user_list(
         # 기본 쿼리
         query = db.query(User)
         
-        # 필터 적용
-        if role:
-            query = query.filter(User.user_role == role)
-            
-        if search_type and search_value:
-            if search_type == "user_id":
-                query = query.filter(User.user_id.like(f"%{search_value}%"))
-            elif search_type == "user_name":
-                query = query.filter(User.user_name.like(f"%{search_value}%"))
-            elif search_type == "user_department":
-                query = query.filter(User.user_department.like(f"%{search_value}%"))
-        
         # 전체 건수 조회
         total = query.count()
         
         # 페이지네이션 계산
-        total_pages = (total + page_size - 1) // page_size  # 올림 나눗셈
+        total_pages = (total + page_size - 1) // page_size
         offset = (page - 1) * page_size
         
-        # 사용자 목록 조회 (최신순)
-        users = query.order_by(desc(User.created_at))\
-            .offset(offset)\
-            .limit(page_size)\
-            .all()
+        # 사용자 목록 조회 (오름차순)
+        users = query.order_by(User.user_id).offset(offset).limit(page_size).all()
             
-        # 응답 데이터 가공
+        # 응답 데이터 가공 (테이블에 필요한 필드만)
         user_list = []
         for user in users:
             user_list.append({
                 "user_id": user.user_id,
-                "user_name": user.user_name,
                 "user_role": user.user_role,
-                "user_department": user.user_department,
-                "user_status": user.user_status,
-                "created_at": user.created_at.strftime("%Y-%m-%d %H:%M") if user.created_at else None,
-                "updated_at": user.updated_at.strftime("%Y-%m-%d %H:%M") if user.updated_at else None,
-                "updated_by": user.updated_by
+                "user_department": user.user_department
             })
             
         # 페이지네이션 정보
@@ -81,33 +56,19 @@ def get_user_list(
         raise e
 
 
-def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
-    """
-    사용자 상세 조회
-    """
-    try:
-        user = db.query(User).filter(User.user_id == user_id).first()
-        return user
-    except Exception as e:
-        logger.error(f"사용자 상세 조회 중 오류 발생: {str(e)}", exc_info=True)
-        raise e
-
-
 def create_user(
     db: Session, 
     user_id: str,
-    user_name: str,
     user_password: str,
     user_role: str,
-    user_department: str,
-    created_by: str
+    user_department: str
 ) -> User:
     """
     사용자 생성
     """
     try:
         # 아이디 중복 확인
-        existing_user = get_user_by_id(db, user_id)
+        existing_user = db.query(User).filter(User.user_id == user_id).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
@@ -115,16 +76,11 @@ def create_user(
             )
             
         # 새 사용자 생성
-        now = datetime.now()
         user = User(
             user_id=user_id,
-            user_name=user_name,
-            user_password=user_password,  # 해시된 비밀번호가 전달되어야 함
+            user_password=user_password,
             user_role=user_role,
-            user_department=user_department,
-            user_status="ACTIVE",  # 기본 상태는 활성화
-            created_at=now,
-            created_by=created_by
+            user_department=user_department
         )
         
         # DB에 저장
@@ -144,116 +100,56 @@ def create_user(
         raise e
 
 
-def update_user(
+def delete_user(
     db: Session, 
-    user_id: str,
-    user_name: str,
-    user_password: Optional[str],
-    user_role: str,
-    user_department: str,
-    updated_by: str
-) -> User:
-    """
-    사용자 정보 수정
-    """
-    try:
-        # 사용자 조회
-        user = get_user_by_id(db, user_id)
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="사용자를 찾을 수 없습니다."
-            )
-            
-        # 사용자 정보 업데이트
-        user.user_name = user_name
-        user.user_role = user_role
-        user.user_department = user_department
-        user.updated_at = datetime.now()
-        user.updated_by = updated_by
-        
-        # 비밀번호 변경 (요청 시에만)
-        if user_password:
-            user.user_password = user_password  # 해시된 비밀번호가 전달되어야 함
-        
-        # DB에 저장
-        db.commit()
-        db.refresh(user)
-        
-        logger.info(f"사용자 정보 수정: ID {user_id}, 수정자 {updated_by}")
-        
-        return user
-    except HTTPException:
-        # HTTP 예외는 그대로 전달
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"사용자 정보 수정 중 오류 발생: {str(e)}", exc_info=True)
-        raise e
-
-
-def update_user_status(
-    db: Session, 
-    user_id: str,
-    updated_by: str
-) -> Optional[User]:
-    """
-    사용자 상태 변경 (활성화/비활성화 토글)
-    """
-    try:
-        # 사용자 조회
-        user = get_user_by_id(db, user_id)
-        
-        if not user:
-            return None
-            
-        # 상태 토글 (ACTIVE <-> INACTIVE)
-        user.user_status = "INACTIVE" if user.user_status == "ACTIVE" else "ACTIVE"
-        user.updated_at = datetime.now()
-        user.updated_by = updated_by
-        
-        # DB에 저장
-        db.commit()
-        db.refresh(user)
-        
-        logger.info(f"사용자 상태 변경: ID {user_id}, 상태 {user.user_status}, 수정자 {updated_by}")
-        
-        return user
-    except Exception as e:
-        db.rollback()
-        logger.error(f"사용자 상태 변경 중 오류 발생: {str(e)}", exc_info=True)
-        raise e
-
-
-def reset_user_password(
-    db: Session, 
-    user_id: str,
-    new_password: str,
-    updated_by: str
+    user_id: str
 ) -> bool:
     """
-    사용자 비밀번호 초기화
+    사용자 삭제
     """
     try:
         # 사용자 조회
-        user = get_user_by_id(db, user_id)
+        user = db.query(User).filter(User.user_id == user_id).first()
         
         if not user:
             return False
             
-        # 비밀번호 초기화
-        user.user_password = new_password  # 해시된 비밀번호가 전달되어야 함
-        user.updated_at = datetime.now()
-        user.updated_by = updated_by
-        
-        # DB에 저장
+        # DB에서 삭제
+        db.delete(user)
         db.commit()
         
-        logger.info(f"사용자 비밀번호 초기화: ID {user_id}, 수정자 {updated_by}")
+        logger.info(f"사용자 삭제: ID {user_id}")
         
         return True
     except Exception as e:
         db.rollback()
-        logger.error(f"사용자 비밀번호 초기화 중 오류 발생: {str(e)}", exc_info=True)
+        logger.error(f"사용자 삭제 중 오류 발생: {str(e)}", exc_info=True)
+        raise e
+
+
+def update_user_role(
+    db: Session, 
+    user_id: str,
+    user_role: str
+) -> bool:
+    """
+    사용자 권한 변경
+    """
+    try:
+        # 사용자 조회
+        user = db.query(User).filter(User.user_id == user_id).first()
+        
+        if not user:
+            return False
+            
+        # 권한 변경
+        user.user_role = user_role
+        db.commit()
+        
+        logger.info(f"사용자 권한 변경: ID {user_id}, 새 권한 {user_role}")
+        
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"사용자 권한 변경 중 오류 발생: {str(e)}", exc_info=True)
         raise e

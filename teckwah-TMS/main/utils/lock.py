@@ -35,7 +35,7 @@ def acquire_lock(
         # 락 정보 조회 쿼리 생성
         query = text(
             f"""
-        SELECT is_locked, updated_by, updated_at 
+        SELECT is_locked, update_by, update_at 
         FROM {table_name} 
         WHERE {table_name}_id = :row_id
         """
@@ -110,7 +110,7 @@ def release_lock(
         # 락 정보 조회 쿼리 생성
         query = text(
             f"""
-        SELECT is_locked, updated_by 
+        SELECT is_locked, update_by 
         FROM {table_name} 
         WHERE {table_name}_id = :row_id
         """
@@ -174,7 +174,7 @@ def check_lock_status(
         # 락 정보 조회 쿼리 생성
         query = text(
             f"""
-        SELECT is_locked, updated_by, updated_at 
+        SELECT is_locked, update_by, update_at 
         FROM {table_name} 
         WHERE {table_name}_id = :row_id
         """
@@ -242,7 +242,7 @@ def release_expired_locks(db: Session) -> int:
             UPDATE {table}
             SET is_locked = False
             WHERE is_locked = True
-            AND updated_at < :lock_timeout
+            AND update_at < :lock_timeout
             """
             )
 
@@ -287,8 +287,8 @@ def _update_lock(
     try:
         update_data = {
             "is_locked": lock_status,
-            "updated_by": user_id if lock_status else None,
-            "updated_at": datetime.now() if lock_status else None,
+            "update_by": user_id if lock_status else None,
+            "update_at": datetime.now() if lock_status else None,
         }
 
         # 락 업데이트 쿼리 생성
@@ -322,7 +322,7 @@ def _update_lock(
 
         if lock_status:
             result.update(
-                {"locked_by": user_id, "locked_at": update_data["updated_at"]}
+                {"locked_by": user_id, "locked_at": update_data["update_at"]}
             )
 
         return True, result

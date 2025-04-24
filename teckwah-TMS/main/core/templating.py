@@ -1,5 +1,6 @@
 from fastapi.templating import Jinja2Templates
 import os
+from datetime import datetime
 
 # 템플릿 디렉토리 경로 설정 (main 폴더 기준)
 # Docker 환경(/app/main/templates)과 로컬 환경 모두 고려
@@ -26,4 +27,23 @@ try:
 except Exception as e:
     print(f"[Templating] Error checking template directory: {e}")
 
+# Jinja2Templates 인스턴스 생성
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
+
+# 커스텀 템플릿 필터 추가
+def datetime_format(value, format="%Y-%m-%d %H:%M"):
+    """날짜/시간 포맷팅 필터"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            return value
+    return value.strftime(format)
+
+# 템플릿에 필터 등록
+templates.env.filters["datetime"] = datetime_format
+
+# 디버깅용 메시지
+print(f"[Templating] 템플릿 필터 등록 완료: {list(templates.env.filters.keys())}")

@@ -22,15 +22,15 @@ class HandoverUpdate(HandoverBase):
 
 class HandoverResponse(HandoverBase):
     """인수인계 응답 스키마"""
-    id: int = Field(..., description="인수인계 ID")
-    writer_id: str = Field(..., description="작성자 ID")
-    writer: str = Field(..., description="작성자 이름")
-    created_at: datetime = Field(..., description="생성 일시")
-    updated_at: Optional[datetime] = Field(None, description="수정 일시")
-    updated_by: Optional[str] = Field(None, description="수정자 ID")
+    id: int = Field(..., description="인수인계 ID", alias="handover_id")
+    writer_id: str = Field(..., description="작성자 ID", alias="update_by")
+    created_at: datetime = Field(..., description="생성 일시", alias="create_at")
+    updated_at: Optional[datetime] = Field(None, description="수정 일시", alias="update_at")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
+        allow_population_by_field_name = True
         
 class HandoverDeleteResponse(BaseModel):
     """인수인계 삭제 응답 스키마"""

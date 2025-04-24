@@ -5,13 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}TeckWahKRTMS{% endblock %}</title>
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon" />
+    <!-- 공통 스타일 및 폰트 -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+    
+    <!-- 공통 CSS 파일 (항상 먼저 로드) -->
+    <link rel="stylesheet" href="/static/css/common.css" />
     <link rel="stylesheet" href="/static/css/main.css" />
     <link rel="stylesheet" href="/static/css/layout.css" />
     <link rel="stylesheet" href="/static/css/modal.css" />
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-      rel="stylesheet"
-    />
+    
+    <!-- 추가 CSS 블록 (페이지별 특화 스타일) -->
     {% block extra_css %}{% endblock %}
   </head>
   <body>
@@ -26,9 +30,20 @@
       </div>
     </div>
 
+    <!-- 전역 알림 컨테이너 -->
+    <div id="alertContainer" class="alert-container"></div>
+    
+    <!-- 로딩 오버레이 -->
+    <div class="loading-overlay">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
     <!-- 공통 스크립트 포함 -->
     {% include "partials/common_scripts.html" %}
-    <!-- 스크립트 로더 - 페이지에 필요한 스크립트를 동적으로 로드 -->
+    
+    <!-- 페이지별 추가 스크립트 -->
     <script src="/static/js/script-loader.js"></script>
     <script src="/static/js/main.js"></script>
     {% block extra_js %}{% endblock %}

@@ -249,13 +249,7 @@ endblock %} {% block extra_css %}
         type="button"
         class="pagination-btn"
         id="prevPageBtn"
-        {%
-        if
-        pagination.current
-        <="1"
-        %}disabled{%
-        endif
-        %}
+        {% if pagination.current|int <= 1 %}disabled{% endif %}
       >
         <i class="fas fa-chevron-left"></i>
       </button>
@@ -267,9 +261,7 @@ endblock %} {% block extra_css %}
         type="button"
         class="pagination-btn"
         id="nextPageBtn"
-        {%
-        if
-        pagination.current >= pagination.total_pages %}disabled{% endif %}>
+        {% if pagination.current|int >= pagination.total_pages|int %}disabled{% endif %}>
         <i class="fas fa-chevron-right"></i>
       </button>
     </div>
