@@ -1,255 +1,311 @@
 /**
- * 페이지네이션 관련 공통 기능
+ * 페이지네이션 관리 모듈
+ * CSR 기반 페이지네이션 처리
  */
-
-/**
- * 페이지네이션 초기화
- * @param {string} containerId - 페이지네이션 컨테이너 ID
- * @param {number} currentPage - 현재 페이지 번호
- * @param {number} totalPages - 전체 페이지 수
- * @param {Function} onPageChange - 페이지 변경 시 실행할 콜백 함수
- * @param {Object} options - 추가 옵션
- */
-function initPagination(containerId, currentPage, totalPages, onPageChange, options = {}) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  
-  // 옵션 기본값 설정
-  const defaultOptions = {
-    maxPageButtons: 5,
-    showFirstLast: true,
-    showPrevNext: true,
-    showPageInfo: true,
-    prevText: '<i class="fas fa-chevron-left"></i>',
-    nextText: '<i class="fas fa-chevron-right"></i>',
-    firstText: '<i class="fas fa-angle-double-left"></i>',
-    lastText: '<i class="fas fa-angle-double-right"></i>',
-    pageInfoTemplate: '총 ${total}개 항목 중 ${start}-${end} 표시',
-    ellipsisText: '...'
-  };
-  
-  const config = { ...defaultOptions, ...options };
-  
-  // 페이지 정보 설정
-  const currentPageNumber = parseInt(currentPage) || 1;
-  const totalPagesNumber = parseInt(totalPages) || 1;
-  
-  // 페이지 정보 표시
-  if (config.showPageInfo) {
-    const infoContainer = container.querySelector('.pagination-info');
-    if (infoContainer) {
-      const pageSize = options.pageSize || 10;
-      const total = options.total || 0;
-      const start = total > 0 ? (currentPageNumber - 1) * pageSize + 1 : 0;
-      const end = Math.min(start + pageSize - 1, total);
-      
-      infoContainer.textContent = config.pageInfoTemplate
-        .replace('${total}', total)
-        .replace('${start}', start)
-        .replace('${end}', end);
-    }
-  }
-  
-  // 페이지 번호 컨테이너
-  const pageNumberContainer = container.querySelector('.page-number-container');
-  if (!pageNumberContainer) return;
-  
-  // 기존 내용 제거
-  pageNumberContainer.innerHTML = '';
-  
-  // 이전 버튼
-  const prevBtn = container.querySelector('#prevPageBtn');
-  if (prevBtn) {
-    prevBtn.disabled = currentPageNumber <= 1;
-    prevBtn.onclick = function() {
-      if (currentPageNumber > 1) {
-        onPageChange(currentPageNumber - 1);
-      }
-    };
-  }
-  
-  // 다음 버튼
-  const nextBtn = container.querySelector('#nextPageBtn');
-  if (nextBtn) {
-    nextBtn.disabled = currentPageNumber >= totalPagesNumber;
-    nextBtn.onclick = function() {
-      if (currentPageNumber < totalPagesNumber) {
-        onPageChange(currentPageNumber + 1);
-      }
-    };
-  }
-  
-  // 페이지 번호 버튼 생성
-  renderPageNumbers(
-    pageNumberContainer,
-    currentPageNumber,
-    totalPagesNumber,
-    onPageChange,
-    config
-  );
-}
-
-/**
- * 페이지 번호 버튼 렌더링
- * @param {HTMLElement} container - 페이지 번호 버튼 컨테이너
- * @param {number} currentPage - 현재 페이지 번호
- * @param {number} totalPages - 전체 페이지 수
- * @param {Function} onPageChange - 페이지 변경 시 실행할 콜백 함수
- * @param {Object} config - 설정 옵션
- */
-function renderPageNumbers(container, currentPage, totalPages, onPageChange, config) {
-  // 보여줄 페이지 버튼 범위 계산
-  const maxPageButtons = config.maxPageButtons;
-  let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
-  let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-  
-  // 페이지 범위 조정
-  if (endPage - startPage + 1 < maxPageButtons) {
-    startPage = Math.max(1, endPage - maxPageButtons + 1);
-  }
-  
-  // 첫 페이지 버튼
-  if (config.showFirstLast && startPage > 1) {
-    const firstBtn = createPageButton('first', 1, currentPage === 1, config.firstText, onPageChange);
-    container.appendChild(firstBtn);
-    
-    // 첫 페이지와 시작 페이지 사이에 간격이 있으면 줄임표 추가
-    if (startPage > 2) {
-      const ellipsis = document.createElement('span');
-      ellipsis.className = 'page-ellipsis';
-      ellipsis.innerHTML = config.ellipsisText;
-      container.appendChild(ellipsis);
-    }
-  }
-  
-  // 페이지 번호 버튼
-  for (let i = startPage; i <= endPage; i++) {
-    const pageBtn = createPageButton('number', i, currentPage === i, i, onPageChange);
-    container.appendChild(pageBtn);
-  }
-  
-  // 마지막 페이지 버튼
-  if (config.showFirstLast && endPage < totalPages) {
-    // 마지막 페이지와 끝 페이지 사이에 간격이 있으면 줄임표 추가
-    if (endPage < totalPages - 1) {
-      const ellipsis = document.createElement('span');
-      ellipsis.className = 'page-ellipsis';
-      ellipsis.innerHTML = config.ellipsisText;
-      container.appendChild(ellipsis);
-    }
-    
-    const lastBtn = createPageButton('last', totalPages, currentPage === totalPages, config.lastText, onPageChange);
-    container.appendChild(lastBtn);
-  }
-}
-
-/**
- * 페이지 버튼 생성
- * @param {string} type - 버튼 타입 ('first', 'prev', 'number', 'next', 'last')
- * @param {number} pageNum - 페이지 번호
- * @param {boolean} isActive - 활성화 여부
- * @param {string|number} text - 버튼 텍스트
- * @param {Function} onPageChange - 페이지 변경 시 실행할 콜백 함수
- * @returns {HTMLElement} 생성된 버튼 요소
- */
-function createPageButton(type, pageNum, isActive, text, onPageChange) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `page-${type}-btn` + (isActive ? ' active' : '');
-  button.innerHTML = text;
-  button.setAttribute('aria-label', `Page ${pageNum}`);
-  
-  if (!isActive) {
-    button.addEventListener('click', function() {
-      onPageChange(pageNum);
-    });
-  }
-  
-  return button;
-}
-
-/**
- * URL 기반 페이지네이션 핸들러
- * @param {number} page - 이동할 페이지 번호
- */
-function handleUrlPagination(page) {
-  const url = new URL(window.location.href);
-  url.searchParams.set('page', page);
-  window.location.href = url.toString();
-}
-
-/**
- * AJAX 기반 페이지네이션 핸들러
- * @param {string} url - 데이터 요청 URL
- * @param {number} page - 요청할 페이지 번호
- * @param {Function} onSuccess - 성공 시 실행할 콜백 함수
- * @param {Function} onError - 오류 시 실행할 콜백 함수
- */
-async function handleAjaxPagination(url, page, onSuccess, onError) {
-  try {
-    // URL에 페이지 파라미터 추가
-    const requestUrl = new URL(url, window.location.origin);
-    requestUrl.searchParams.set('page', page);
-    
-    // 데이터 요청
-    const response = await fetch(requestUrl.toString(), {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
-    
-    const result = await response.json();
-    
-    if (result.success) {
-      // 성공 시 콜백 실행
-      if (onSuccess) onSuccess(result.data);
-    } else {
-      // 오류 시 콜백 실행
-      if (onError) onError(result.message);
-    }
-  } catch (error) {
-    // 오류 시 콜백 실행
-    if (onError) onError(error.message);
-  }
-}
-
-// 공개 API
 window.Pagination = {
-  init: initPagination,
-  renderPageNumbers,
-  createPageButton,
-  handleUrlPagination,
-  handleAjaxPagination
-};
-
-// 문서 로드 완료 시 페이지네이션 초기화
-document.addEventListener('DOMContentLoaded', function() {
-  // 페이지네이션 컨테이너 찾기
-  const paginationContainers = document.querySelectorAll('.pagination[data-auto-init="true"]');
+  /**
+   * 현재 페이지네이션 상태
+   */
+  state: {
+    currentPage: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 1,
+    visiblePageCount: 5 // 한 번에 표시할 페이지 버튼 수
+  },
   
-  paginationContainers.forEach(container => {
-    // 데이터 속성에서 페이지네이션 정보 가져오기
-    const currentPage = parseInt(container.getAttribute('data-current-page')) || 1;
-    const totalPages = parseInt(container.getAttribute('data-total-pages')) || 1;
-    const useAjax = container.getAttribute('data-use-ajax') === 'true';
-    const ajaxUrl = container.getAttribute('data-ajax-url');
-    const containerId = container.id;
+  /**
+   * 콜백 함수들
+   */
+  callbacks: {
+    onPageChange: null, // 페이지 변경 시 호출될 콜백
+    onPageSizeChange: null // 페이지 크기 변경 시 호출될 콜백
+  },
+  
+  /**
+   * 페이지네이션을 초기화합니다.
+   * @param {Object} options - 초기화 옵션
+   * @param {number} options.currentPage - 현재 페이지
+   * @param {number} options.pageSize - 페이지 크기
+   * @param {number} options.totalItems - 전체 항목 수
+   * @param {Function} options.onPageChange - 페이지 변경 콜백
+   * @param {Function} options.onPageSizeChange - 페이지 크기 변경 콜백
+   */
+  init: function(options = {}) {
+    // 상태 초기화
+    this.state.currentPage = options.currentPage || parseInt(Utils.getUrlParam('page', '1'));
+    this.state.pageSize = options.pageSize || parseInt(Utils.getFromStorage('pageSize', '10'));
+    this.state.totalItems = options.totalItems || 0;
     
-    if (containerId) {
-      // 페이지 변경 핸들러
-      const onPageChange = useAjax
-        ? (page) => {
-            const callback = window[container.getAttribute('data-ajax-callback')];
-            if (typeof callback === 'function') {
-              handleAjaxPagination(ajaxUrl, page, callback);
-            }
-          }
-        : handleUrlPagination;
-      
-      // 페이지네이션 초기화
-      initPagination(containerId, currentPage, totalPages, onPageChange);
+    // 콜백 설정
+    this.callbacks.onPageChange = options.onPageChange || null;
+    this.callbacks.onPageSizeChange = options.onPageSizeChange || null;
+    
+    // 총 페이지 수 계산
+    this.updateTotalPages();
+    
+    // 이벤트 리스너 설정
+    this.setupEventListeners();
+    
+    // UI 업데이트
+    this.renderPagination();
+    this.updatePageInfo();
+  },
+  
+  /**
+   * 이벤트 리스너를 설정합니다.
+   */
+  setupEventListeners: function() {
+    // 이전 페이지 버튼
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    if (prevPageBtn) {
+      prevPageBtn.addEventListener('click', () => {
+        if (this.state.currentPage > 1) {
+          this.goToPage(this.state.currentPage - 1);
+        }
+      });
     }
-  });
-});
+    
+    // 다음 페이지 버튼
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    if (nextPageBtn) {
+      nextPageBtn.addEventListener('click', () => {
+        if (this.state.currentPage < this.state.totalPages) {
+          this.goToPage(this.state.currentPage + 1);
+        }
+      });
+    }
+    
+    // 페이지 크기 선택
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    if (pageSizeSelect) {
+      // 저장된 페이지 크기로 초기화
+      pageSizeSelect.value = this.state.pageSize.toString();
+      
+      pageSizeSelect.addEventListener('change', () => {
+        const newPageSize = parseInt(pageSizeSelect.value);
+        this.changePageSize(newPageSize);
+      });
+    }
+    
+    // 페이지 번호 클릭 이벤트 위임
+    const pageNumberContainer = document.getElementById('pageNumberContainer');
+    if (pageNumberContainer) {
+      pageNumberContainer.addEventListener('click', (event) => {
+        const pageButton = event.target.closest('.page-number');
+        if (pageButton) {
+          const page = parseInt(pageButton.dataset.page);
+          if (!isNaN(page)) {
+            this.goToPage(page);
+          }
+        }
+      });
+    }
+  },
+  
+  /**
+   * 특정 페이지로 이동합니다.
+   * @param {number} page - 이동할 페이지 번호
+   */
+  goToPage: function(page) {
+    if (page < 1 || page > this.state.totalPages || page === this.state.currentPage) {
+      return;
+    }
+    
+    this.state.currentPage = page;
+    
+    // URL 매개변수 업데이트
+    Utils.updateUrlParams({ page: page });
+    
+    // UI 업데이트
+    this.renderPagination();
+    this.updatePageInfo();
+    
+    // 콜백 호출
+    if (typeof this.callbacks.onPageChange === 'function') {
+      this.callbacks.onPageChange(page, this.state.pageSize);
+    }
+  },
+  
+  /**
+   * 페이지 크기를 변경합니다.
+   * @param {number} pageSize - 새 페이지 크기
+   */
+  changePageSize: function(pageSize) {
+    if (pageSize === this.state.pageSize) {
+      return;
+    }
+    
+    // 페이지 크기 변경에 따른 현재 페이지 위치 조정
+    const currentFirstItem = (this.state.currentPage - 1) * this.state.pageSize + 1;
+    const newPage = Math.max(1, Math.ceil(currentFirstItem / pageSize));
+    
+    this.state.pageSize = pageSize;
+    this.state.currentPage = newPage;
+    
+    // 총 페이지 수 다시 계산
+    this.updateTotalPages();
+    
+    // URL 매개변수 및 로컬 스토리지 업데이트
+    Utils.updateUrlParams({ page: newPage });
+    Utils.saveToStorage('pageSize', pageSize);
+    
+    // UI 업데이트
+    this.renderPagination();
+    this.updatePageInfo();
+    
+    // 콜백 호출
+    if (typeof this.callbacks.onPageSizeChange === 'function') {
+      this.callbacks.onPageSizeChange(pageSize);
+    }
+  },
+  
+  /**
+   * 새 데이터로 페이지네이션을 업데이트합니다.
+   * @param {number} totalItems - 전체 항목 수
+   * @param {number} currentPage - 현재 페이지 (선택 사항)
+   */
+  update: function(totalItems, currentPage = null) {
+    this.state.totalItems = totalItems;
+    
+    if (currentPage !== null) {
+      this.state.currentPage = currentPage;
+    }
+    
+    // 총 페이지 수 다시 계산
+    this.updateTotalPages();
+    
+    // UI 업데이트
+    this.renderPagination();
+    this.updatePageInfo();
+  },
+  
+  /**
+   * 총 페이지 수를 계산합니다.
+   */
+  updateTotalPages: function() {
+    this.state.totalPages = Math.max(1, Math.ceil(this.state.totalItems / this.state.pageSize));
+    
+    // 현재 페이지가 총 페이지 수를 초과하면 조정
+    if (this.state.currentPage > this.state.totalPages) {
+      this.state.currentPage = this.state.totalPages;
+    }
+  },
+  
+  /**
+   * 페이지 번호 버튼을 렌더링합니다.
+   */
+  renderPagination: function() {
+    const pageNumberContainer = document.getElementById('pageNumberContainer');
+    if (!pageNumberContainer) return;
+    
+    // 컨테이너 초기화
+    pageNumberContainer.innerHTML = '';
+    
+    // 표시할 페이지 범위 계산
+    const visiblePageCount = this.state.visiblePageCount;
+    let startPage = Math.max(1, this.state.currentPage - Math.floor(visiblePageCount / 2));
+    let endPage = Math.min(this.state.totalPages, startPage + visiblePageCount - 1);
+    
+    // 시작 페이지 조정
+    if (endPage - startPage + 1 < visiblePageCount) {
+      startPage = Math.max(1, endPage - visiblePageCount + 1);
+    }
+    
+    // 첫 페이지 버튼 (1이 표시되지 않은 경우)
+    if (startPage > 1) {
+      const firstPageBtn = document.createElement('button');
+      firstPageBtn.type = 'button';
+      firstPageBtn.className = 'page-number';
+      firstPageBtn.dataset.page = '1';
+      firstPageBtn.textContent = '1';
+      pageNumberContainer.appendChild(firstPageBtn);
+      
+      // 처음 페이지와 시작 페이지 사이에 간격이 클 경우 '...' 추가
+      if (startPage > 2) {
+        const ellipsis = document.createElement('span');
+        ellipsis.className = 'page-ellipsis';
+        ellipsis.innerHTML = '&hellip;';
+        pageNumberContainer.appendChild(ellipsis);
+      }
+    }
+    
+    // 페이지 번호 버튼 생성
+    for (let i = startPage; i <= endPage; i++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.type = 'button';
+      pageBtn.className = 'page-number';
+      if (i === this.state.currentPage) {
+        pageBtn.classList.add('active');
+      }
+      pageBtn.dataset.page = i.toString();
+      pageBtn.textContent = i.toString();
+      pageNumberContainer.appendChild(pageBtn);
+    }
+    
+    // 마지막 페이지 버튼 (마지막 페이지가 표시되지 않은 경우)
+    if (endPage < this.state.totalPages) {
+      // 마지막 페이지와 엔드 페이지 사이에 간격이 클 경우 '...' 추가
+      if (endPage < this.state.totalPages - 1) {
+        const ellipsis = document.createElement('span');
+        ellipsis.className = 'page-ellipsis';
+        ellipsis.innerHTML = '&hellip;';
+        pageNumberContainer.appendChild(ellipsis);
+      }
+      
+      const lastPageBtn = document.createElement('button');
+      lastPageBtn.type = 'button';
+      lastPageBtn.className = 'page-number';
+      lastPageBtn.dataset.page = this.state.totalPages.toString();
+      lastPageBtn.textContent = this.state.totalPages.toString();
+      pageNumberContainer.appendChild(lastPageBtn);
+    }
+    
+    // 이전/다음 버튼 활성화 상태 업데이트
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    
+    if (prevPageBtn) {
+      prevPageBtn.disabled = this.state.currentPage <= 1;
+    }
+    
+    if (nextPageBtn) {
+      nextPageBtn.disabled = this.state.currentPage >= this.state.totalPages;
+    }
+  },
+  
+  /**
+   * 페이지 정보를 업데이트합니다.
+   */
+  updatePageInfo: function() {
+    const paginationInfo = document.querySelector('.pagination-info');
+    if (!paginationInfo) return;
+    
+    // 데이터가 없는 경우
+    if (this.state.totalItems === 0) {
+      paginationInfo.textContent = '데이터가 없습니다';
+      return;
+    }
+    
+    // 현재 페이지의 시작 항목 인덱스
+    const startIndex = (this.state.currentPage - 1) * this.state.pageSize + 1;
+    
+    // 현재 페이지의 마지막 항목 인덱스
+    const endIndex = Math.min(startIndex + this.state.pageSize - 1, this.state.totalItems);
+    
+    // 페이지 정보 업데이트
+    paginationInfo.textContent = `총 ${this.state.totalItems}개 항목 중 ${startIndex}-${endIndex} 표시`;
+    
+    // 데이터 속성 업데이트
+    paginationInfo.dataset.total = this.state.totalItems;
+    paginationInfo.dataset.totalPages = this.state.totalPages;
+  },
+  
+  /**
+   * 현재 페이지네이션 상태를 반환합니다.
+   * @returns {Object} - 페이지네이션 상태
+   */
+  getState: function() {
+    return { ...this.state };
+  }
+};

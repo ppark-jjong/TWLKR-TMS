@@ -1,431 +1,220 @@
 /**
- * API 통신 관련 공통 함수
- * 모든 페이지에서 일관된 API 호출 인터페이스를 제공합니다.
+ * API 통신 모듈
+ * 서버와의 HTTP 통신을 처리하는 공통 유틸리티
  */
-
-// API 요청 기본 설정
-// 중복 선언 방지를 위해 window 객체에 저장
-if (typeof window.API_CONFIG === 'undefined') {
-  window.API_CONFIG = {
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    credentials: 'include'
-  };
-}
-const API_CONFIG = window.API_CONFIG;
-
-/**
- * API 요청 래퍼 함수
- * @param {string} url - API 엔드포인트 URL
- * @param {Object} options - fetch 옵션
- * @param {boolean} showLoadingIndicator - 로딩 인디케이터 표시 여부
- * @returns {Promise<Object>} 응답 데이터
- */
-async function fetchAPI(url, options = {}, showLoadingIndicator = true) {
-  try {
-    // 기본 설정과 사용자 지정 옵션 병합
-    const fetchOptions = {
-      ...API_CONFIG,
-      ...options,
-      headers: {
-        ...API_CONFIG.headers,
-        ...(options.headers || {})
+window.API = {
+  /**
+   * HTTP GET 요청을 보냅니다.
+   * @param {string} url - 요청 URL
+   * @param {Object} params - 쿼리 매개변수 객체
+   * @param {boolean} showLoading - 로딩 표시 여부
+   * @returns {Promise<Object>} - 응답 데이터
+   */
+  get: async function(url, params = {}, showLoading = true) {
+    try {
+      if (showLoading) Utils.toggleLoading(true);
+      
+      // URL에 쿼리 매개변수 추가
+      const queryUrl = new URL(url, window.location.origin);
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          queryUrl.searchParams.append(key, value);
+        }
+      });
+      
+      const response = await fetch(queryUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      return await this._handleResponse(response);
+    } catch (error) {
+      return this._handleError(error);
+    } finally {
+      if (showLoading) Utils.toggleLoading(false);
+    }
+  },
+  
+  /**
+   * HTTP POST 요청을 보냅니다.
+   * @param {string} url - 요청 URL
+   * @param {Object} data - 요청 본문 데이터
+   * @param {boolean} showLoading - 로딩 표시 여부
+   * @returns {Promise<Object>} - 응답 데이터
+   */
+  post: async function(url, data = {}, showLoading = true) {
+    try {
+      if (showLoading) Utils.toggleLoading(true);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+      
+      return await this._handleResponse(response);
+    } catch (error) {
+      return this._handleError(error);
+    } finally {
+      if (showLoading) Utils.toggleLoading(false);
+    }
+  },
+  
+  /**
+   * HTTP PUT 요청을 보냅니다.
+   * @param {string} url - 요청 URL
+   * @param {Object} data - 요청 본문 데이터
+   * @param {boolean} showLoading - 로딩 표시 여부
+   * @returns {Promise<Object>} - 응답 데이터
+   */
+  put: async function(url, data = {}, showLoading = true) {
+    try {
+      if (showLoading) Utils.toggleLoading(true);
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+      
+      return await this._handleResponse(response);
+    } catch (error) {
+      return this._handleError(error);
+    } finally {
+      if (showLoading) Utils.toggleLoading(false);
+    }
+  },
+  
+  /**
+   * HTTP DELETE 요청을 보냅니다.
+   * @param {string} url - 요청 URL
+   * @param {Object} data - 요청 본문 데이터
+   * @param {boolean} showLoading - 로딩 표시 여부
+   * @returns {Promise<Object>} - 응답 데이터
+   */
+  delete: async function(url, data = {}, showLoading = true) {
+    try {
+      if (showLoading) Utils.toggleLoading(true);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+      
+      return await this._handleResponse(response);
+    } catch (error) {
+      return this._handleError(error);
+    } finally {
+      if (showLoading) Utils.toggleLoading(false);
+    }
+  },
+  
+  /**
+   * 응답을 처리합니다.
+   * @param {Response} response - fetch API 응답 객체
+   * @returns {Promise<Object>} - 처리된 응답 데이터
+   * @private
+   */
+  _handleResponse: async function(response) {
+    // 인증 오류 확인 (401 Unauthorized)
+    if (response.status === 401) {
+      // 세션 만료 이벤트 발생
+      const unauthorizedEvent = new Event('UnauthorizedError');
+      document.dispatchEvent(unauthorizedEvent);
+      
+      // 로그인 페이지로 리다이렉트
+      if (window.Auth) {
+        Auth.redirectToLogin('session_expired');
+      } else {
+        window.location.href = '/auth/login?reason=session_expired';
       }
-    };
-    
-    // 요청 전 로딩 표시
-    if (showLoadingIndicator && window.Utils) {
-      window.Utils.showLoading(true);
-    } else {
-      document.body.classList.add('api-loading');
+      
+      throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
     }
     
-    // API 요청 실행
-    const response = await fetch(url, fetchOptions);
-    
-    // 응답 상태 확인
-    if (!response.ok) {
-      throw new Error(`HTTP 오류! 상태: ${response.status}`);
+    // 세션 만료 확인 (리다이렉트 응답)
+    if (response.redirected) {
+      const redirectUrl = new URL(response.url);
+      
+      // 로그인 페이지로 리다이렉트된 경우
+      if (redirectUrl.pathname.includes('/auth/login')) {
+        // 세션 만료 이벤트 발생
+        const unauthorizedEvent = new Event('UnauthorizedError');
+        document.dispatchEvent(unauthorizedEvent);
+        
+        // 로그인 페이지로 리다이렉트
+        if (window.Auth) {
+          Auth.redirectToLogin('session_expired');
+        } else {
+          window.location.href = '/auth/login?reason=session_expired';
+        }
+        
+        throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+      }
     }
     
     // JSON 응답 파싱
-    const result = await response.json();
-    
-    // 요청 완료 후 로딩 표시 제거
-    if (showLoadingIndicator && window.Utils) {
-      window.Utils.showLoading(false);
-    } else {
-      document.body.classList.remove('api-loading');
+    let result;
+    try {
+      result = await response.json();
+    } catch (error) {
+      console.error('JSON 파싱 오류:', error);
+      
+      // 텍스트 응답 시도
+      const text = await response.text();
+      throw new Error(`응답 처리 중 오류가 발생했습니다. 서버 응답: ${text}`);
     }
     
-    // 응답이 표준 형식을 따르는지 확인
-    if (result && typeof result === 'object' && !result.hasOwnProperty('success')) {
-      // 표준 형식이 아닌 경우 표준 형식으로 변환
-      return {
-        success: true,
-        data: result
-      };
+    // 응답 상태코드 확인
+    if (!response.ok) {
+      const message = result.message || `HTTP 오류 ${response.status}: ${response.statusText}`;
+      const error = new Error(message);
+      error.response = response;
+      error.data = result;
+      throw error;
     }
     
     return result;
-  } catch (error) {
-    // 요청 완료 후 로딩 표시 제거
-    if (showLoadingIndicator && window.Utils) {
-      window.Utils.showLoading(false);
-    } else {
-      document.body.classList.remove('api-loading');
-    }
+  },
+  
+  /**
+   * 오류를 처리하고 적절한 응답을 반환합니다.
+   * @param {Error} error - 발생한 오류
+   * @returns {Promise<Object>} - 오류 응답 객체
+   * @private
+   */
+  _handleError: function(error) {
+    console.error('API 오류:', error);
     
-    console.error('API 요청 오류:', error);
+    // UI에 오류 표시
+    Utils.showAlert(error.message || '서버 통신 중 오류가 발생했습니다.', 'error');
     
-    // 오류 발생 시 알림 표시
-    if (window.Utils) {
-      window.Utils.showAlert('서버 통신 중 오류가 발생했습니다: ' + error.message, 'error');
-    }
-    
-    return {
+    // 표준 오류 응답 형식 반환
+    return Promise.resolve({
       success: false,
-      message: '서버 통신 중 오류가 발생했습니다',
-      error: error.message
-    };
-  }
-}
-
-/**
- * GET 요청
- * @param {string} url - API 엔드포인트 URL
- * @param {Object} params - URL 파라미터 (객체 형태)
- * @param {boolean} showLoadingIndicator - 로딩 인디케이터 표시 여부
- * @returns {Promise<Object>} 응답 데이터
- */
-async function get(url, params = null, showLoadingIndicator = true) {
-  // URL 파라미터가 있는 경우 URL에 추가
-  if (params) {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        queryParams.append(key, value);
-      }
+      error_code: error.code || 'UNKNOWN_ERROR',
+      message: error.message || '알 수 없는 오류가 발생했습니다.'
     });
-    
-    const queryString = queryParams.toString();
-    if (queryString) {
-      url = `${url}${url.includes('?') ? '&' : '?'}${queryString}`;
-    }
   }
-  
-  return fetchAPI(url, { method: 'GET' }, showLoadingIndicator);
-}
-
-/**
- * POST 요청
- * @param {string} url - API 엔드포인트 URL
- * @param {Object} data - 요청 본문 데이터 (객체 형태)
- * @param {boolean} showLoadingIndicator - 로딩 인디케이터 표시 여부
- * @returns {Promise<Object>} 응답 데이터
- */
-async function post(url, data = null, showLoadingIndicator = true) {
-  const options = {
-    method: 'POST'
-  };
-  
-  if (data) {
-    options.body = JSON.stringify(data);
-  }
-  
-  return fetchAPI(url, options, showLoadingIndicator);
-}
-
-/**
- * PUT 요청
- * @param {string} url - API 엔드포인트 URL
- * @param {Object} data - 요청 본문 데이터 (객체 형태)
- * @param {boolean} showLoadingIndicator - 로딩 인디케이터 표시 여부
- * @returns {Promise<Object>} 응답 데이터
- */
-async function put(url, data = null, showLoadingIndicator = true) {
-  const options = {
-    method: 'PUT'
-  };
-  
-  if (data) {
-    options.body = JSON.stringify(data);
-  }
-  
-  return fetchAPI(url, options, showLoadingIndicator);
-}
-
-/**
- * DELETE 요청
- * @param {string} url - API 엔드포인트 URL
- * @param {Object} data - 요청 본문 데이터 (객체 형태)
- * @param {boolean} showLoadingIndicator - 로딩 인디케이터 표시 여부
- * @returns {Promise<Object>} 응답 데이터
- */
-async function del(url, data = null, showLoadingIndicator = true) {
-  const options = {
-    method: 'DELETE'
-  };
-  
-  if (data) {
-    options.body = JSON.stringify(data);
-  }
-  
-  return fetchAPI(url, options, showLoadingIndicator);
-}
-
-// 도메인별 API 함수
-
-/**
- * 주문 상세 정보 조회
- * @param {number} orderId - 주문 ID
- * @returns {Promise<Object>} 주문 상세 정보
- */
-async function getOrderDetail(orderId) {
-  const result = await get(`/dashboard/orders/${orderId}`);
-  
-  if (!result.success) {
-    throw new Error(result.message || '주문 정보를 불러올 수 없습니다.');
-  }
-  
-  return result.data || result;
-}
-
-/**
- * 주문 락 획득
- * @param {number} orderId - 주문 ID
- * @returns {Promise<Object>} 락 획득 결과
- */
-async function lockOrder(orderId) {
-  return get(`/dashboard/lock/${orderId}`);
-}
-
-/**
- * 주문 락 해제
- * @param {number} orderId - 주문 ID
- * @returns {Promise<Object>} 락 해제 결과
- */
-async function unlockOrder(orderId) {
-  return get(`/dashboard/unlock/${orderId}`);
-}
-
-/**
- * 주문 생성
- * @param {Object} orderData - 주문 데이터
- * @returns {Promise<Object>} 생성 결과
- */
-async function createOrder(orderData) {
-  return post('/dashboard/orders', orderData);
-}
-
-/**
- * 주문 수정
- * @param {number} orderId - 주문 ID
- * @param {Object} orderData - 수정할 주문 데이터
- * @returns {Promise<Object>} 수정 결과
- */
-async function updateOrder(orderId, orderData) {
-  return put(`/dashboard/orders/${orderId}`, orderData);
-}
-
-/**
- * 주문 삭제
- * @param {Array<number>} orderIds - 삭제할 주문 ID 배열
- * @returns {Promise<Object>} 삭제 결과
- */
-async function deleteOrders(orderIds) {
-  return post('/dashboard/delete', { ids: orderIds });
-}
-
-/**
- * 주문 상태 변경
- * @param {Array<number>} orderIds - 변경할 주문 ID 배열
- * @param {string} status - 변경할 상태
- * @returns {Promise<Object>} 변경 결과
- */
-async function updateOrdersStatus(orderIds, status) {
-  return post('/dashboard/status', { ids: orderIds, status: status });
-}
-
-/**
- * 기사 배정
- * @param {Array<number>} orderIds - 배정할 주문 ID 배열
- * @param {string} driverName - 기사 이름
- * @param {string} driverContact - 기사 연락처
- * @returns {Promise<Object>} 배정 결과
- */
-async function assignDriverToOrders(orderIds, driverName, driverContact) {
-  return post('/dashboard/driver', { ids: orderIds, driver_name: driverName, driver_contact: driverContact });
-}
-
-/**
- * 사용자 상세 정보 조회
- * @param {string} userId - 사용자 ID
- * @returns {Promise<Object>} 사용자 상세 정보
- */
-async function getUserDetail(userId) {
-  return get(`/users/${userId}`);
-}
-
-/**
- * 사용자 생성
- * @param {Object} userData - 사용자 데이터
- * @returns {Promise<Object>} 생성 결과
- */
-async function createUser(userData) {
-  return post('/users', userData);
-}
-
-/**
- * 사용자 정보 수정
- * @param {string} userId - 사용자 ID
- * @param {Object} userData - 수정할 사용자 데이터
- * @returns {Promise<Object>} 수정 결과
- */
-async function updateUser(userId, userData) {
-  return put(`/users/${userId}`, userData);
-}
-
-/**
- * 사용자 비밀번호 초기화
- * @param {string} userId - 사용자 ID
- * @returns {Promise<Object>} 초기화 결과
- */
-async function resetUserPassword(userId) {
-  return post(`/users/${userId}/reset-password`);
-}
-
-/**
- * 사용자 상태 변경
- * @param {string} userId - 사용자 ID
- * @returns {Promise<Object>} 변경 결과
- */
-async function toggleUserStatus(userId) {
-  return post(`/users/${userId}/toggle-status`);
-}
-
-/**
- * 인수인계 목록 조회
- * @param {Object} params - 조회 파라미터
- * @returns {Promise<Object>} 인수인계 목록
- */
-async function getHandoverList(params = {}) {
-  return get('/handover/list', params);
-}
-
-/**
- * 인수인계 상세 조회
- * @param {number} handoverId - 인수인계 ID
- * @returns {Promise<Object>} 인수인계 상세 정보
- */
-async function getHandoverDetail(handoverId) {
-  return get(`/handover/handovers/${handoverId}`);
-}
-
-/**
- * 인수인계 생성
- * @param {Object} handoverData - 인수인계 데이터
- * @returns {Promise<Object>} 생성 결과
- */
-async function createHandover(handoverData) {
-  return post('/handover/handovers', handoverData);
-}
-
-/**
- * 인수인계 수정
- * @param {number} handoverId - 인수인계 ID
- * @param {Object} handoverData - 수정할 인수인계 데이터
- * @returns {Promise<Object>} 수정 결과
- */
-async function updateHandover(handoverId, handoverData) {
-  return put(`/handover/handovers/${handoverId}`, handoverData);
-}
-
-/**
- * 인수인계 삭제
- * @param {number} handoverId - 인수인계 ID
- * @returns {Promise<Object>} 삭제 결과
- */
-async function deleteHandover(handoverId) {
-  return del(`/handover/handovers/${handoverId}`);
-}
-
-/**
- * 시각화 요약 데이터 조회
- * @param {string} period - 기간 (today, week, month)
- * @returns {Promise<Object>} 요약 데이터
- */
-async function getVisualizationSummary(period = 'today') {
-  return get(`/visualization/summary?period=${period}`);
-}
-
-/**
- * 시간대별 데이터 조회
- * @param {string} startDate - 시작 날짜 (YYYY-MM-DD)
- * @param {string} endDate - 종료 날짜 (YYYY-MM-DD)
- * @returns {Promise<Object>} 시간대별 데이터
- */
-async function getTimeBlockData(startDate, endDate) {
-  return get(`/visualization/time-blocks?start_date=${startDate}&end_date=${endDate}`);
-}
-
-/**
- * 부서별 상태 데이터 조회
- * @param {string} startDate - 시작 날짜 (YYYY-MM-DD)
- * @param {string} endDate - 종료 날짜 (YYYY-MM-DD)
- * @returns {Promise<Object>} 부서별 상태 데이터
- */
-async function getDepartmentStatusData(startDate, endDate) {
-  return get(`/visualization/department-status?start_date=${startDate}&end_date=${endDate}`);
-}
-
-/**
- * 일별 추세 데이터 조회
- * @param {number} days - 일수
- * @returns {Promise<Object>} 일별 추세 데이터
- */
-async function getDailyTrendData(days = 7) {
-  return get(`/visualization/daily-trend?days=${days}`);
-}
-
-// 공개 API
-window.Api = {
-  // 기본 HTTP 메서드
-  get,
-  post,
-  put,
-  delete: del,
-  
-  // 대시보드 API
-  getOrderDetail,
-  lockOrder,
-  unlockOrder,
-  createOrder,
-  updateOrder,
-  deleteOrders,
-  updateOrdersStatus,
-  assignDriverToOrders,
-  
-  // 사용자 관리 API
-  getUserDetail,
-  createUser,
-  updateUser,
-  resetUserPassword,
-  toggleUserStatus,
-  
-  // 인수인계 API
-  getHandoverList,
-  getHandoverDetail,
-  createHandover,
-  updateHandover,
-  deleteHandover,
-  
-  // 시각화 API
-  getVisualizationSummary,
-  getTimeBlockData,
-  getDepartmentStatusData,
-  getDailyTrendData
 };

@@ -11,10 +11,22 @@
 <div class="dashboard-container">
   <div class="dashboard-header">
     <h1 class="dashboard-title">배송 현황 대시보드</h1>
-    <div class="date-filter">
-      <button class="date-button active" data-period="today">오늘</button>
-      <button class="date-button" data-period="week">최근 7일</button>
-      <button class="date-button" data-period="month">최근 30일</button>
+    
+    <div class="control-panel">
+      <!-- 기간 선택 -->
+      <div class="date-filter">
+        <button class="date-button active" data-period="today">오늘</button>
+        <button class="date-button" data-period="week">최근 7일</button>
+      </div>
+      
+      <!-- 그래프 유형 선택 -->
+      <div class="graph-type-selector">
+        <select id="graphTypeSelect" class="graph-type-select">
+          <option value="time-blocks" selected>시간대별 접수량</option>
+          <option value="department-status">부서별 상태 현황</option>
+        </select>
+        <button id="loadGraphBtn" class="load-graph-btn">조회</button>
+      </div>
     </div>
   </div>
 
@@ -50,29 +62,29 @@
   </div>
 
   <div class="charts-section">
-    <div class="chart-container">
-      <h2 class="chart-title">시간대별 배송 현황</h2>
+    <!-- 시간대별 접수량 그래프 (그래프 1) -->
+    <div id="timeBlockChartContainer" class="chart-container full-width">
+      <h2 class="chart-title">시간대별 접수량</h2>
       <div class="chart-wrapper">
-        <canvas id="time-chart"></canvas>
+        <canvas id="timeBlockChart"></canvas>
         <div class="loading-indicator">
           <div class="spinner"></div>
         </div>
-      </div>
-    </div>
-    <div class="chart-container">
-      <h2 class="chart-title">일별 주문 추세</h2>
-      <div class="chart-wrapper">
-        <canvas id="trend-chart"></canvas>
-        <div class="loading-indicator">
-          <div class="spinner"></div>
+        <div class="no-data-message" style="display: none;">
+          <p>해당 기간에 데이터가 없습니다.</p>
         </div>
       </div>
     </div>
-    <div class="chart-container full-width">
-      <h2 class="chart-title">부서별 배송 상태</h2>
-      <div id="department-chart" class="department-chart">
+    
+    <!-- 부서별 상태 현황 그래프 (그래프 2) - 초기에는 숨김 -->
+    <div id="departmentStatusChartContainer" class="chart-container full-width" style="display: none;">
+      <h2 class="chart-title">부서별 상태 현황</h2>
+      <div id="departmentStatusChart" class="pie-charts-container">
         <div class="loading-indicator">
           <div class="spinner"></div>
+        </div>
+        <div class="no-data-message" style="display: none;">
+          <p>해당 기간에 데이터가 없습니다.</p>
         </div>
       </div>
     </div>
@@ -82,5 +94,4 @@
 
 {% block extra_js %}
 <script src="/static/js/visualization.js"></script>
-<script src="/static/js/visualization/charts.js"></script>
 {% endblock %}

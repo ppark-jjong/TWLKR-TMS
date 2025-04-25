@@ -1,4 +1,4 @@
-{% extends "layout.html" %} {% block title %}오류 {{ error_code }} -
+{% extends "layout.html" %} {% block title %}오류 {{ error_code|default('500') }} -
 TeckWahKRTMS{% endblock %} {% block content %}
 <div class="error-container">
   <div class="error-content">

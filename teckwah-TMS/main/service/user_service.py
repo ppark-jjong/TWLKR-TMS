@@ -13,7 +13,10 @@ from main.models.user_model import User
 def get_user_list(
     db: Session, 
     page: int = 1, 
-    page_size: int = 10
+    page_size: int = 10,
+    role: str = None,
+    search_type: str = None,
+    search_value: str = None
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     사용자 목록 조회 (페이지네이션)
@@ -21,6 +24,16 @@ def get_user_list(
     try:
         # 기본 쿼리
         query = db.query(User)
+        
+        # 필터 적용
+        if role and role.lower() != 'all':
+            query = query.filter(User.user_role == role)
+            
+        if search_type and search_value:
+            if search_type == 'user_id':
+                query = query.filter(User.user_id.like(f'%{search_value}%'))
+            elif search_type == 'user_department':
+                query = query.filter(User.user_department.like(f'%{search_value}%'))
         
         # 전체 건수 조회
         total = query.count()

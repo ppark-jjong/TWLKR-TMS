@@ -36,8 +36,7 @@ async def handover_page(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    search: Optional[str] = Query(None, description="검색어 (제목 기준)")
+    limit: int = Query(10, ge=1, le=100)
 ):
     """
     인수인계 페이지 렌더링
@@ -55,13 +54,10 @@ async def handover_page(
             db=db,
             page=page,
             page_size=limit,
-            search_term=search
+            search_term=None  # 검색 기능 제거
         )
         
-        log_message = f"인수인계 페이지 접근: 공지사항 {len(notices)}개, 인수인계 {len(handovers)}개"
-        if search:
-            log_message += f", 검색어: '{search}'"
-        logger.info(log_message)
+        logger.info(f"인수인계 페이지 접근: 공지사항 {len(notices)}개, 인수인계 {len(handovers)}개")
         
         # 템플릿 렌더링
         return templates.TemplateResponse(
@@ -72,8 +68,7 @@ async def handover_page(
                 "notices": notices,
                 "handovers": handovers,
                 "current_page": page,
-                "total_pages": pagination["total_pages"],
-                "search_term": search
+                "total_pages": pagination["total_pages"]
             }
         )
     except Exception as e:
@@ -258,19 +253,35 @@ async def delete_handover_item(
     request: Request,
     handover_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 삭제 가능
+    current_user: Dict[str, Any] = Depends(get_current_user),  # 일반 사용자도 삭제 가능
 ):
     """
-    인수인계 삭제 API (관리자 전용)
+    인수인계 삭제 API (본인 작성 또는 관리자)
     """
     try:
+        # 기존 인수인계 조회
+        handover = get_handover_by_id(db, handover_id)
+        
+        if not handover:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"success": False, "message": "인수인계를 찾을 수 없습니다."}
+            )
+            
+        # 삭제 권한 확인 (작성자 또는 관리자만 가능)
+        if current_user.get("user_id") != handover.update_by and current_user.get("user_role") != "ADMIN":
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"success": False, "message": "인수인계 삭제 권한이 없습니다."}
+            )
+        
         # 인수인계 삭제
         success = delete_handover(db, handover_id)
         
         if not success:
             return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={"success": False, "message": "인수인계를 찾을 수 없습니다."}
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"success": False, "message": "인수인계 삭제 중 오류가 발생했습니다."}
             )
             
         return {"success": True, "message": "인수인계가 성공적으로 삭제되었습니다."}

@@ -142,20 +142,35 @@ async def logout(request: Request, response: Response):
     """
     로그아웃 처리
 
-    세션을 삭제하고 로그인 페이지로 리다이렉션
+    세션을 삭제하고 로그인 페이지로 리다이렉션 또는 JSON 응답 반환
     """
     session_id = request.cookies.get("session_id", "")
+    
+    # AJAX/API 요청인지 확인
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
+              request.headers.get("Accept") == "application/json"
 
     if session_id:
         delete_session(session_id)
-
-    response = RedirectResponse(
-        url="/auth/login", status_code=status.HTTP_303_SEE_OTHER
-    )
-    response.delete_cookie(key="session_id")
-
-    logger.info("로그아웃 성공")
-    return response
+    
+    # 세션 쿠키 삭제
+    response_data = {"success": True, "message": "로그아웃 성공"}
+    
+    if is_ajax:
+        # AJAX 요청의 경우 JSON 응답
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.delete_cookie(key="session_id")
+        logger.info("로그아웃 성공 (AJAX)")
+        return response
+    else:
+        # 일반 요청의 경우 리다이렉션
+        response = RedirectResponse(
+            url="/auth/login", status_code=status.HTTP_303_SEE_OTHER
+        )
+        response.delete_cookie(key="session_id")
+        logger.info("로그아웃 성공 (리다이렉션)")
+        return response
 
 
 @router.get("/me")

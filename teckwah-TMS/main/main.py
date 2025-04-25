@@ -48,6 +48,22 @@ app = FastAPI(
 
 # --- 미들웨어 설정 ---
 
+# 0. 사용자 정보 미들웨어 (템플릿에 user 제공)
+@app.middleware("http")
+async def inject_user_middleware(request: Request, call_next):
+    """
+    모든 요청에 대해 템플릿에 user 정보를 제공하기 위한 미들웨어
+    """
+    # 요청에서 세션 정보 가져오기
+    user = request.session.get("user", {"user_role": "USER"})
+    
+    # 요청 객체에 user 정보 저장 (템플릿에서 접근 가능)
+    request.state.user = user
+    
+    # 다음 미들웨어 호출
+    response = await call_next(request)
+    return response
+
 
 # 1. 로깅 미들웨어 (규칙 6)
 @app.middleware("http")

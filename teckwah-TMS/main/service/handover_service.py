@@ -17,29 +17,24 @@ def get_handover_list(
     page: int = 1, 
     page_size: int = 10,
     is_notice: bool = False,
-    search_term: Optional[str] = None
+    search_term: Optional[str] = None  # 파라미터는 유지하되 내부 로직에서 사용하지 않음
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    인수인계 목록 조회 (페이지네이션 및 검색)
+    인수인계 목록 조회 (페이지네이션)
     
     Args:
         db: 데이터베이스 세션
         page: 페이지 번호
         page_size: 페이지 크기
         is_notice: 공지사항 여부
-        search_term: 검색어 (제목 기준)
+        search_term: 미사용 파라미터 (호환성 유지)
         
     Returns:
         인수인계 목록과 페이지네이션 정보
     """
     try:
-        # 기본 쿼리 생성
+        # 기본 쿼리 생성 
         query = db.query(Handover).filter(Handover.is_notice == is_notice)
-        
-        # 검색어가 있는 경우 필터 추가
-        if search_term:
-            search_term = f"%{search_term}%"  # LIKE 검색을 위한 와일드카드
-            query = query.filter(Handover.title.ilike(search_term))
             
         # 전체 건수 조회
         total = query.count()
@@ -50,7 +45,7 @@ def get_handover_list(
         
         # 인수인계 목록 조회 (최신순)
         handovers = query\
-            .order_by(desc(Handover.update_at))\  # create_at -> update_at
+            .order_by(desc(Handover.update_at))\
             .offset(offset)\
             .limit(page_size)\
             .all()

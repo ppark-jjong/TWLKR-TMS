@@ -1,495 +1,534 @@
 /**
- * 시각화 페이지 JavaScript - 수정 버전
+ * 시각화 페이지 관리 모듈
+ * 배송 현황 데이터를 시각화하는 기능을 제공합니다.
  */
-
-// 전역 변수 설정
-const COLORS = {
-  WAITING: '#fffbe6',     // 대기: 연한 노란색
-  IN_PROGRESS: '#e6f7ff', // 진행: 연한 파란색
-  COMPLETE: '#f6ffed',    // 완료: 연한 초록색
-  ISSUE: '#fff2f0',       // 이슈: 연한 빨간색
-  CANCEL: '#f5f5f5',      // 취소: 연한 회색
-};
-
-// 부서별 색상
-const DEPT_COLORS = {
-  CS: '#1890ff',       // 파란색
-  HES: '#52c41a',      // 초록색
-  LENOVO: '#722ed1',   // 보라색
-};
-
-// 포인트 색상
-const PRIMARY_COLOR = '#D72519'; // TeckWah 포인트 색상
-
-// 페이지 로드 시 차트 초기화
-document.addEventListener('DOMContentLoaded', function () {
-  console.log('시각화 페이지 초기화 시작');
+window.Visualization = (function() {
+  /**
+   * 차트 상태 관리
+   */
+  const state = {
+    period: 'today', // 기본값: 오늘
+    graphType: 'time-blocks', // 기본값: 시간대별 접수량
+    charts: {
+      timeBlock: null,
+      departmentStatus: {}
+    },
+    data: {
+      summary: null,
+      timeBlocks: null,
+      departmentStatus: null
+    },
+    isLoading: false
+  };
   
-  // 날짜 필터 버튼 설정
-  setupDateFilters();
+  // 차트 색상 설정
+  const chartColors = {
+    departments: {
+      CS: 'rgba(54, 162, 235, 0.8)',
+      HES: 'rgba(255, 159, 64, 0.8)',
+      LENOVO: 'rgba(153, 102, 255, 0.8)'
+    },
+    status: {
+      waiting: 'rgba(255, 206, 86, 0.8)',
+      in_progress: 'rgba(54, 162, 235, 0.8)',
+      complete: 'rgba(75, 192, 192, 0.8)',
+      issue: 'rgba(255, 99, 132, 0.8)',
+      cancel: 'rgba(201, 203, 207, 0.8)'
+    }
+  };
   
-  // 초기 데이터 로드 (기본값: 오늘)
-  loadAllData('today');
+  /**
+   * 시각화 페이지를 초기화합니다.
+   */
+  function init() {
+    // 인증 확인
+    if (window.Auth) {
+      Auth.checkLoginStatus().catch(error => {
+        console.error('인증 확인 오류:', error);
+      });
+    }
+    
+    // UI 요소 이벤트 리스너 설정
+    setupEventListeners();
+    
+    // 초기 데이터 로드
+    loadData();
+    
+    console.log('시각화 페이지 초기화 완료');
+  }
   
-  console.log('시각화 페이지 초기화 완료');
-});
-
-/**
- * 날짜 필터 버튼 설정
- */
-function setupDateFilters() {
-  const dateButtons = document.querySelectorAll('.date-button');
+  /**
+   * 이벤트 리스너를 설정합니다.
+   */
+  function setupEventListeners() {
+    // 기간 선택 버튼
+    document.querySelectorAll('.date-button').forEach(button => {
+      button.addEventListener('click', function() {
+        // 이미 선택된 버튼이면 무시
+        if (this.classList.contains('active')) return;
+        
+        // 기존 선택 해제
+        document.querySelectorAll('.date-button').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // 새 선택 활성화
+        this.classList.add('active');
+        
+        // 상태 업데이트
+        state.period = this.dataset.period;
+        
+        // 데이터 다시 로드
+        loadData();
+      });
+    });
+    
+    // 그래프 유형 선택
+    const graphTypeSelect = document.getElementById('graphTypeSelect');
+    if (graphTypeSelect) {
+      graphTypeSelect.addEventListener('change', function() {
+        state.graphType = this.value;
+        updateChartVisibility();
+      });
+    }
+    
+    // 조회 버튼
+    const loadGraphBtn = document.getElementById('loadGraphBtn');
+    if (loadGraphBtn) {
+      loadGraphBtn.addEventListener('click', function() {
+        loadData();
+      });
+    }
+  }
   
-  dateButtons.forEach(button => {
-    button.addEventListener('click', function() {
-      // 이전 버튼 비활성화
-      dateButtons.forEach(btn => {
-        btn.classList.remove('active');
+  /**
+   * 선택된 그래프 유형에 따라 차트 표시/숨김을 업데이트합니다.
+   */
+  function updateChartVisibility() {
+    const timeBlockContainer = document.getElementById('timeBlockChartContainer');
+    const departmentStatusContainer = document.getElementById('departmentStatusChartContainer');
+    
+    if (state.graphType === 'time-blocks') {
+      if (timeBlockContainer) timeBlockContainer.style.display = '';
+      if (departmentStatusContainer) departmentStatusContainer.style.display = 'none';
+      
+      // 시간대별 접수량 데이터 로드
+      if (!state.data.timeBlocks) {
+        loadTimeBlockData();
+      } else {
+        updateTimeBlockChart(state.data.timeBlocks);
+      }
+    } else {
+      if (timeBlockContainer) timeBlockContainer.style.display = 'none';
+      if (departmentStatusContainer) departmentStatusContainer.style.display = '';
+      
+      // 부서별 상태 현황 데이터 로드
+      if (!state.data.departmentStatus) {
+        loadDepartmentStatusData();
+      } else {
+        updateDepartmentStatusCharts(state.data.departmentStatus);
+      }
+    }
+  }
+  
+  /**
+   * 로딩 표시를 설정합니다.
+   * @param {string} selector - 로딩 표시할 요소 선택자
+   * @param {boolean} isLoading - 로딩 상태
+   */
+  function setLoading(selector, isLoading) {
+    const container = document.querySelector(selector);
+    if (!container) return;
+    
+    const loadingIndicator = container.querySelector('.loading-indicator');
+    const noDataMessage = container.querySelector('.no-data-message');
+    
+    if (loadingIndicator) {
+      loadingIndicator.style.display = isLoading ? 'flex' : 'none';
+    }
+    
+    // 데이터 없음 메시지는 로딩 중에는 항상 숨김
+    if (noDataMessage && isLoading) {
+      noDataMessage.style.display = 'none';
+    }
+  }
+  
+  /**
+   * 데이터 없음 메시지를 표시합니다.
+   * @param {string} selector - 메시지를 표시할 요소 선택자
+   * @param {boolean} show - 표시 여부
+   */
+  function showNoDataMessage(selector, show) {
+    const container = document.querySelector(selector);
+    if (!container) return;
+    
+    const noDataMessage = container.querySelector('.no-data-message');
+    if (noDataMessage) {
+      noDataMessage.style.display = show ? 'flex' : 'none';
+    }
+  }
+  
+  /**
+   * 전체 데이터를 로드합니다.
+   */
+  async function loadData() {
+    // 선택된 그래프 유형에 따라 데이터 로드
+    if (state.graphType === 'time-blocks') {
+      await Promise.all([
+        loadSummaryData(),
+        loadTimeBlockData()
+      ]);
+    } else {
+      await Promise.all([
+        loadSummaryData(),
+        loadDepartmentStatusData()
+      ]);
+    }
+  }
+  
+  /**
+   * 요약 데이터를 로드합니다.
+   */
+  async function loadSummaryData() {
+    try {
+      // 로딩 표시
+      document.querySelectorAll('.summary-card .loading-indicator').forEach(indicator => {
+        indicator.style.display = 'flex';
       });
       
-      // 현재 버튼 활성화
-      this.classList.add('active');
+      // API 요청
+      const response = await fetch(`/visualization/summary?period=${state.period}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'include'
+      });
       
-      // 선택된 기간으로 데이터 로드
-      const period = this.dataset.period;
-      loadAllData(period);
-    });
-  });
-}
-
-/**
- * 선택된 기간으로 모든 데이터 로드
- * @param {string} period - 기간 (today, week, month)
- */
-function loadAllData(period) {
-  console.log(`데이터 로드 시작: 기간 ${period}`);
-  
-  // 로딩 표시
-  showLoading(true);
-  
-  // 데이터 가져오기
-  fetch(`/visualization/summary?period=${period}`)
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('요약 데이터를 불러오는데 실패했습니다.');
+      const data = await response.json();
+      
+      if (data.success) {
+        state.data.summary = data.data;
+        updateSummaryCards(data.data);
+      } else {
+        showAlert(data.message || '요약 데이터를 불러오는데 실패했습니다.', 'error');
       }
-      return response.json();
-    })
-    .then(summaryData => {
-      if (!summaryData.success) {
-        throw new Error(summaryData.message || '요약 데이터 로드 실패');
-      }
-      
-      // 요약 카드 업데이트
-      updateSummaryCards(summaryData.data);
-      
-      // 날짜 범위 구하기
-      const timeRange = summaryData.timeRange;
-      
-      // 시간대별 차트 데이터 로드
-      return fetch(`/visualization/time-blocks?start_date=${timeRange.start}&end_date=${timeRange.end}`)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('시간대별 데이터를 불러오는데 실패했습니다.');
-          }
-          return response.json();
-        })
-        .then(timeData => {
-          if (!timeData.success) {
-            throw new Error(timeData.message || '시간대별 데이터 로드 실패');
-          }
-          
-          // 시간대별 차트 업데이트
-          updateTimeChart(timeData.data);
-          
-          // 부서별 상태 데이터 로드
-          return fetch(`/visualization/department-status?start_date=${timeRange.start}&end_date=${timeRange.end}`)
-            .then(response => {
-              if (!response.ok) {
-                throw new Error('부서별 데이터를 불러오는데 실패했습니다.');
-              }
-              return response.json();
-            })
-            .then(deptData => {
-              if (!deptData.success) {
-                throw new Error(deptData.message || '부서별 데이터 로드 실패');
-              }
-              
-              // 부서별 상태 차트 업데이트
-              updateDepartmentChart(deptData.data);
-              
-              // 일별 추세 데이터 로드 (기간에 따라 일수 조정)
-              let days = 7;
-              if (period === 'month') days = 30;
-              else if (period === 'week') days = 7;
-              else days = 1;
-              
-              return fetch(`/visualization/daily-trend?days=${days}`)
-                .then(response => {
-                  if (!response.ok) {
-                    throw new Error('일별 추세 데이터를 불러오는데 실패했습니다.');
-                  }
-                  return response.json();
-                })
-                .then(trendData => {
-                  if (!trendData.success) {
-                    throw new Error(trendData.message || '일별 추세 데이터 로드 실패');
-                  }
-                  
-                  // 일별 추세 차트 업데이트
-                  updateTrendChart(trendData.data);
-                  
-                  // 모든 데이터 로드 완료
-                  console.log('모든 데이터 로드 완료');
-                  showLoading(false);
-                });
-            });
-        });
-    })
-    .catch(error => {
-      console.error('데이터 로드 오류:', error);
-      showLoading(false);
-      showError('데이터 로드 오류', error.message);
-    });
-}
-
-/**
- * 요약 카드 업데이트
- * @param {Object} data - 요약 데이터
- */
-function updateSummaryCards(data) {
-  console.log('요약 카드 업데이트:', data);
-  
-  document.getElementById('total-orders').textContent = data.total || 0;
-  document.getElementById('pending-orders').textContent = data.waiting + data.in_progress || 0;
-  document.getElementById('completed-orders').textContent = data.complete || 0;
-  document.getElementById('delayed-orders').textContent = data.delayed || 0;
-}
-
-/**
- * 시간대별 차트 업데이트
- * @param {Array} data - 시간대별 데이터
- */
-function updateTimeChart(data) {
-  console.log('시간대별 차트 업데이트:', data);
-  
-  const canvas = document.getElementById('time-chart');
-  const ctx = canvas.getContext('2d');
-  
-  // 기존 차트가 있으면 파괴
-  if (canvas.chart) {
-    canvas.chart.destroy();
+    } catch (error) {
+      console.error('요약 데이터 로드 중 오류:', error);
+      showAlert('요약 데이터를 불러오는데 실패했습니다.', 'error');
+    } finally {
+      // 로딩 숨김
+      document.querySelectorAll('.summary-card .loading-indicator').forEach(indicator => {
+        indicator.style.display = 'none';
+      });
+    }
   }
   
-  // 데이터 준비
-  const timeBlocks = data.map(item => item.timeBlock);
-  const datasets = [
-    {
-      label: 'CS',
-      data: data.map(item => item.CS || 0),
-      backgroundColor: DEPT_COLORS.CS,
-      borderColor: DEPT_COLORS.CS,
-      borderWidth: 1
-    },
-    {
-      label: 'HES',
-      data: data.map(item => item.HES || 0),
-      backgroundColor: DEPT_COLORS.HES,
-      borderColor: DEPT_COLORS.HES,
-      borderWidth: 1
-    },
-    {
-      label: 'LENOVO',
-      data: data.map(item => item.LENOVO || 0),
-      backgroundColor: DEPT_COLORS.LENOVO,
-      borderColor: DEPT_COLORS.LENOVO,
-      borderWidth: 1
+  /**
+   * 시간대별 접수량 데이터를 로드합니다.
+   */
+  async function loadTimeBlockData() {
+    try {
+      // 로딩 표시
+      setLoading('#timeBlockChartContainer', true);
+      
+      // API 요청
+      const response = await fetch(`/visualization/time-blocks?period=${state.period}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        state.data.timeBlocks = data.data;
+        updateTimeBlockChart(data.data);
+        
+        // 데이터 없음 메시지 표시/숨김
+        showNoDataMessage('#timeBlockChartContainer', data.data.length === 0);
+      } else {
+        showAlert(data.message || '시간대별 접수량 데이터를 불러오는데 실패했습니다.', 'error');
+        showNoDataMessage('#timeBlockChartContainer', true);
+      }
+    } catch (error) {
+      console.error('시간대별 접수량 데이터 로드 중 오류:', error);
+      showAlert('시간대별 접수량 데이터를 불러오는데 실패했습니다.', 'error');
+      showNoDataMessage('#timeBlockChartContainer', true);
+    } finally {
+      // 로딩 숨김
+      setLoading('#timeBlockChartContainer', false);
     }
-  ];
+  }
   
-  // 차트 생성
-  canvas.chart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: timeBlocks,
-      datasets: datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          stacked: false,
-          grid: {
-            display: false
-          }
+  /**
+   * 부서별 상태 현황 데이터를 로드합니다.
+   */
+  async function loadDepartmentStatusData() {
+    try {
+      // 로딩 표시
+      setLoading('#departmentStatusChartContainer', true);
+      
+      // API 요청
+      const response = await fetch(`/visualization/department-status?period=${state.period}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
-        y: {
-          stacked: false,
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(0, 0, 0, 0.05)'
-          },
-          ticks: {
-            precision: 0
-          }
-        }
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        state.data.departmentStatus = data.data;
+        updateDepartmentStatusCharts(data.data);
+        
+        // 데이터 없음 메시지 표시/숨김
+        const isEmpty = Object.values(data.data).every(dept => 
+          Object.values(dept).every(count => count === 0)
+        );
+        showNoDataMessage('#departmentStatusChartContainer', isEmpty);
+      } else {
+        showAlert(data.message || '부서별 상태 현황 데이터를 불러오는데 실패했습니다.', 'error');
+        showNoDataMessage('#departmentStatusChartContainer', true);
+      }
+    } catch (error) {
+      console.error('부서별 상태 현황 데이터 로드 중 오류:', error);
+      showAlert('부서별 상태 현황 데이터를 불러오는데 실패했습니다.', 'error');
+      showNoDataMessage('#departmentStatusChartContainer', true);
+    } finally {
+      // 로딩 숨김
+      setLoading('#departmentStatusChartContainer', false);
+    }
+  }
+  
+  /**
+   * 요약 카드를 업데이트합니다.
+   * @param {Object} data - 요약 데이터
+   */
+  function updateSummaryCards(data) {
+    // 요약 카드 값 업데이트
+    document.getElementById('total-orders').textContent = data.total || 0;
+    document.getElementById('pending-orders').textContent = data.in_progress || 0;
+    document.getElementById('completed-orders').textContent = data.complete || 0;
+    document.getElementById('delayed-orders').textContent = data.issue || 0;
+  }
+  
+  /**
+   * 시간대별 접수량 차트를 업데이트합니다.
+   * @param {Array} data - 시간대별 접수량 데이터
+   */
+  function updateTimeBlockChart(data) {
+    const canvas = document.getElementById('timeBlockChart');
+    if (!canvas) return;
+    
+    // 기존 차트 있으면 파기
+    if (state.charts.timeBlock) {
+      state.charts.timeBlock.destroy();
+    }
+    
+    // 데이터 없으면 빈 차트 표시
+    if (!data || data.length === 0) {
+      showNoDataMessage('#timeBlockChartContainer', true);
+      return;
+    }
+    
+    // 데이터 가공
+    const labels = data.map(item => item.time_block); // 시간대
+    const departmentNames = ['CS', 'HES', 'LENOVO']; // 부서 목록
+    
+    // 부서별 데이터셋 생성
+    const datasets = departmentNames.map(dept => {
+      return {
+        label: dept,
+        data: data.map(item => item[dept.toLowerCase()] || 0),
+        backgroundColor: chartColors.departments[dept],
+        borderColor: chartColors.departments[dept].replace('0.8', '1'),
+        borderWidth: 1
+      };
+    });
+    
+    // 차트 생성
+    state.charts.timeBlock = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: datasets
       },
-      plugins: {
-        legend: {
-          position: 'top'
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+          },
+          title: {
+            display: true,
+            text: '시간대별 접수량'
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
         },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          callbacks: {
-            label: function(context) {
-              const label = context.dataset.label || '';
-              const value = context.parsed.y;
-              return `${label}: ${value}건`;
+        scales: {
+          x: {
+            stacked: false,
+            title: {
+              display: true,
+              text: '시간대'
+            }
+          },
+          y: {
+            stacked: false,
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: '접수량'
+            },
+            ticks: {
+              precision: 0
             }
           }
         }
       }
-    }
-  });
-}
-
-/**
- * 부서별 상태 차트 업데이트
- * @param {Object} data - 부서별 상태 데이터
- */
-function updateDepartmentChart(data) {
-  console.log('부서별 상태 차트 업데이트:', data);
-  
-  const container = document.getElementById('department-chart');
-  container.innerHTML = '';
-  
-  // 부서별 데이터 처리
-  Object.entries(data).forEach(([dept, deptData]) => {
-    // 부서 항목 생성
-    const deptElement = document.createElement('div');
-    deptElement.className = 'department-item';
-    
-    // 부서 제목
-    const deptTitle = document.createElement('h3');
-    deptTitle.className = 'dept-title';
-    deptTitle.textContent = `${dept} (총 ${deptData.total}건)`;
-    deptElement.appendChild(deptTitle);
-    
-    // 상태 바 컨테이너
-    const statusBars = document.createElement('div');
-    statusBars.className = 'status-bars';
-    
-    // 각 상태별 바 생성
-    deptData.statuses.forEach(statusData => {
-      const percentage = deptData.total > 0 ? (statusData.count / deptData.total * 100) : 0;
-      
-      // 상태 바 컨테이너
-      const statusBar = document.createElement('div');
-      statusBar.className = 'status-bar';
-      
-      // 상태 라벨
-      const statusLabel = document.createElement('div');
-      statusLabel.className = 'status-label';
-      statusLabel.textContent = `${statusData.label} (${statusData.count})`;
-      statusBar.appendChild(statusLabel);
-      
-      // 상태 프로그레스 바
-      const statusProgress = document.createElement('div');
-      statusProgress.className = 'status-progress';
-      
-      // 상태 프로그레스 바 채우기
-      const statusFill = document.createElement('div');
-      statusFill.className = `status-fill status-${statusData.status.toLowerCase()}`;
-      statusFill.style.width = `${percentage}%`;
-      statusFill.textContent = percentage > 5 ? `${Math.round(percentage)}%` : '';
-      
-      statusProgress.appendChild(statusFill);
-      statusBar.appendChild(statusProgress);
-      
-      // 상태바를 컨테이너에 추가
-      statusBars.appendChild(statusBar);
     });
     
-    deptElement.appendChild(statusBars);
-    container.appendChild(deptElement);
-  });
-}
-
-/**
- * 일별 추세 차트 업데이트
- * @param {Array} data - 일별 추세 데이터
- */
-function updateTrendChart(data) {
-  console.log('일별 추세 차트 업데이트:', data);
-  
-  const canvas = document.getElementById('trend-chart');
-  const ctx = canvas.getContext('2d');
-  
-  // 기존 차트가 있으면 파괴
-  if (canvas.chart) {
-    canvas.chart.destroy();
+    // 데이터 없음 메시지 숨김
+    showNoDataMessage('#timeBlockChartContainer', false);
   }
   
-  // 날짜 및 요일 포맷팅
-  const formattedDates = data.map(item => {
-    const date = new Date(item.date);
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const dayOfWeek = item.dayOfWeek;
-    return `${month}/${day} (${dayOfWeek})`;
-  });
-  
-  // 데이터 준비
-  const datasets = [
-    {
-      label: '대기',
-      data: data.map(item => item.WAITING || 0),
-      backgroundColor: '#fffbe6',
-      borderColor: '#faad14',
-      borderWidth: 1,
-      stack: 'Stack 0'
-    },
-    {
-      label: '진행',
-      data: data.map(item => item.IN_PROGRESS || 0),
-      backgroundColor: '#e6f7ff',
-      borderColor: '#1890ff',
-      borderWidth: 1,
-      stack: 'Stack 0'
-    },
-    {
-      label: '완료',
-      data: data.map(item => item.COMPLETE || 0),
-      backgroundColor: '#f6ffed',
-      borderColor: '#52c41a',
-      borderWidth: 1,
-      stack: 'Stack 0'
-    },
-    {
-      label: '이슈',
-      data: data.map(item => item.ISSUE || 0),
-      backgroundColor: '#fff2f0',
-      borderColor: '#f5222d',
-      borderWidth: 1,
-      stack: 'Stack 0'
-    },
-    {
-      label: '취소',
-      data: data.map(item => item.CANCEL || 0),
-      backgroundColor: '#f5f5f5',
-      borderColor: '#8c8c8c',
-      borderWidth: 1,
-      stack: 'Stack 0'
+  /**
+   * 부서별 상태 현황 차트를 업데이트합니다.
+   * @param {Object} data - 부서별 상태 현황 데이터
+   */
+  function updateDepartmentStatusCharts(data) {
+    const container = document.getElementById('departmentStatusChart');
+    if (!container) return;
+    
+    // 컨테이너 초기화
+    container.innerHTML = '';
+    
+    // 기존 차트 객체 정리
+    Object.values(state.charts.departmentStatus).forEach(chart => {
+      if (chart) chart.destroy();
+    });
+    state.charts.departmentStatus = {};
+    
+    // 데이터 없으면 메시지 표시
+    const isEmpty = Object.values(data).every(dept => 
+      Object.values(dept).every(count => count === 0)
+    );
+    
+    if (isEmpty) {
+      showNoDataMessage('#departmentStatusChartContainer', true);
+      return;
     }
-  ];
-  
-  // 차트 생성
-  canvas.chart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: formattedDates,
-      datasets: datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          stacked: true,
-          grid: {
-            display: false
-          }
-        },
-        y: {
-          stacked: true,
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(0, 0, 0, 0.05)'
-          },
-          ticks: {
-            precision: 0
-          }
-        }
-      },
-      plugins: {
-        legend: {
-          position: 'top'
-        },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          callbacks: {
-            label: function(context) {
-              const label = context.dataset.label || '';
-              const value = context.parsed.y;
-              return `${label}: ${value}건`;
+    
+    // 부서별 파이 차트 생성
+    const departments = Object.keys(data);
+    
+    departments.forEach(dept => {
+      // 부서 데이터
+      const deptData = data[dept];
+      
+      // 값이 모두 0이면 건너뜀
+      if (Object.values(deptData).every(value => value === 0)) {
+        return;
+      }
+      
+      // 차트 컨테이너 생성
+      const chartDiv = document.createElement('div');
+      chartDiv.className = 'pie-chart-wrapper';
+      
+      const canvas = document.createElement('canvas');
+      canvas.id = `${dept.toLowerCase()}-chart`;
+      chartDiv.appendChild(canvas);
+      
+      // 제목 추가
+      const title = document.createElement('h3');
+      title.className = 'chart-title';
+      title.textContent = dept;
+      chartDiv.appendChild(title);
+      
+      container.appendChild(chartDiv);
+      
+      // 차트 데이터 구성
+      const statusLabels = {
+        waiting: '대기',
+        in_progress: '진행 중',
+        complete: '완료',
+        issue: '이슈',
+        cancel: '취소'
+      };
+      
+      const chartData = {
+        labels: Object.keys(deptData).map(key => statusLabels[key] || key),
+        datasets: [{
+          data: Object.values(deptData),
+          backgroundColor: Object.keys(deptData).map(key => chartColors.status[key] || '#ccc'),
+          borderWidth: 1
+        }]
+      };
+      
+      // 차트 생성
+      state.charts.departmentStatus[dept] = new Chart(canvas, {
+        type: 'pie',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw;
+                  const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                  const percentage = Math.round((value / total) * 100);
+                  return `${context.label}: ${value}건 (${percentage}%)`;
+                }
+              }
             }
           }
         }
-      }
-    }
-  });
-}
-
-/**
- * 로딩 표시/숨김
- * @param {boolean} show - 로딩 표시 여부
- */
-function showLoading(show) {
-  const indicators = document.querySelectorAll('.loading-indicator');
-  indicators.forEach(indicator => {
-    indicator.style.display = show ? 'flex' : 'none';
-  });
-}
-
-/**
- * 오류 메시지 표시
- * @param {string} title - 오류 제목
- * @param {string} message - 오류 메시지
- */
-function showError(title, message) {
-  console.error(`${title}: ${message}`);
-  
-  // 이전 오류 메시지 제거
-  const existingError = document.querySelector('.error-toast');
-  if (existingError) {
-    existingError.remove();
-  }
-  
-  // 오류 메시지 생성
-  const errorToast = document.createElement('div');
-  errorToast.className = 'error-toast';
-  errorToast.innerHTML = `
-    <div class="error-icon"><i class="fas fa-exclamation-circle"></i></div>
-    <div class="error-content">
-      <div class="error-title">${title}</div>
-      <div class="error-message">${message}</div>
-    </div>
-    <div class="error-close"><i class="fas fa-times"></i></div>
-  `;
-  
-  // 닫기 버튼 이벤트
-  const closeBtn = errorToast.querySelector('.error-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      errorToast.remove();
+      });
     });
+    
+    // 데이터 없음 메시지 숨김
+    showNoDataMessage('#departmentStatusChartContainer', false);
   }
   
-  // 문서에 추가
-  document.body.appendChild(errorToast);
-  
-  // 5초 후 자동 제거
-  setTimeout(() => {
-    if (errorToast.parentNode) {
-      errorToast.classList.add('fade-out');
-      setTimeout(() => {
-        if (errorToast.parentNode) {
-          errorToast.remove();
-        }
-      }, 300);
+  /**
+   * 알림 메시지를 표시합니다.
+   * @param {string} message - 표시할 메시지
+   * @param {string} type - 알림 유형 (success, error, warning, info)
+   */
+  function showAlert(message, type = 'info') {
+    if (window.Alerts) {
+      Alerts.show(message, type);
+    } else if (window.Utils && Utils.showAlert) {
+      Utils.showAlert(message, type);
+    } else {
+      alert(message);
     }
-  }, 5000);
-}
+  }
+  
+  // 페이지 로드 시 초기화
+  document.addEventListener('DOMContentLoaded', init);
+  
+  // 공개 API
+  return {
+    init,
+    loadData,
+    updateChartVisibility
+  };
+})();

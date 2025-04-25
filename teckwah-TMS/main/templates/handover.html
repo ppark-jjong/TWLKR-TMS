@@ -75,10 +75,6 @@
   <section class="handover-section panel">
     <div class="panel-header">
       <h2 class="panel-title"><i class="fas fa-exchange-alt"></i> 인수인계 목록</h2>
-      <div class="search-container">
-        <input type="text" id="searchInput" placeholder="제목 검색..." class="search-input">
-        <button class="search-btn" onclick="searchHandovers()"><i class="fas fa-search"></i></button>
-      </div>
     </div>
     
     <div class="panel-content">
@@ -116,8 +112,6 @@
                 >
                   <i class="fas fa-edit"></i>
                 </button>
-                {% endif %} 
-                {% if user.user_role == 'ADMIN' %}
                 <button
                   class="action-btn delete-btn"
                   onclick="deleteHandover('{{ item.id }}')"

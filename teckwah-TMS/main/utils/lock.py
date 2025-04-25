@@ -231,7 +231,7 @@ def release_expired_locks(db: Session) -> int:
         int: 해제된 락의 수
     """
     tables_with_locks = ["dashboard", "handover"]
-    lock_timeout = datetime.now() - timedelta(seconds=settings.LOCK_TIMEOUT_SECONDS)
+    lock_timeout = datetime.now() - timedelta(seconds=settings.LOCK_TIMEOUT_SECONDS) # 5분 타임아웃
     total_released = 0
 
     try:

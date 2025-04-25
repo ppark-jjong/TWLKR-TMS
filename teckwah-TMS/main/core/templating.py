@@ -45,5 +45,22 @@ def datetime_format(value, format="%Y-%m-%d %H:%M"):
 # 템플릿에 필터 등록
 templates.env.filters["datetime"] = datetime_format
 
+# 템플릿에 전역 함수 및 변수 추가
+templates.env.globals["get_user"] = lambda request: getattr(request.state, "user", {"user_role": "USER"})
+
+# 템플릿 렌더링 도우미 함수
+def render_template(template_name, context):
+    """
+    템플릿 렌더링 도우미 함수
+    request 객체가 있으면 user 정보를 확인하여 컨텍스트에 추가
+    """
+    if 'request' in context and 'user' not in context:
+        request = context['request']
+        user = getattr(request.state, 'user', {'user_role': 'USER'}) if hasattr(request, 'state') else {'user_role': 'USER'}
+        context['user'] = user
+    
+    return templates.TemplateResponse(template_name, context)
+
 # 디버깅용 메시지
 print(f"[Templating] 템플릿 필터 등록 완료: {list(templates.env.filters.keys())}")
+print(f"[Templating] 템플릿 전역 함수/변수 등록 완료: {list(templates.env.globals.keys())}")

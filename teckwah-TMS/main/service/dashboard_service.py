@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, date
 from sqlalchemy import and_, or_, func, text, desc, case, extract
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from fastapi import HTTPException, status
+from fastapi import HTTPException
+from starlette import status
 
 from main.models.dashboard_model import Dashboard
 from main.models.postal_code_model import PostalCode
@@ -172,8 +173,9 @@ def get_dashboard_list(
 
     except SQLAlchemyError as e:
         logger.error(f"주문 목록 조회 중 오류 발생: {str(e)}")
+        # 명시적으로 상태 코드 숫자 사용
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="데이터베이스 오류가 발생했습니다.",
         )
 
@@ -553,6 +555,7 @@ def change_status(
             # 대기 → 진행 시 depart_time 기록
             if old_status == "WAITING" and new_status == "IN_PROGRESS":
                 order.depart_time = datetime.now()
+                logger.info(f"주문 ID {dashboard_id}: 대기→진행 상태 변경, 출발 시간 기록: {order.depart_time}")
 
             # 진행 → 완료/이슈/취소 시 complete_time 기록
             if old_status == "IN_PROGRESS" and new_status in [
@@ -561,6 +564,7 @@ def change_status(
                 "CANCEL",
             ]:
                 order.complete_time = datetime.now()
+                logger.info(f"주문 ID {dashboard_id}: 진행→{new_status} 상태 변경, 완료 시간 기록: {order.complete_time}")
 
             # 롤백 시 알림을 위한 플래그
             is_rollback = False

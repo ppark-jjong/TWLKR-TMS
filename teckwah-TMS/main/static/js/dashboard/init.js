@@ -1,285 +1,199 @@
 /**
- * 대시보드 페이지 초기화
+ * 대시보드 초기화 모듈
+ * 대시보드 페이지 초기화 및 데이터 처리
  */
-
-/**
- * 대시보드 페이지 초기화
- */
-function initializeDashboard() {
-  console.log('대시보드 페이지 초기화 시작...');
+window.DashboardInit = {
+  /**
+   * 상태, 부서, 창고 데이터
+   */
+  configData: {
+    types: [], // 주문 유형
+    statuses: [], // 주문 상태
+    departments: [], // 부서 목록
+    warehouses: [] // 창고 목록
+  },
   
-  try {
-    // 날짜 선택기 초기화
-    DashboardFilter.initializeDatePickers();
-    console.log('날짜 선택기 초기화 완료');
+  /**
+   * 대시보드를 초기화합니다.
+   */
+  init: function() {
+    // 전역 설정 데이터 초기화
+    this.initConfigData();
     
-    // 테이블 컬럼 선택기 초기화
-    DashboardTable.initializeColumnSelector();
-    console.log('테이블 컬럼 선택기 초기화 완료');
+    // 모듈 초기화 (의존성 고려하여 순서 지정)
+    this.initModules();
     
-    // 이벤트 리스너 등록
-    registerEventListeners();
-    console.log('이벤트 리스너 등록 완료');
+    // 이벤트 핸들러 설정
+    this.setupEventListeners();
     
-    // 페이지네이션 초기화
-    initializePagination();
-    console.log('페이지네이션 초기화 완료');
+    // CSR 페이지네이션 초기화
+    this.initPagination();
     
-    // URL 파라미터 확인
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasDateParams = urlParams.has('startDate') || urlParams.has('endDate');
+    console.log('Dashboard initialized');
+  },
+  
+  /**
+   * 설정 데이터를 초기화합니다.
+   */
+  initConfigData: function() {
+    // 주문 유형 데이터
+    window.typeOptions = Array.from(document.querySelectorAll('#createType option:not(:first-child)'))
+      .map(option => ({
+        value: option.value,
+        label: option.textContent
+      }));
     
-    // 날짜 파라미터가 없으면 오늘 날짜로 자동 조회
-    if (!hasDateParams && !urlParams.has('orderNo')) {
-      console.log('날짜 파라미터 없음, 오늘 날짜로 자동 조회 실행');
-      DashboardFilter.submitFilterForm();
+    // 주문 상태 데이터
+    window.statusOptions = Array.from(document.querySelectorAll('#statusFilter option:not(:first-child)'))
+      .map(option => ({
+        value: option.value,
+        label: option.textContent
+      }));
+    
+    // 부서 데이터
+    window.departmentOptions = Array.from(document.querySelectorAll('#departmentFilter option:not(:first-child)'))
+      .map(option => ({
+        value: option.value,
+        label: option.textContent
+      }));
+    
+    // 창고 데이터
+    window.warehouseOptions = Array.from(document.querySelectorAll('#warehouseFilter option:not(:first-child)'))
+      .map(option => ({
+        value: option.value,
+        label: option.textContent
+      }));
+    
+    // 설정 데이터 저장
+    this.configData = {
+      types: window.typeOptions || [],
+      statuses: window.statusOptions || [],
+      departments: window.departmentOptions || [],
+      warehouses: window.warehouseOptions || []
+    };
+  },
+  
+  /**
+   * 모듈을 초기화합니다.
+   */
+  initModules: function() {
+    // 테이블 모듈 초기화
+    if (window.DashboardTable) {
+      DashboardTable.init();
     }
     
-    console.log('대시보드 페이지 초기화 완료');
-  } catch (error) {
-    console.error('대시보드 초기화 중 오류 발생:', error);
-  }
-}
-
-/**
- * 페이지네이션 초기화
- */
-function initializePagination() {
-  try {
-    const pageNumberContainer = document.getElementById('pageNumberContainer');
-    const prevPageBtn = document.getElementById('prevPageBtn');
-    const nextPageBtn = document.getElementById('nextPageBtn');
+    // 필터 모듈 초기화
+    if (window.DashboardFilter) {
+      DashboardFilter.init();
+    }
     
-    if (pageNumberContainer) {
-      // 현재 페이지 번호와 총 페이지 수 (URL 파라미터에서 가져옴)
-      const urlParams = new URLSearchParams(window.location.search);
-      const currentPage = parseInt(urlParams.get('page') || '1');
-      
-      // 페이지네이션 정보에서 데이터 가져오기
-      const paginationInfo = document.querySelector('.pagination-info');
-      let totalPages = parseInt(paginationInfo?.dataset.totalPages || '1');
-      let total = parseInt(paginationInfo?.dataset.total || '0');
-      
-      console.log('Pagination data:', {
-        currentPage,
-        totalPages,
-        total,
-        pageSize: parseInt(urlParams.get('limit') || '10')
+    // 모달 모듈 초기화
+    if (window.DashboardModals) {
+      DashboardModals.init();
+    }
+    
+    // 액션 모듈 초기화
+    if (window.DashboardActions) {
+      DashboardActions.init();
+    }
+  },
+  
+  /**
+   * 이벤트 리스너를 설정합니다.
+   */
+  setupEventListeners: function() {
+    // 로딩이 완료된 후 추가 이벤트 설정
+    window.addEventListener('load', () => {
+      // 로딩 인디케이터 숨김
+      Utils.toggleLoading(false);
+    });
+    
+    // 우편번호 입력 필드 이벤트 (4자리 → 5자리 변환)
+    document.querySelectorAll('input[name="postalCode"]').forEach(input => {
+      input.addEventListener('blur', () => {
+        const postalCode = input.value.trim();
+        if (postalCode.length === 4 && /^\d{4}$/.test(postalCode)) {
+          input.value = Utils.formatPostalCode(postalCode);
+        }
       });
+    });
+    
+    // 주문 생성 모달의 ETA 기본값 설정
+    const createETAInput = document.getElementById('createETA');
+    if (createETAInput && !createETAInput.value) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(12, 0, 0, 0);
       
-      // 페이지네이션 초기화 (Pagination 객체가 사용 가능한 경우)
-      if (typeof Pagination !== 'undefined') {
-        Pagination.init('pagination', currentPage, totalPages, Pagination.handleUrlPagination, {
-          total: total,
-          pageSize: parseInt(urlParams.get('limit') || '10')
-        });
-        console.log('Pagination 라이브러리를 통한 페이지네이션 초기화 성공');
-      } else {
-        // 기본 페이지네이션 처리 (Pagination 객체가 없는 경우)
-        setupBasicPagination(currentPage, totalPages);
-        console.log('기본 페이지네이션 초기화 성공');
-      }
+      const etaValue = tomorrow.toISOString().slice(0, 16);
+      createETAInput.value = etaValue;
     }
-  } catch (error) {
-    console.error('페이지네이션 초기화 중 오류 발생:', error);
-  }
-}
-
-/**
- * 기본 페이지네이션 설정
- */
-function setupBasicPagination(currentPage, totalPages) {
-  const pageNumberContainer = document.getElementById('pageNumberContainer');
-  const prevPageBtn = document.getElementById('prevPageBtn');
-  const nextPageBtn = document.getElementById('nextPageBtn');
+  },
   
-  if (!pageNumberContainer) return;
-  
-  // 이전 페이지 버튼
-  if (prevPageBtn) {
-    prevPageBtn.disabled = currentPage <= 1;
-    prevPageBtn.onclick = function() {
-      if (currentPage > 1) {
-        navigateToPage(currentPage - 1);
-      }
-    };
-  }
-  
-  // 다음 페이지 버튼
-  if (nextPageBtn) {
-    nextPageBtn.disabled = currentPage >= totalPages;
-    nextPageBtn.onclick = function() {
-      if (currentPage < totalPages) {
-        navigateToPage(currentPage + 1);
-      }
-    };
-  }
-  
-  // 페이지 번호 생성
-  pageNumberContainer.innerHTML = '';
-  
-  // 표시할 페이지 번호 범위 계산 (최대 5개)
-  let startPage = Math.max(1, currentPage - 2);
-  let endPage = Math.min(totalPages, startPage + 4);
-  
-  // 시작 페이지 재조정 (끝 페이지가 최대치보다 작은 경우)
-  if (endPage - startPage < 4) {
-    startPage = Math.max(1, endPage - 4);
-  }
-  
-  // 첫 페이지 버튼 (첫 페이지가 표시 범위에 없는 경우)
-  if (startPage > 1) {
-    const firstPageBtn = document.createElement('button');
-    firstPageBtn.type = 'button';
-    firstPageBtn.className = 'page-number-btn';
-    firstPageBtn.textContent = '1';
-    firstPageBtn.onclick = function() {
-      navigateToPage(1);
-    };
-    pageNumberContainer.appendChild(firstPageBtn);
+  /**
+   * CSR 페이지네이션을 초기화합니다.
+   */
+  initPagination: function() {
+    if (!window.Pagination) return;
     
-    // 생략 표시
-    if (startPage > 2) {
-      const ellipsis = document.createElement('span');
-      ellipsis.className = 'page-ellipsis';
-      ellipsis.textContent = '...';
-      pageNumberContainer.appendChild(ellipsis);
-    }
-  }
-  
-  // 페이지 번호 버튼 생성
-  for (let i = startPage; i <= endPage; i++) {
-    const pageBtn = document.createElement('button');
-    pageBtn.type = 'button';
-    pageBtn.className = 'page-number-btn' + (i === currentPage ? ' active' : '');
-    pageBtn.textContent = i;
-    pageBtn.onclick = function() {
-      navigateToPage(i);
-    };
-    pageNumberContainer.appendChild(pageBtn);
-  }
-  
-  // 마지막 페이지 버튼 (마지막 페이지가 표시 범위에 없는 경우)
-  if (endPage < totalPages) {
-    // 생략 표시
-    if (endPage < totalPages - 1) {
-      const ellipsis = document.createElement('span');
-      ellipsis.className = 'page-ellipsis';
-      ellipsis.textContent = '...';
-      pageNumberContainer.appendChild(ellipsis);
-    }
+    // 페이지네이션 정보 가져오기
+    const paginationInfo = document.querySelector('.pagination-info');
+    if (!paginationInfo) return;
     
-    const lastPageBtn = document.createElement('button');
-    lastPageBtn.type = 'button';
-    lastPageBtn.className = 'page-number-btn';
-    lastPageBtn.textContent = totalPages;
-    lastPageBtn.onclick = function() {
-      navigateToPage(totalPages);
-    };
-    pageNumberContainer.appendChild(lastPageBtn);
-  }
-}
-
-/**
- * 특정 페이지로 이동
- */
-function navigateToPage(page) {
-  const url = new URL(window.location.href);
-  url.searchParams.set('page', page);
-  window.location.href = url.toString();
-}
-
-/**
- * 이벤트 리스너 등록
- */
-function registerEventListeners() {
-  try {
-    console.log('이벤트 리스너 등록 시작...');
+    const totalItems = parseInt(paginationInfo.dataset.total || '0');
+    const totalPages = parseInt(paginationInfo.dataset.totalPages || '1');
     
-    // 필터 이벤트
-    DashboardFilter.registerFilterEvents();
-    console.log('필터 이벤트 등록 완료');
+    // URL에서 현재 페이지 가져오기
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentPage = parseInt(urlParams.get('page') || '1');
     
-    // 테이블 이벤트
-    DashboardTable.registerTableEvents();
-    console.log('테이블 이벤트 등록 완료');
+    // 저장된 페이지 크기 가져오기
+    const savedPageSize = Utils.getFromStorage('pageSize');
+    const pageSize = savedPageSize ? parseInt(savedPageSize) : 10;
     
-    // 모달 이벤트
-    DashboardModals.initializeModalEvents();
-    console.log('모달 이벤트 등록 완료');
-    
-    // 액션 버튼 이벤트
-    DashboardActions.initializeActionButtons();
-    console.log('액션 버튼 이벤트 등록 완료');
-    
-    // 페이지 크기 변경 이벤트 확인 및 추가
+    // 페이지 선택 필드 초기화
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     if (pageSizeSelect) {
-      // 기존 이벤트 리스너 제거 (중복 방지)
-      pageSizeSelect.removeEventListener('change', handlePageSizeChange);
-      // 새 이벤트 리스너 추가
-      pageSizeSelect.addEventListener('change', handlePageSizeChange);
-      console.log('페이지 크기 변경 이벤트 등록 완료');
-      
-      // 현재 URL에서 페이지 크기 파라미터가 있으면 선택, 없으면 저장된 값 사용
-      const urlParams = new URLSearchParams(window.location.search);
-      const currentPageSize = urlParams.get('limit') || localStorage.getItem('preferred_page_size') || '10';
-      
-      // 값 설정 및 유효성 확인
-      const validSizes = ['10', '30', '50'];
-      if (validSizes.includes(currentPageSize)) {
-        pageSizeSelect.value = currentPageSize;
-        console.log('현재 페이지 크기 설정:', currentPageSize);
-      } else {
-        pageSizeSelect.value = '10'; // 기본값
-      }
+      pageSizeSelect.value = pageSize.toString();
     }
     
-    console.log('이벤트 리스너 등록 완료');
-  } catch (error) {
-    console.error('이벤트 리스너 등록 중 오류 발생:', error);
+    // 페이지네이션 초기화
+    Pagination.init({
+      currentPage,
+      pageSize,
+      totalItems,
+      onPageChange: (page, pageSize) => {
+        this.handlePageChange(page, pageSize);
+      },
+      onPageSizeChange: (pageSize) => {
+        this.handlePageSizeChange(pageSize);
+      }
+    });
+  },
+  
+  /**
+   * 페이지 변경을 처리합니다.
+   * @param {number} page - 페이지 번호
+   * @param {number} pageSize - 페이지 크기
+   */
+  handlePageChange: function(page, pageSize) {
+    // 필터가 적용된 경우 클라이언트 측 페이지네이션
+    if (DashboardFilter && (DashboardFilter.state.status || DashboardFilter.state.department || DashboardFilter.state.warehouse)) {
+      DashboardFilter.updateTableRows();
+    } else {
+      // URL 매개변수 업데이트 (페이지 새로고침 없음)
+      Utils.updateUrlParams({ page });
+    }
+  },
+  
+  /**
+   * 페이지 크기 변경을 처리합니다.
+   * @param {number} pageSize - 페이지 크기
+   */
+  handlePageSizeChange: function(pageSize) {
+    // 필터가 적용된 경우 클라이언트 측 페이지네이션
+    if (DashboardFilter && (DashboardFilter.state.status || DashboardFilter.state.department || DashboardFilter.state.warehouse)) {
+      DashboardFilter.updateTableRows();
+    }
   }
-}
-
-/**
- * 페이지 크기 변경 핸들러
- */
-function handlePageSizeChange() {
-  try {
-    console.log('페이지 크기 변경됨:', this.value);
-    
-    // 선택된 값 저장 (로컬 스토리지)
-    localStorage.setItem('preferred_page_size', this.value);
-    
-    // URL 파라미터 업데이트
-    const url = new URL(window.location.href);
-    url.searchParams.set('limit', this.value);
-    url.searchParams.set('page', '1'); // 페이지 번호 리셋
-    
-    // 변경 표시
-    const btnText = this.options[this.selectedIndex].text;
-    this.style.fontWeight = 'bold';
-    
-    // 약간의 딜레이 후 페이지 이동 (UI 반응을 볼 수 있도록)
-    setTimeout(() => {
-      window.location.href = url.toString();
-    }, 100);
-    
-  } catch (error) {
-    console.error('페이지 크기 변경 처리 중 오류 발생:', error);
-    alert('페이지 크기 변경 중 오류가 발생했습니다.');
-  }
-}
-
-// 문서 로드 완료 시 대시보드 초기화
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOMContentLoaded 이벤트 발생');
-  initializeDashboard();
-});
-
-// 전역 namespace에 등록
-window.Dashboard = {
-  init: initializeDashboard,
-  navigateToPage: navigateToPage,
-  handlePageSizeChange: handlePageSizeChange
 };

@@ -14,14 +14,96 @@
     <link rel="stylesheet" href="/static/css/main.css" />
     <link rel="stylesheet" href="/static/css/layout.css" />
     <link rel="stylesheet" href="/static/css/modal.css" />
+    <link rel="stylesheet" href="/static/css/alerts.css" />
     
     <!-- 추가 CSS 블록 (페이지별 특화 스타일) -->
     {% block extra_css %}{% endblock %}
   </head>
-  <body>
+  <body data-user-role="{{ get_user(request).user_role or 'USER' }}">
     <div id="app" class="app-container">
-      <!-- 사이드바 컴포넌트 포함 -->
-      {% include "partials/sidebar.html" %}
+      <!-- 사이드바 컴포넌트 -->
+      <div class="sidebar" id="sidebar">
+        <!-- 로고 및 시스템명 -->
+        <div class="sidebar-header">
+          <!-- 사이드바 토글 버튼 추가 -->
+          <button id="sidebarToggleBtn" class="sidebar-toggle">
+            <i class="fas fa-bars"></i>
+          </button>
+          <h1 class="sidebar-title">
+            <span id="fullTitle">TWLKR-TMS</span>
+            <span id="shortTitle">TMS</span>
+          </h1>
+        </div>
+
+        <!-- 사용자 정보 (user 객체가 있을 때만 표시) -->
+        {% if user is defined %}
+        <div class="user-info-section">
+          <div class="user-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="user-details">
+            <div class="user-name">{{ user.user_id }}</div>
+            <div class="user-role">{{ user.user_department }}</div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- 메뉴 항목 -->
+        <nav class="sidebar-menu">
+          <ul>
+            {% if request.url.path != '/login' %}
+            <li class="menu-item {% if request.url.path == '/dashboard' %}active{% endif %}">
+              <a href="/dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>TMS</span>
+              </a>
+            </li>
+            <li class="menu-item {% if request.url.path == '/handover' %}active{% endif %}">
+              <a href="/handover">
+                <i class="fas fa-exchange-alt"></i>
+                <span>Work-Notice</span>
+              </a>
+            </li>
+            {% if user is defined and user.user_role == 'ADMIN' %}
+            <li class="menu-item {% if request.url.path == '/visualization' %}active{% endif %}">
+              <a href="/visualization">
+                <i class="fas fa-chart-bar"></i>
+                <span>Visualization</span>
+              </a>
+            </li>
+            <li class="menu-item {% if request.url.path == '/users' %}active{% endif %}">
+              <a href="/users">
+                <i class="fas fa-users"></i>
+                <span>User Management</span>
+              </a>
+            </li>
+            {% endif %}
+            {% else %}
+            <li class="menu-item active">
+              <a href="/login">
+                <i class="fas fa-sign-in-alt"></i>
+                <span>로그인</span>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </nav>
+
+        <!-- 하단 로그아웃 버튼 (로그인 상태일때만) -->
+        <div class="sidebar-footer">
+          {% if request.url.path != '/login' and user is defined %}
+          <button class="logout-button" id="logoutBtn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>로그아웃</span>
+          </button>
+          {% endif %}
+          <!-- 로고 표시 -->
+          <div class="bottom-logo">
+            <img src="/static/images/logo.png" alt="Teckwah 로고" />
+          </div>
+        </div>
+      </div>
+
 
       <!-- 메인 콘텐츠 영역 -->
       <div class="main-content">
@@ -40,12 +122,55 @@
       </div>
     </div>
 
-    <!-- 공통 스크립트 포함 -->
-    {% include "partials/common_scripts.html" %}
+    <!-- 공통 스크립트 -->
+    <script>
+      // 전역 오류 처리
+      window.addEventListener('error', function(event) {
+        console.error('전역 오류 발생:', event.error);
+      });
+      
+      // 사이드바 토글 기능
+      document.addEventListener('DOMContentLoaded', function() {
+        const app = document.getElementById('app');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+        
+        if (sidebarToggleBtn) {
+          sidebarToggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (app) {
+              app.classList.toggle('sidebar-collapsed');
+            }
+          });
+        }
+        
+        // 모바일 화면에서 사이드바 자동 축소
+        function checkMobileView() {
+          if (window.innerWidth < 768 && app) {
+            app.classList.add('sidebar-collapsed');
+          }
+        }
+        
+        // 초기 모바일 체크
+        checkMobileView();
+        
+        // 화면 크기 변경 감지
+        window.addEventListener('resize', checkMobileView);
+      });
+    </script>
     
-    <!-- 페이지별 추가 스크립트 -->
+    <!-- 공통 유틸리티 스크립트 -->
     <script src="/static/js/script-loader.js"></script>
     <script src="/static/js/main.js"></script>
+    <script src="/static/js/common/utils.js"></script>
+    <script src="/static/js/common/api.js"></script>
+    <script src="/static/js/common/auth.js"></script>
+    <script src="/static/js/common/modal.js"></script>
+    <script src="/static/js/common/alerts.js"></script>
+    <script src="/static/js/common/pagination.js"></script>
+    
+    <!-- 페이지별 추가 스크립트 -->
     {% block extra_js %}{% endblock %}
   </body>
 </html>

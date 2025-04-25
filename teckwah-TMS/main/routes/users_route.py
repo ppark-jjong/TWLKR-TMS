@@ -27,17 +27,30 @@ async def users_page(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 접근 가능
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100)
+    limit: int = Query(10, ge=1, le=100),
+    role: str = Query(None),
+    search_type: str = Query(None),
+    search_value: str = Query(None)
 ):
     """
     사용자 관리 페이지 렌더링 (관리자 전용)
     """
     try:
+        # 필터 정보 생성
+        filter_data = {
+            "role": role or "all",
+            "search_type": search_type or "user_id",
+            "search_value": search_value or ""
+        }
+        
         # 사용자 목록 조회
         users, pagination = get_user_list(
             db=db,
             page=page,
-            page_size=limit
+            page_size=limit,
+            role=role,
+            search_type=search_type,
+            search_value=search_value
         )
         
         logger.info(f"사용자 관리 페이지 접근: 사용자 {len(users)}개 조회됨")
@@ -50,7 +63,8 @@ async def users_page(
                 "user": current_user,
                 "users": users,
                 "current_page": page,
-                "total_pages": pagination["total_pages"]
+                "total_pages": pagination["total_pages"],
+                "filter": filter_data  # 필터 정보 추가
             }
         )
     except Exception as e:

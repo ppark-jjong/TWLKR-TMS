@@ -160,18 +160,23 @@ async def dashboard_page(
                 "sla": order.sla,
                 "eta": eta_formatted,
                 "createTime": create_time_formatted,
+                "departTime": order.depart_time.strftime("%Y-%m-%d %H:%M") if order.depart_time else "",
+                "completeTime": order.complete_time.strftime("%Y-%m-%d %H:%M") if order.complete_time else "",
                 "postalCode": order.postal_code,
                 "address": order.address,
                 "region": getattr(order, "region", "") or "",
+                "city": getattr(order, "city", "") or "",
+                "county": getattr(order, "county", "") or "",
+                "district": getattr(order, "district", "") or "",
+                "distance": getattr(order, "distance", 0),
+                "durationTime": getattr(order, "duration_time", 0),
                 "customer": order.customer,
                 "contact": order.contact,
                 "driverName": order.driver_name,
                 "driverContact": order.driver_contact,
-                # isLocked, updatedBy 정보도 필요 시 추가
-                "isLocked": getattr(
-                    order, "is_locked", False
-                ),  # is_locked 필드가 없을 수 있으므로 getattr 사용
-                "updatedBy": getattr(order, "updated_by", None),
+                "remark": getattr(order, "remark", ""),
+                "isLocked": getattr(order, "is_locked", False),
+                "updatedBy": getattr(order, "update_by", None),
                 "updateAt": (
                     getattr(order, "update_at", None).strftime("%Y-%m-%d %H:%M")
                     if getattr(order, "update_at", None)
@@ -289,7 +294,7 @@ async def get_orders(
             "contact": order.contact,
             "driverName": order.driver_name,
             "driverContact": order.driver_contact,
-            "updatedBy": order.updated_by,
+            "updatedBy": order.update_by,
             "remark": order.remark,
             "updateAt": order.update_at,
             "isLocked": order.is_locked,
@@ -361,7 +366,7 @@ async def search_order(
             "contact": order.contact,
             "driverName": order.driver_name,
             "driverContact": order.driver_contact,
-            "updatedBy": order.updated_by,
+            "updatedBy": order.update_by,
             "remark": order.remark,
             "updateAt": order.update_at,
             "isLocked": order.is_locked,
@@ -434,7 +439,7 @@ async def get_order_detail(
         "contact": order.contact,
         "driverName": order.driver_name,
         "driverContact": order.driver_contact,
-        "updatedBy": order.updated_by,
+        "updatedBy": order.update_by,
         "remark": order.remark,
         "updateAt": order.update_at,
         "isLocked": order.is_locked,
