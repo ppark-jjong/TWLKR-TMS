@@ -1,3 +1,5 @@
+console.log('[로드] auth.js 로드됨 - ' + new Date().toISOString());
+
 /**
  * 인증 관리 모듈
  * 로그인, 로그아웃, 세션 관리 등의 기능을 제공합니다.
@@ -12,9 +14,11 @@ window.Auth = {
    * 인증 모듈을 초기화합니다.
    */
   init: function() {
+    console.log('[초기화] Auth.init 시작');
     this.setupLogoutHandler();
     this.setupSessionExpiry();
     this.checkLoginStatus();
+    console.log('[초기화] Auth.init 완료');
   },
   
   /**

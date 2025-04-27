@@ -1,3 +1,5 @@
+console.log('[로드] api.js 로드됨 - ' + new Date().toISOString());
+
 /**
  * API 통신 모듈
  * 서버와의 HTTP 통신을 처리하는 공통 유틸리티
@@ -208,7 +210,13 @@ window.API = {
     console.error('API 오류:', error);
     
     // UI에 오류 표시
-    Utils.showAlert(error.message || '서버 통신 중 오류가 발생했습니다.', 'error');
+    if (window.Alerts) {
+      Alerts.error(error.message || '서버 통신 중 오류가 발생했습니다.');
+    } else if (window.Utils) {
+      Utils.showAlert(error.message || '서버 통신 중 오류가 발생했습니다.', 'error');
+    } else {
+      alert(error.message || '서버 통신 중 오류가 발생했습니다.');
+    }
     
     // 표준 오류 응답 형식 반환
     return Promise.resolve({

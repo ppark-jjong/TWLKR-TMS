@@ -1,0 +1,230 @@
+users:326 [Users] 페이지 스크립트 로드 시작
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: utils, api, auth, alerts, modal
+script-loader.js:143 [ScriptLoader] 그룹 api의 의존성 처리: utils
+script-loader.js:143 [ScriptLoader] 그룹 auth의 의존성 처리: utils, api
+script-loader.js:143 [ScriptLoader] 그룹 alerts의 의존성 처리: utils
+script-loader.js:143 [ScriptLoader] 그룹 modal의 의존성 처리: utils
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (5개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (5개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/utils.js
+users:365 [초기화] 페이지 로드 완료: /users
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: utils, api, auth, alerts
+script-loader.js:143 [ScriptLoader] 그룹 api의 의존성 처리: utils
+script-loader.js:143 [ScriptLoader] 그룹 auth의 의존성 처리: utils, api
+script-loader.js:143 [ScriptLoader] 그룹 alerts의 의존성 처리: utils
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (4개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (4개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/utils.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/utils.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/utils.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/api.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/api.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/api.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/api.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/auth.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/auth.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/auth.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/auth.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/alerts.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/alerts.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/alerts.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/alerts.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/modal.js
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+users:377 [초기화] 공통 스크립트 로드 완료
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/modal.js
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+users:335 [Users] 공통 모듈 로드 완료
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: users
+script-loader.js:143 [ScriptLoader] 그룹 users의 의존성 처리: utils, api, auth, alerts, modal
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: utils
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+loadDependencies @ script-loader.js:161
+(anonymous) @ users:338
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ users:331Understand this warning
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: api
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ users:338
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ users:331Understand this warning
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: auth
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ users:338
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ users:331Understand this warning
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: alerts
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ users:338
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ users:331Understand this warning
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: modal
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ users:338
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ users:331Understand this warning
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (1개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (1개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/users.js
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/users.js
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+users:342 [Users] 사용자 관리 모듈 로드 완료
+users:349 [Users] 사용자 관리 모듈이 올바르게 로드되지 않았습니다.
+
+
+
+
+[Visualization] 페이지 스크립트 로드 시작
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: utils, api, auth, alerts
+script-loader.js:143 [ScriptLoader] 그룹 api의 의존성 처리: utils
+script-loader.js:143 [ScriptLoader] 그룹 auth의 의존성 처리: utils, api
+script-loader.js:143 [ScriptLoader] 그룹 alerts의 의존성 처리: utils
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (4개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (4개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/utils.js
+visualization:289 [초기화] 페이지 로드 완료: /visualization
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: utils, api, auth, alerts
+script-loader.js:143 [ScriptLoader] 그룹 api의 의존성 처리: utils
+script-loader.js:143 [ScriptLoader] 그룹 auth의 의존성 처리: utils, api
+script-loader.js:143 [ScriptLoader] 그룹 alerts의 의존성 처리: utils
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (4개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (4개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/utils.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/utils.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/utils.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/api.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/api.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/api.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/api.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/auth.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/auth.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/auth.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/auth.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/alerts.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/alerts.js
+script-loader.js:37 [ScriptLoader] 로딩 중: /static/js/common/alerts.js (대기열에 추가)
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/alerts.js
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+visualization:259 [Visualization] 공통 모듈 로드 완료
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: visualization
+script-loader.js:143 [ScriptLoader] 그룹 visualization의 의존성 처리: utils, api, auth, alerts
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: utils
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+loadDependencies @ script-loader.js:161
+(anonymous) @ visualization:262
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ visualization:255Understand this warning
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+visualization:301 [초기화] 공통 스크립트 로드 완료
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: api
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ visualization:262
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ visualization:255Understand this warning
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: auth
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ visualization:262
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ visualization:255Understand this warning
+script-loader.js:130 [ScriptLoader] 알 수 없는 의존성 그룹: alerts
+processGroup @ script-loader.js:130
+processGroup @ script-loader.js:145
+await in processGroup
+loadDependencies @ script-loader.js:161
+(anonymous) @ visualization:262
+loadDependencies @ script-loader.js:173
+await in loadDependencies
+(anonymous) @ visualization:255Understand this warning
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (1개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (1개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/visualization.js
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/visualization.js
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+visualization:266 [Visualization] 시각화 모듈 로드 완료
+visualization.js?v=1745755549107:57 시각화 페이지 초기화 완료
+visualization:271 [Visualization] 초기화 완료
+
+
+[Dashboard] 페이지 로드 완료, 초기화 시작
+dashboard.js:13 [Dashboard] 초기화 시작
+dashboard.js:19 [Dashboard] 2단계: 행 클릭 이벤트 등록 
+dashboard.js:22 [Dashboard] 행 클릭 이벤트 초기화 시작 
+dashboard.js:22 [Dashboard] 행 클릭 이벤트 초기화 완료 
+dashboard.js:19 [Dashboard] 3단계: 필터 이벤트 등록 
+dashboard.js:213 [Dashboard] 필터 이벤트 초기화
+dashboard.js:19 [Dashboard] 4단계: 모달 동작 초기화 
+dashboard.js:307 [Dashboard] 모달 이벤트 초기화
+dashboard.js:19 [Dashboard] 5단계: 버튼 액션 초기화 
+dashboard.js:22 [Dashboard] 액션 버튼 초기화 시작 
+dashboard.js:19 [Dashboard] 버튼 "refreshBtn" 이벤트 등록 
+dashboard.js:19 [Dashboard] 버튼 "createOrderBtn" 이벤트 등록 
+dashboard.js:19 [Dashboard] 버튼 "todayBtn" 이벤트 등록 
+dashboard.js:19 [Dashboard] 버튼 "orderSearchBtn" 이벤트 등록 
+dashboard.js:19 [Dashboard] 버튼 "resetFilterBtn" 이벤트 등록 
+dashboard.js:22 [Dashboard] 액션 버튼 초기화 완료 
+dashboard.js:19 [Dashboard] 6단계: 기타 초기화 
+dashboard.js:655 [Dashboard] 기타 초기화
+dashboard.js:19 [Dashboard] 이벤트 핸들러 검증 시작 
+dashboard.js:19 [Dashboard] 요소 확인: 주문 테이블 (#orderTable) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 신규 등록 버튼 (#createOrderBtn) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 새로고침 버튼 (#refreshBtn) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 조회 버튼 (#searchBtn) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 상태 변경 버튼 (#selectedStatusBtn) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 배차 처리 버튼 (#selectedDriverBtn) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 삭제 버튼 (#selectedDeleteBtn) 정상 
+dashboard.js:19 [Dashboard] 요소 확인: 컬럼 선택 버튼 (#columnSelectorBtn) 정상 
+dashboard.js:19 [Dashboard] 이벤트 핸들러 검증 완료 
+dashboard.js:22 [Dashboard] 초기화 완료 
+dashboard?startDate=2025-03-01&endDate=2025-04-27:3228 [Dashboard] 초기화 완료
+dashboard?startDate=2025-03-01&endDate=2025-04-27:3242 [초기화] 페이지 로드 완료: /dashboard
+script-loader.js:118 [ScriptLoader] 의존성 로드 시작: utils, api, auth, alerts
+script-loader.js:143 [ScriptLoader] 그룹 api의 의존성 처리: utils
+script-loader.js:143 [ScriptLoader] 그룹 auth의 의존성 처리: utils, api
+script-loader.js:143 [ScriptLoader] 그룹 alerts의 의존성 처리: utils
+script-loader.js:166 [ScriptLoader] 의존성 순차 로드 시작 (4개 파일)
+script-loader.js:91 [ScriptLoader] 순차 로드 시작 (4개 파일)
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/utils.js
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/utils.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/api.js
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/api.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/auth.js
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/auth.js
+script-loader.js:26 [ScriptLoader] 스크립트 로드 시도: /static/js/common/alerts.js
+script-loader.js:57 [ScriptLoader] 로드 성공: /static/js/common/alerts.js
+script-loader.js:95 [ScriptLoader] 순차 로드 완료
+script-loader.js:168 [ScriptLoader] 의존성 로드 완료
+dashboard?startDate=2025-03-01&endDate=2025-04-27:3254 [초기화] 공통 스크립트 로드 완료

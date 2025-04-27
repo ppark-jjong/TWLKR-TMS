@@ -161,8 +161,7 @@
     </script>
     
     <!-- 공통 스크립트 로드 (모든 페이지 공통) -->
-    <script src="/static/js/script-loader.js"></script>
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/common/logger.js"></script>
     
     <!-- 페이지별 추가 스크립트 -->
     {% block extra_js %}{% endblock %}
@@ -173,27 +172,8 @@
       document.addEventListener('DOMContentLoaded', function() {
         console.log('[초기화] 페이지 로드 완료: ' + window.location.pathname);
         
-        // 1. 사이드바 초기화
+        // 사이드바 초기화
         initSidebar();
-        
-        // 2. 페이지별 스크립트 로드 (브라우저 캐싱 활용)
-        if (window.ScriptLoader) {
-          // 여기서는 공통 스크립트만 로드 (페이지별 스크립트는 각 페이지에서 처리)
-          ScriptLoader.loadDependencies(
-            ScriptLoader.dependencies.common,
-            ['utils', 'api', 'auth', 'alerts'],
-            function() {
-              console.log('[초기화] 공통 스크립트 로드 완료');
-              
-              // 3. App 네임스페이스 초기화 (있는 경우)
-              if (window.App && typeof App.init === 'function') {
-                App.init();
-              }
-            }
-          );
-        } else {
-          console.error('[초기화] 스크립트 로더를 찾을 수 없습니다.');
-        }
       });
       
       // 사이드바 초기화 함수

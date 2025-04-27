@@ -122,11 +122,15 @@ def get_dashboard_list(
         # 통계 계산 (필터가 적용된 상태에서)
         stats_query = query.with_entities(
             func.count().label("total"),
-            func.sum(case((Dashboard.status == "WAITING", 1), else_=0)).label("waiting"),
+            func.sum(case((Dashboard.status == "WAITING", 1), else_=0)).label(
+                "waiting"
+            ),
             func.sum(case((Dashboard.status == "IN_PROGRESS", 1), else_=0)).label(
                 "in_progress"
             ),
-            func.sum(case((Dashboard.status == "COMPLETE", 1), else_=0)).label("complete"),
+            func.sum(case((Dashboard.status == "COMPLETE", 1), else_=0)).label(
+                "complete"
+            ),
             func.sum(case((Dashboard.status == "ISSUE", 1), else_=0)).label("issue"),
             func.sum(case((Dashboard.status == "CANCEL", 1), else_=0)).label("cancel"),
         )
@@ -203,11 +207,15 @@ def search_dashboard_by_order_no(
         # 통계 계산
         stats_query = query.with_entities(
             func.count().label("total"),
-            func.sum(case((Dashboard.status == "WAITING", 1), else_=0)).label("waiting"),
+            func.sum(case((Dashboard.status == "WAITING", 1), else_=0)).label(
+                "waiting"
+            ),
             func.sum(case((Dashboard.status == "IN_PROGRESS", 1), else_=0)).label(
                 "in_progress"
             ),
-            func.sum(case((Dashboard.status == "COMPLETE", 1), else_=0)).label("complete"),
+            func.sum(case((Dashboard.status == "COMPLETE", 1), else_=0)).label(
+                "complete"
+            ),
             func.sum(case((Dashboard.status == "ISSUE", 1), else_=0)).label("issue"),
             func.sum(case((Dashboard.status == "CANCEL", 1), else_=0)).label("cancel"),
         )
@@ -303,9 +311,9 @@ def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashbo
             postal_code=postal_code,
             address=data.address,
             customer=data.customer,
-            contact=data.contact,
-            driver_name=data.driver_name,
-            driver_contact=data.driver_contact,
+            contact=data.contact if hasattr(data, "contact") else None,
+            driver_name=None,  # 초기 생성 시 기사 정보는 비워둠
+            driver_contact=None,  # 초기 생성 시 기사 정보는 비워둠
             update_by=user_id,
             update_at=datetime.now(),
             remark=data.remark,
@@ -555,7 +563,9 @@ def change_status(
             # 대기 → 진행 시 depart_time 기록
             if old_status == "WAITING" and new_status == "IN_PROGRESS":
                 order.depart_time = datetime.now()
-                logger.info(f"주문 ID {dashboard_id}: 대기→진행 상태 변경, 출발 시간 기록: {order.depart_time}")
+                logger.info(
+                    f"주문 ID {dashboard_id}: 대기→진행 상태 변경, 출발 시간 기록: {order.depart_time}"
+                )
 
             # 진행 → 완료/이슈/취소 시 complete_time 기록
             if old_status == "IN_PROGRESS" and new_status in [
@@ -564,7 +574,9 @@ def change_status(
                 "CANCEL",
             ]:
                 order.complete_time = datetime.now()
-                logger.info(f"주문 ID {dashboard_id}: 진행→{new_status} 상태 변경, 완료 시간 기록: {order.complete_time}")
+                logger.info(
+                    f"주문 ID {dashboard_id}: 진행→{new_status} 상태 변경, 완료 시간 기록: {order.complete_time}"
+                )
 
             # 롤백 시 알림을 위한 플래그
             is_rollback = False
@@ -827,10 +839,9 @@ def get_lock_status(db: Session, dashboard_id: int, user_id: str) -> Dict[str, A
 
 # === 시각화(데이터 대시보드) 관련 함수 ===
 
+
 def get_time_block_stats(
-    db: Session, 
-    start_date: date, 
-    end_date: date
+    db: Session, start_date: date, end_date: date
 ) -> List[Dict[str, Any]]:
     """
     시간대별 접수량 통계
@@ -851,36 +862,40 @@ def get_time_block_stats(
             {"name": "20-00", "start_hour": 20, "end_hour": 24},
             {"name": "00-09", "start_hour": 0, "end_hour": 9},
         ]
-        
+
         # 시작일과 종료일을 날짜 범위로 변환
         start_datetime = datetime.combine(start_date, datetime.min.time())
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        
+
         # 결과 목록
         results = []
-        
+
         # 각 부서별, 시간대별 통계 수집
         departments = ["CS", "HES", "LENOVO"]
-        
+
         for dept in departments:
             for block in time_blocks:
                 # 해당 부서, 시간대의 주문 수 조회
-                count = db.query(func.count(Dashboard.dashboard_id))\
+                count = (
+                    db.query(func.count(Dashboard.dashboard_id))
                     .filter(
                         Dashboard.department == dept,
                         Dashboard.create_time.between(start_datetime, end_datetime),
-                        extract('hour', Dashboard.create_time) >= block["start_hour"],
-                        extract('hour', Dashboard.create_time) < block["end_hour"]
-                    )\
+                        extract("hour", Dashboard.create_time) >= block["start_hour"],
+                        extract("hour", Dashboard.create_time) < block["end_hour"],
+                    )
                     .scalar()
-                
+                )
+
                 # 결과 추가
-                results.append({
-                    "department": dept,
-                    "time_block": block["name"],
-                    "count": count or 0
-                })
-        
+                results.append(
+                    {
+                        "department": dept,
+                        "time_block": block["name"],
+                        "count": count or 0,
+                    }
+                )
+
         return results
     except SQLAlchemyError as e:
         logger.error(f"시간대별 통계 조회 중 오류 발생: {str(e)}")
@@ -891,9 +906,7 @@ def get_time_block_stats(
 
 
 def get_department_status_stats(
-    db: Session, 
-    start_date: date, 
-    end_date: date
+    db: Session, start_date: date, end_date: date
 ) -> List[Dict[str, Any]]:
     """
     부서별 상태 통계
@@ -910,34 +923,34 @@ def get_department_status_stats(
         # 시작일과 종료일을 날짜 범위로 변환
         start_datetime = datetime.combine(start_date, datetime.min.time())
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        
+
         # 결과 목록
         results = []
-        
+
         # 부서 목록
         departments = ["CS", "HES", "LENOVO"]
-        
+
         # 상태 목록
         statuses = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-        
+
         for dept in departments:
             for status_value in statuses:
                 # 해당 부서, 상태의 주문 수 조회
-                count = db.query(func.count(Dashboard.dashboard_id))\
+                count = (
+                    db.query(func.count(Dashboard.dashboard_id))
                     .filter(
                         Dashboard.department == dept,
                         Dashboard.status == status_value,
-                        Dashboard.eta.between(start_datetime, end_datetime)
-                    )\
+                        Dashboard.eta.between(start_datetime, end_datetime),
+                    )
                     .scalar()
-                
+                )
+
                 # 결과 추가
-                results.append({
-                    "department": dept,
-                    "status": status_value,
-                    "count": count or 0
-                })
-        
+                results.append(
+                    {"department": dept, "status": status_value, "count": count or 0}
+                )
+
         return results
     except SQLAlchemyError as e:
         logger.error(f"부서별 상태 통계 조회 중 오류 발생: {str(e)}")
@@ -948,9 +961,7 @@ def get_department_status_stats(
 
 
 def get_daily_trend_stats(
-    db: Session, 
-    start_date: date, 
-    end_date: date
+    db: Session, start_date: date, end_date: date
 ) -> List[Dict[str, Any]]:
     """
     일별 주문 추세 통계
@@ -970,34 +981,34 @@ def get_daily_trend_stats(
         while current_date <= end_date:
             date_range.append(current_date)
             current_date = current_date + timedelta(days=1)
-        
+
         # 결과 목록
         results = []
-        
+
         # 상태 목록
         statuses = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-        
+
         for current_date in date_range:
             # 해당 날짜의 시작과 끝 계산
             day_start = datetime.combine(current_date, datetime.min.time())
             day_end = datetime.combine(current_date, datetime.max.time())
-            
+
             for status_value in statuses:
                 # 해당 날짜, 상태의 주문 수 조회
-                count = db.query(func.count(Dashboard.dashboard_id))\
+                count = (
+                    db.query(func.count(Dashboard.dashboard_id))
                     .filter(
                         Dashboard.status == status_value,
-                        Dashboard.eta.between(day_start, day_end)
-                    )\
+                        Dashboard.eta.between(day_start, day_end),
+                    )
                     .scalar()
-                
+                )
+
                 # 결과 추가
-                results.append({
-                    "date": current_date,
-                    "status": status_value,
-                    "count": count or 0
-                })
-        
+                results.append(
+                    {"date": current_date, "status": status_value, "count": count or 0}
+                )
+
         return results
     except SQLAlchemyError as e:
         logger.error(f"일별 추세 통계 조회 중 오류 발생: {str(e)}")

@@ -1,3 +1,5 @@
+console.log('[로드] alerts.js 로드됨 - ' + new Date().toISOString());
+
 /**
  * 알림 시스템 모듈
  * 사용자에게 알림 메시지를 표시하는 기능 제공
@@ -13,6 +15,8 @@ window.Alerts = {
    * 알림 모듈을 초기화합니다.
    */
   init: function() {
+    console.log('[초기화] Alerts.init 시작');
+    
     this.container = document.getElementById('alertContainer');
     
     if (!this.container) {
@@ -34,6 +38,8 @@ window.Alerts = {
         }
       }
     });
+    
+    console.log('[초기화] Alerts.init 완료');
   },
   
   /**

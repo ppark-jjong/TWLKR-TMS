@@ -69,23 +69,27 @@ async def dashboard_page(
     start_date = today
     end_date = today
 
-    logger.info(f"대시보드 페이지 접근: URL 파라미터 - startDate={startDate}, endDate={endDate}, orderNo={orderNo}")
+    logger.info(
+        f"대시보드 페이지 접근: URL 파라미터 - startDate={startDate}, endDate={endDate}, orderNo={orderNo}"
+    )
 
     # URL 파라미터에서 날짜 가져오기
     if startDate:
         try:
             # 'YYYY-MM-DD' 또는 'YYYY-MM-DD HH:MM:SS' 형식 처리
-            start_date = datetime.strptime(startDate.split(' ')[0], "%Y-%m-%d").date()
+            start_date = datetime.strptime(startDate.split(" ")[0], "%Y-%m-%d").date()
             logger.info(f"시작 날짜 설정: {start_date}")
         except ValueError:
-            logger.warning(f"잘못된 시작 날짜 형식: {startDate}. 오늘 날짜로 대체합니다.")
+            logger.warning(
+                f"잘못된 시작 날짜 형식: {startDate}. 오늘 날짜로 대체합니다."
+            )
     else:
         logger.info(f"시작 날짜 파라미터 없음. 오늘 날짜({today})로 설정")
-    
+
     if endDate:
         try:
             # 'YYYY-MM-DD' 또는 'YYYY-MM-DD HH:MM:SS' 형식 처리
-            end_date = datetime.strptime(endDate.split(' ')[0], "%Y-%m-%d").date()
+            end_date = datetime.strptime(endDate.split(" ")[0], "%Y-%m-%d").date()
             logger.info(f"종료 날짜 설정: {end_date}")
         except ValueError:
             logger.warning(f"잘못된 종료 날짜 형식: {endDate}. 오늘 날짜로 대체합니다.")
@@ -105,7 +109,14 @@ async def dashboard_page(
             logger.error(f"주문번호 검색 중 오류 발생: {e}", exc_info=True)
             orders, pagination, stats = (
                 [],
-                {"total": 0, "total_pages": 0, "current": 1, "page_size": limit, "start": 0, "end": 0},
+                {
+                    "total": 0,
+                    "total_pages": 0,
+                    "current": 1,
+                    "page_size": limit,
+                    "start": 0,
+                    "end": 0,
+                },
                 {},
             )
     else:
@@ -124,7 +135,14 @@ async def dashboard_page(
             # 여기서는 간단히 빈 리스트 반환 처리
             orders, pagination, stats = (
                 [],
-                {"total": 0, "total_pages": 0, "current": 1, "page_size": limit, "start": 0, "end": 0},
+                {
+                    "total": 0,
+                    "total_pages": 0,
+                    "current": 1,
+                    "page_size": limit,
+                    "start": 0,
+                    "end": 0,
+                },
                 {},
             )
 
@@ -160,8 +178,16 @@ async def dashboard_page(
                 "sla": order.sla,
                 "eta": eta_formatted,
                 "createTime": create_time_formatted,
-                "departTime": order.depart_time.strftime("%Y-%m-%d %H:%M") if order.depart_time else "",
-                "completeTime": order.complete_time.strftime("%Y-%m-%d %H:%M") if order.complete_time else "",
+                "departTime": (
+                    order.depart_time.strftime("%Y-%m-%d %H:%M")
+                    if order.depart_time
+                    else ""
+                ),
+                "completeTime": (
+                    order.complete_time.strftime("%Y-%m-%d %H:%M")
+                    if order.complete_time
+                    else ""
+                ),
                 "postalCode": order.postal_code,
                 "address": order.address,
                 "region": getattr(order, "region", "") or "",
@@ -225,7 +251,9 @@ async def dashboard_page(
             "departments": departments,
             "warehouses": warehouses,
             "types": types,
-            "selected_date": start_date.strftime("%Y-%m-%d"),  # date_filter 대신 start_date 사용
+            "selected_date": start_date.strftime(
+                "%Y-%m-%d"
+            ),  # date_filter 대신 start_date 사용
         },
     )
 
@@ -266,7 +294,7 @@ async def get_orders(
         "ISSUE": "이슈",
         "CANCEL": "취소",
     }
-    type_labels = {"DELIVERY": "배송", "RETURN": "반품"}
+    type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
     orders_data = []
     for order in orders:
@@ -279,25 +307,10 @@ async def get_orders(
             "warehouse": order.warehouse,
             "sla": order.sla,
             "eta": order.eta,
-            "createTime": order.create_time,
-            "departTime": order.depart_time,
-            "completeTime": order.complete_time,
             "postalCode": order.postal_code,
-            "city": order.city,
-            "county": order.county,
-            "district": order.district,
-            "region": order.region,
-            "distance": order.distance,
-            "durationTime": order.duration_time,
-            "address": order.address,
             "customer": order.customer,
-            "contact": order.contact,
+            "region": order.region,
             "driverName": order.driver_name,
-            "driverContact": order.driver_contact,
-            "updatedBy": order.update_by,
-            "remark": order.remark,
-            "updateAt": order.update_at,
-            "isLocked": order.is_locked,
             "statusLabel": status_labels.get(order.status, order.status),
             "typeLabel": type_labels.get(order.type, order.type),
         }
@@ -351,25 +364,10 @@ async def search_order(
             "warehouse": order.warehouse,
             "sla": order.sla,
             "eta": order.eta,
-            "createTime": order.create_time,
-            "departTime": order.depart_time,
-            "completeTime": order.complete_time,
             "postalCode": order.postal_code,
-            "city": order.city,
-            "county": order.county,
-            "district": order.district,
-            "region": order.region,
-            "distance": order.distance,
-            "durationTime": order.duration_time,
-            "address": order.address,
             "customer": order.customer,
-            "contact": order.contact,
+            "region": order.region,
             "driverName": order.driver_name,
-            "driverContact": order.driver_contact,
-            "updatedBy": order.update_by,
-            "remark": order.remark,
-            "updateAt": order.update_at,
-            "isLocked": order.is_locked,
             "statusLabel": status_labels.get(order.status, order.status),
             "typeLabel": type_labels.get(order.type, order.type),
         }

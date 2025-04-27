@@ -3,6 +3,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="/static/css/dashboard.css" />
+<link rel="stylesheet" href="/static/css/dashboard-custom.css" />
 {% endblock %} 
 
 {% block content %}
@@ -157,44 +158,11 @@
     </div>
   </div>
 
-  <!-- 선택된 행 액션 패널 (테이블 위로 이동) -->
-  <div class="selected-actions" id="selectedActions">
-    <span class="selected-count" id="selectedCount"></span>
-    <div class="selected-buttons">
-      <button
-        type="button"
-        class="action-btn status-btn"
-        id="selectedStatusBtn"
-      >
-        <i class="fas fa-exchange-alt"></i> 상태 변경
-      </button>
-      <button
-        type="button"
-        class="action-btn driver-btn"
-        id="selectedDriverBtn"
-      >
-        <i class="fas fa-user"></i> 배차 처리
-      </button>
-      {% if user.user_role == 'ADMIN' %}
-      <button
-        type="button"
-        class="action-btn delete-btn"
-        id="selectedDeleteBtn"
-      >
-        <i class="fas fa-trash"></i> 삭제
-      </button>
-      {% endif %}
-    </div>
-  </div>
-
   <!-- 주문 테이블 -->
   <div class="order-table-container">
     <table class="order-table" id="orderTable">
       <thead>
         <tr>
-          <th class="checkbox-column">
-            <input type="checkbox" id="selectAllCheckbox" />
-          </th>
           <th class="column-department">부서</th>
           <th class="column-type">유형</th>
           <th class="column-warehouse">창고</th>
@@ -204,6 +172,7 @@
           <th class="column-region">도착지</th>
           <th class="column-customer">고객명</th>
           <th class="column-driver">기사명</th>
+          <th class="column-actions">관리</th>
         </tr>
       </thead>
       <tbody>
@@ -212,14 +181,6 @@
           data-id="{{ order.dashboardId }}"
           class="clickable-row status-row-{{ order.status }}"
         >
-          <td class="checkbox-column">
-            <input
-              type="checkbox"
-              class="row-checkbox"
-              data-id="{{ order.dashboardId }}"
-              data-status="{{ order.status }}"
-            />
-          </td>
           <td class="column-department">{{ order.department }}</td>
           <td class="column-type">{{ order.type_label }}</td>
           <td class="column-warehouse">{{ order.warehouse }}</td>
@@ -231,10 +192,15 @@
           <td class="column-region">{{ order.region or '-' }}</td>
           <td class="column-customer">{{ order.customer }}</td>
           <td class="column-driver">{{ order.driverName or '-' }}</td>
+          <td class="column-actions">
+            <button type="button" class="action-icon view-btn" data-id="{{ order.dashboardId }}" title="상세보기">
+              <i class="fas fa-eye"></i>
+            </button>
+          </td>
         </tr>
         {% else %}
         <tr class="no-data-row">
-          <td colspan="11" class="no-data-cell">데이터가 없습니다</td>
+          <td colspan="10" class="no-data-cell">데이터가 없습니다</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -274,297 +240,75 @@
   </div>
 </div>
 
-<!-- 주문 상세 모달 -->
-<div class="modal" id="orderDetailModal">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title" id="modalTitle">주문 상세 정보</h2>
-        <button type="button" class="close-btn" id="closeDetailModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body" id="orderDetailContent">
-        <!-- 상세 정보 내용은 JavaScript로 동적 생성 -->
-        <div class="loading-spinner" id="modalLoadingSpinner">
-          <i class="fas fa-spinner fa-spin"></i> 로딩 중...
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="closeModalBtn">
-          닫기
-        </button>
-        <button type="button" class="btn primary-btn" id="editOrderBtn">
-          수정하기
-        </button>
-        <button
-          type="button"
-          class="btn primary-btn"
-          id="saveOrderBtn"
-          style="display: none"
-        >
-          저장하기
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 주문 생성 모달 -->
-<div class="modal" id="createOrderModal">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">신규 배송 등록</h2>
-        <button type="button" class="close-btn" id="closeCreateModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="createOrderForm" class="order-form">
-          <!-- 주문 생성 폼 필드 -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createOrderNo">주문번호 *</label>
-              <input type="text" id="createOrderNo" name="orderNo" required />
-            </div>
-            <div class="form-group">
-              <label for="createType">유형 *</label>
-              <select id="createType" name="type" required>
-                <option value="">선택하세요</option>
-                {% for type in types %}
-                <option value="{{ type.value }}">{{ type.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createDepartment">부서 *</label>
-              <select id="createDepartment" name="department" required>
-                <option value="">선택하세요</option>
-                {% for dept in departments %}
-                <option value="{{ dept.value }}">{{ dept.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="createWarehouse">창고 *</label>
-              <select id="createWarehouse" name="warehouse" required>
-                <option value="">선택하세요</option>
-                {% for warehouse in warehouses %}
-                <option value="{{ warehouse.value }}">
-                  {{ warehouse.label }}
-                </option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createSLA">SLA *</label>
-              <input type="text" id="createSLA" name="sla" required />
-            </div>
-            <div class="form-group">
-              <label for="createETA">ETA *</label>
-              <input type="datetime-local" id="createETA" name="eta" required />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createPostalCode">우편번호 *</label>
-              <input
-                type="text"
-                id="createPostalCode"
-                name="postalCode"
-                required
-                maxlength="5"
-                pattern="[0-9]{5}"
-                title="우편번호는 5자리 숫자여야 합니다"
-              />
-            </div>
-            <div class="form-group full-width">
-              <label for="createAddress">주소 *</label>
-              <input type="text" id="createAddress" name="address" required />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createCustomer">고객명 *</label>
-              <input type="text" id="createCustomer" name="customer" required />
-            </div>
-            <div class="form-group">
-              <label for="createContact">연락처 *</label>
-              <input
-                type="text"
-                id="createContact"
-                name="contact"
-                required
-                pattern="010-[0-9]{4}-[0-9]{4}"
-              />
-              <small class="form-hint">형식: 010-XXXX-XXXX</small>
-            </div>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="cancelCreateBtn">
-          취소
-        </button>
-        <button type="button" class="btn primary-btn" id="submitCreateBtn">
-          등록
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 기사 배정 모달 -->
-<div class="modal" id="driverAssignModal">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">배차 처리</h2>
-        <button type="button" class="close-btn" id="closeDriverModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="driverAssignForm" class="driver-form">
-          <div class="form-group">
-            <label for="assignDriverName">기사 이름 *</label>
-            <input
-              type="text"
-              id="assignDriverName"
-              name="driverName"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="assignDriverContact">기사 번호</label>
-            <input
-              type="text"
-              id="assignDriverContact"
-              name="driverContact"
-              pattern="010-[0-9]{4}-[0-9]{4}"
-            />
-            <small class="form-hint">형식: 010-XXXX-XXXX</small>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="cancelDriverBtn">
-          취소
-        </button>
-        <button type="button" class="btn primary-btn" id="submitDriverBtn">
-          배차 확인 (<span id="driverAssignCount">0</span>건)
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 상태 변경 모달 -->
-<div class="modal" id="statusChangeModal">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">상태 변경</h2>
-        <button type="button" class="close-btn" id="closeStatusModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="statusChangeForm" class="status-form">
-          <div class="form-group">
-            <label for="changeStatus">변경할 상태 *</label>
-            <select id="changeStatus" name="status" required>
-              <option value="">선택하세요</option>
-              <!-- 선택 상태에 따라 동적으로 옵션이 변경됩니다 -->
-            </select>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="cancelStatusBtn">
-          취소
-        </button>
-        <button type="button" class="btn primary-btn" id="submitStatusBtn">
-          확인 (<span id="statusChangeCount">0</span>건)
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 삭제 확인 모달 -->
-<div class="modal" id="deleteConfirmModal">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">주문 삭제</h2>
-        <button type="button" class="close-btn" id="closeDeleteModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <p>
-          선택한 <span id="deleteOrderCount">0</span>개 주문을 삭제하시겠습니까?
-        </p>
-        <p class="delete-warning">삭제된 주문은 복구할 수 없습니다.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="cancelDeleteBtn">
-          취소
-        </button>
-        <button type="button" class="btn delete-btn" id="confirmDeleteBtn">
-          삭제
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- 모달 템플릿 포함 -->
+{% include "dashboard_modals.html" %}
 {% endblock %} 
 
 {% block extra_js %}
-<!-- 대시보드 페이지 JS 스크립트 -->
-<!-- 1. 공통 모듈 -->
+<!-- 1. 공통 기본 모듈 (먼저 로드) -->
+<script src="/static/js/common/logger.js"></script>
+<script src="/static/js/common/api.js"></script>
+<script src="/static/js/common/alerts.js"></script>
+<script src="/static/js/common/auth.js"></script>
+
+<!-- 2. 대시보드 코어 모듈 -->
+<script src="/static/js/dashboard/core.js"></script>
+
+<!-- 3. 대시보드 기능 모듈 (의존성 순서) -->
+<script src="/static/js/dashboard/table.js"></script>
+<script src="/static/js/dashboard/filter.js"></script>
+<script src="/static/js/dashboard/pagination.js"></script>
+<script src="/static/js/dashboard/modal.js"></script>
+<script src="/static/js/dashboard/columns.js"></script>
+
+<!-- 4. 대시보드 초기화 모듈 -->
+<script src="/static/js/dashboard/index.js"></script>
+
+<!-- 5. 수동 초기화 확인 스크립트 -->
 <script>
-  console.log('[Dashboard] 페이지 스크립트 로드 시작');
-  
-  // 스크립트 로더를 통해 모듈 의존성 순서대로 로드
-  if (window.ScriptLoader) {
-    // 먼저 공통 모듈 로드
-    ScriptLoader.loadDependencies(
-      ScriptLoader.dependencies.common,
-      ['utils', 'api', 'auth', 'alerts', 'modal', 'pagination'],
-      function() {
-        console.log('[Dashboard] 공통 모듈 로드 완료');
-        
-        // 이후 대시보드 모듈 로드
-        ScriptLoader.loadDependencies(
-          ScriptLoader.dependencies.page,
-          'dashboard',
-          function() {
-            console.log('[Dashboard] 대시보드 모듈 로드 완료');
-            
-            // 대시보드 초기화 (dashboard.js의 init 함수 호출)
-            if (window.Dashboard && typeof Dashboard.init === 'function') {
-              Dashboard.init();
-              console.log('[Dashboard] 초기화 완료');
-            } else {
-              console.error('[Dashboard] 대시보드 모듈이 올바르게 로드되지 않았습니다.');
-            }
-          }
-        );
+  window.addEventListener('load', function() {
+    console.log('[디버깅] 페이지 로드 완료');
+    
+    // 모듈 로딩 확인
+    const modules = [
+      { name: 'Logger', module: window.Logger },
+      { name: 'API', module: window.API },
+      { name: 'Alerts', module: window.Alerts },
+      { name: 'Auth', module: window.Auth },
+      { name: 'Dashboard', module: window.Dashboard }
+    ];
+    
+    console.log('--- 모듈 로딩 현황 ---');
+    modules.forEach(m => {
+      console.log(`${m.name}: ${m.module ? '✓' : '✗'}`);
+    });
+    
+    // 대시보드 하위 모듈 확인
+    if (window.Dashboard) {
+      console.log('--- Dashboard 모듈 확인 ---');
+      const dashboardModules = [
+        'utils', 'table', 'filter', 'pagination', 'modal', 'columns', 'actions'
+      ];
+      
+      dashboardModules.forEach(name => {
+        const hasModule = window.Dashboard[name] !== undefined;
+        console.log(`Dashboard.${name}: ${hasModule ? '✓' : '✗'}`);
+      });
+    }
+    
+    // Dashboard 초기화
+    if(window.Dashboard && typeof Dashboard.init === 'function') {
+      console.log('[디버깅] Dashboard.init 함수 호출');
+      try {
+        Dashboard.init();
+        console.log('[디버깅] Dashboard.init 성공');
+      } catch(e) {
+        console.error('[디버깅] Dashboard.init 실패: ' + e.message);
+        console.error(e.stack);
       }
-    );
-  } else {
-    console.error('[Dashboard] 스크립트 로더를 찾을 수 없습니다.');
-  }
+    } else {
+      console.error('[디버깅] Dashboard.init 함수 없음');
+    }
+  });
 </script>
 {% endblock %}
