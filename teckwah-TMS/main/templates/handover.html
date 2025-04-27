@@ -264,5 +264,39 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/handover.js"></script>
+<!-- 인수인계 페이지 JS 스크립트 -->
+<script>
+  console.log('[Handover] 페이지 스크립트 로드 시작');
+  
+  // 스크립트 로더를 통해 필요한 모듈 로드
+  if (window.ScriptLoader) {
+    // 먼저 공통 모듈 로드
+    ScriptLoader.loadDependencies(
+      ScriptLoader.dependencies.common,
+      ['utils', 'api', 'auth', 'alerts', 'modal'],
+      function() {
+        console.log('[Handover] 공통 모듈 로드 완료');
+        
+        // 이후 인수인계 모듈 로드
+        ScriptLoader.loadDependencies(
+          ScriptLoader.dependencies.page,
+          'handover',
+          function() {
+            console.log('[Handover] 인수인계 모듈 로드 완료');
+            
+            // 인수인계 초기화 (handover.js의 init 함수 호출)
+            if (window.Handover && typeof Handover.init === 'function') {
+              Handover.init();
+              console.log('[Handover] 초기화 완료');
+            } else {
+              console.error('[Handover] 인수인계 모듈이 올바르게 로드되지 않았습니다.');
+            }
+          }
+        );
+      }
+    );
+  } else {
+    console.error('[Handover] 스크립트 로더를 찾을 수 없습니다.');
+  }
+</script>
 {% endblock %}

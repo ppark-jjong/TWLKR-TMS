@@ -87,19 +87,38 @@
     <!-- 공통 유틸리티 스크립트 -->
     <script src="/static/js/script-loader.js"></script>
     <script src="/static/js/main.js"></script>
-    <script src="/static/js/common/utils.js"></script>
-    <script src="/static/js/common/alerts.js"></script>
-
+    
+    <!-- 로그인 페이지 스크립트 -->
     <script>
-      // 로그인 페이지에서의 빠른 로그인 기능
-      function quickLogin(userId, password) {
-        document.querySelector('input[name="user_id"]').value = userId;
-        document.querySelector('input[name="password"]').value = password;
-        document.querySelector('.login-form').submit();
+      console.log('[Login] 페이지 스크립트 로드 시작');
+      
+      // 스크립트 로더를 통해 필요한 모듈 로드
+      if (window.ScriptLoader) {
+        // 로그인 페이지는 최소한의 의존성만 필요 (utils, alerts)
+        ScriptLoader.loadDependencies(
+          ScriptLoader.dependencies.common,
+          ['utils', 'alerts'],
+          function() {
+            console.log('[Login] 공통 모듈 로드 완료');
+            initLoginPage();
+          }
+        );
+      } else {
+        console.error('[Login] 스크립트 로더를 찾을 수 없습니다. 직접 초기화합니다.');
+        // 스크립트 로더가 없어도 기본 기능은 동작하도록 초기화
+        initLoginPage();
       }
-
-      // 페이지 로드 시 리다이렉션 이유가 있으면 알림 표시
-      document.addEventListener('DOMContentLoaded', function() {
+      
+      // 로그인 페이지 초기화
+      function initLoginPage() {
+        // 로그인 페이지에서의 빠른 로그인 기능
+        window.quickLogin = function(userId, password) {
+          document.querySelector('input[name="user_id"]').value = userId;
+          document.querySelector('input[name="password"]').value = password;
+          document.querySelector('.login-form').submit();
+        };
+    
+        // 페이지 로드 시 리다이렉션 이유가 있으면 알림 표시
         // URL에서 리다이렉션 이유 확인
         const urlParams = new URLSearchParams(window.location.search);
         const redirectReason = urlParams.get('reason');
@@ -138,23 +157,25 @@
           url.search = '';
           window.history.replaceState({}, document.title, url);
         }
-      });
-      
-      // 폼 제출 이벤트
-      document.querySelector('.login-form').addEventListener('submit', function(e) {
-        const userId = document.querySelector('input[name="user_id"]').value.trim();
-        const password = document.querySelector('input[name="password"]').value.trim();
         
-        if (!userId || !password) {
-          e.preventDefault();
+        // 폼 제출 이벤트
+        document.querySelector('.login-form').addEventListener('submit', function(e) {
+          const userId = document.querySelector('input[name="user_id"]').value.trim();
+          const password = document.querySelector('input[name="password"]').value.trim();
           
-          if (window.Alerts) {
-            Alerts.warning('사용자 ID와 비밀번호를 모두 입력해주세요.');
-          } else {
-            alert('사용자 ID와 비밀번호를 모두 입력해주세요.');
+          if (!userId || !password) {
+            e.preventDefault();
+            
+            if (window.Alerts) {
+              Alerts.warning('사용자 ID와 비밀번호를 모두 입력해주세요.');
+            } else {
+              alert('사용자 ID와 비밀번호를 모두 입력해주세요.');
+            }
           }
-        }
-      });
+        });
+        
+        console.log('[Login] 초기화 완료');
+      }
     </script>
   </body>
 </html>

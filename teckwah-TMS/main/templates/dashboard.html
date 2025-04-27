@@ -531,36 +531,40 @@
 {% endblock %} 
 
 {% block extra_js %}
-<!-- 대시보드 JavaScript 모듈 로드 -->
-<script src="/static/js/dashboard/filter.js"></script>
-<script src="/static/js/dashboard/table.js"></script>
-<script src="/static/js/dashboard/modals.js"></script>
-<script src="/static/js/dashboard/actions.js"></script>
-<script src="/static/js/dashboard/init.js"></script>
-
-<!-- 대시보드 메인 JavaScript 파일 로드 (마지막에 로드) -->
-<script src="/static/js/dashboard.js"></script>
-
-<!-- 디버깅용 스크립트 -->
+<!-- 대시보드 페이지 JS 스크립트 -->
+<!-- 1. 공통 모듈 -->
 <script>
-  // 페이지 로드 후 모든 스크립트가 로드되었는지 확인
-  window.addEventListener('load', function() {
-    console.log('페이지 로드 완료, 스크립트 상태 확인:');
-    
-    // 주요 네임스페이스 확인
-    const namespaces = ['Utils', 'API', 'Dashboard', 'DashboardTable', 'DashboardModals', 'DashboardActions'];
-    namespaces.forEach(ns => {
-      console.log(`${ns} 네임스페이스: ${window[ns] ? '로드됨' : '누락'}`);
-    });
-    
-    // 테이블 행에 클릭 이벤트가 있는지 확인
-    const rows = document.querySelectorAll('#orderTable tbody tr[data-id]');
-    if (rows.length > 0) {
-      console.log(`테이블 행 ${rows.length}개 발견, 클릭 이벤트 확인`);
-      const hasClickEvent = typeof rows[0].onclick === 'function' || 
-                           typeof rows[0]._clickHandler === 'function';
-      console.log(`행 클릭 이벤트: ${hasClickEvent ? '등록됨' : '누락'}`);
-    }
-  });
+  console.log('[Dashboard] 페이지 스크립트 로드 시작');
+  
+  // 스크립트 로더를 통해 모듈 의존성 순서대로 로드
+  if (window.ScriptLoader) {
+    // 먼저 공통 모듈 로드
+    ScriptLoader.loadDependencies(
+      ScriptLoader.dependencies.common,
+      ['utils', 'api', 'auth', 'alerts', 'modal', 'pagination'],
+      function() {
+        console.log('[Dashboard] 공통 모듈 로드 완료');
+        
+        // 이후 대시보드 모듈 로드
+        ScriptLoader.loadDependencies(
+          ScriptLoader.dependencies.page,
+          'dashboard',
+          function() {
+            console.log('[Dashboard] 대시보드 모듈 로드 완료');
+            
+            // 대시보드 초기화 (dashboard.js의 init 함수 호출)
+            if (window.Dashboard && typeof Dashboard.init === 'function') {
+              Dashboard.init();
+              console.log('[Dashboard] 초기화 완료');
+            } else {
+              console.error('[Dashboard] 대시보드 모듈이 올바르게 로드되지 않았습니다.');
+            }
+          }
+        );
+      }
+    );
+  } else {
+    console.error('[Dashboard] 스크립트 로더를 찾을 수 없습니다.');
+  }
 </script>
 {% endblock %}

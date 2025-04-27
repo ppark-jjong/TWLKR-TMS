@@ -155,5 +155,39 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/users.js"></script>
+<!-- 사용자 관리 페이지 JS 스크립트 -->
+<script>
+  console.log('[Users] 페이지 스크립트 로드 시작');
+  
+  // 스크립트 로더를 통해 필요한 모듈 로드
+  if (window.ScriptLoader) {
+    // 먼저 공통 모듈 로드
+    ScriptLoader.loadDependencies(
+      ScriptLoader.dependencies.common,
+      ['utils', 'api', 'auth', 'alerts', 'modal'],
+      function() {
+        console.log('[Users] 공통 모듈 로드 완료');
+        
+        // 이후 사용자 관리 모듈 로드
+        ScriptLoader.loadDependencies(
+          ScriptLoader.dependencies.page,
+          'users',
+          function() {
+            console.log('[Users] 사용자 관리 모듈 로드 완료');
+            
+            // 사용자 관리 초기화 (users.js의 init 함수 호출)
+            if (window.Users && typeof Users.init === 'function') {
+              Users.init();
+              console.log('[Users] 초기화 완료');
+            } else {
+              console.error('[Users] 사용자 관리 모듈이 올바르게 로드되지 않았습니다.');
+            }
+          }
+        );
+      }
+    );
+  } else {
+    console.error('[Users] 스크립트 로더를 찾을 수 없습니다.');
+  }
+</script>
 {% endblock %}

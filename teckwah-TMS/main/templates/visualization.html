@@ -93,5 +93,39 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/visualization.js"></script>
+<!-- 시각화 페이지 JS 스크립트 -->
+<script>
+  console.log('[Visualization] 페이지 스크립트 로드 시작');
+  
+  // 스크립트 로더를 통해 필요한 모듈 로드
+  if (window.ScriptLoader) {
+    // 먼저 공통 모듈 로드
+    ScriptLoader.loadDependencies(
+      ScriptLoader.dependencies.common,
+      ['utils', 'api', 'auth', 'alerts'],
+      function() {
+        console.log('[Visualization] 공통 모듈 로드 완료');
+        
+        // 이후 시각화 모듈 로드
+        ScriptLoader.loadDependencies(
+          ScriptLoader.dependencies.page,
+          'visualization',
+          function() {
+            console.log('[Visualization] 시각화 모듈 로드 완료');
+            
+            // 시각화 초기화 (visualization.js의 init 함수 호출)
+            if (window.Visualization && typeof Visualization.init === 'function') {
+              Visualization.init();
+              console.log('[Visualization] 초기화 완료');
+            } else {
+              console.error('[Visualization] 시각화 모듈이 올바르게 로드되지 않았습니다.');
+            }
+          }
+        );
+      }
+    );
+  } else {
+    console.error('[Visualization] 스크립트 로더를 찾을 수 없습니다.');
+  }
+</script>
 {% endblock %}

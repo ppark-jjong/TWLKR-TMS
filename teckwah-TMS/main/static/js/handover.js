@@ -15,17 +15,48 @@ window.Handover = (function() {
    * 초기화 함수
    */
   function init() {
-    // 인증 확인
-    if (window.Auth) {
-      Auth.checkLoginStatus().catch(error => {
-        console.error('인증 확인 오류:', error);
-      });
+    console.log('[Handover] 초기화 시작');
+    
+    // 모듈 의존성 확인
+    if (!checkDependencies()) {
+      console.error('[Handover] 초기화 실패: 필수 모듈이 로드되지 않았습니다.');
+      return;
     }
     
     // 이벤트 리스너 설정
     setupEventListeners();
     
-    console.log('인수인계 페이지 초기화 완료');
+    console.log('[Handover] 초기화 완료');
+  }
+  
+  /**
+   * 모듈 의존성을 확인합니다.
+   * @returns {boolean} - 의존성 확인 결과
+   */
+  function checkDependencies() {
+    const dependencies = [
+      { name: 'Utils', module: window.Utils },
+      { name: 'API', module: window.API },
+      { name: 'Alerts', module: window.Alerts },
+      { name: 'Modal', module: window.Modal }
+    ];
+    
+    const missingDependencies = dependencies.filter(dep => !dep.module);
+    
+    if (missingDependencies.length > 0) {
+      console.error('[Handover] 누락된 의존성:', missingDependencies.map(dep => dep.name).join(', '));
+      
+      // 사용자에게 알림
+      if (window.Alerts) {
+        Alerts.error('일부 필수 스크립트를 로드할 수 없습니다. 페이지를 새로고침하세요.');
+      } else {
+        alert('일부 필수 스크립트를 로드할 수 없습니다. 페이지를 새로고침하세요.');
+      }
+      
+      return false;
+    }
+    
+    return true;
   }
   
   /**
@@ -111,10 +142,7 @@ window.Handover = (function() {
     state.isEditing = false;
     
     // 모달 표시
-    const modal = document.getElementById('handoverCreateModal');
-    if (modal) {
-      modal.style.display = 'block';
-    }
+    Modal.show('handoverCreateModal');
   }
   
   /**
@@ -132,53 +160,37 @@ window.Handover = (function() {
       }
       
       // 로딩 표시
-      if (window.Utils) {
-        Utils.toggleLoading(true);
-      }
+      Utils.toggleLoading(true);
       
       // 인수인계 데이터 로드
-      const response = await fetch(`/handover/items/${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        credentials: 'include'
-      });
+      const response = await API.get(`/handover/items/${id}`);
       
-      const data = await response.json();
-      
-      if (data.success) {
+      if (response.success) {
         // 폼에 데이터 채우기
         const form = document.getElementById('handoverForm');
         if (form) {
-          document.getElementById('handoverId').value = data.item.id;
-          document.getElementById('title').value = data.item.title;
-          document.getElementById('content').value = data.item.content;
+          document.getElementById('handoverId').value = response.item.id;
+          document.getElementById('title').value = response.item.title;
+          document.getElementById('content').value = response.item.content;
           
           // 공지사항 체크박스 (관리자만 해당)
           const isNoticeCheckbox = document.getElementById('isNotice');
           if (isNoticeCheckbox) {
-            isNoticeCheckbox.checked = data.item.is_notice;
+            isNoticeCheckbox.checked = response.item.is_notice;
           }
         }
         
         // 모달 표시
-        const modal = document.getElementById('handoverCreateModal');
-        if (modal) {
-          modal.style.display = 'block';
-        }
+        Modal.show('handoverCreateModal');
       } else {
-        showAlert(data.message || '인수인계 정보를 불러오는데 실패했습니다.', 'error');
+        Alerts.error(response.message || '인수인계 정보를 불러오는데 실패했습니다.');
       }
     } catch (error) {
-      console.error('인수인계 수정 중 오류:', error);
-      showAlert('인수인계 정보를 불러오는데 실패했습니다.', 'error');
+      console.error('[Handover] 인수인계 수정 중 오류:', error);
+      Alerts.error('인수인계 정보를 불러오는데 실패했습니다.');
     } finally {
       // 로딩 숨김
-      if (window.Utils) {
-        Utils.toggleLoading(false);
-      }
+      Utils.toggleLoading(false);
     }
   }
   
@@ -207,43 +219,31 @@ window.Handover = (function() {
       }
       
       // 모달 표시
-      const modal = document.getElementById('handoverDetailModal');
-      if (modal) {
-        modal.style.display = 'block';
-      }
+      Modal.show('handoverDetailModal');
       
       // 인수인계 데이터 로드
-      const response = await fetch(`/handover/items/${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        credentials: 'include'
-      });
+      const response = await API.get(`/handover/items/${id}`);
       
-      const data = await response.json();
-      
-      if (data.success) {
-        state.currentHandover = data.item;
+      if (response.success) {
+        state.currentHandover = response.item;
         
         // 상세 정보 표시
         if (contentDiv) {
-          const item = data.item;
+          const item = response.item;
           
           // 공지사항 태그 표시
           const noticeTag = item.is_notice ? 
             '<span class="notice-tag"><i class="fas fa-bullhorn"></i> 공지사항</span>' : '';
           
           // HTML 이스케이프 및 줄바꿈 처리
-          const content = escapeHtml(item.content).replace(/\n/g, '<br>');
+          const content = Utils.escapeHtml(item.content).replace(/\n/g, '<br>');
           
           contentDiv.innerHTML = `
             <div class="detail-header">
-              <h2 class="detail-title">${escapeHtml(item.title)} ${noticeTag}</h2>
+              <h2 class="detail-title">${Utils.escapeHtml(item.title)} ${noticeTag}</h2>
               <div class="detail-meta">
-                <span class="writer"><i class="fas fa-user"></i> ${escapeHtml(item.writer)}</span>
-                <span class="date"><i class="fas fa-clock"></i> ${formatDateTime(item.update_at)}</span>
+                <span class="writer"><i class="fas fa-user"></i> ${Utils.escapeHtml(item.writer)}</span>
+                <span class="date"><i class="fas fa-clock"></i> ${Utils.formatDate(item.update_at, 'YYYY-MM-DD HH:mm')}</span>
               </div>
             </div>
             <div class="detail-content">
@@ -253,18 +253,18 @@ window.Handover = (function() {
         }
         
         // 수정/삭제 버튼 (작성자 또는 관리자만 표시)
-        if (actionsDiv && (data.item.editable || (window.Auth && Auth.hasRole('ADMIN')))) {
+        if (actionsDiv && (response.item.editable || (Auth && Auth.hasRole('ADMIN')))) {
           actionsDiv.innerHTML = `
             <button class="btn btn-primary" onclick="Handover.editHandover('${id}')">수정하기</button>
             <button class="btn btn-danger" onclick="Handover.deleteHandover('${id}')">삭제하기</button>
           `;
         }
       } else {
-        showAlert(data.message || '인수인계 정보를 불러오는데 실패했습니다.', 'error');
+        Alerts.error(response.message || '인수인계 정보를 불러오는데 실패했습니다.');
       }
     } catch (error) {
-      console.error('인수인계 상세 조회 중 오류:', error);
-      showAlert('인수인계 정보를 불러오는데 실패했습니다.', 'error');
+      console.error('[Handover] 인수인계 상세 조회 중 오류:', error);
+      Alerts.error('인수인계 정보를 불러오는데 실패했습니다.');
     } finally {
       // 로딩 숨김
       const loader = document.querySelector('.modal-loader');
@@ -282,74 +282,58 @@ window.Handover = (function() {
     if (!form) return;
     
     // 유효성 검사
-    if (!form.checkValidity()) {
-      form.reportValidity();
+    if (!validateForm(form)) {
       return;
     }
     
     try {
       // 로딩 표시
-      if (window.Utils) {
-        Utils.toggleLoading(true);
-      }
+      Utils.toggleLoading(true);
       
       // 폼 데이터 수집
-      const formData = new FormData(form);
-      const data = {};
+      const formData = Utils.getFormData(form);
       
-      for (const [key, value] of formData.entries()) {
-        if (key === 'is_notice') {
-          data[key] = value === 'on';
-        } else {
-          data[key] = value;
-        }
+      // 체크박스 특수 처리 (is_notice)
+      if (formData.is_notice === 'on') {
+        formData.is_notice = true;
       }
       
       // API 호출 URL 및 메서드 설정
       const id = document.getElementById('handoverId').value;
       const isUpdate = id && state.isEditing;
-      const url = '/handover/items' + (isUpdate ? `/${id}` : '');
-      const method = isUpdate ? 'PUT' : 'POST';
       
       // API 호출
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
-      });
+      let response;
+      if (isUpdate) {
+        response = await API.put(`/handover/items/${id}`, formData);
+      } else {
+        response = await API.post('/handover/items', formData);
+      }
       
-      const responseData = await response.json();
-      
-      if (responseData.success) {
+      if (response.success) {
         // 모달 닫기
-        closeModal();
+        Modal.hide('handoverCreateModal');
         
         // 성공 메시지 표시
         const message = isUpdate ? 
           '인수인계가 성공적으로 수정되었습니다.' : 
           '인수인계가 성공적으로 작성되었습니다.';
         
-        showAlert(message, 'success');
+        Alerts.success(message);
         
         // 페이지 새로고침 (데이터 갱신)
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       } else {
-        showAlert(responseData.message || '인수인계 저장에 실패했습니다.', 'error');
+        Alerts.error(response.message || '인수인계 저장에 실패했습니다.');
       }
     } catch (error) {
-      console.error('인수인계 저장 중 오류:', error);
-      showAlert('인수인계 저장 중 오류가 발생했습니다.', 'error');
+      console.error('[Handover] 인수인계 저장 중 오류:', error);
+      Alerts.error('인수인계 저장 중 오류가 발생했습니다.');
     } finally {
       // 로딩 숨김
-      if (window.Utils) {
-        Utils.toggleLoading(false);
-      }
+      Utils.toggleLoading(false);
     }
   }
   
@@ -368,10 +352,7 @@ window.Handover = (function() {
     closeModal();
     
     // 삭제 확인 모달 표시
-    const modal = document.getElementById('deleteConfirmModal');
-    if (modal) {
-      modal.style.display = 'block';
-    }
+    Modal.show('deleteConfirmModal');
   }
   
   /**
@@ -383,44 +364,31 @@ window.Handover = (function() {
     
     try {
       // 로딩 표시
-      if (window.Utils) {
-        Utils.toggleLoading(true);
-      }
+      Utils.toggleLoading(true);
       
       // API 호출
-      const response = await fetch(`/handover/items/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        credentials: 'include'
-      });
+      const response = await API.delete(`/handover/items/${id}`);
       
-      const data = await response.json();
-      
-      if (data.success) {
+      if (response.success) {
         // 모달 닫기
-        closeModal();
+        Modal.hide('deleteConfirmModal');
         
         // 성공 메시지 표시
-        showAlert('인수인계가 성공적으로 삭제되었습니다.', 'success');
+        Alerts.success('인수인계가 성공적으로 삭제되었습니다.');
         
         // 페이지 새로고침 (데이터 갱신)
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       } else {
-        showAlert(data.message || '인수인계 삭제에 실패했습니다.', 'error');
+        Alerts.error(response.message || '인수인계 삭제에 실패했습니다.');
       }
     } catch (error) {
-      console.error('인수인계 삭제 중 오류:', error);
-      showAlert('인수인계 삭제 중 오류가 발생했습니다.', 'error');
+      console.error('[Handover] 인수인계 삭제 중 오류:', error);
+      Alerts.error('인수인계 삭제 중 오류가 발생했습니다.');
     } finally {
       // 로딩 숨김
-      if (window.Utils) {
-        Utils.toggleLoading(false);
-      }
+      Utils.toggleLoading(false);
     }
   }
   
@@ -435,67 +403,29 @@ window.Handover = (function() {
   }
   
   /**
-   * 날짜 시간을 포맷팅합니다.
-   * @param {string} dateStr - 날짜 문자열
-   * @returns {string} - 포맷팅된 날짜 문자열
+   * 폼 유효성을 검사합니다.
+   * @param {HTMLFormElement} form - 폼 요소
+   * @returns {boolean} - 유효성 검사 결과
    */
-  function formatDateTime(dateStr) {
-    if (!dateStr) return '-';
-    
-    if (window.Utils && Utils.formatDate) {
-      return Utils.formatDate(dateStr, 'YYYY-MM-DD HH:mm');
-    } else {
-      try {
-        const date = new Date(dateStr);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        
-        return `${year}-${month}-${day} ${hours}:${minutes}`;
-      } catch (error) {
-        return dateStr;
-      }
+  function validateForm(form) {
+    if (!form || !(form instanceof HTMLFormElement)) {
+      return false;
     }
-  }
-  
-  /**
-   * HTML 특수 문자를 이스케이프합니다.
-   * @param {string} html - 이스케이프할 HTML 문자열
-   * @returns {string} - 이스케이프된 문자열
-   */
-  function escapeHtml(html) {
-    if (!html) return '';
     
-    const div = document.createElement('div');
-    div.textContent = html;
-    return div.innerHTML;
-  }
-  
-  /**
-   * 알림 메시지를 표시합니다.
-   * @param {string} message - 표시할 메시지
-   * @param {string} type - 알림 유형 (success, error, warning, info)
-   */
-  function showAlert(message, type = 'info') {
-    if (window.Alerts) {
-      Alerts.show(message, type);
-    } else if (window.Utils && Utils.showAlert) {
-      Utils.showAlert(message, type);
-    } else {
-      alert(message);
+    // 기본 브라우저 검증 사용
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return false;
     }
+    
+    return true;
   }
   
-  // 페이지 로드 시 초기화
-  document.addEventListener('DOMContentLoaded', init);
-  
-  // 전역 함수 노출
+  // 전역 함수 노출 (원래 함수는 유지하되, 클로저의 함수로 처리)
   window.openCreateModal = openCreateModal;
-  window.editHandover = editHandover;
-  window.viewHandover = viewHandover;
-  window.deleteHandover = deleteHandover;
+  window.editHandover = function(id) { editHandover(id); };
+  window.viewHandover = function(id) { viewHandover(id); };
+  window.deleteHandover = function(id) { deleteHandover(id); };
   window.confirmDelete = confirmDelete;
   window.closeModal = closeModal;
   window.togglePanel = togglePanel;
@@ -507,6 +437,8 @@ window.Handover = (function() {
     editHandover,
     viewHandover,
     deleteHandover,
-    confirmDelete
+    confirmDelete,
+    closeModal,
+    togglePanel
   };
 })();
