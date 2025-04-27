@@ -78,9 +78,6 @@ window.Dashboard = (function() {
       { id: 'createOrderBtn', type: 'button', name: '신규 등록 버튼' },
       { id: 'refreshBtn', type: 'button', name: '새로고침 버튼' },
       { id: 'searchBtn', type: 'button', name: '조회 버튼' },
-      { id: 'selectedStatusBtn', type: 'button', name: '상태 변경 버튼' },
-      { id: 'selectedDriverBtn', type: 'button', name: '배차 처리 버튼' },
-      { id: 'selectedDeleteBtn', type: 'button', name: '삭제 버튼' },
       { id: 'columnSelectorBtn', type: 'button', name: '컬럼 선택 버튼' }
     ];
     

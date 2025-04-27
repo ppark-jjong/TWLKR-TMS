@@ -23,7 +23,11 @@
         action: '신규 등록', 
         handler: function() { 
           const modal = document.getElementById('createOrderModal');
-          if (modal) Utils.showModal(modal);
+          if (modal && window.Dashboard.utils) {
+            window.Dashboard.utils.showModal(modal);
+          } else {
+            console.error('[Dashboard.Actions] createOrderModal 요소 또는 utils 모듈이 없습니다.');
+          }
         } 
       },
       { 
@@ -37,8 +41,8 @@
         id: 'orderSearchBtn', 
         action: '주문 검색', 
         handler: function() { 
-          if (Dashboard.modules.filter) {
-            Dashboard.modules.filter.searchByOrderNo();
+          if (window.Dashboard.filter && typeof window.Dashboard.filter.applyOrderNoFilter === 'function') {
+            window.Dashboard.filter.applyOrderNoFilter();
           }
         } 
       },
@@ -46,25 +50,10 @@
         id: 'resetFilterBtn', 
         action: '필터 초기화', 
         handler: function() { 
-          if (Dashboard.modules.filter) {
-            Dashboard.modules.filter.resetFilters();
+          if (window.Dashboard.filter && typeof window.Dashboard.filter.resetFilters === 'function') {
+            window.Dashboard.filter.resetFilters();
           }
         } 
-      },
-      { 
-        id: 'selectedStatusBtn', 
-        action: '상태 변경', 
-        handler: handleStatusChangeButton 
-      },
-      { 
-        id: 'selectedDriverBtn', 
-        action: '배차 처리', 
-        handler: handleDriverAssignButton 
-      },
-      { 
-        id: 'selectedDeleteBtn', 
-        action: '삭제', 
-        handler: handleDeleteButton 
       }
     ];
     
@@ -94,9 +83,9 @@
     document.querySelectorAll('.close-btn, [data-dismiss="modal"]').forEach(btn => {
       btn.addEventListener('click', function() {
         const modal = this.closest('.modal');
-        if (modal) {
+        if (modal && window.Dashboard.utils) {
           console.log(`[Dashboard.Actions] 모달 닫기 버튼 클릭: ${modal.id || '이름 없음'}`);
-          Utils.hideModal(modal);
+          window.Dashboard.utils.hideModal(modal);
         }
       });
     });
@@ -119,125 +108,19 @@
       input.addEventListener('blur', function() {
         const postalCode = this.value.trim();
         if (postalCode.length === 4 && /^\d{4}$/.test(postalCode)) {
-          this.value = Utils.formatPostalCode(postalCode);
+          if (window.Dashboard.utils && typeof window.Dashboard.utils.formatPostalCode === 'function') {
+            this.value = window.Dashboard.utils.formatPostalCode(postalCode);
+          } else {
+            // 기본 보완 기능
+            this.value = '0' + postalCode;
+          }
         }
       });
     });
   }
   
-  /**
-   * 상태 변경 버튼 핸들러
-   */
-  function handleStatusChangeButton() {
-    console.log('[Dashboard.Actions] 상태 변경 버튼 클릭');
-    
-    // 테이블 모듈 사용
-    const selectedRows = Dashboard.modules.table ? 
-      Dashboard.modules.table.getSelectedRows() : 
-      getSelectedRows();
-      
-    if (selectedRows.length === 0) {
-      Utils.showAlert('변경할 주문을 먼저 선택해주세요.', 'warning');
-      return;
-    }
-    
-    // 모달 모듈 사용
-    if (Dashboard.modules.modal) {
-      // 상태 옵션 업데이트 및 모달 표시
-      const statusChangeModal = document.getElementById('statusChangeModal');
-      if (statusChangeModal) {
-        // 선택된 행 수 업데이트
-        const statusChangeCount = document.getElementById('statusChangeCount');
-        if (statusChangeCount) {
-          statusChangeCount.textContent = selectedRows.length;
-        }
-        
-        // 옵션 업데이트 및 모달 표시
-        Dashboard.modules.modal.updateStatusOptions();
-        Utils.showModal(statusChangeModal);
-      }
-    }
-  }
-  
-  /**
-   * 배차 처리 버튼 핸들러
-   */
-  function handleDriverAssignButton() {
-    console.log('[Dashboard.Actions] 배차 처리 버튼 클릭');
-    
-    // 테이블 모듈 사용
-    const selectedRows = Dashboard.modules.table ? 
-      Dashboard.modules.table.getSelectedRows() : 
-      getSelectedRows();
-      
-    if (selectedRows.length === 0) {
-      Utils.showAlert('배차할 주문을 먼저 선택해주세요.', 'warning');
-      return;
-    }
-    
-    // 모달 모듈 사용
-    const driverAssignModal = document.getElementById('driverAssignModal');
-    if (driverAssignModal) {
-      Utils.showModal(driverAssignModal);
-      
-      // 선택된 행 수 업데이트
-      const driverAssignCount = document.getElementById('driverAssignCount');
-      if (driverAssignCount) {
-        driverAssignCount.textContent = selectedRows.length;
-      }
-    }
-  }
-  
-  /**
-   * 삭제 버튼 핸들러
-   */
-  function handleDeleteButton() {
-    console.log('[Dashboard.Actions] 삭제 버튼 클릭');
-    
-    // 권한 확인
-    const userRole = document.body.dataset.userRole || 'USER';
-    if (userRole !== 'ADMIN') {
-      Utils.showAlert('삭제 권한이 없습니다.', 'error');
-      return;
-    }
-    
-    // 테이블 모듈 사용
-    const selectedRows = Dashboard.modules.table ? 
-      Dashboard.modules.table.getSelectedRows() : 
-      getSelectedRows();
-      
-    if (selectedRows.length === 0) {
-      Utils.showAlert('삭제할 주문을 먼저 선택해주세요.', 'warning');
-      return;
-    }
-    
-    // 모달 모듈 사용
-    const deleteConfirmModal = document.getElementById('deleteConfirmModal');
-    if (deleteConfirmModal) {
-      Utils.showModal(deleteConfirmModal);
-      
-      // 선택된 행 수 업데이트
-      const deleteOrderCount = document.getElementById('deleteOrderCount');
-      if (deleteOrderCount) {
-        deleteOrderCount.textContent = selectedRows.length;
-      }
-    }
-  }
-  
-  /**
-   * 선택된 행 ID 배열 반환 (테이블 모듈 없을 때 대체 함수)
-   * @returns {Array<string>} - 선택된 행 ID 배열
-   */
-  function getSelectedRows() {
-    const selectedCheckboxes = document.querySelectorAll('#orderTable tbody .row-checkbox:checked');
-    return Array.from(selectedCheckboxes).map(checkbox => checkbox.dataset.id);
-  }
-  
   // 대시보드 모듈에 등록
   Dashboard.registerModule('actions', {
-    init: init,
-    handleStatusChangeButton: handleStatusChangeButton,
-    handleDriverAssignButton: handleDriverAssignButton,
-    handleDeleteButton: handleDeleteButton
+    init: init
   });
 })();

@@ -30,34 +30,37 @@ console.log('[로드] dashboard/utils.js 로드됨 - ' + new Date().toISOString(
      * 페이지 로드 시 자동으로 날짜 필터를 초기화하고 데이터를 조회합니다.
      */
     autoInitDateFilter: function() {
-      // URL에 날짜 파라미터가 없는 경우에만 자동 설정
-      const hasDateParams = this.getUrlParam('start_date') || this.getUrlParam('end_date');
-      const hasOrderNoParam = this.getUrlParam('order_no');
-      
-      if (!hasDateParams && !hasOrderNoParam) {
-        console.log('[대시보드/utils] 자동 날짜 설정: 오늘');
+      // 지연 실행하여 모든 모듈이 로드될 때까지 기다림
+      setTimeout(() => {
+        // URL에 날짜 파라미터가 없는 경우에만 자동 설정
+        const hasDateParams = this.getUrlParam('start_date') || this.getUrlParam('end_date');
+        const hasOrderNoParam = this.getUrlParam('order_no');
         
-        // 오늘 날짜 가져오기
-        const today = this.getTodayDate();
-        
-        // 날짜 입력 필드에 설정
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        
-        if (startDateInput) startDateInput.value = today;
-        if (endDateInput) endDateInput.value = today;
-        
-        // URL 파라미터에 날짜 추가
-        this.updateUrlParams({
-          start_date: today,
-          end_date: today
-        }, true);
-        
-        // 페이지 새로고침 (서버에서 데이터 재조회)
-        window.location.href = `?start_date=${today}&end_date=${today}`;
-      } else {
-        console.log('[대시보드/utils] 자동 날짜 설정 건너뜀: URL 파라미터 있음');
-      }
+        if (!hasDateParams && !hasOrderNoParam) {
+          console.log('[대시보드/utils] 자동 날짜 설정: 오늘');
+          
+          // 오늘 날짜 가져오기
+          const today = this.getTodayDate();
+          
+          // 날짜 입력 필드에 설정
+          const startDateInput = document.getElementById('startDate');
+          const endDateInput = document.getElementById('endDate');
+          
+          if (startDateInput) startDateInput.value = today;
+          if (endDateInput) endDateInput.value = today;
+          
+          // URL 파라미터에 날짜 추가
+          this.updateUrlParams({
+            start_date: today,
+            end_date: today
+          }, true);
+          
+          // 페이지 새로고침 (서버에서 데이터 재조회)
+          window.location.href = `?start_date=${today}&end_date=${today}`;
+        } else {
+          console.log('[대시보드/utils] 자동 날짜 설정 건너뜀: URL 파라미터 있음');
+        }
+      }, 500); // 500ms 지연
     },
     
     /**
@@ -216,6 +219,53 @@ console.log('[로드] dashboard/utils.js 로드됨 - ' + new Date().toISOString(
       
       // URL 업데이트 (페이지 새로고침 없음)
       window.history.pushState({}, '', url);
+    },
+    
+    /**
+     * 모달을 표시합니다.
+     * @param {HTMLElement} modal - 모달 요소
+     */
+    showModal: function(modal) {
+      if (!modal) return;
+      
+      // 모달 표시
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      
+      // 애니메이션 효과
+      setTimeout(function() {
+        modal.classList.add('show');
+      }, 10);
+    },
+    
+    /**
+     * 모달을 숨깁니다.
+     * @param {HTMLElement} modal - 모달 요소
+     */
+    hideModal: function(modal) {
+      if (!modal) return;
+      
+      // 애니메이션 효과
+      modal.classList.remove('show');
+      
+      // 약간의 지연 후 완전히 숨김
+      setTimeout(function() {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }, 300);
+    },
+    
+    /**
+     * 알림 메시지를 표시합니다.
+     * @param {string} message - 메시지 내용
+     * @param {string} type - 알림 유형 (success, warning, error, info)
+     */
+    showAlert: function(message, type = 'info') {
+      if (window.Alerts && typeof window.Alerts[type] === 'function') {
+        window.Alerts[type](message);
+      } else {
+        alert(message);
+      }
     }
   };
   
