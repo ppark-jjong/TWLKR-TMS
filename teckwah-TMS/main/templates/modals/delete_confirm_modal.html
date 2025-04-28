@@ -22,6 +22,10 @@
 
 <script>
 (function() {
+  // 공통 유틸리티 참조
+  const ModalUtils = window.ModalUtils || {};
+  const Auth = window.Auth || {};
+  
   /**
    * 초기화 함수
    */
@@ -64,41 +68,51 @@
    * 모달 표시
    */
   function showModal() {
-    const modal = document.getElementById('deleteConfirmModal');
-    if (!modal) return;
-    
     // 권한 확인
-    const userRole = document.body.dataset.userRole || 'USER';
-    if (userRole !== 'ADMIN') {
+    const isAdmin = Auth.isAdmin ? Auth.isAdmin() : (document.body.dataset.userRole === 'ADMIN');
+    if (!isAdmin) {
       showAlert('삭제 권한이 없습니다.', 'error');
       return;
     }
     
-    // 모달 표시
-    modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
-    
-    // 애니메이션 효과
-    setTimeout(function() {
-      modal.classList.add('show');
-    }, 10);
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.showModal === 'function') {
+      ModalUtils.showModal('deleteConfirmModal');
+    } else {
+      const modal = document.getElementById('deleteConfirmModal');
+      if (!modal) return;
+      
+      // 모달 표시
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      
+      // 애니메이션 효과
+      setTimeout(function() {
+        modal.classList.add('show');
+      }, 10);
+    }
   }
   
   /**
    * 모달 숨김
    */
   function hideModal() {
-    const modal = document.getElementById('deleteConfirmModal');
-    if (!modal) return;
-    
-    // 애니메이션 효과
-    modal.classList.remove('show');
-    
-    // 약간의 지연 후 완전히 숨김
-    setTimeout(function() {
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-    }, 300);
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.hideModal === 'function') {
+      ModalUtils.hideModal('deleteConfirmModal');
+    } else {
+      const modal = document.getElementById('deleteConfirmModal');
+      if (!modal) return;
+      
+      // 애니메이션 효과
+      modal.classList.remove('show');
+      
+      // 약간의 지연 후 완전히 숨김
+      setTimeout(function() {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }, 300);
+    }
   }
   
   /**
@@ -107,8 +121,8 @@
    */
   async function submitOrderDelete(orderId) {
     // 권한 확인
-    const userRole = document.body.dataset.userRole || 'USER';
-    if (userRole !== 'ADMIN') {
+    const isAdmin = Auth.isAdmin ? Auth.isAdmin() : (document.body.dataset.userRole === 'ADMIN');
+    if (!isAdmin) {
       showAlert('주문 삭제 권한이 없습니다.', 'error');
       return;
     }
@@ -119,10 +133,21 @@
     }
     
     try {
-      toggleLoading(true);
+      // 로딩 표시
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(true);
+      } else {
+        toggleLoading(true);
+      }
       
       // API 호출
-      const response = await callApi('POST', '/dashboard/delete', { ids: [orderId] });
+      let response;
+      
+      if (typeof ModalUtils.callApi === 'function') {
+        response = await ModalUtils.callApi('POST', '/dashboard/delete', { orderIds: [orderId] });
+      } else {
+        response = await callApi('POST', '/dashboard/delete', { orderIds: [orderId] });
+      }
       
       if (response.success) {
         showAlert('주문이 성공적으로 삭제되었습니다.', 'success');
@@ -133,6 +158,11 @@
         // 상세 모달 닫기
         hideOrderDetailModal();
         
+        // 캐시 무효화
+        if (typeof ModalUtils.invalidateCache === 'function') {
+          ModalUtils.invalidateCache('order_');
+        }
+        
         // 테이블 새로고침
         window.location.reload();
       } else {
@@ -140,9 +170,14 @@
       }
     } catch (error) {
       console.error('[DeleteConfirmModal] 주문 삭제 중 오류:', error);
-      showAlert('주문 삭제 중 오류가 발생했습니다.', 'error');
+      showAlert('주문 삭제 중 오류가 발생했습니다: ' + error.message, 'error');
     } finally {
-      toggleLoading(false);
+      // 로딩 표시 숨김
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(false);
+      } else {
+        toggleLoading(false);
+      }
     }
   }
   
@@ -150,10 +185,16 @@
    * 상세 모달 닫기
    */
   function hideOrderDetailModal() {
-    const orderDetailModal = document.getElementById('orderDetailModal');
-    if (orderDetailModal) {
-      orderDetailModal.style.display = 'none';
-      orderDetailModal.classList.remove('show');
+    if (window.orderDetailModal && typeof window.orderDetailModal.hideModal === 'function') {
+      window.orderDetailModal.hideModal();
+    } else if (typeof ModalUtils.hideModal === 'function') {
+      ModalUtils.hideModal('orderDetailModal');
+    } else {
+      const orderDetailModal = document.getElementById('orderDetailModal');
+      if (orderDetailModal) {
+        orderDetailModal.style.display = 'none';
+        orderDetailModal.classList.remove('show');
+      }
     }
   }
   
@@ -222,7 +263,9 @@
    * @param {string} type - 알림 타입 (success, warning, error, info)
    */
   function showAlert(message, type = 'info') {
-    if (window.Alerts && typeof window.Alerts[type] === 'function') {
+    if (typeof ModalUtils.showAlert === 'function') {
+      ModalUtils.showAlert(message, type);
+    } else if (window.Alerts && typeof window.Alerts[type] === 'function') {
       window.Alerts[type](message);
     } else {
       alert(message);
@@ -233,7 +276,10 @@
    * 현재 주문 ID 가져오기
    */
   function getCurrentOrderId() {
-    return localStorage.getItem('currentOrderId');
+    if (typeof ModalUtils.getStorage === 'function') {
+      return ModalUtils.getStorage('currentOrderId', { useSession: true });
+    }
+    return sessionStorage.getItem('currentOrderId') || localStorage.getItem('currentOrderId');
   }
   
   // 문서 로드 완료 시 초기화

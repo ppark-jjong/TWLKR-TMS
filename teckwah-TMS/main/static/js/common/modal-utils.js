@@ -6,9 +6,22 @@
 (function() {
   'use strict';
   
+  // 이미 초기화되었는지 확인 - 중복 초기화 방지
+  if (window.ModalUtils || window.ModalManager) {
+    console.log('[Modal Utils] 이미 모달 관리자가 초기화되었습니다.');
+    return;
+  }
+  
   // 캐시 설정 (전역 캐시 관리)
   const dataCache = new Map();
   const DEFAULT_CACHE_TIMEOUT = 60000; // 기본 1분 캐시
+  
+  // 모달 관리 상태
+  const modalState = {
+    initialized: new Set(),   // 초기화된 모달 ID
+    currentModal: null,       // 현재 열린 모달
+    instances: {},            // 모달 인스턴스 저장소
+  };
   
   /**
    * 모달 표시
@@ -23,6 +36,20 @@
       return;
     }
     
+    // 이미 같은 모달이 열려있으면 무시
+    if (modalState.currentModal === modalElement) {
+      console.log('[Modal Utils] 모달이 이미 열려있습니다:', modalElement.id);
+      return;
+    }
+    
+    // 다른 모달이 열려 있다면 닫기
+    if (modalState.currentModal) {
+      hideModal(modalState.currentModal);
+    }
+    
+    // 현재 모달 설정
+    modalState.currentModal = modalElement;
+    
     // 모달 표시
     modalElement.style.display = 'flex';
     document.body.classList.add('modal-open');
@@ -35,6 +62,8 @@
     // 이벤트 발생
     const event = new CustomEvent('modalShown', { detail: { modal: modalElement.id } });
     document.dispatchEvent(event);
+    
+    console.log('[Modal Utils] 모달 표시:', modalElement.id);
   }
   
   /**
@@ -50,18 +79,73 @@
       return;
     }
     
+    // 현재 모달 초기화
+    if (modalState.currentModal === modalElement) {
+      modalState.currentModal = null;
+    }
+    
     // 애니메이션 효과
     modalElement.classList.remove('show');
     
     // 약간의 지연 후 완전히 숨김
     setTimeout(function() {
       modalElement.style.display = 'none';
-      document.body.classList.remove('modal-open');
+      
+      // 다른 모달이 없으면 body에서 modal-open 클래스 제거
+      if (!document.querySelector('.modal.show')) {
+        document.body.classList.remove('modal-open');
+      }
       
       // 이벤트 발생
       const event = new CustomEvent('modalHidden', { detail: { modal: modalElement.id } });
       document.dispatchEvent(event);
+      
+      console.log('[Modal Utils] 모달 숨김:', modalElement.id);
     }, 300);
+  }
+  
+  /**
+   * 모달 초기화 상태 설정
+   * @param {string} modalId - 모달 ID
+   */
+  function setModalInitialized(modalId) {
+    modalState.initialized.add(modalId);
+    console.log(`[Modal Utils] 모달 초기화 완료: ${modalId}`);
+  }
+  
+  /**
+   * 모달 초기화 상태 확인
+   * @param {string} modalId - 모달 ID
+   * @returns {boolean} - 초기화 여부
+   */
+  function isModalInitialized(modalId) {
+    return modalState.initialized.has(modalId);
+  }
+  
+  /**
+   * 모달 인스턴스 등록
+   * @param {string} id - 모달 ID
+   * @param {Object} instance - 모달 인스턴스
+   * @returns {Object} - 등록된 인스턴스
+   */
+  function registerModal(id, instance) {
+    if (modalState.instances[id]) {
+      console.warn(`[Modal Utils] ${id} 모달은 이미 등록되어 있습니다.`);
+      return modalState.instances[id];
+    }
+    
+    modalState.instances[id] = instance;
+    console.log(`[Modal Utils] ${id} 모달 등록 완료`);
+    return instance;
+  }
+  
+  /**
+   * 모달 인스턴스 가져오기
+   * @param {string} id - 모달 ID
+   * @returns {Object} - 모달 인스턴스
+   */
+  function getModalInstance(id) {
+    return modalState.instances[id];
   }
   
   /**
@@ -460,8 +544,40 @@
     storage.removeItem(storageKey);
   }
   
+  // DOM 로드 시 모달 초기화
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('[Modal Utils] DOM 로드 완료, 모달 초기화');
+    
+    // 모든 모달 요소 가져오기
+    const modals = document.querySelectorAll('.modal');
+    
+    // 각 모달에 공통 닫기 기능 연결
+    modals.forEach(modal => {
+      const closeButtons = modal.querySelectorAll('.close-btn, [data-dismiss="modal"]');
+      
+      closeButtons.forEach(button => {
+        // 이벤트 리스너가 이미 연결되었는지 확인
+        if (!button.dataset.eventAttached) {
+          button.addEventListener('click', function() {
+            hideModal(modal);
+          });
+          button.dataset.eventAttached = 'true';
+        }
+      });
+      
+      console.log(`[Modal Utils] '${modal.id}' 모달 닫기 버튼 설정 완료`);
+    });
+  });
+  
+  // ESC 키로 모달 닫기
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modalState.currentModal) {
+      hideModal(modalState.currentModal);
+    }
+  });
+  
   // 공개 API
-  window.ModalUtils = {
+  const ModalUtils = {
     showModal,
     hideModal,
     callApi,
@@ -473,6 +589,27 @@
     getCachedData,
     invalidateCache,
     getCacheStats,
+    saveStorage,
+    getStorage,
+    removeStorage,
+    // 모달 관리 기능 추가
+    setInitialized: setModalInitialized,
+    isInitialized: isModalInitialized,
+    registerModal: registerModal,
+    getModalInstance: getModalInstance
+  };
+  
+  // 전역 변수에 등록
+  window.ModalUtils = ModalUtils;
+  
+  // ModalManager와의 호환성 유지
+  window.ModalManager = {
+    showModal,
+    hideModal,
+    setInitialized: setModalInitialized,
+    isInitialized: isModalInitialized,
+    register: registerModal,
+    get: getModalInstance,
     saveStorage,
     getStorage,
     removeStorage

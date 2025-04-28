@@ -2,21 +2,642 @@
 {% block title %}TMS 대시보드 - TeckWahKRTMS{% endblock %} 
 
 {% block extra_css %}
-<!-- 분리된 CSS 파일 로드 -->
-<link rel="stylesheet" href="/static/css/dashboard-cards.css" />
-<link rel="stylesheet" href="/static/css/dashboard-filter.css" />
-<link rel="stylesheet" href="/static/css/dashboard-table.css" />
-<link rel="stylesheet" href="/static/css/dashboard-pagination.css" />
-<link rel="stylesheet" href="/static/css/dashboard-buttons.css" />
-<link rel="stylesheet" href="/static/css/dashboard-animations.css" />
-<link rel="stylesheet" href="/static/css/dashboard-custom.css" />
+<!-- 통합된 CSS 파일 로드 -->
+<link rel="stylesheet" href="/static/css/dashboard.css" />
 
 <!-- 인라인 CSS 추가 -->
 <style>
+  /* 로딩 스피너 */
+  .loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    width: 100%;
+  }
+  
+  .spinner-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(215, 37, 25, 0.2);
+    border-radius: 50%;
+    border-top-color: #D72519;
+    animation: spin 1s linear infinite;
+  }
+  
+  .spinner-text {
+    color: #777;
+    font-size: 14px;
+  }
+  
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* 전역 로딩 */
+  .global-loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+  
+  /* 전체 대시보드 스타일 */
+  body {
+    background-color: #f5f5f7;
+  }
+  
+  .dashboard-container {
+    max-width: 1800px;
+    margin: 20px auto;
+    padding: 0;
+  }
+  
+  .dashboard-content {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  /* 상태별 행 배경 색상 */
+  .status-row-WAITING {
+    background-color: rgb(255, 246, 203);
+  }
+  
+  .status-row-IN_PROGRESS {
+    background-color: rgb(179, 228, 250);
+  }
+  
+  .status-row-COMPLETE {
+    background-color: rgb(210, 250, 171);
+  }
+  
+  .status-row-ISSUE {
+    background-color: rgb(252, 173, 161);
+  }
+  
+  .status-row-CANCEL {
+    background-color: rgb(196, 196, 196);
+  }
+  
+  /* 행 호버 효과 */
+  .clickable-row {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .clickable-row:hover {
+    filter: brightness(0.95);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
   /* 모달 다이얼로그 너비 확장 */
   .modal-dialog.modal-lg {
-    max-width: 1100px !important;
-    width: 90% !important;
+    max-width: 1400px !important;
+    width: 95% !important;
+  }
+  
+  /* 모달 전체 스타일 개선 */
+  .modal-content {
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    border: none;
+  }
+  
+  .modal-header {
+    padding: 16px 24px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eaeaea;
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .modal-body {
+    padding: 24px;
+    max-height: calc(90vh - 130px);
+    overflow-y: auto;
+  }
+  
+  .modal-footer {
+    padding: 16px 24px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #eaeaea;
+    border-radius: 0 0 8px 8px;
+  }
+  
+  /* 필터 영역 스타일 */
+  .filter-section {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #eee;
+  }
+  
+  .date-filter {
+    display: flex;
+    align-items: center;
+  }
+  
+  .date-picker-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .date-range-input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 200px;
+  }
+  
+  .search-btn, .today-btn {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .search-btn:hover, .today-btn:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .search-btn i {
+    margin-right: 5px;
+  }
+  
+  .order-search {
+    display: flex;
+    align-items: center;
+  }
+  
+  .search-input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 200px;
+    margin-right: 8px;
+  }
+  
+  /* 필터와 액션 버튼 */
+  .filter-action-section {
+    margin-bottom: 20px;
+  }
+  
+  .filter-panel {
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .filter-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+  
+  .filter-group {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .filter-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 13px;
+    color: #555;
+  }
+  
+  .filter-select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+  }
+  
+  .reset-btn {
+    padding: 8px 15px;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    align-self: flex-end;
+    margin-top: 20px;
+  }
+  
+  .reset-btn:hover {
+    background-color: #e9ecef;
+  }
+  
+  /* 테이블 스타일 */
+  .order-table-container {
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    border: 1px solid #eee;
+  }
+  
+  .order-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .order-table th {
+    background-color: #f8f9fa;
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #eee;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  
+  .order-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+  }
+  
+  .order-table tr:last-child td {
+    border-bottom: none;
+  }
+  
+  /* 테이블 액션 영역 */
+  .table-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    align-items: center;
+  }
+  
+  .table-actions-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .page-size-select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+  }
+  
+  .action-btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+  }
+  
+  .action-btn.refresh-btn:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .column-selector {
+    position: relative;
+  }
+  
+  .column-selector-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .column-selector-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    border: 1px solid #eee;
+    z-index: 10;
+    width: 250px;
+    margin-top: 5px;
+  }
+  
+  .column-selector-header {
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+    font-weight: 600;
+  }
+  
+  .column-selector-content {
+    padding: 10px 15px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  /* 모달 내 락 정보 스타일 */
+  .lock-info {
+    margin: 10px 0 20px;
+    padding: 10px 15px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 4px;
+    color: #856404;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .lock-info i {
+    font-size: 18px;
+  }
+  
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .detail-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+  }
+  
+  /* 폼 디자인 개선 */
+  .form-section {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .form-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+  
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #444;
+  }
+  
+  .form-row {
+    display: flex;
+    margin: 0 -10px 16px;
+    flex-wrap: wrap;
+  }
+  
+  .form-group {
+    padding: 0 10px;
+    margin-bottom: 16px;
+    flex: 1 0 calc(33.33% - 20px);
+  }
+  
+  .form-group.full-width {
+    flex: 1 0 calc(100% - 20px);
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+  }
+  
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+  }
+  
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: #D72519;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(215, 37, 25, 0.1);
+  }
+  
+  .form-group input.editing,
+  .form-group select.editing,
+  .form-group textarea.editing {
+    background-color: #fff9e3;
+  }
+  
+  /* 페이지네이션 스타일 */
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .pagination-info {
+    color: #555;
+    font-size: 14px;
+  }
+  
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .pagination-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .pagination-btn:hover:not([disabled]) {
+    background-color: #f0f0f0;
+  }
+  
+  .pagination-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .page-number-container {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .page-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .page-number.active {
+    background-color: #D72519;
+    color: white;
+    border-color: #D72519;
+  }
+  
+  .page-number:hover:not(.active) {
+    background-color: #f0f0f0;
+  }
+  
+  /* 상태 선택 필드 스타일 */
+  .status-select {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px 12px;
+    background-color: #fff;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+    font-weight: 500;
+  }
+  
+  .status-select:focus {
+    outline: none;
+    border-color: #D72519;
+    box-shadow: 0 0 0 3px rgba(215, 37, 25, 0.1);
+  }
+  
+  .status-option-WAITING {
+    background-color: rgb(255, 246, 203);
+    color: rgb(130, 119, 23);
+  }
+  
+  .status-option-IN_PROGRESS {
+    background-color: rgb(179, 228, 250);
+    color: rgb(11, 118, 189);
+  }
+  
+  .status-option-COMPLETE {
+    background-color: rgb(210, 250, 171);
+    color: rgb(45, 136, 10);
+  }
+  
+  .status-option-ISSUE {
+    background-color: rgb(252, 173, 161);
+    color: rgb(178, 34, 20);
+  }
+  
+  .status-option-CANCEL {
+    background-color: rgb(196, 196, 196);
+    color: rgb(71, 71, 71);
+  }
+  
+  /* 상태 배지 스타일 */
+  .status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 70px;
+  }
+  
+  .status-WAITING {
+    background-color: rgb(255, 246, 203);
+    color: rgb(130, 119, 23);
+  }
+  
+  .status-IN_PROGRESS {
+    background-color: rgb(179, 228, 250);
+    color: rgb(11, 118, 189);
+  }
+  
+  .status-COMPLETE {
+    background-color: rgb(210, 250, 171);
+    color: rgb(45, 136, 10);
+  }
+  
+  .status-ISSUE {
+    background-color: rgb(252, 173, 161);
+    color: rgb(178, 34, 20);
+  }
+  
+  .status-CANCEL {
+    background-color: rgb(196, 196, 196);
+    color: rgb(71, 71, 71);
   }
   
   /* 상태 변경 및 배차 버튼 스타일 */
@@ -33,33 +654,94 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    transition: all 0.3s ease;
   }
   
-  .main-action-buttons .action-btn.status-btn {
-    background-color: #e3f2fd;
-    color: #1976d2;
-    border: 1px solid #bbdefb;
+  /* 신규 등록 버튼 및 기타 활성화 된 액션 버튼 스타일 통일 */
+  .action-btn.create-btn,
+  .main-action-buttons .action-btn:not(.disabled) {
+    background-color: #D72519;
+    color: white;
+    border: 1px solid #c42117;
   }
   
-  .main-action-buttons .action-btn.driver-btn {
-    background-color: #e8f5e9;
-    color: #388e3c;
-    border: 1px solid #c8e6c9;
+  /* 모달 버튼 스타일 */
+  .modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   
-  .main-action-buttons .action-btn.disabled {
+  .modal-footer-right {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+  }
+  
+  .btn i {
+    font-size: 14px;
+  }
+  
+  .primary-btn {
+    background-color: #D72519;
+    color: white;
+    border-color: #c42117;
+  }
+  
+  .primary-btn:hover {
+    background-color: #c42117;
+  }
+  
+  .secondary-btn {
+    background-color: #f5f5f5;
+    color: #333;
+    border-color: #ddd;
+  }
+  
+  .secondary-btn:hover {
+    background-color: #e9ecef;
+  }
+  
+  .delete-btn {
+    background-color: #fff;
+    color: #dc3545;
+    border-color: #dc3545;
+  }
+  
+  .delete-btn:hover {
+    background-color: #dc3545;
+    color: #fff;
+  }
+  
+  .btn[disabled], .action-btn.disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    background-color: #f5f5f5;
+    color: #757575;
+    border: 1px solid #e0e0e0;
   }
 </style>
 {% endblock %} 
 
 {% block content %}
 <div class="dashboard-container">
-  <h1 class="page-title">대시보드</h1>
+  <div class="dashboard-content">
+    <h1 class="page-title">대시보드</h1>
 
-  <!-- 상단 필터 영역 -->
-  <div class="filter-section">
+    <!-- 상단 필터 영역 -->
+    <div class="filter-section">
     <div class="date-filter">
       <div class="date-picker-group">
         <input type="text" id="dateRangePicker" class="date-range-input" placeholder="날짜 범위 선택" readonly />
@@ -126,50 +808,7 @@
     </div>
   </div>
 
-  <!-- 요약 카드 영역 -->
-  <div class="summary-cards">
-    <div class="summary-card">
-      <div class="card-title">총 건수</div>
-      <div class="card-value">{{ stats.total or 0 }}</div>
-      <div class="card-icon total-icon">
-        <i class="fas fa-clipboard-list"></i>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <div class="card-title">대기</div>
-      <div class="card-value">{{ stats.waiting or 0 }}</div>
-      <div class="card-icon waiting-icon">
-        <i class="fas fa-clock"></i>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <div class="card-title">진행</div>
-      <div class="card-value">{{ stats.in_progress or 0 }}</div>
-      <div class="card-icon progress-icon">
-        <i class="fas fa-exchange-alt"></i>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <div class="card-title">완료</div>
-      <div class="card-value">{{ stats.complete or 0 }}</div>
-      <div class="card-icon complete-icon">
-        <i class="fas fa-check-circle"></i>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <div class="card-title">이슈+취소</div>
-      <div class="card-value">
-        {{ (stats.issue or 0) + (stats.cancel or 0) }}
-      </div>
-      <div class="card-icon issue-icon">
-        <i class="fas fa-exclamation-triangle"></i>
-      </div>
-    </div>
-  </div>
+  <!-- 요약 카드 영역 제거됨 -->
 
   <!-- 테이블 상단 액션 영역 -->
   <div class="table-actions">
@@ -204,15 +843,7 @@
         <i class="fas fa-plus"></i> 신규 등록
       </button>
       
-      <!-- 상태 변경 및 배차 버튼 추가 -->
-      <div class="main-action-buttons">
-        <button type="button" class="action-btn status-btn disabled" id="mainStatusBtn">
-          <i class="fas fa-exchange-alt"></i> 상태 변경
-        </button>
-        <button type="button" class="action-btn driver-btn disabled" id="mainDriverBtn">
-          <i class="fas fa-user"></i> 기사 배정
-        </button>
-      </div>
+      <!-- 상태 변경 및 배차 버튼 제거됨 -->
     </div>
   </div>
 
@@ -221,7 +852,6 @@
     <table class="order-table" id="orderTable">
       <thead>
         <tr>
-          <!-- 체크박스 열은 checkbox.js에서 동적으로 추가됩니다 -->
           <th class="column-department">부서</th>
           <th class="column-type">유형</th>
           <th class="column-warehouse">창고</th>
@@ -275,6 +905,7 @@
         <i class="fas fa-chevron-right"></i>
       </button>
     </div>
+    </div>
   </div>
 </div>
 
@@ -283,28 +914,22 @@
 {% endblock %} 
 
 {% block extra_js %}
-<!-- 1. 공통 기본 모듈 (먼저 로드) -->
-<script src="/static/js/common/logger.js"></script>
-<script src="/static/js/common/api.js"></script>
-<script src="/static/js/common/alerts.js"></script>
-<script src="/static/js/common/auth.js"></script>
-
-<!-- 2. 대시보드 코어 모듈 -->
+<!-- 1. 대시보드 코어 모듈 -->
 <script src="/static/js/dashboard/core.js"></script>
 
-<!-- 3. 대시보드 기능 모듈 (의존성 순서) -->
+<!-- 2. 대시보드 기능 모듈 (의존성 순서) -->
 <script src="/static/js/dashboard/utils.js"></script>
 <script src="/static/js/dashboard/table.js"></script>
 <script src="/static/js/dashboard/filter.js"></script>
 <script src="/static/js/dashboard/pagination.js"></script>
 <script src="/static/js/dashboard/columns.js"></script>
 <script src="/static/js/dashboard/actions.js"></script>
-<script src="/static/js/dashboard/checkbox.js"></script>
+<!-- checkbox.js 제거됨 -->
 
-<!-- 4. 대시보드 초기화 모듈 -->
+<!-- 3. 대시보드 초기화 모듈 -->
 <script src="/static/js/dashboard/index.js"></script>
 
-<!-- 5. 수동 초기화 확인 스크립트 -->
+<!-- 4. 수동 초기화 확인 스크립트 -->
 <script>
   window.addEventListener('load', function() {
     console.log('[디버깅] 페이지 로드 완료');
@@ -312,9 +937,10 @@
     // 모듈 로딩 확인
     const modules = [
       { name: 'Logger', module: window.Logger },
-      { name: 'API', module: window.API },
+      { name: 'API', module: window.Api },
       { name: 'Alerts', module: window.Alerts },
       { name: 'Auth', module: window.Auth },
+      { name: 'ModalUtils', module: window.ModalUtils },
       { name: 'Dashboard', module: window.Dashboard }
     ];
     
@@ -326,18 +952,9 @@
     // window.orderDetailModal 객체 확인
     console.log('orderDetailModal 객체 확인: ', window.orderDetailModal ? '✓' : '✗');
     
-    // 체크박스 모듈 직접 초기화
-    if (window.Dashboard && window.Dashboard.checkbox && typeof window.Dashboard.checkbox.init === 'function') {
-      try {
-        window.Dashboard.checkbox.init();
-        console.log('[디버깅] Dashboard.checkbox.init 성공');
-      } catch(e) {
-        console.error('[디버깅] Dashboard.checkbox.init 실패: ' + e.message);
-      }
-    }
+    // 체크박스 모듈 제거됨
     
-    // 페이지 크기 선택 이벤트 연결 (pagination.js에서 자동 처리되므로 주석 처리)
-    // 로컬 스토리지에서 저장된 페이지 크기 복원
+    // 페이지 크기 선택 이벤트 연결
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     if (pageSizeSelect) {
       const savedPageSize = localStorage.getItem('dashboardPageSize');
@@ -347,164 +964,110 @@
       }
     }
     
-    // 행 클릭 이벤트 처리 - 간소화된 직접 방식으로 변경
+    // 행 클릭 이벤트 처리
     document.querySelectorAll('.clickable-row').forEach(row => {
       row.addEventListener('click', function(event) {
-        // 체크박스 클릭은 무시 (체크박스 이벤트가 우선)
-        if (event.target.closest('.column-checkbox') || event.target.classList.contains('row-checkbox')) {
-          return;
-        }
+        // 모든 행 클릭 가능
         
         const orderId = this.dataset.id;
         if (orderId) {
           console.log('[행 클릭] 주문 ID:', orderId);
           
-          // 직접 모달 열기 (window.orderDetailModal 객체가 없을 경우 대비)
-          const modal = document.getElementById('orderDetailModal');
-          if (modal) {
-            // 현재 주문 ID 저장
-            localStorage.setItem('currentOrderId', orderId);
+          // 공통 유틸리티 사용
+          if (window.ModalUtils && window.orderDetailModal) {
+            // 세션 스토리지에 현재 주문 ID 저장
+            window.ModalUtils.saveStorage('currentOrderId', orderId, { useSession: true });
             
-            // 모달 표시
-            modal.style.display = 'flex';
-            document.body.classList.add('modal-open');
-            
-            // 애니메이션 효과
-            setTimeout(function() {
-              modal.classList.add('show');
-            }, 10);
-            
-            // API 호출 시도
-            try {
-              // 모달 내용 표시 전에 로딩 스피너 표시
-              const orderDetailContent = document.getElementById('orderDetailContent');
-              const modalLoadingSpinner = document.getElementById('modalLoadingSpinner');
+            // 모달 표시 및 상세 정보 로드
+            window.orderDetailModal.showOrderDetail(orderId);
+          } else {
+            // 후퇴 방법 - 직접 모달 조작
+            const modal = document.getElementById('orderDetailModal');
+            if (modal) {
+              // 현재 주문 ID 저장
+              sessionStorage.setItem('currentOrderId', orderId);
               
-              if (orderDetailContent) {
-                orderDetailContent.innerHTML = '';
-              }
+              // 모달 표시
+              modal.style.display = 'flex';
+              document.body.classList.add('modal-open');
               
-              if (modalLoadingSpinner) {
-                modalLoadingSpinner.style.display = 'flex';
-              }
-
-              if (window.orderDetailModal && typeof window.orderDetailModal.showOrderDetail === 'function') {
-                // orderDetailModal 객체를 통해 주문 상세 정보 로드
-                window.orderDetailModal.showOrderDetail(orderId);
-              } else {
-                console.error('[행 클릭] orderDetailModal 객체 또는 showOrderDetail 함수가 없습니다.');
+              // 애니메이션 효과
+              setTimeout(function() {
+                modal.classList.add('show');
+              }, 10);
+              
+              // API 호출 시도
+              try {
+                // 모달 내용 표시 전에 로딩 스피너 표시
+                const orderDetailContent = document.getElementById('orderDetailContent');
+                const modalLoadingSpinner = document.getElementById('modalLoadingSpinner');
                 
-                // API를 직접 호출하여 데이터 가져오기
-                fetch(`/dashboard/orders/${orderId}`)
-                  .then(response => response.json())
-                  .then(data => {
-                    if (modalLoadingSpinner) {
-                      modalLoadingSpinner.style.display = 'none';
-                    }
-                    
-                    if (orderDetailContent && data) {
-                      // 간단한 상세 정보 렌더링
-                      orderDetailContent.innerHTML = `
-                        <div class="detail-header">
-                          <h3 class="detail-title">주문 #${data.orderNo || '-'}</h3>
-                          <span class="status-badge status-${data.status || 'WAITING'}">
-                            ${data.statusLabel || '대기'}
-                          </span>
-                        </div>
-                        <div class="detail-content">
-                          <p><strong>ETA:</strong> ${data.eta || '-'}</p>
-                          <p><strong>고객명:</strong> ${data.customer || '-'}</p>
-                          <p><strong>주소:</strong> ${data.address || '-'}</p>
-                          <p><strong>기사명:</strong> ${data.driverName || '-'}</p>
-                          <p><strong>비고:</strong> ${data.remark || '-'}</p>
-                        </div>
-                      `;
-                    } else {
-                      // 오류 메시지 표시
+                if (orderDetailContent) {
+                  orderDetailContent.innerHTML = '';
+                }
+                
+                if (modalLoadingSpinner) {
+                  modalLoadingSpinner.style.display = 'flex';
+                }
+
+                if (window.orderDetailModal && typeof window.orderDetailModal.showOrderDetail === 'function') {
+                  // orderDetailModal 객체를 통해 주문 상세 정보 로드
+                  window.orderDetailModal.showOrderDetail(orderId);
+                } else {
+                  console.error('[행 클릭] orderDetailModal 객체 또는 showOrderDetail 함수가 없습니다.');
+                  
+                  // API를 직접 호출하여 데이터 가져오기
+                  fetch(`/dashboard/orders/${orderId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                      if (modalLoadingSpinner) {
+                        modalLoadingSpinner.style.display = 'none';
+                      }
+                      
+                      if (orderDetailContent && data) {
+                        // 간단한 상세 정보 렌더링
+                        orderDetailContent.innerHTML = `
+                          <div class="detail-header">
+                            <h3 class="detail-title">주문 #${data.orderNo || '-'}</h3>
+                            <span class="status-badge status-${data.status || 'WAITING'}">
+                              ${data.statusLabel || '대기'}
+                            </span>
+                          </div>
+                          <div class="detail-content">
+                            <p><strong>ETA:</strong> ${data.eta || '-'}</p>
+                            <p><strong>고객명:</strong> ${data.customer || '-'}</p>
+                            <p><strong>주소:</strong> ${data.address || '-'}</p>
+                            <p><strong>기사명:</strong> ${data.driverName || '-'}</p>
+                            <p><strong>비고:</strong> ${data.remark || '-'}</p>
+                          </div>
+                        `;
+                      } else {
+                        // 오류 메시지 표시
+                        if (orderDetailContent) {
+                          orderDetailContent.innerHTML = '<div class="error-message"><i class="fas fa-exclamation-circle"></i><h3>정보 로드 실패</h3><p>주문 정보를 불러오는 중 오류가 발생했습니다.</p></div>';
+                        }
+                      }
+                    })
+                    .catch(error => {
+                      console.error('[API 호출 오류]', error);
+                      if (modalLoadingSpinner) {
+                        modalLoadingSpinner.style.display = 'none';
+                      }
                       if (orderDetailContent) {
                         orderDetailContent.innerHTML = '<div class="error-message"><i class="fas fa-exclamation-circle"></i><h3>정보 로드 실패</h3><p>주문 정보를 불러오는 중 오류가 발생했습니다.</p></div>';
                       }
-                    }
-                  })
-                  .catch(error => {
-                    console.error('[API 호출 오류]', error);
-                    if (modalLoadingSpinner) {
-                      modalLoadingSpinner.style.display = 'none';
-                    }
-                    if (orderDetailContent) {
-                      orderDetailContent.innerHTML = '<div class="error-message"><i class="fas fa-exclamation-circle"></i><h3>정보 로드 실패</h3><p>주문 정보를 불러오는 중 오류가 발생했습니다.</p></div>';
-                    }
-                  });
+                    });
+                }
+              } catch (e) {
+                console.error('[행 클릭] 주문 정보 로드 중 오류:', e);
               }
-            } catch (e) {
-              console.error('[행 클릭] 주문 정보 로드 중 오류:', e);
             }
           }
         }
       });
     });
     
-    // 상단 액션 버튼 이벤트 연결 (상태 변경 및 배차)
-    const mainStatusBtn = document.getElementById('mainStatusBtn');
-    const mainDriverBtn = document.getElementById('mainDriverBtn');
-    
-    if (mainStatusBtn) {
-      mainStatusBtn.addEventListener('click', function() {
-        // 이 버튼이 disabled 상태면 동작하지 않음
-        if (this.classList.contains('disabled')) {
-          return;
-        }
-        
-        // 체크박스 모듈에서 선택된 ID 확인
-        const selectedIds = window.Dashboard.checkbox ? window.Dashboard.checkbox.getSelectedIds() : [];
-        
-        if (selectedIds.length === 0) {
-          if (window.Alerts) {
-            window.Alerts.warning('변경할 주문을 선택해주세요.');
-          } else {
-            alert('변경할 주문을 선택해주세요.');
-          }
-          return;
-        }
-        
-        // 상태 변경 모달 호출
-        if (window.statusChangeModal && typeof window.statusChangeModal.show === 'function') {
-          window.statusChangeModal.show(selectedIds);
-        } else {
-          console.error('[메인 버튼] statusChangeModal 객체 또는 show 함수가 없습니다.');
-          alert('상태 변경 기능을 불러올 수 없습니다. 페이지를 새로고침해 주세요.');
-        }
-      });
-    }
-    
-    if (mainDriverBtn) {
-      mainDriverBtn.addEventListener('click', function() {
-        // 이 버튼이 disabled 상태면 동작하지 않음
-        if (this.classList.contains('disabled')) {
-          return;
-        }
-        
-        // 체크박스 모듈에서 선택된 ID 확인
-        const selectedIds = window.Dashboard.checkbox ? window.Dashboard.checkbox.getSelectedIds() : [];
-        
-        if (selectedIds.length === 0) {
-          if (window.Alerts) {
-            window.Alerts.warning('배정할 주문을 선택해주세요.');
-          } else {
-            alert('배정할 주문을 선택해주세요.');
-          }
-          return;
-        }
-        
-        // 기사 배정 모달 호출
-        if (window.driverAssignModal && typeof window.driverAssignModal.show === 'function') {
-          window.driverAssignModal.show(selectedIds);
-        } else {
-          console.error('[메인 버튼] driverAssignModal 객체 또는 show 함수가 없습니다.');
-          alert('기사 배정 기능을 불러올 수 없습니다. 페이지를 새로고침해 주세요.');
-        }
-      });
-    }
+    // 상태 변경 및 배차 버튼 이벤트 제거됨
   });
 </script>
 {% endblock %}

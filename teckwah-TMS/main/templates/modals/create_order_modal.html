@@ -113,6 +113,9 @@
 
 <script>
 (function() {
+  // 공통 유틸리티 참조
+  const ModalUtils = window.ModalUtils || {};
+  
   /**
    * 초기화 함수
    */
@@ -156,7 +159,11 @@
     const postalCodeInput = document.getElementById('createPostalCode');
     if (postalCodeInput) {
       postalCodeInput.addEventListener('blur', function() {
-        this.value = formatPostalCode(this.value);
+        if (typeof ModalUtils.formatPostalCode === 'function') {
+          this.value = ModalUtils.formatPostalCode(this.value);
+        } else {
+          this.value = formatPostalCode(this.value);
+        }
       });
     }
     
@@ -173,13 +180,32 @@
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(12, 0, 0, 0);
-      createETAInput.value = tomorrow.toISOString().slice(0, 16);
+      
+      // 날짜 형식 변환 (datetime-local 입력용)
+      if (typeof ModalUtils.formatDate === 'function') {
+        createETAInput.value = ModalUtils.formatDate(tomorrow, 'YYYY-MM-DDTHH:mm');
+      } else {
+        createETAInput.value = tomorrow.toISOString().slice(0, 16);
+      }
     }
     
     // 폼 리셋
     const form = document.getElementById('createOrderForm');
     if (form) {
       form.reset();
+      
+      // ETA 필드 기본값 다시 설정 (리셋 후)
+      if (createETAInput) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(12, 0, 0, 0);
+        
+        if (typeof ModalUtils.formatDate === 'function') {
+          createETAInput.value = ModalUtils.formatDate(tomorrow, 'YYYY-MM-DDTHH:mm');
+        } else {
+          createETAInput.value = tomorrow.toISOString().slice(0, 16);
+        }
+      }
     }
   }
   
@@ -187,34 +213,42 @@
    * 모달 표시
    */
   function showModal() {
-    const modal = document.getElementById('createOrderModal');
-    if (!modal) return;
-    
-    // 모달 표시
-    modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
-    
-    // 애니메이션 효과
-    setTimeout(function() {
-      modal.classList.add('show');
-    }, 10);
+    if (typeof ModalUtils.showModal === 'function') {
+      ModalUtils.showModal('createOrderModal');
+    } else {
+      const modal = document.getElementById('createOrderModal');
+      if (!modal) return;
+      
+      // 모달 표시
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      
+      // 애니메이션 효과
+      setTimeout(function() {
+        modal.classList.add('show');
+      }, 10);
+    }
   }
   
   /**
    * 모달 숨김
    */
   function hideModal() {
-    const modal = document.getElementById('createOrderModal');
-    if (!modal) return;
-    
-    // 애니메이션 효과
-    modal.classList.remove('show');
-    
-    // 약간의 지연 후 완전히 숨김
-    setTimeout(function() {
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-    }, 300);
+    if (typeof ModalUtils.hideModal === 'function') {
+      ModalUtils.hideModal('createOrderModal');
+    } else {
+      const modal = document.getElementById('createOrderModal');
+      if (!modal) return;
+      
+      // 애니메이션 효과
+      modal.classList.remove('show');
+      
+      // 약간의 지연 후 완전히 숨김
+      setTimeout(function() {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }, 300);
+    }
   }
   
   /**
@@ -235,20 +269,40 @@
     
     // 우편번호 형식 처리
     if (formData.postalCode) {
-      formData.postalCode = formatPostalCode(formData.postalCode);
+      if (typeof ModalUtils.formatPostalCode === 'function') {
+        formData.postalCode = ModalUtils.formatPostalCode(formData.postalCode);
+      } else {
+        formData.postalCode = formatPostalCode(formData.postalCode);
+      }
     }
     
     try {
-      toggleLoading(true);
+      // 로딩 표시
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(true);
+      } else {
+        toggleLoading(true);
+      }
       
       // API 호출
-      const response = await callApi('POST', '/dashboard/orders', formData);
+      let response;
+      
+      if (typeof ModalUtils.callApi === 'function') {
+        response = await ModalUtils.callApi('POST', '/dashboard/orders', formData);
+      } else {
+        response = await callApi('POST', '/dashboard/orders', formData);
+      }
       
       if (response.success) {
         showAlert('주문이 성공적으로 생성되었습니다.', 'success');
         
         // 모달 닫기
         hideModal();
+        
+        // 캐시 무효화
+        if (typeof ModalUtils.invalidateCache === 'function') {
+          ModalUtils.invalidateCache('order_');
+        }
         
         // 테이블 새로고침
         window.location.reload();
@@ -257,9 +311,14 @@
       }
     } catch (error) {
       console.error('[CreateOrderModal] 주문 생성 중 오류:', error);
-      showAlert('주문 생성 중 오류가 발생했습니다.', 'error');
+      showAlert('주문 생성 중 오류가 발생했습니다: ' + error.message, 'error');
     } finally {
-      toggleLoading(false);
+      // 로딩 표시 숨김
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(false);
+      } else {
+        toggleLoading(false);
+      }
     }
   }
   
@@ -393,7 +452,9 @@
    * @param {string} type - 알림 타입 (success, warning, error, info)
    */
   function showAlert(message, type = 'info') {
-    if (window.Alerts && typeof window.Alerts[type] === 'function') {
+    if (typeof ModalUtils.showAlert === 'function') {
+      ModalUtils.showAlert(message, type);
+    } else if (window.Alerts && typeof window.Alerts[type] === 'function') {
       window.Alerts[type](message);
     } else {
       alert(message);

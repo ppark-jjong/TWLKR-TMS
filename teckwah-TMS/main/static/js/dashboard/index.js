@@ -30,7 +30,7 @@ console.log('[로드] dashboard/index.js 로드됨 - ' + new Date().toISOString(
       // 의존성 확인
       const dependencies = [
         { name: 'Logger', module: window.Logger },
-        { name: 'API', module: window.API },
+        { name: 'API', module: window.Api }, // 대소문자 수정 (API -> Api)
         { name: 'Alerts', module: window.Alerts },
         { name: 'Auth', module: window.Auth }
       ];
@@ -104,14 +104,7 @@ console.log('[로드] dashboard/index.js 로드됨 - ' + new Date().toISOString(
       }
     }
     
-    // 체크박스 모듈 초기화
-    if (Dashboard.checkbox && typeof Dashboard.checkbox.init === 'function') {
-      try {
-        Dashboard.checkbox.init();
-      } catch (e) {
-        console.error('[대시보드] 체크박스 모듈 초기화 실패:', e);
-      }
-    }
+
   }
   
   // 페이지 로드 시 초기화

@@ -130,12 +130,12 @@
       <div class="form-row">
         <div class="form-group">
           <label for="detailStatus">현재 상태 *</label>
-          <select id="detailStatus" name="status" required disabled>
-            <option value="WAITING">대기</option>
-            <option value="IN_PROGRESS">진행 중</option>
-            <option value="COMPLETE">완료</option>
-            <option value="ISSUE">이슈</option>
-            <option value="CANCEL">취소</option>
+          <select id="detailStatus" name="status" required class="status-select status-${orderData ? orderData.status : 'WAITING'}">
+            <option value="WAITING" class="status-option-WAITING">대기</option>
+            <option value="IN_PROGRESS" class="status-option-IN_PROGRESS">진행 중</option>
+            <option value="COMPLETE" class="status-option-COMPLETE">완료</option>
+            <option value="ISSUE" class="status-option-ISSUE">이슈</option>
+            <option value="CANCEL" class="status-option-CANCEL">취소</option>
           </select>
         </div>
         <div class="form-group">
@@ -195,7 +195,7 @@
 
 <script>
 (function() {
-  // 이미 생성된 공통 유틸리티 참조
+  // 모달 매니저 및 유틸리티 참조
   const ModalUtils = window.ModalUtils || {};
   
   // 주문 ID 상수
@@ -204,11 +204,37 @@
   // 편집 중인 필드 추적
   const editingFields = new Set();
   
+  // 모달 ID
+  const MODAL_ID = 'orderDetailModal';
+  
   /**
    * 초기화 함수
    */
   function init() {
+    // 모달 관리자 로드 확인
+    if (!window.ModalUtils) {
+      console.error('[OrderDetailModal] 모달 유틸리티 모듈이 로드되지 않았습니다. 초기화를 연기합니다.');
+      // DOM이 준비되면 재시도
+      if (document.readyState !== 'loading') {
+        setTimeout(init, 100); // 100ms 후 재시도
+      } else {
+        document.addEventListener('DOMContentLoaded', init);
+      }
+      return;
+    }
+    
+    // 이미 초기화된 경우 중복 실행 방지
+    if (ModalUtils.isInitialized && ModalUtils.isInitialized(MODAL_ID)) {
+      console.log(`[OrderDetailModal] 이미 초기화되었습니다.`);
+      return;
+    }
+    
     console.log('[OrderDetailModal] 초기화 시작');
+    
+    // 초기화 상태 설정
+    if (ModalUtils.setInitialized) {
+      ModalUtils.setInitialized(MODAL_ID);
+    }
     
     // 닫기 버튼 이벤트
     const closeModalBtn = document.getElementById('closeModalBtn');
@@ -278,9 +304,11 @@
    */
   function showModal() {
     if (typeof ModalUtils.showModal === 'function') {
-      ModalUtils.showModal('orderDetailModal');
+      ModalUtils.showModal(MODAL_ID);
     } else {
-      const modal = document.getElementById('orderDetailModal');
+      console.error('[OrderDetailModal] ModalUtils.showModal이 정의되지 않았습니다.');
+      // 후퇴 방법 - 직접 DOM 조작
+      const modal = document.getElementById(MODAL_ID);
       if (!modal) return;
       
       // 모달 표시
@@ -299,9 +327,11 @@
    */
   function hideModal() {
     if (typeof ModalUtils.hideModal === 'function') {
-      ModalUtils.hideModal('orderDetailModal');
+      ModalUtils.hideModal(MODAL_ID);
     } else {
-      const modal = document.getElementById('orderDetailModal');
+      console.error('[OrderDetailModal] ModalUtils.hideModal이 정의되지 않았습니다.');
+      // 후퇴 방법 - s직접 DOM 조작
+      const modal = document.getElementById(MODAL_ID);
       if (!modal) return;
       
       // 애니메이션 효과
