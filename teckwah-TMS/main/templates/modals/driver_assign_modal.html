@@ -31,8 +31,6 @@
           </div>
         </div>
         
-        <!-- 비고 항목 제거 -->
-        
         <div class="info-box">
           <p class="info-text"><i class="fas fa-info-circle"></i> 기사를 배정하면 다음과 같은 처리가 이루어집니다:</p>
           <p class="info-text">- 선택된 모든 주문에 동일한 기사가 배정됩니다.</p>
@@ -49,6 +47,12 @@
 
 <script>
 (function() {
+  // 공통 유틸리티 참조
+  const ModalUtils = window.ModalUtils || {};
+  
+  // 세션 스토리지 키
+  const STORAGE_KEY = 'selectedOrderIdsForDriver';
+  
   /**
    * 초기화 함수
    */
@@ -87,9 +91,6 @@
    * @param {Array<string>} orderIds - 선택된 주문 ID 배열
    */
   function showModal(orderIds) {
-    const modal = document.getElementById('driverAssignModal');
-    if (!modal) return;
-    
     if (!orderIds || orderIds.length === 0) {
       showAlert('배정할 주문을 선택해주세요.', 'warning');
       return;
@@ -102,42 +103,80 @@
     }
     
     // 선택된 주문 ID 저장
-    localStorage.setItem('selectedOrderIdsForDriver', JSON.stringify(orderIds));
+    saveSelectedIds(orderIds);
     
     // 폼 초기화
     const bulkDriverName = document.getElementById('bulkDriverName');
     const bulkDriverContact = document.getElementById('bulkDriverContact');
-    const bulkDriverRemark = document.getElementById('bulkDriverRemark');
     
     if (bulkDriverName) bulkDriverName.value = '';
     if (bulkDriverContact) bulkDriverContact.value = '';
-    if (bulkDriverRemark) bulkDriverRemark.value = '';
     
-    // 모달 표시
-    modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
-    
-    // 애니메이션 효과
-    setTimeout(function() {
-      modal.classList.add('show');
-    }, 10);
+    // 모달 표시 (공통 유틸리티 사용)
+    if (typeof ModalUtils.showModal === 'function') {
+      ModalUtils.showModal('driverAssignModal');
+    } else {
+      const modal = document.getElementById('driverAssignModal');
+      if (!modal) return;
+      
+      // 모달 표시
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      
+      // 애니메이션 효과
+      setTimeout(function() {
+        modal.classList.add('show');
+      }, 10);
+    }
   }
   
   /**
    * 모달 숨김
    */
   function hideModal() {
-    const modal = document.getElementById('driverAssignModal');
-    if (!modal) return;
-    
-    // 애니메이션 효과
-    modal.classList.remove('show');
-    
-    // 약간의 지연 후 완전히 숨김
-    setTimeout(function() {
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-    }, 300);
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.hideModal === 'function') {
+      ModalUtils.hideModal('driverAssignModal');
+    } else {
+      const modal = document.getElementById('driverAssignModal');
+      if (!modal) return;
+      
+      // 애니메이션 효과
+      modal.classList.remove('show');
+      
+      // 약간의 지연 후 완전히 숨김
+      setTimeout(function() {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }, 300);
+    }
+  }
+  
+  /**
+   * 선택된 주문 ID 저장
+   * @param {Array<string>} orderIds - 선택된 주문 ID 배열
+   */
+  function saveSelectedIds(orderIds) {
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.saveStorage === 'function') {
+      ModalUtils.saveStorage(STORAGE_KEY, orderIds, { useSession: true });
+    } else {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(orderIds));
+    }
+  }
+  
+  /**
+   * 선택된 주문 ID 가져오기
+   * @returns {Array<string>} - 선택된 주문 ID 배열
+   */
+  function getSelectedIds() {
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.getStorage === 'function') {
+      return ModalUtils.getStorage(STORAGE_KEY, { useSession: true, defaultValue: [] });
+    } else {
+      const idsStr = sessionStorage.getItem(STORAGE_KEY);
+      return idsStr ? JSON.parse(idsStr) : [];
+    }
   }
   
   /**
@@ -146,7 +185,6 @@
   async function submitDriverAssign() {
     const bulkDriverName = document.getElementById('bulkDriverName');
     const bulkDriverContact = document.getElementById('bulkDriverContact');
-    const bulkDriverRemark = document.getElementById('bulkDriverRemark');
     
     // 필수 필드 검증
     if (!bulkDriverName || !bulkDriverName.value.trim()) {
@@ -170,13 +208,7 @@
     }
     
     // 선택된 주문 ID 가져오기
-    const selectedOrderIdsStr = localStorage.getItem('selectedOrderIdsForDriver');
-    if (!selectedOrderIdsStr) {
-      showAlert('선택된 주문이 없습니다.', 'warning');
-      return;
-    }
-    
-    const selectedOrderIds = JSON.parse(selectedOrderIdsStr);
+    const selectedOrderIds = getSelectedIds();
     if (!selectedOrderIds || selectedOrderIds.length === 0) {
       showAlert('선택된 주문이 없습니다.', 'warning');
       return;
@@ -191,10 +223,22 @@
     };
     
     try {
-      toggleLoading(true);
+      // 로딩 표시
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(true);
+      } else {
+        toggleLoading(true);
+      }
       
       // API 호출
-      const response = await callApi('POST', '/dashboard/driver', requestData);
+      let response;
+      
+      // 공통 유틸리티 사용
+      if (typeof ModalUtils.callApi === 'function') {
+        response = await ModalUtils.callApi('POST', '/dashboard/driver', requestData);
+      } else {
+        response = await callApi('POST', '/dashboard/driver', requestData);
+      }
       
       if (response.success) {
         const updatedCount = response.data && response.data.updatedCount ? response.data.updatedCount : selectedOrderIds.length;
@@ -202,6 +246,11 @@
         
         // 모달 닫기
         hideModal();
+        
+        // 주문 목록 캐시 무효화
+        if (typeof ModalUtils.invalidateCache === 'function') {
+          ModalUtils.invalidateCache('order_');
+        }
         
         // 테이블 새로고침
         window.location.reload();
@@ -212,7 +261,12 @@
       console.error('[DriverAssignModal] 기사 배정 중 오류:', error);
       showAlert('기사 배정 중 오류가 발생했습니다.', 'error');
     } finally {
-      toggleLoading(false);
+      // 로딩 숨김
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(false);
+      } else {
+        toggleLoading(false);
+      }
     }
   }
   
@@ -281,6 +335,12 @@
    * @param {string} type - 알림 타입 (success, warning, error, info)
    */
   function showAlert(message, type = 'info') {
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.showAlert === 'function') {
+      ModalUtils.showAlert(message, type);
+      return;
+    }
+    
     if (window.Alerts && typeof window.Alerts[type] === 'function') {
       window.Alerts[type](message);
     } else {
@@ -296,5 +356,7 @@
     show: showModal,
     hide: hideModal
   };
+  
+  console.log('[DriverAssignModal] 모듈 초기화 완료');
 })();
 </script>

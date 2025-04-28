@@ -27,8 +27,6 @@
           </div>
         </div>
         
-        <!-- 비고 항목 제거 -->
-        
         <div class="info-box">
           <p class="info-text"><i class="fas fa-info-circle"></i> 주문 상태를 변경하면 해당 시간이 자동으로 기록됩니다.</p>
           <p class="info-text">- '진행 중' 상태로 변경 시 출발 시간이 기록됩니다.</p>
@@ -45,6 +43,12 @@
 
 <script>
 (function() {
+  // 공통 유틸리티 참조
+  const ModalUtils = window.ModalUtils || {};
+  
+  // 세션 스토리지 키
+  const STORAGE_KEY = 'selectedOrderIds';
+  
   /**
    * 초기화 함수
    */
@@ -83,9 +87,6 @@
    * @param {Array<string>} orderIds - 선택된 주문 ID 배열
    */
   function showModal(orderIds) {
-    const modal = document.getElementById('statusChangeModal');
-    if (!modal) return;
-    
     if (!orderIds || orderIds.length === 0) {
       showAlert('변경할 주문을 선택해주세요.', 'warning');
       return;
@@ -98,7 +99,7 @@
     }
     
     // 선택된 주문 ID 저장
-    localStorage.setItem('selectedOrderIds', JSON.stringify(orderIds));
+    saveSelectedIds(orderIds);
     
     // 상태 선택 초기화
     const bulkStatusSelect = document.getElementById('bulkStatusSelect');
@@ -106,37 +107,71 @@
       bulkStatusSelect.value = '';
     }
     
-    // 비고 초기화
-    const bulkStatusRemark = document.getElementById('bulkStatusRemark');
-    if (bulkStatusRemark) {
-      bulkStatusRemark.value = '';
+    // 모달 표시 (공통 유틸리티 사용)
+    if (typeof ModalUtils.showModal === 'function') {
+      ModalUtils.showModal('statusChangeModal');
+    } else {
+      const modal = document.getElementById('statusChangeModal');
+      if (!modal) return;
+      
+      // 모달 표시
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      
+      // 애니메이션 효과
+      setTimeout(function() {
+        modal.classList.add('show');
+      }, 10);
     }
-    
-    // 모달 표시
-    modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
-    
-    // 애니메이션 효과
-    setTimeout(function() {
-      modal.classList.add('show');
-    }, 10);
   }
   
   /**
    * 모달 숨김
    */
   function hideModal() {
-    const modal = document.getElementById('statusChangeModal');
-    if (!modal) return;
-    
-    // 애니메이션 효과
-    modal.classList.remove('show');
-    
-    // 약간의 지연 후 완전히 숨김
-    setTimeout(function() {
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-    }, 300);
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.hideModal === 'function') {
+      ModalUtils.hideModal('statusChangeModal');
+    } else {
+      const modal = document.getElementById('statusChangeModal');
+      if (!modal) return;
+      
+      // 애니메이션 효과
+      modal.classList.remove('show');
+      
+      // 약간의 지연 후 완전히 숨김
+      setTimeout(function() {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }, 300);
+    }
+  }
+  
+  /**
+   * 선택된 주문 ID 저장
+   * @param {Array<string>} orderIds - 선택된 주문 ID 배열
+   */
+  function saveSelectedIds(orderIds) {
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.saveStorage === 'function') {
+      ModalUtils.saveStorage(STORAGE_KEY, orderIds, { useSession: true });
+    } else {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(orderIds));
+    }
+  }
+  
+  /**
+   * 선택된 주문 ID 가져오기
+   * @returns {Array<string>} - 선택된 주문 ID 배열
+   */
+  function getSelectedIds() {
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.getStorage === 'function') {
+      return ModalUtils.getStorage(STORAGE_KEY, { useSession: true, defaultValue: [] });
+    } else {
+      const idsStr = sessionStorage.getItem(STORAGE_KEY);
+      return idsStr ? JSON.parse(idsStr) : [];
+    }
   }
   
   /**
@@ -144,7 +179,6 @@
    */
   async function submitStatusChange() {
     const bulkStatusSelect = document.getElementById('bulkStatusSelect');
-    const bulkStatusRemark = document.getElementById('bulkStatusRemark');
     
     if (!bulkStatusSelect || !bulkStatusSelect.value) {
       showAlert('변경할 상태를 선택해주세요.', 'warning');
@@ -152,13 +186,7 @@
     }
     
     // 선택된 주문 ID 가져오기
-    const selectedOrderIdsStr = localStorage.getItem('selectedOrderIds');
-    if (!selectedOrderIdsStr) {
-      showAlert('선택된 주문이 없습니다.', 'warning');
-      return;
-    }
-    
-    const selectedOrderIds = JSON.parse(selectedOrderIdsStr);
+    const selectedOrderIds = getSelectedIds();
     if (!selectedOrderIds || selectedOrderIds.length === 0) {
       showAlert('선택된 주문이 없습니다.', 'warning');
       return;
@@ -171,10 +199,22 @@
     };
     
     try {
-      toggleLoading(true);
+      // 로딩 표시
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(true);
+      } else {
+        toggleLoading(true);
+      }
       
       // API 호출
-      const response = await callApi('POST', '/dashboard/status', requestData);
+      let response;
+      
+      // 공통 유틸리티 사용
+      if (typeof ModalUtils.callApi === 'function') {
+        response = await ModalUtils.callApi('POST', '/dashboard/status', requestData);
+      } else {
+        response = await callApi('POST', '/dashboard/status', requestData);
+      }
       
       if (response.success) {
         const updatedCount = response.data && response.data.updatedCount ? response.data.updatedCount : selectedOrderIds.length;
@@ -183,7 +223,12 @@
         // 모달 닫기
         hideModal();
         
-        // 테이블 새로고침
+        // 주문 목록 캐시 무효화
+        if (typeof ModalUtils.invalidateCache === 'function') {
+          ModalUtils.invalidateCache('order_');
+        }
+        
+        // 테이블 새로고침 
         window.location.reload();
       } else {
         showAlert(response.message || '주문 상태 변경 중 오류가 발생했습니다.', 'error');
@@ -192,7 +237,12 @@
       console.error('[StatusChangeModal] 상태 변경 중 오류:', error);
       showAlert('주문 상태 변경 중 오류가 발생했습니다.', 'error');
     } finally {
-      toggleLoading(false);
+      // 로딩 숨김
+      if (typeof ModalUtils.toggleLoading === 'function') {
+        ModalUtils.toggleLoading(false);
+      } else {
+        toggleLoading(false);
+      }
     }
   }
   
@@ -261,6 +311,12 @@
    * @param {string} type - 알림 타입 (success, warning, error, info)
    */
   function showAlert(message, type = 'info') {
+    // 공통 유틸리티 사용
+    if (typeof ModalUtils.showAlert === 'function') {
+      ModalUtils.showAlert(message, type);
+      return;
+    }
+    
     if (window.Alerts && typeof window.Alerts[type] === 'function') {
       window.Alerts[type](message);
     } else {
@@ -276,5 +332,7 @@
     show: showModal,
     hide: hideModal
   };
+  
+  console.log('[StatusChangeModal] 모듈 초기화 완료');
 })();
 </script>

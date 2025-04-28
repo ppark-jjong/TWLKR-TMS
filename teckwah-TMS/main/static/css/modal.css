@@ -47,7 +47,8 @@ body.modal-open {
 }
 
 .modal-dialog.modal-lg {
-  max-width: 900px;
+  max-width: 1200px;
+  width: 95%;
 }
 
 .modal-content {

@@ -1,210 +1,224 @@
-console.log('[로드] alerts.js 로드됨 - ' + new Date().toISOString());
-
 /**
- * 알림 시스템 모듈
- * 사용자에게 알림 메시지를 표시하는 기능 제공
+ * 알림 처리 모듈
+ * 사용자에게 메시지를 표시하는 기능 제공
  */
-window.Alerts = {
-  /**
-   * 알림 컨테이너 요소
-   * @type {Element}
-   */
-  container: null,
+
+(function() {
+  'use strict';
+  
+  // 알림 컨테이너 요소
+  const DEFAULT_CONTAINER_ID = 'alertContainer';
+  
+  // 알림 표시 시간 (ms)
+  const DEFAULT_DURATION = 5000;
+  
+  // 알림 스택
+  const alerts = [];
+  
+  // 최대 알림 개수
+  const MAX_ALERTS = 3;
   
   /**
-   * 알림 모듈을 초기화합니다.
-   */
-  init: function() {
-    console.log('[초기화] Alerts.init 시작');
-    
-    this.container = document.getElementById('alertContainer');
-    
-    if (!this.container) {
-      console.error('알림 컨테이너를 찾을 수 없습니다.');
-      
-      // 알림 컨테이너 생성
-      this.container = document.createElement('div');
-      this.container.id = 'alertContainer';
-      this.container.className = 'alert-container';
-      document.body.appendChild(this.container);
-    }
-    
-    // 이벤트 위임으로 닫기 버튼 클릭 처리
-    this.container.addEventListener('click', function(event) {
-      if (event.target.closest('.alert-close')) {
-        const alert = event.target.closest('.alert');
-        if (alert) {
-          Alerts.hide(alert);
-        }
-      }
-    });
-    
-    console.log('[초기화] Alerts.init 완료');
-  },
-  
-  /**
-   * 알림을 표시합니다.
-   * @param {string} message - 알림 메시지
-   * @param {string} type - 알림 유형 (success, error, warning, info)
+   * 알림 생성 함수
+   * @param {string} message - 표시할 메시지
+   * @param {string} type - 알림 타입 (success, warning, error, info)
    * @param {Object} options - 추가 옵션
-   * @param {number} options.duration - 표시 시간 (밀리초, 0이면 자동으로 닫히지 않음)
-   * @param {boolean} options.dismissible - 사용자가 닫을 수 있는지 여부
-   * @returns {Element} - 생성된 알림 요소
    */
-  show: function(message, type = 'info', options = {}) {
-    // 옵션 기본값 설정
-    const settings = {
-      duration: type === 'error' ? 0 : 5000, // 오류는 자동으로 닫히지 않음
-      dismissible: true,
-      ...options
-    };
+  function createAlert(message, type = 'info', options = {}) {
+    const {
+      duration = DEFAULT_DURATION,
+      containerId = DEFAULT_CONTAINER_ID,
+      autoClose = true,
+      closable = true,
+      onClose = null,
+      position = 'top-right'
+    } = options;
     
-    // 컨테이너 확인
-    if (!this.container) {
-      this.init();
+    // 컨테이너 가져오기
+    let container = document.getElementById(containerId);
+    
+    // 컨테이너가 없으면 생성
+    if (!container) {
+      container = document.createElement('div');
+      container.id = containerId;
+      container.className = `alert-container ${position}`;
+      document.body.appendChild(container);
     }
     
-    // 중복 알림 확인 (동일 메시지, 동일 타입)
-    const existingAlerts = this.container.querySelectorAll(`.alert-${type}`);
-    for (const existingAlert of existingAlerts) {
-      if (existingAlert.querySelector('.alert-message').textContent === message) {
-        // 이미 표시된 알림 강조
-        existingAlert.classList.add('alert-highlight');
-        setTimeout(() => {
-          existingAlert.classList.remove('alert-highlight');
-        }, 500);
-        return existingAlert;
-      }
+    // 아이콘 설정
+    let icon;
+    switch (type) {
+      case 'success':
+        icon = 'fa-check-circle';
+        break;
+      case 'warning':
+        icon = 'fa-exclamation-triangle';
+        break;
+      case 'error':
+        icon = 'fa-times-circle';
+        break;
+      case 'info':
+      default:
+        icon = 'fa-info-circle';
+        break;
     }
-    
-    // 아이콘 선택
-    let icon = 'info-circle';
-    if (type === 'success') icon = 'check-circle';
-    if (type === 'error') icon = 'exclamation-circle';
-    if (type === 'warning') icon = 'exclamation-triangle';
     
     // 알림 요소 생성
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} fade-in`;
-    
-    // 내용 추가
-    alert.innerHTML = `
+    const alertId = 'alert-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const alertElement = document.createElement('div');
+    alertElement.id = alertId;
+    alertElement.className = `alert alert-${type}`;
+    alertElement.innerHTML = `
       <div class="alert-icon">
-        <i class="fas fa-${icon}"></i>
+        <i class="fas ${icon}"></i>
       </div>
       <div class="alert-content">
-        <p class="alert-message">${message}</p>
+        <div class="alert-message">${message}</div>
       </div>
-      ${settings.dismissible ? '<button type="button" class="alert-close"><i class="fas fa-times"></i></button>' : ''}
+      ${closable ? '<button class="alert-close"><i class="fas fa-times"></i></button>' : ''}
+      ${autoClose ? '<div class="alert-progress"></div>' : ''}
     `;
     
-    // 컨테이너에 추가
-    this.container.appendChild(alert);
+    // 알림 스택에 추가
+    const alertData = {
+      id: alertId,
+      element: alertElement,
+      timer: null,
+      closable,
+      onClose
+    };
     
-    // 일정 시간 후 자동 제거
-    if (settings.duration > 0) {
-      alert.dataset.timeout = setTimeout(() => {
-        this.hide(alert);
-      }, settings.duration);
+    alerts.push(alertData);
+    
+    // 최대 알림 개수 제한
+    if (alerts.length > MAX_ALERTS) {
+      const oldestAlert = alerts.shift();
+      closeAlert(oldestAlert.id);
     }
     
-    return alert;
-  },
+    // 닫기 버튼 이벤트
+    if (closable) {
+      const closeBtn = alertElement.querySelector('.alert-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+          closeAlert(alertId);
+        });
+      }
+    }
+    
+    // 자동 닫기 타이머
+    if (autoClose) {
+      // 프로그레스바 애니메이션 설정
+      const progressBar = alertElement.querySelector('.alert-progress');
+      if (progressBar) {
+        progressBar.style.animationDuration = (duration / 1000) + 's';
+      }
+      
+      alertData.timer = setTimeout(function() {
+        closeAlert(alertId);
+      }, duration);
+    }
+    
+    // 컨테이너에 추가
+    container.appendChild(alertElement);
+    
+    // 표시 애니메이션
+    setTimeout(() => {
+      alertElement.classList.add('show');
+    }, 10);
+    
+    return alertId;
+  }
   
   /**
-   * 알림을 숨깁니다.
-   * @param {Element} alert - 알림 요소
+   * 알림 닫기
+   * @param {string} alertId - 알림 ID
    */
-  hide: function(alert) {
-    if (!alert) return;
+  function closeAlert(alertId) {
+    const alertIndex = alerts.findIndex(alert => alert.id === alertId);
     
-    // 타임아웃 제거
-    if (alert.dataset.timeout) {
-      clearTimeout(parseInt(alert.dataset.timeout));
+    if (alertIndex === -1) return;
+    
+    const alert = alerts[alertIndex];
+    
+    // 타이머 제거
+    if (alert.timer) {
+      clearTimeout(alert.timer);
     }
     
-    // 페이드 아웃 애니메이션
-    alert.classList.remove('fade-in');
-    alert.classList.add('fade-out');
+    // 닫기 애니메이션
+    alert.element.classList.remove('show');
     
-    // 애니메이션 완료 후 요소 제거
+    // 일정 시간 후 완전히 제거
     setTimeout(() => {
-      if (alert.parentNode) {
-        alert.parentNode.removeChild(alert);
+      if (alert.element.parentNode) {
+        alert.element.parentNode.removeChild(alert.element);
+      }
+      
+      // 배열에서 제거
+      alerts.splice(alertIndex, 1);
+      
+      // 콜백 호출
+      if (typeof alert.onClose === 'function') {
+        alert.onClose();
       }
     }, 300);
-  },
-  
-  /**
-   * 모든 알림을 숨깁니다.
-   */
-  hideAll: function() {
-    const alerts = this.container.querySelectorAll('.alert');
-    alerts.forEach(alert => {
-      this.hide(alert);
-    });
-  },
-  
-  /**
-   * 성공 알림을 표시합니다.
-   * @param {string} message - 알림 메시지
-   * @param {Object} options - 추가 옵션
-   * @returns {Element} - 생성된 알림 요소
-   */
-  success: function(message, options = {}) {
-    return this.show(message, 'success', options);
-  },
-  
-  /**
-   * 오류 알림을 표시합니다.
-   * @param {string} message - 알림 메시지
-   * @param {Object} options - 추가 옵션
-   * @returns {Element} - 생성된 알림 요소
-   */
-  error: function(message, options = {}) {
-    return this.show(message, 'error', options);
-  },
-  
-  /**
-   * 경고 알림을 표시합니다.
-   * @param {string} message - 알림 메시지
-   * @param {Object} options - 추가 옵션
-   * @returns {Element} - 생성된 알림 요소
-   */
-  warning: function(message, options = {}) {
-    return this.show(message, 'warning', options);
-  },
-  
-  /**
-   * 정보 알림을 표시합니다.
-   * @param {string} message - 알림 메시지
-   * @param {Object} options - 추가 옵션
-   * @returns {Element} - 생성된 알림 요소
-   */
-  info: function(message, options = {}) {
-    return this.show(message, 'info', options);
-  },
-  
-  /**
-   * API 응답에 기반한 알림을 표시합니다.
-   * @param {Object} response - API 응답 객체
-   * @param {string} successMessage - 성공 시 메시지 (옵션)
-   * @returns {Element|null} - 생성된 알림 요소 또는 null
-   */
-  fromResponse: function(response, successMessage = null) {
-    if (!response) return null;
-    
-    if (response.success) {
-      // 성공 응답
-      return this.success(successMessage || response.message || '작업이 성공적으로 완료되었습니다.');
-    } else {
-      // 오류 응답
-      return this.error(response.message || '작업 중 오류가 발생했습니다.');
-    }
   }
-};
-
-// 페이지 로드 시 알림 모듈 초기화
-document.addEventListener('DOMContentLoaded', function() {
-  Alerts.init();
-});
+  
+  /**
+   * 모든 알림 닫기
+   */
+  function closeAllAlerts() {
+    const alertIds = [...alerts].map(alert => alert.id);
+    alertIds.forEach(closeAlert);
+  }
+  
+  /**
+   * 성공 알림
+   * @param {string} message - 표시할 메시지
+   * @param {Object} options - 추가 옵션
+   */
+  function showSuccess(message, options = {}) {
+    return createAlert(message, 'success', options);
+  }
+  
+  /**
+   * 경고 알림
+   * @param {string} message - 표시할 메시지
+   * @param {Object} options - 추가 옵션
+   */
+  function showWarning(message, options = {}) {
+    return createAlert(message, 'warning', options);
+  }
+  
+  /**
+   * 오류 알림
+   * @param {string} message - 표시할 메시지
+   * @param {Object} options - 추가 옵션
+   */
+  function showError(message, options = {}) {
+    return createAlert(message, 'error', options);
+  }
+  
+  /**
+   * 정보 알림
+   * @param {string} message - 표시할 메시지
+   * @param {Object} options - 추가 옵션
+   */
+  function showInfo(message, options = {}) {
+    return createAlert(message, 'info', options);
+  }
+  
+  // 공개 API
+  window.Alerts = {
+    show: createAlert,
+    success: showSuccess,
+    warning: showWarning,
+    error: showError,
+    info: showInfo,
+    close: closeAlert,
+    closeAll: closeAllAlerts
+  };
+  
+  console.log('[Alerts] 알림 모듈 초기화 완료');
+})();
