@@ -531,8 +531,15 @@ async def change_order_status(
 ):
     """
     주문 상태 변경 API
+    
+    참고: 현재 프론트엔드에서는 일괄 상태 변경 기능이 제거되었으며,
+    단일 주문 상태 변경은 주문 상세 모달에서만 처리합니다.
+    이 API는 향후 호환성을 위해 유지됩니다.
     """
     try:
+        # API 호출 로깅
+        logger.info(f"일괄 상태 변경 API 호출: {len(status_data.ids)}건, 상태={status_data.status}")
+        
         # 상태 변경
         results = change_status(
             db=db,
@@ -568,8 +575,15 @@ async def assign_order_driver(
 ):
     """
     주문 기사 배정 API
+    
+    참고: 현재 프론트엔드에서는 일괄 배차 기능이 제거되었으며,
+    단일 주문 기사 배정은 주문 상세 모달에서만 처리합니다.
+    이 API는 향후 호환성을 위해 유지됩니다.
     """
     try:
+        # API 호출 로깅
+        logger.info(f"일괄 기사 배정 API 호출: {len(driver_data.ids)}건, 기사={driver_data.driver_name}")
+        
         # 기사 배정
         results = assign_driver(
             db=db,
@@ -605,8 +619,15 @@ async def delete_order(
 ):
     """
     주문 삭제 API
+    
+    참고: 현재 프론트엔드에서는 일괄 삭제 기능이 제거되었으며,
+    단일 주문 삭제는 주문 상세 모달에서만 처리합니다.
+    이 API는 향후 호환성을 위해 유지됩니다.
     """
     try:
+        # API 호출 로깅
+        logger.info(f"일괄 삭제 API 호출: {len(delete_data.ids)}건")
+        
         # 관리자 권한 확인
         if current_user.get("user_role") != "ADMIN":
             return JSONResponse(

@@ -2,9 +2,6 @@
 {% include "modals/order_detail_modal.html" %}
 {% include "modals/create_order_modal.html" %}
 {% include "modals/delete_confirm_modal.html" %}
-{% include "modals/status_change_modal.html" %}
-{% include "modals/driver_assign_modal.html" %}
-{% include "modals/bulk_delete_modal.html" %}
 
 <!-- 공통 모달 컨테이너 (일반 알림 등에 사용) -->
 <div class="modal" id="commonModal">
@@ -34,19 +31,31 @@
 
 <script>
 /**
- * 모달 초기화 및 호환성 유지 스크립트
+ * 모달 초기화 스크립트
  */
 (function() {
-  console.log('[모달 관리자] dashboard_modals.html 체크 중');
+  console.log('[모달 관리자] 사용 중인 모달: 주문 상세, 신규 등록, 삭제 확인');
 
   // 모달 유틸 로드 체크
   document.addEventListener('DOMContentLoaded', function() {
-    if (!window.ModalUtils && !window.ModalManager) {
+    if (!window.ModalUtils) {
       console.error('[모달 관리자] 모달 유틸리티 모듈이 아직 로드되지 않았습니다.');
       return;
     }
     
     console.log('[모달 관리자] 모달 유틸리티 모듈 로드 확인 완료');
+    
+    // 행 클릭 이벤트 등록
+    document.querySelectorAll('.clickable-row').forEach(row => {
+      row.addEventListener('click', function() {
+        const orderId = this.dataset.id;
+        if (orderId && window.orderDetailModal) {
+          console.log(`[모달 관리자] 주문 ID ${orderId} 행 클릭됨`);
+          window.ModalUtils.saveStorage('currentOrderId', orderId, { useSession: true });
+          window.orderDetailModal.showOrderDetail(orderId);
+        }
+      });
+    });
   });
 })();
 </script>

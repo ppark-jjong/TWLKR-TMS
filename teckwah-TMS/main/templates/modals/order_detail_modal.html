@@ -130,7 +130,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="detailStatus">현재 상태 *</label>
-          <select id="detailStatus" name="status" required class="status-select status-${orderData ? orderData.status : 'WAITING'}">
+          <select id="detailStatus" name="status" required class="status-select" disabled>
             <option value="WAITING" class="status-option-WAITING">대기</option>
             <option value="IN_PROGRESS" class="status-option-IN_PROGRESS">진행 중</option>
             <option value="COMPLETE" class="status-option-COMPLETE">완료</option>
@@ -330,7 +330,7 @@
       ModalUtils.hideModal(MODAL_ID);
     } else {
       console.error('[OrderDetailModal] ModalUtils.hideModal이 정의되지 않았습니다.');
-      // 후퇴 방법 - s직접 DOM 조작
+      // 후퇴 방법 - 직접 DOM 조작
       const modal = document.getElementById(MODAL_ID);
       if (!modal) return;
       
@@ -1117,7 +1117,9 @@
   // 공개 API
   window.orderDetailModal = {
     showOrderDetail: showOrderDetail,
-    hideModal: hideModal
+    hideModal: hideModal,
+    toggleOrderEditMode: toggleOrderEditMode,
+    saveOrderChanges: saveOrderChanges
   };
   
   console.log('[OrderDetailModal] 모듈 초기화 완료');

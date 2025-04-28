@@ -23,28 +23,68 @@
     <link rel="stylesheet" href="/static/css/alerts.css" />
 
     <!-- Air Datepicker 라이브러리 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/air-datepicker@3.3.5/air-datepicker.min.css">
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/air-datepicker@3.3.5/air-datepicker.min.css"
+    />
     <script src="https://cdn.jsdelivr.net/npm/air-datepicker@3.3.5/air-datepicker.min.js"></script>
     <script>
       // Air Datepicker 한국어 설정 - 전역 변수로 제대로 설정
       window.AirDatepickerLocaleKO = {
-        days: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+        days: [
+          '일요일',
+          '월요일',
+          '화요일',
+          '수요일',
+          '목요일',
+          '금요일',
+          '토요일',
+        ],
         daysShort: ['일', '월', '화', '수', '목', '금', '토'],
         daysMin: ['일', '월', '화', '수', '목', '금', '토'],
-        months: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
-        monthsShort: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+        months: [
+          '1월',
+          '2월',
+          '3월',
+          '4월',
+          '5월',
+          '6월',
+          '7월',
+          '8월',
+          '9월',
+          '10월',
+          '11월',
+          '12월',
+        ],
+        monthsShort: [
+          '1월',
+          '2월',
+          '3월',
+          '4월',
+          '5월',
+          '6월',
+          '7월',
+          '8월',
+          '9월',
+          '10월',
+          '11월',
+          '12월',
+        ],
         today: '오늘',
         clear: '초기화',
         dateFormat: 'yyyy-MM-dd',
         timeFormat: 'hh:mm aa',
-        firstDay: 0
+        firstDay: 0,
       };
     </script>
-    
+
     <!-- 추가 CSS 블록 (페이지별 특화 스타일) -->
     {% block extra_css %}{% endblock %}
   </head>
-  <body data-user-id="{{ get_user(request).user_id or 'anonymous' }}" data-user-role="{{ get_user(request).user_role or 'USER' }}">
+  <body
+    data-user-id="{{ get_user(request).user_id or 'anonymous' }}"
+    data-user-role="{{ get_user(request).user_role or 'USER' }}"
+  >
     <div id="app" class="app-container">
       <!-- 사이드바 컴포넌트 -->
       <div class="sidebar" id="sidebar">
@@ -145,11 +185,11 @@
       </div>
     </div>
 
-    <!-- 공통 스크립트 로드 (모든 페이지 공통) -->
+    <!-- 공통 스크립트 로드 (모든 페이지 공통) - 로드 순서 중요 -->
+    <script src="/static/js/common/modal-utils.js"></script>
     <script src="/static/js/common/logger.js"></script>
     <script src="/static/js/common/alerts.js"></script>
     <script src="/static/js/common/api.js"></script>
-    <script src="/static/js/common/modal-utils.js"></script>
     <script src="/static/js/common/auth.js"></script>
 
     <!-- 페이지별 추가 스크립트 -->
@@ -207,7 +247,7 @@
       function initLogoutButton() {
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
-          logoutBtn.addEventListener('click', function() {
+          logoutBtn.addEventListener('click', function () {
             if (window.confirm('로그아웃 하시겠습니까?')) {
               window.location.href = '/logout';
             }
