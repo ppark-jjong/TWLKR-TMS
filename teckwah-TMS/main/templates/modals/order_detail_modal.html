@@ -1,6 +1,6 @@
 <!-- 주문 상세 정보 모달 -->
 <div class="modal" id="orderDetailModal">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <h2 class="modal-title">주문 상세 정보</h2>
@@ -59,9 +59,6 @@
             <option value="RETURN">회수</option>
           </select>
         </div>
-      </div>
-      
-      <div class="form-row">
         <div class="form-group">
           <label for="detailDepartment">부서 *</label>
           <select id="detailDepartment" name="department" required disabled>
@@ -104,16 +101,6 @@
           <label for="detailRegion">지역</label>
           <input type="text" id="detailRegion" name="region" readonly>
         </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group full-width">
-          <label for="detailAddress">주소 *</label>
-          <input type="text" id="detailAddress" name="address" required readonly>
-        </div>
-      </div>
-      
-      <div class="form-row">
         <div class="form-group">
           <label for="detailCustomer">고객명 *</label>
           <input type="text" id="detailCustomer" name="customer" required readonly>
@@ -121,6 +108,13 @@
         <div class="form-group">
           <label for="detailContact">연락처</label>
           <input type="text" id="detailContact" name="contact" pattern="010-[0-9]{4}-[0-9]{4}" readonly>
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label for="detailAddress">주소 *</label>
+          <input type="text" id="detailAddress" name="address" required readonly>
         </div>
       </div>
     </div>
@@ -142,9 +136,6 @@
           <label for="detailCreatedTime">접수 시간</label>
           <input type="text" id="detailCreatedTime" readonly>
         </div>
-      </div>
-      
-      <div class="form-row">
         <div class="form-group">
           <label for="detailDepartTime">출발 시간</label>
           <input type="text" id="detailDepartTime" readonly>
@@ -167,6 +158,14 @@
           <label for="detailDriverContact">기사 연락처</label>
           <input type="text" id="detailDriverContact" name="driverContact" readonly>
         </div>
+        <div class="form-group">
+          <label for="detailUpdatedBy">마지막 수정자</label>
+          <input type="text" id="detailUpdatedBy" readonly>
+        </div>
+        <div class="form-group">
+          <label for="detailUpdatedAt">수정 시간</label>
+          <input type="text" id="detailUpdatedAt" readonly>
+        </div>
       </div>
     </div>
     
@@ -176,17 +175,6 @@
         <div class="form-group full-width">
           <label for="detailRemark">비고</label>
           <textarea id="detailRemark" name="remark" rows="3" readonly></textarea>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailUpdatedBy">마지막 수정자</label>
-          <input type="text" id="detailUpdatedBy" readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailUpdatedAt">수정 시간</label>
-          <input type="text" id="detailUpdatedAt" readonly>
         </div>
       </div>
     </div>
@@ -303,46 +291,14 @@
    * 모달 표시
    */
   function showModal() {
-    if (typeof ModalUtils.showModal === 'function') {
-      ModalUtils.showModal(MODAL_ID);
-    } else {
-      console.error('[OrderDetailModal] ModalUtils.showModal이 정의되지 않았습니다.');
-      // 후퇴 방법 - 직접 DOM 조작
-      const modal = document.getElementById(MODAL_ID);
-      if (!modal) return;
-      
-      // 모달 표시
-      modal.style.display = 'flex';
-      document.body.classList.add('modal-open');
-      
-      // 애니메이션 효과
-      setTimeout(function() {
-        modal.classList.add('show');
-      }, 10);
-    }
+    window.ModalUtils.showModal(MODAL_ID);
   }
   
   /**
    * 모달 숨김
    */
   function hideModal() {
-    if (typeof ModalUtils.hideModal === 'function') {
-      ModalUtils.hideModal(MODAL_ID);
-    } else {
-      console.error('[OrderDetailModal] ModalUtils.hideModal이 정의되지 않았습니다.');
-      // 후퇴 방법 - 직접 DOM 조작
-      const modal = document.getElementById(MODAL_ID);
-      if (!modal) return;
-      
-      // 애니메이션 효과
-      modal.classList.remove('show');
-      
-      // 약간의 지연 후 완전히 숨김
-      setTimeout(function() {
-        modal.style.display = 'none';
-        document.body.classList.remove('modal-open');
-      }, 300);
-    }
+    window.ModalUtils.hideModal(MODAL_ID);
   }
   
   /**
@@ -680,14 +636,22 @@
         }
       });
       
-      // 수정 모드 시작 시 특정 필드에 초점 이동 (예: 주소)
+      // 수정 모드 시작 시 스크롤을 맨 위로 이동
       if (isEdit) {
-        const focusField = document.getElementById('detailAddress') || 
-                          document.getElementById('detailRemark') ||
-                          document.getElementById('detailCustomer');
-        if (focusField) {
-          focusField.focus();
+        const modalBody = document.querySelector('.modal-body');
+        if (modalBody) {
+          modalBody.scrollTop = 0;
         }
+        
+        // 특정 필드에 초점 이동 (예: 주소)
+        setTimeout(function() {
+          const focusField = document.getElementById('detailAddress') || 
+                            document.getElementById('detailRemark') ||
+                            document.getElementById('detailCustomer');
+          if (focusField) {
+            focusField.focus();
+          }
+        }, 100);
       }
     }
   }
@@ -906,6 +870,11 @@
       return;
     }
     
+    // 확인 대화상자
+    if (!confirm('변경사항을 저장하시겠습니까?')) {
+      return;
+    }
+    
     // 락 상태 확인 (락이 없거나 만료되었을 수 있음)
     try {
       console.log(`[OrderDetailModal] 락 상태 확인 시작: 주문 ID=${orderId}`);
@@ -920,7 +889,7 @@
         lockStatus = await response.json();
       }
       
-      if (!lockStatus.editable) {
+      if (lockStatus && !lockStatus.editable) {
         console.warn('[OrderDetailModal] 편집 권한 없음', lockStatus);
         showAlert(lockStatus.message || '현재 이 주문을 편집할 권한이 없습니다.', 'error');
         toggleOrderEditMode(false);
@@ -930,6 +899,7 @@
       console.log('[OrderDetailModal] 락 확인 완료: 편집 가능');
     } catch (error) {
       console.error('[OrderDetailModal] 락 상태 확인 중 오류', error);
+      // 에러가 발생해도 저장 시도 (락 API가 실패해도 저장은 시도)
     }
     
     // 폼 데이터 수집
@@ -948,7 +918,7 @@
         response = await callApi('PUT', `/dashboard/orders/${orderId}`, formData);
       }
       
-      if (response.success) {
+      if (response && response.success) {
         console.log('[OrderDetailModal] 주문 업데이트 성공', { orderId });
         showAlert('주문 정보가 성공적으로 업데이트되었습니다.', 'success');
         toggleOrderEditMode(false);
@@ -965,16 +935,18 @@
         window.location.reload();
       } else {
         console.error('[OrderDetailModal] 주문 업데이트 실패', response);
-        showAlert(response.message || '주문 수정 중 오류가 발생했습니다.', 'error');
+        showAlert(response?.message || '주문 수정 중 오류가 발생했습니다.', 'error');
       }
     } catch (error) {
       console.error('[OrderDetailModal] 주문 수정 중 예외 발생', error);
-      showAlert('주문 수정 중 오류가 발생했습니다: ' + error.message, 'error');
+      showAlert('주문 수정 중 오류가 발생했습니다: ' + (error.message || '서버 오류'), 'error');
     } finally {
       toggleLoading(false);
       
       // 편집 중인 필드 초기화
-      editingFields.clear();
+      if (typeof editingFields !== 'undefined' && editingFields) {
+        editingFields.clear();
+      }
     }
   }
   

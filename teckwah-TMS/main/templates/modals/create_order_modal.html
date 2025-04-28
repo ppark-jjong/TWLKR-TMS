@@ -1,6 +1,6 @@
 <!-- 주문 생성 모달 -->
 <div class="modal" id="createOrderModal">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <h2 class="modal-title">신규 배송 등록</h2>
@@ -23,9 +23,6 @@
                 <option value="RETURN">회수</option>
               </select>
             </div>
-          </div>
-
-          <div class="form-row">
             <div class="form-group">
               <label for="createDepartment">부서 *</label>
               <select id="createDepartment" name="department" required>
@@ -71,13 +68,6 @@
                 title="우편번호는 5자리 숫자여야 합니다"
               />
             </div>
-            <div class="form-group full-width">
-              <label for="createAddress">주소 *</label>
-              <input type="text" id="createAddress" name="address" required />
-            </div>
-          </div>
-
-          <div class="form-row">
             <div class="form-group">
               <label for="createCustomer">고객명 *</label>
               <input type="text" id="createCustomer" name="customer" required />
@@ -92,6 +82,13 @@
                 pattern="010-[0-9]{4}-[0-9]{4}"
               />
               <small class="form-hint">형식: 010-XXXX-XXXX</small>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group full-width">
+              <label for="createAddress">주소 *</label>
+              <input type="text" id="createAddress" name="address" required />
             </div>
           </div>
           
@@ -264,6 +261,11 @@
       return;
     }
     
+    // 확인 대화상자
+    if (!confirm('새 주문을 등록하시겠습니까?')) {
+      return;
+    }
+    
     // 폼 데이터 수집
     const formData = getFormData(form);
     
@@ -293,7 +295,7 @@
         response = await callApi('POST', '/dashboard/orders', formData);
       }
       
-      if (response.success) {
+      if (response && response.success) {
         showAlert('주문이 성공적으로 생성되었습니다.', 'success');
         
         // 모달 닫기
@@ -307,11 +309,11 @@
         // 테이블 새로고침
         window.location.reload();
       } else {
-        showAlert(response.message || '주문 생성 중 오류가 발생했습니다.', 'error');
+        showAlert(response?.message || '주문 생성 중 오류가 발생했습니다.', 'error');
       }
     } catch (error) {
       console.error('[CreateOrderModal] 주문 생성 중 오류:', error);
-      showAlert('주문 생성 중 오류가 발생했습니다: ' + error.message, 'error');
+      showAlert('주문 생성 중 오류가 발생했습니다: ' + (error.message || '서버 오류'), 'error');
     } finally {
       // 로딩 표시 숨김
       if (typeof ModalUtils.toggleLoading === 'function') {
