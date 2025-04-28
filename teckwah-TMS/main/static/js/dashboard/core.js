@@ -134,7 +134,12 @@ window.Dashboard = (function() {
   function registerModule(name, module) {
     if (!name || !module) return;
     
+    // private 모듈 컨테이너에 저장
     modules[name] = module;
+    
+    // 핵심 수정: Dashboard 객체에 직접 모듈 추가 (외부 접근용)
+    this[name] = module;
+    
     console.log(`[Dashboard] 모듈 등록: ${name}`);
   }
   
@@ -154,11 +159,30 @@ window.Dashboard = (function() {
     return currentOrderId;
   }
   
+  /**
+   * 등록된 모듈에 접근합니다.
+   * @param {string} name - 모듈 이름
+   * @returns {Object|null} - 모듈 객체 또는 null
+   */
+  function getModule(name) {
+    return modules[name] || null;
+  }
+  
+  /**
+   * 등록된 모든 모듈 이름을 반환합니다.
+   * @returns {string[]} - 모듈 이름 배열
+   */
+  function getModuleNames() {
+    return Object.keys(modules);
+  }
+  
   // 공개 API
   return {
     init: init,
     registerModule: registerModule,
     setCurrentOrderId: setCurrentOrderId,
-    getCurrentOrderId: getCurrentOrderId
+    getCurrentOrderId: getCurrentOrderId,
+    getModule: getModule,
+    getModuleNames: getModuleNames
   };
 })();

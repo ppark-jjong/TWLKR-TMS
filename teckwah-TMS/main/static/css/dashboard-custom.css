@@ -1,75 +1,7 @@
 /**
  * 대시보드 커스텀 스타일
- * 모달 시스템 및 테이블 관련 추가 스타일
+ * 테이블 관련 추가 스타일
  */
-
-/* 모달 푸터 분할 */
-.modal-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-top: 1px solid #f0f0f0;
-  background: white;
-  flex-shrink: 0;
-  position: sticky;
-  bottom: 0;
-}
-
-.modal-footer-left {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.modal-footer-right {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-/* 인라인 편집 스타일 */
-.field-with-action {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.field-with-action input,
-.field-with-action select {
-  flex-grow: 1;
-  padding-right: 36px;
-}
-
-.inline-edit-btn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background: none;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  cursor: pointer;
-  color: #666;
-  transition: all 0.2s;
-  border-radius: 0 4px 4px 0;
-}
-
-.inline-edit-btn:hover {
-  background-color: #f0f0f0;
-  color: #d72519;
-}
-
-/* 편집 중인 필드 강조 */
-.editing {
-  border-color: #d72519 !important;
-  box-shadow: 0 0 0 2px rgba(215, 37, 25, 0.1) !important;
-  background-color: #fff !important;
-}
 
 /* 테이블 관리 컬럼 스타일 */
 .column-actions {
@@ -99,27 +31,4 @@
 
 .view-btn {
   font-size: 14px;
-}
-
-/* 상태 변경 섹션 */
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.section-edit-btn {
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
-  font-size: 14px;
-}
-
-.section-edit-btn:hover {
-  background-color: #f0f0f0;
-  color: #d72519;
 }

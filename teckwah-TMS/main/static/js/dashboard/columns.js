@@ -49,8 +49,8 @@
     // 모든 컬럼 헤더에서 컬럼 정보 추출
     const columns = [];
     document.querySelectorAll('#orderTable th').forEach(th => {
-      // 첫 번째 체크박스 컬럼은 항상 표시해야 함
-      if (th.classList.contains('checkbox-column')) return;
+      // 체크박스 컬럼은 항상 표시하고 커스터마이징 옵션에서 제외
+      if (th.classList.contains('column-checkbox') || th.classList.contains('checkbox-column')) return;
       
       const columnClass = Array.from(th.classList).find(cls => cls.startsWith('column-'));
       if (columnClass) {

@@ -34,33 +34,7 @@ console.log('[로드] dashboard/table.js 로드됨 - ' + new Date().toISOString(
         return;
       }
       
-      // 행 클릭 이벤트
-      tableElement.addEventListener('click', (event) => {
-        const viewBtn = event.target.closest('.view-btn');
-        if (viewBtn) {
-          const orderId = viewBtn.dataset.id;
-          if (orderId) {
-            this.showOrderDetails(orderId);
-          }
-        }
-      });
-    },
-    
-    /**
-     * 주문 상세 정보를 표시합니다.
-     * @param {string} orderId - 주문 ID
-     */
-    showOrderDetails: function(orderId) {
-      console.log('[대시보드/table] 주문 상세 조회:', orderId);
-      
-      // 모달 모듈을 통해 주문 상세 표시
-      if (Dashboard.modules.modal && typeof Dashboard.modules.modal.showOrderDetail === 'function') {
-        Dashboard.modules.modal.showOrderDetail(orderId);
-      } else if (Dashboard.modal && typeof Dashboard.modal.showOrderDetail === 'function') {
-        Dashboard.modal.showOrderDetail(orderId);
-      } else {
-        console.error('[대시보드/table] 모달 모듈을 찾을 수 없습니다.');
-      }
+      // 행 클릭 이벤트 삭제 (dashboard.html에서 직접 처리)
     },
     
     /**

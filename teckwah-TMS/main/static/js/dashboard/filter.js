@@ -19,11 +19,100 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
     init: function() {
       console.log('[대시보드/filter] 초기화 시작');
       
+      this.initDateRangePicker();
       this.bindFilterEvents();
       this.setupInitialFilters();
       
       console.log('[대시보드/filter] 초기화 완료');
       return true;
+    },
+    
+    /**
+     * Air Datepicker 초기화
+     */
+    initDateRangePicker: function() {
+      const self = this;
+      const today = this.getTodayDate();
+      
+      // URL 매개변수에서 날짜 가져오기 (대소문자 구분 없이 처리)
+      const urlParams = new URLSearchParams(window.location.search);
+      let startDate = today;
+      let endDate = today;
+      
+      // 대소문자 무관하게 URL 파라미터 탐색
+      for (const [key, value] of urlParams.entries()) {
+        if (key.toLowerCase() === 'startdate' || key.toLowerCase() === 'start_date') {
+          startDate = value;
+        }
+        if (key.toLowerCase() === 'enddate' || key.toLowerCase() === 'end_date') {
+          endDate = value;
+        }
+      }
+      
+      console.log('[대시보드/filter] 초기 날짜 설정:', startDate, endDate);
+      
+      // 히든 필드에 초기값 설정
+      document.getElementById('startDate').value = startDate;
+      document.getElementById('endDate').value = endDate;
+      
+      // 날짜 표시 포맷
+      const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      // 초기 표시 텍스트 설정
+      const dateRangePicker = document.getElementById('dateRangePicker');
+      if (dateRangePicker) {
+        if (startDate === endDate) {
+          dateRangePicker.value = startDate;
+        } else {
+          dateRangePicker.value = `${startDate} ~ ${endDate}`;
+        }
+        
+        // Air Datepicker 초기화
+        new AirDatepicker('#dateRangePicker', {
+          range: true,
+          multipleDates: true,
+          multipleDatesSeparator: ' ~ ',
+          dateFormat: 'yyyy-MM-dd',
+          autoClose: true,
+          minDate: new Date('2020-01-01'), // 필요에 따라 조정
+          locale: { // 한국어 로케일 직접 설정
+            days: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+            daysShort: ['일', '월', '화', '수', '목', '금', '토'],
+            daysMin: ['일', '월', '화', '수', '목', '금', '토'],
+            months: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+            monthsShort: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+            today: '오늘',
+            clear: '초기화',
+            dateFormat: 'yyyy-MM-dd',
+            timeFormat: 'hh:mm aa',
+            firstDay: 0
+          },
+          selectedDates: [new Date(startDate), new Date(endDate)],
+          buttons: ['today', 'clear'],
+          
+          onSelect({date, formattedDate, datepicker}) {
+            console.log('[대시보드/filter] 날짜 선택:', formattedDate);
+            
+            // 날짜가 두 개 선택되었는지 확인
+            if (Array.isArray(date) && date.length === 2) {
+              const start = formatDate(date[0]);
+              const end = formatDate(date[1]);
+              
+              // 히든 필드 업데이트
+              document.getElementById('startDate').value = start;
+              document.getElementById('endDate').value = end;
+              
+              // 자동으로 조회 실행
+              self.applyDateFilter();
+            }
+          }
+        });
+      }
     },
     
     /**
@@ -110,30 +199,10 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
      */
     setupInitialFilters: function() {
       // URL 매개변수에서 필터 값 가져오기
-      const startDate = this.getUrlParam('start_date');
-      const endDate = this.getUrlParam('end_date');
       const orderNo = this.getUrlParam('order_no');
       const status = this.getUrlParam('status');
       const department = this.getUrlParam('department');
       const warehouse = this.getUrlParam('warehouse');
-      
-      // 날짜 필터 설정
-      const startDateInput = document.getElementById('startDate');
-      const endDateInput = document.getElementById('endDate');
-      
-      if (startDateInput && startDate) {
-        startDateInput.value = startDate;
-      } else if (startDateInput) {
-        // 기본값: 오늘
-        startDateInput.value = this.getTodayDate();
-      }
-      
-      if (endDateInput && endDate) {
-        endDateInput.value = endDate;
-      } else if (endDateInput) {
-        // 기본값: 오늘
-        endDateInput.value = this.getTodayDate();
-      }
       
       // 주문번호 검색 설정
       const orderNoSearch = document.getElementById('orderNoSearch');
@@ -167,6 +236,8 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
       const startDate = document.getElementById('startDate')?.value;
       const endDate = document.getElementById('endDate')?.value;
       
+      console.log('[대시보드/filter] 날짜 필터 적용:', startDate, endDate);
+      
       if (!startDate || !endDate) {
         if (window.Alerts) {
           Alerts.warning('시작일과 종료일을 모두 선택해주세요.');
@@ -176,8 +247,8 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
         return;
       }
       
-      // 페이지 새로고침 (서버 필터링)
-      window.location.href = `?start_date=${startDate}&end_date=${endDate}`;
+      // 페이지 새로고침 (서버 필터링) - 백엔드의 파라미터명과 일치시킴
+      window.location.href = `?startDate=${startDate}&endDate=${endDate}`;
     },
     
     /**
@@ -186,14 +257,27 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
     setTodayFilter: function() {
       const today = this.getTodayDate();
       
-      const startDateInput = document.getElementById('startDate');
-      const endDateInput = document.getElementById('endDate');
+      // 날짜 입력 필드 업데이트
+      document.getElementById('startDate').value = today;
+      document.getElementById('endDate').value = today;
       
-      if (startDateInput) startDateInput.value = today;
-      if (endDateInput) endDateInput.value = today;
+      // DateRangePicker 표시 업데이트
+      const dateRangePicker = document.getElementById('dateRangePicker');
+      if (dateRangePicker) {
+        dateRangePicker.value = today;
+        
+        // Air Datepicker 인스턴스 접근 및 업데이트
+        const datepickers = document.querySelectorAll('.air-datepicker');
+        if (datepickers.length > 0) {
+          const datepicker = datepickers[0];
+          if (datepicker && datepicker._datepicker) {
+            datepicker._datepicker.selectDate([new Date(today), new Date(today)]);
+          }
+        }
+      }
       
-      // 필터 적용
-      this.applyDateFilter();
+      // 페이지 직접 이동 (필터 적용 대신 직접 URL 구성)
+      window.location.href = `?startDate=${today}&endDate=${today}`;
     },
     
     /**
@@ -302,6 +386,11 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
         }
       }
       
+      // 페이지네이션 업데이트 처리
+      if (window.Dashboard && window.Dashboard.pagination && typeof window.Dashboard.pagination.reset === 'function') {
+        window.Dashboard.pagination.reset();
+      }
+      
       return visibleCount;
     },
     
@@ -340,19 +429,32 @@ console.log('[로드] dashboard/filter.js 로드됨 - ' + new Date().toISOString
       if (departmentFilter) departmentFilter.value = '';
       if (warehouseFilter) warehouseFilter.value = '';
       
-      // 날짜 필터 초기화
-      const startDateInput = document.getElementById('startDate');
-      const endDateInput = document.getElementById('endDate');
+      // 날짜 필터 초기화 (오늘 날짜로)
+      const today = this.getTodayDate();
+      document.getElementById('startDate').value = today;
+      document.getElementById('endDate').value = today;
       
-      if (startDateInput) startDateInput.value = this.getTodayDate();
-      if (endDateInput) endDateInput.value = this.getTodayDate();
+      // DateRangePicker 표시 업데이트
+      const dateRangePicker = document.getElementById('dateRangePicker');
+      if (dateRangePicker) {
+        dateRangePicker.value = today;
+        
+        // Air Datepicker 인스턴스 접근 및 업데이트
+        const datepickers = document.querySelectorAll('.air-datepicker');
+        if (datepickers.length > 0) {
+          const datepicker = datepickers[0];
+          if (datepicker && datepicker._datepicker) {
+            datepicker._datepicker.selectDate([new Date(today), new Date(today)]);
+          }
+        }
+      }
       
       // 주문번호 검색 초기화
       const orderNoSearch = document.getElementById('orderNoSearch');
       if (orderNoSearch) orderNoSearch.value = '';
       
-      // 페이지 새로고침
-      window.location.href = window.location.pathname;
+      // 페이지 새로고침 - 기본 상태로 (오늘 날짜)
+      window.location.href = `${window.location.pathname}?startDate=${today}&endDate=${today}`;
     },
     
     /**

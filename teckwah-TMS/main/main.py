@@ -48,6 +48,7 @@ app = FastAPI(
 
 # --- 미들웨어 설정 ---
 
+
 # 0. 사용자 정보 미들웨어 (템플릿에 user 제공)
 @app.middleware("http")
 async def inject_user_middleware(request: Request, call_next):
@@ -56,10 +57,10 @@ async def inject_user_middleware(request: Request, call_next):
     """
     # 요청에서 세션 정보 가져오기
     user = request.session.get("user", {"user_role": "USER"})
-    
+
     # 요청 객체에 user 정보 저장 (템플릿에서 접근 가능)
     request.state.user = user
-    
+
     # 다음 미들웨어 호출
     response = await call_next(request)
     return response
@@ -123,12 +124,11 @@ app.add_middleware(
 
 # --- 라우터 포함 ---
 # 주의: 라우터 파일 내부에 APIRouter 인스턴스가 'router' 변수명으로 정의되어 있어야 합니다.
-from main.routes import auth_route, dashboard_route, handover_route, visualization_route, users_route
+from main.routes import auth_route, dashboard_route, handover_route, users_route
 
 app.include_router(auth_route.router, prefix="/auth", tags=["Authentication"])
 app.include_router(dashboard_route.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(handover_route.router, prefix="/handover", tags=["Handover"])
-app.include_router(visualization_route.router, prefix="/visualization", tags=["Visualization"])
 app.include_router(users_route.router, prefix="/users", tags=["Users"])
 
 

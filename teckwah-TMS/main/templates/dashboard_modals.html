@@ -1,4 +1,12 @@
-<!-- 공통 모달 컨테이너 -->
+<!-- 모달 템플릿 포함 -->
+{% include "modals/order_detail_modal.html" %}
+{% include "modals/create_order_modal.html" %}
+{% include "modals/delete_confirm_modal.html" %}
+{% include "modals/status_change_modal.html" %}
+{% include "modals/driver_assign_modal.html" %}
+{% include "modals/bulk_delete_modal.html" %}
+
+<!-- 공통 모달 컨테이너 (일반 알림 등에 사용) -->
 <div class="modal" id="commonModal">
   <div class="modal-dialog" id="modalDialog">
     <div class="modal-content">
@@ -24,345 +32,57 @@
   </div>
 </div>
 
-<!-- 주문 상세 정보 모달 -->
-<div class="modal" id="orderDetailModal">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">주문 상세 정보</h2>
-        <button type="button" class="close-btn" id="closeDetailModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body" id="orderDetailContent">
-        <!-- 상세 정보 내용은 JavaScript로 동적 생성 -->
-        <div class="loading-spinner" id="modalLoadingSpinner">
-          <div class="spinner-container">
-            <div class="spinner"></div>
-            <div class="spinner-text">주문 정보 로드 중...</div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <div class="modal-footer-left">
-          {% if user.user_role == 'ADMIN' %}
-          <button type="button" class="btn delete-btn" id="deleteOrderBtn">
-            <i class="fas fa-trash"></i> 삭제
-          </button>
-          {% endif %}
-        </div>
-        <div class="modal-footer-right">
-          <button type="button" class="btn secondary-btn" id="closeModalBtn">닫기</button>
-          <button type="button" class="btn primary-btn" id="editOrderBtn">수정하기</button>
-          <button type="button" class="btn primary-btn" id="saveOrderBtn" style="display: none">저장하기</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 주문 생성 모달 -->
-<div class="modal" id="createOrderModal">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">신규 배송 등록</h2>
-        <button type="button" class="close-btn" id="closeCreateModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="createOrderForm" class="order-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createOrderNo">주문번호 *</label>
-              <input type="text" id="createOrderNo" name="orderNo" required/>
-            </div>
-            <div class="form-group">
-              <label for="createType">유형 *</label>
-              <select id="createType" name="type" required>
-                <option value="">선택하세요</option>
-                <option value="DELIVERY">배송</option>
-                <option value="RETURN">회수</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createDepartment">부서 *</label>
-              <select id="createDepartment" name="department" required>
-                <option value="">선택하세요</option>
-                <option value="CS">CS</option>
-                <option value="HES">HES</option>
-                <option value="LENOVO">LENOVO</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="createWarehouse">창고 *</label>
-              <select id="createWarehouse" name="warehouse" required>
-                <option value="">선택하세요</option>
-                <option value="SEOUL">서울</option>
-                <option value="BUSAN">부산</option>
-                <option value="GWANGJU">광주</option>
-                <option value="DAEJEON">대전</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createSLA">SLA *</label>
-              <input type="text" id="createSLA" name="sla" required />
-            </div>
-            <div class="form-group">
-              <label for="createETA">ETA *</label>
-              <input type="datetime-local" id="createETA" name="eta" required />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createPostalCode">우편번호 *</label>
-              <input
-                type="text"
-                id="createPostalCode"
-                name="postalCode"
-                required
-                maxlength="5"
-                pattern="[0-9]{5}"
-                title="우편번호는 5자리 숫자여야 합니다"
-              />
-            </div>
-            <div class="form-group full-width">
-              <label for="createAddress">주소 *</label>
-              <input type="text" id="createAddress" name="address" required />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="createCustomer">고객명 *</label>
-              <input type="text" id="createCustomer" name="customer" required />
-            </div>
-            <div class="form-group">
-              <label for="createContact">연락처 *</label>
-              <input
-                type="text"
-                id="createContact"
-                name="contact"
-                required
-                pattern="010-[0-9]{4}-[0-9]{4}"
-              />
-              <small class="form-hint">형식: 010-XXXX-XXXX</small>
-            </div>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="cancelCreateBtn">취소</button>
-        <button type="button" class="btn primary-btn" id="submitCreateBtn">등록</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 삭제 확인 모달 -->
-<div class="modal" id="deleteConfirmModal">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">주문 삭제</h2>
-        <button type="button" class="close-btn" id="closeDeleteModalBtn">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <p>선택한 주문을 삭제하시겠습니까?</p>
-        <p class="delete-warning">삭제된 주문은 복구할 수 없습니다.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary-btn" id="cancelDeleteBtn">취소</button>
-        <button type="button" class="btn delete-btn" id="confirmDeleteBtn">삭제</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 템플릿 (DOM에 렌더링되지 않고 JS에서 참조) -->
-<template id="orderDetailTemplate">
-  <form id="orderDetailForm" class="order-form">
-    <div class="detail-header">
-      <h3 class="detail-title">주문 #<span class="order-no-placeholder"></span></h3>
-      <span class="status-badge status-placeholder"></span>
-    </div>
+<script>
+/**
+ * 공통 모달 유틸리티 함수
+ */
+(function() {
+  /**
+   * 모달 표시 함수
+   * @param {HTMLElement|string} modal - 모달 요소 또는 ID
+   */
+  function showModal(modal) {
+    // ID 문자열인 경우 요소 가져오기
+    if (typeof modal === 'string') {
+      modal = document.getElementById(modal);
+    }
     
-    <div class="lock-info-container"></div>
+    if (!modal) return;
     
-    <div class="form-section">
-      <h4 class="section-title">기본 정보</h4>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailOrderNo">주문번호 *</label>
-          <input type="text" id="detailOrderNo" name="orderNo" required readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailType">유형 *</label>
-          <select id="detailType" name="type" required disabled>
-            <option value="DELIVERY">배송</option>
-            <option value="RETURN">회수</option>
-          </select>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailDepartment">부서 *</label>
-          <select id="detailDepartment" name="department" required disabled>
-            <option value="CS">CS</option>
-            <option value="HES">HES</option>
-            <option value="LENOVO">LENOVO</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="detailWarehouse">창고 *</label>
-          <select id="detailWarehouse" name="warehouse" required disabled>
-            <option value="SEOUL">서울</option>
-            <option value="BUSAN">부산</option>
-            <option value="GWANGJU">광주</option>
-            <option value="DAEJEON">대전</option>
-          </select>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailSLA">SLA *</label>
-          <input type="text" id="detailSLA" name="sla" required readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailETA">ETA *</label>
-          <input type="datetime-local" id="detailETA" name="eta" required readonly>
-        </div>
-      </div>
-    </div>
+    // 모달 표시
+    modal.style.display = 'flex';
+    document.body.classList.add('modal-open');
     
-    <div class="form-section">
-      <h4 class="section-title">배송 정보</h4>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailPostalCode">우편번호 *</label>
-          <input type="text" id="detailPostalCode" name="postalCode" maxlength="5" pattern="[0-9]{5}" required readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailRegion">지역</label>
-          <input type="text" id="detailRegion" name="region" readonly>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group full-width">
-          <label for="detailAddress">주소 *</label>
-          <input type="text" id="detailAddress" name="address" required readonly>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailCustomer">고객명 *</label>
-          <input type="text" id="detailCustomer" name="customer" required readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailContact">연락처</label>
-          <input type="text" id="detailContact" name="contact" pattern="010-[0-9]{4}-[0-9]{4}" readonly>
-        </div>
-      </div>
-    </div>
+    // 애니메이션 효과
+    setTimeout(function() {
+      modal.classList.add('show');
+    }, 10);
+  }
+  
+  /**
+   * 모달 숨김 함수
+   * @param {HTMLElement|string} modal - 모달 요소 또는 ID
+   */
+  function hideModal(modal) {
+    // ID 문자열인 경우 요소 가져오기
+    if (typeof modal === 'string') {
+      modal = document.getElementById(modal);
+    }
     
-    <div class="form-section">
-      <h4 class="section-title">
-        상태 정보
-        <button type="button" class="section-edit-btn" id="editStatusBtn" style="display: none;">
-          <i class="fas fa-edit"></i>
-        </button>
-      </h4>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailStatus">현재 상태 *</label>
-          <div class="field-with-action">
-            <select id="detailStatus" name="status" required disabled>
-              <option value="WAITING">대기</option>
-              <option value="IN_PROGRESS">진행 중</option>
-              <option value="COMPLETE">완료</option>
-              <option value="ISSUE">이슈</option>
-              <option value="CANCEL">취소</option>
-            </select>
-            <button type="button" class="inline-edit-btn" data-field="status" title="상태 변경">
-              <i class="fas fa-edit"></i>
-            </button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="detailCreatedTime">접수 시간</label>
-          <input type="text" id="detailCreatedTime" readonly>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailDepartTime">출발 시간</label>
-          <input type="text" id="detailDepartTime" readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailCompleteTime">완료 시간</label>
-          <input type="text" id="detailCompleteTime" readonly>
-        </div>
-      </div>
-    </div>
+    if (!modal) return;
     
-    <div class="form-section">
-      <h4 class="section-title">
-        배차 정보
-        <button type="button" class="section-edit-btn" id="editDriverBtn" style="display: none;">
-          <i class="fas fa-edit"></i>
-        </button>
-      </h4>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailDriverName">기사명</label>
-          <div class="field-with-action">
-            <input type="text" id="detailDriverName" name="driverName" readonly>
-            <button type="button" class="inline-edit-btn" data-field="driver" title="기사 정보 수정">
-              <i class="fas fa-edit"></i>
-            </button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="detailDriverContact">기사 연락처</label>
-          <input type="text" id="detailDriverContact" name="driverContact" readonly>
-        </div>
-      </div>
-    </div>
+    // 애니메이션 효과
+    modal.classList.remove('show');
     
-    <div class="form-section">
-      <h4 class="section-title">기타 정보</h4>
-      <div class="form-row">
-        <div class="form-group full-width">
-          <label for="detailRemark">비고</label>
-          <textarea id="detailRemark" name="remark" rows="3" readonly></textarea>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="detailUpdatedBy">마지막 수정자</label>
-          <input type="text" id="detailUpdatedBy" readonly>
-        </div>
-        <div class="form-group">
-          <label for="detailUpdatedAt">수정 시간</label>
-          <input type="text" id="detailUpdatedAt" readonly>
-        </div>
-      </div>
-    </div>
-  </form>
-</template>
+    // 약간의 지연 후 완전히 숨김
+    setTimeout(function() {
+      modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+    }, 300);
+  }
+  
+  // 공용 함수 노출
+  window.showModal = showModal;
+  window.hideModal = hideModal;
+})();
+</script>

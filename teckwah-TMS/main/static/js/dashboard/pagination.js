@@ -22,9 +22,16 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
       // 이벤트 리스너 설정
       setupEventListeners();
       
-      // 기본 페이지 크기 설정
+      // 기본 페이지 크기 설정 (로컬 스토리지에서 값 복원)
+      const savedPageSize = localStorage.getItem('dashboardPageSize');
       const pageSizeSelect = document.getElementById('pageSizeSelect');
+      
       if (pageSizeSelect) {
+        // 저장된 값이 있으면 복원
+        if (savedPageSize && !isNaN(parseInt(savedPageSize))) {
+          pageSizeSelect.value = savedPageSize;
+        }
+        
         const pageSize = parseInt(pageSizeSelect.value) || 10;
         setTimeout(() => changePageSize(pageSize), 100);
       }
@@ -44,6 +51,7 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
     const pageNumberContainer = document.getElementById('pageNumberContainer');
     const prevPageBtn = document.getElementById('prevPageBtn');
     const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
     
     if (!pagination || !pageNumberContainer || !prevPageBtn || !nextPageBtn) {
       console.warn('[Dashboard.Pagination] 페이지네이션 요소를 찾을 수 없습니다.');
@@ -77,6 +85,19 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
         goToPage(currentPage + 1);
       }
     });
+    
+    // 페이지 크기 변경 이벤트
+    if (pageSizeSelect) {
+      pageSizeSelect.addEventListener('change', function() {
+        const pageSize = parseInt(this.value);
+        if (!isNaN(pageSize) && pageSize > 0) {
+          changePageSize(pageSize);
+          
+          // 페이지 크기 변경 시 로그 추가
+          console.log('[Dashboard.Pagination] 페이지 크기 변경됨:', pageSize);
+        }
+      });
+    }
   }
   
   /**
@@ -102,13 +123,17 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
       }
       
       // 현재 표시되는 행만 고려 (필터링이 적용된 상태일 수 있음)
-      const visibleRows = Array.from(allRows).filter(row => row.style.display !== 'none');
+      const visibleRows = Array.from(allRows).filter(row => {
+        // style.display가 ''(빈 문자열) 또는 'table-row'인 경우 보이는 행으로 간주
+        return row.style.display === '' || row.style.display === 'table-row' || 
+               (row.style.display !== 'none' && !row.classList.contains('no-data-row'));
+      });
       const visibleRowCount = visibleRows.length;
       
       console.log(`[Dashboard.Pagination] 전체 행: ${totalRows}, 필터 후 표시 행: ${visibleRowCount}`);
       
       // 페이지네이션 정보 업데이트
-      const totalPages = Math.ceil(visibleRowCount / pageSize);
+      const totalPages = Math.ceil(visibleRowCount / pageSize) || 1; // 최소 1페이지
       const currentPage = 1; // 페이지 크기 변경 시 첫 페이지로 이동
       
       // 페이지 번호 UI 업데이트
@@ -119,6 +144,15 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
       
       // 페이지네이션 정보 텍스트 업데이트
       updatePaginationInfo(visibleRowCount, currentPage, pageSize);
+      
+      // 페이지 크기 선택 요소 값 업데이트
+      const pageSizeSelect = document.getElementById('pageSizeSelect');
+      if (pageSizeSelect) {
+        pageSizeSelect.value = pageSize.toString();
+      }
+      
+      // 로컬 스토리지에 설정 저장 (페이지 새로고침 후에도 유지)
+      localStorage.setItem('dashboardPageSize', pageSize.toString());
     } catch (error) {
       console.error('[Dashboard.Pagination] 페이지 크기 변경 중 오류', error);
     }
@@ -188,9 +222,11 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
     try {
       // 현재 표시되는 행만 고려 (필터링이 적용된 상태일 수 있음)
       const allRows = document.querySelectorAll('#orderTable tbody tr[data-id]');
-      const visibleRows = Array.from(allRows).filter(row => 
-        row.dataset.id && row.style.display !== 'none' && !row.classList.contains('no-data-row')
-      );
+      const visibleRows = Array.from(allRows).filter(row => {
+        return row.dataset.id && 
+              (row.style.display === '' || row.style.display === 'table-row' || row.style.display !== 'none') && 
+              !row.classList.contains('no-data-row');
+      });
       
       const visibleRowCount = visibleRows.length;
       const pagination = document.querySelector('.pagination');
@@ -199,7 +235,7 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
       
       // 페이지 범위 확인
       if (page > totalPages) {
-        page = totalPages;
+        page = totalPages || 1; // 최소 1페이지
       }
       
       // 페이지네이션 UI 업데이트
@@ -210,11 +246,6 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
       
       // 페이지네이션 정보 텍스트 업데이트
       updatePaginationInfo(visibleRowCount, page, pageSize);
-      
-      // 테이블 모듈 업데이트
-      if (Dashboard.modules && Dashboard.modules.table) {
-        Dashboard.modules.table.updateSelectAllCheckbox();
-      }
     } catch (error) {
       console.error('[Dashboard.Pagination] 페이지 이동 중 오류', error);
     }
@@ -243,19 +274,22 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
     }
     
     // 데이터가 없는 경우 처리
+    const noDataRow = document.querySelector('.no-data-row');
     if (visibleRows.length === 0) {
       // 데이터 없음 메시지 표시
-      const noDataRow = document.querySelector('.no-data-row');
       if (noDataRow) {
         noDataRow.style.display = '';
+        noDataRow.querySelector('.no-data-cell').textContent = '표시할 데이터가 없습니다';
       }
     } else {
       // 데이터 없음 메시지 숨김
-      const noDataRow = document.querySelector('.no-data-row');
       if (noDataRow) {
         noDataRow.style.display = 'none';
       }
     }
+    
+    // 현재 표시된 행 상태 로그
+    console.log(`[Dashboard.Pagination] 페이지 ${currentPage}: ${startIndex}-${endIndex} 행 표시 중 (총 ${visibleRows.length}개)`);
   }
   
   /**
@@ -275,7 +309,7 @@ console.log('[로드] dashboard/pagination.js 로드됨 - ' + new Date().toISOSt
     
     // 데이터 속성 업데이트 (UI 외 데이터 저장용)
     paginationInfo.dataset.total = totalItems;
-    paginationInfo.dataset.totalPages = Math.ceil(totalItems / pageSize);
+    paginationInfo.dataset.totalPages = Math.ceil(totalItems / pageSize) || 1;
     paginationInfo.dataset.current = currentPage;
     paginationInfo.dataset.pageSize = pageSize;
     paginationInfo.dataset.start = startItem;

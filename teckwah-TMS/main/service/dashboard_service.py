@@ -98,16 +98,24 @@ def get_dashboard_list(
         # 기본 쿼리 생성
         query = db.query(Dashboard)
 
-        # 날짜 조건 적용
+        # 날짜 조건 적용 - start_date와 end_date가 모두 None이면 오늘 날짜로 설정
+        if start_date is None and end_date is None:
+            today = datetime.now().date()
+            start_date = today
+            end_date = today
+            logger.info(f"날짜 필터가 없어 오늘 날짜({today})로 설정")
+
         if start_date:
             # 시작 날짜의 00:00:00부터
             start_datetime = datetime.combine(start_date, datetime.min.time())
             query = query.filter(Dashboard.eta >= start_datetime)
+            logger.info(f"시작 날짜 필터 적용: {start_datetime}")
 
         if end_date:
             # 종료 날짜의 23:59:59까지
             end_datetime = datetime.combine(end_date, datetime.max.time())
             query = query.filter(Dashboard.eta <= end_datetime)
+            logger.info(f"종료 날짜 필터 적용: {end_datetime}")
 
         # 필터 조건 적용
         if status:
@@ -835,184 +843,3 @@ def get_lock_status(db: Session, dashboard_id: int, user_id: str) -> Dict[str, A
         Dict[str, Any]: 락 상태 정보
     """
     return check_lock_status(db, "dashboard", dashboard_id, user_id)
-
-
-# === 시각화(데이터 대시보드) 관련 함수 ===
-
-
-def get_time_block_stats(
-    db: Session, start_date: date, end_date: date
-) -> List[Dict[str, Any]]:
-    """
-    시간대별 접수량 통계
-
-    Args:
-        db: 데이터베이스 세션
-        start_date: 시작 날짜
-        end_date: 종료 날짜
-
-    Returns:
-        List[Dict[str, Any]]: 시간대별 통계 정보
-    """
-    try:
-        # 시간대 정의
-        time_blocks = [
-            {"name": "09-18", "start_hour": 9, "end_hour": 18},
-            {"name": "18-20", "start_hour": 18, "end_hour": 20},
-            {"name": "20-00", "start_hour": 20, "end_hour": 24},
-            {"name": "00-09", "start_hour": 0, "end_hour": 9},
-        ]
-
-        # 시작일과 종료일을 날짜 범위로 변환
-        start_datetime = datetime.combine(start_date, datetime.min.time())
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-
-        # 결과 목록
-        results = []
-
-        # 각 부서별, 시간대별 통계 수집
-        departments = ["CS", "HES", "LENOVO"]
-
-        for dept in departments:
-            for block in time_blocks:
-                # 해당 부서, 시간대의 주문 수 조회
-                count = (
-                    db.query(func.count(Dashboard.dashboard_id))
-                    .filter(
-                        Dashboard.department == dept,
-                        Dashboard.create_time.between(start_datetime, end_datetime),
-                        extract("hour", Dashboard.create_time) >= block["start_hour"],
-                        extract("hour", Dashboard.create_time) < block["end_hour"],
-                    )
-                    .scalar()
-                )
-
-                # 결과 추가
-                results.append(
-                    {
-                        "department": dept,
-                        "time_block": block["name"],
-                        "count": count or 0,
-                    }
-                )
-
-        return results
-    except SQLAlchemyError as e:
-        logger.error(f"시간대별 통계 조회 중 오류 발생: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류가 발생했습니다.",
-        )
-
-
-def get_department_status_stats(
-    db: Session, start_date: date, end_date: date
-) -> List[Dict[str, Any]]:
-    """
-    부서별 상태 통계
-
-    Args:
-        db: 데이터베이스 세션
-        start_date: 시작 날짜
-        end_date: 종료 날짜
-
-    Returns:
-        List[Dict[str, Any]]: 부서별 상태 통계 정보
-    """
-    try:
-        # 시작일과 종료일을 날짜 범위로 변환
-        start_datetime = datetime.combine(start_date, datetime.min.time())
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-
-        # 결과 목록
-        results = []
-
-        # 부서 목록
-        departments = ["CS", "HES", "LENOVO"]
-
-        # 상태 목록
-        statuses = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-
-        for dept in departments:
-            for status_value in statuses:
-                # 해당 부서, 상태의 주문 수 조회
-                count = (
-                    db.query(func.count(Dashboard.dashboard_id))
-                    .filter(
-                        Dashboard.department == dept,
-                        Dashboard.status == status_value,
-                        Dashboard.eta.between(start_datetime, end_datetime),
-                    )
-                    .scalar()
-                )
-
-                # 결과 추가
-                results.append(
-                    {"department": dept, "status": status_value, "count": count or 0}
-                )
-
-        return results
-    except SQLAlchemyError as e:
-        logger.error(f"부서별 상태 통계 조회 중 오류 발생: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류가 발생했습니다.",
-        )
-
-
-def get_daily_trend_stats(
-    db: Session, start_date: date, end_date: date
-) -> List[Dict[str, Any]]:
-    """
-    일별 주문 추세 통계
-
-    Args:
-        db: 데이터베이스 세션
-        start_date: 시작 날짜
-        end_date: 종료 날짜
-
-    Returns:
-        List[Dict[str, Any]]: 일별 주문 통계 정보
-    """
-    try:
-        # 날짜 범위 생성
-        date_range = []
-        current_date = start_date
-        while current_date <= end_date:
-            date_range.append(current_date)
-            current_date = current_date + timedelta(days=1)
-
-        # 결과 목록
-        results = []
-
-        # 상태 목록
-        statuses = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-
-        for current_date in date_range:
-            # 해당 날짜의 시작과 끝 계산
-            day_start = datetime.combine(current_date, datetime.min.time())
-            day_end = datetime.combine(current_date, datetime.max.time())
-
-            for status_value in statuses:
-                # 해당 날짜, 상태의 주문 수 조회
-                count = (
-                    db.query(func.count(Dashboard.dashboard_id))
-                    .filter(
-                        Dashboard.status == status_value,
-                        Dashboard.eta.between(day_start, day_end),
-                    )
-                    .scalar()
-                )
-
-                # 결과 추가
-                results.append(
-                    {"date": current_date, "status": status_value, "count": count or 0}
-                )
-
-        return results
-    except SQLAlchemyError as e:
-        logger.error(f"일별 추세 통계 조회 중 오류 발생: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류가 발생했습니다.",
-        )

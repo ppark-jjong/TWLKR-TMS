@@ -14,7 +14,10 @@ window.API = {
    */
   get: async function(url, params = {}, showLoading = true) {
     try {
-      if (showLoading) Utils.toggleLoading(true);
+      // 로딩 표시 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(true);
+      }
       
       // URL에 쿼리 매개변수 추가
       const queryUrl = new URL(url, window.location.origin);
@@ -38,7 +41,10 @@ window.API = {
     } catch (error) {
       return this._handleError(error);
     } finally {
-      if (showLoading) Utils.toggleLoading(false);
+      // 로딩 숨김 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(false);
+      }
     }
   },
   
@@ -51,7 +57,10 @@ window.API = {
    */
   post: async function(url, data = {}, showLoading = true) {
     try {
-      if (showLoading) Utils.toggleLoading(true);
+      // 로딩 표시 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(true);
+      }
       
       const response = await fetch(url, {
         method: 'POST',
@@ -68,7 +77,10 @@ window.API = {
     } catch (error) {
       return this._handleError(error);
     } finally {
-      if (showLoading) Utils.toggleLoading(false);
+      // 로딩 숨김 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(false);
+      }
     }
   },
   
@@ -81,7 +93,10 @@ window.API = {
    */
   put: async function(url, data = {}, showLoading = true) {
     try {
-      if (showLoading) Utils.toggleLoading(true);
+      // 로딩 표시 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(true);
+      }
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -98,7 +113,10 @@ window.API = {
     } catch (error) {
       return this._handleError(error);
     } finally {
-      if (showLoading) Utils.toggleLoading(false);
+      // 로딩 숨김 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(false);
+      }
     }
   },
   
@@ -111,7 +129,10 @@ window.API = {
    */
   delete: async function(url, data = {}, showLoading = true) {
     try {
-      if (showLoading) Utils.toggleLoading(true);
+      // 로딩 표시 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(true);
+      }
       
       const response = await fetch(url, {
         method: 'DELETE',
@@ -128,7 +149,10 @@ window.API = {
     } catch (error) {
       return this._handleError(error);
     } finally {
-      if (showLoading) Utils.toggleLoading(false);
+      // 로딩 숨김 (Utils 존재 여부 확인)
+      if (showLoading && this._toggleLoading) {
+        this._toggleLoading(false);
+      }
     }
   },
   
@@ -212,8 +236,8 @@ window.API = {
     // UI에 오류 표시
     if (window.Alerts) {
       Alerts.error(error.message || '서버 통신 중 오류가 발생했습니다.');
-    } else if (window.Utils) {
-      Utils.showAlert(error.message || '서버 통신 중 오류가 발생했습니다.', 'error');
+    } else if (this._showAlert) {
+      this._showAlert(error.message || '서버 통신 중 오류가 발생했습니다.', 'error');
     } else {
       alert(error.message || '서버 통신 중 오류가 발생했습니다.');
     }
@@ -224,5 +248,35 @@ window.API = {
       error_code: error.code || 'UNKNOWN_ERROR',
       message: error.message || '알 수 없는 오류가 발생했습니다.'
     });
+  },
+  
+  /**
+   * 로딩 상태를 토글합니다.
+   * @param {boolean} show - 로딩 표시 여부
+   * @private
+   */
+  _toggleLoading: function(show) {
+    const loadingElement = document.querySelector('.loading-overlay');
+    if (!loadingElement) return;
+    
+    if (show) {
+      loadingElement.style.display = 'flex';
+    } else {
+      loadingElement.style.display = 'none';
+    }
+  },
+  
+  /**
+   * 알림 메시지를 표시합니다.
+   * @param {string} message - 메시지 내용
+   * @param {string} type - 알림 유형 (success, warning, error, info)
+   * @private
+   */
+  _showAlert: function(message, type = 'info') {
+    if (window.Alerts && typeof window.Alerts[type] === 'function') {
+      window.Alerts[type](message);
+    } else {
+      alert(message);
+    }
   }
 };
