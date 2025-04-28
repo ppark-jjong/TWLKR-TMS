@@ -185,75 +185,12 @@
       </div>
     </div>
 
-    <!-- 공통 스크립트 로드 (모든 페이지 공통) - 로드 순서 중요 -->
-    <script src="/static/js/common/modal-utils.js"></script>
-    <script src="/static/js/common/logger.js"></script>
-    <script src="/static/js/common/alerts.js"></script>
-    <script src="/static/js/common/api.js"></script>
-    <script src="/static/js/common/auth.js"></script>
+    <!-- 공통 JavaScript 파일 -->
+    <script src="/static/js/common.js"></script>
 
     <!-- 페이지별 추가 스크립트 -->
     {% block extra_js %}{% endblock %}
 
-    <!-- 페이지 초기화 -->
-    <script>
-      // 페이지 초기화 - 단일 진입점
-      document.addEventListener('DOMContentLoaded', function () {
-        console.log('[초기화] 페이지 로드 완료: ' + window.location.pathname);
-
-        // 사이드바 초기화
-        initSidebar();
-
-        // 로그아웃 버튼 초기화
-        initLogoutButton();
-
-        // 공통 유틸리티 모듈 초기화 확인
-        if (window.ModalUtils) {
-          console.log('[초기화] 공통 유틸리티 모듈 로드 완료');
-        }
-      });
-
-      // 사이드바 초기화 함수
-      function initSidebar() {
-        const app = document.getElementById('app');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
-
-        if (sidebarToggleBtn) {
-          sidebarToggleBtn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (app) {
-              app.classList.toggle('sidebar-collapsed');
-            }
-          });
-        }
-
-        // 모바일 화면에서 사이드바 자동 축소
-        function checkMobileView() {
-          if (window.innerWidth < 768 && app) {
-            app.classList.add('sidebar-collapsed');
-          }
-        }
-
-        // 초기 모바일 체크
-        checkMobileView();
-
-        // 화면 크기 변경 감지
-        window.addEventListener('resize', checkMobileView);
-      }
-
-      // 로그아웃 버튼 초기화
-      function initLogoutButton() {
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) {
-          logoutBtn.addEventListener('click', function () {
-            if (window.confirm('로그아웃 하시겠습니까?')) {
-              window.location.href = '/logout';
-            }
-          });
-        }
-      }
-    </script>
+    <!-- 페이지 초기화 스크립트 제거됨 -->
   </body>
 </html>

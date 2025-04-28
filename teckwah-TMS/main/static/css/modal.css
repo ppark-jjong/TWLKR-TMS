@@ -1,26 +1,7 @@
 /**
- * 모달 기본 스타일
- * 모든 모달 다이얼로그에 적용되는 공통 스타일입니다.
+ * 모달 추가 스타일
+ * common.css에 있는 기본 모달 스타일을 확장합니다.
  */
-
-/* 모달 배경 */
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  z-index: 1050;
-  padding: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  justify-content: center;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
 
 /* 모달 표시 효과 (애니메이션) */
 .modal.show {
@@ -71,91 +52,7 @@ body.modal-open {
   }
 }
 
-/* 모달 콘텐츠 */
-.modal-content {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  background-color: #fff;
-  background-clip: padding-box;
-  border: 0;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-  outline: 0;
-}
-
-/* 모달 헤더 */
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e9ecef;
-  border-top-left-radius: 0.5rem;
-  border-top-right-radius: 0.5rem;
-  background-color: #f8f9fa;
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #333;
-  line-height: 1.5;
-}
-
-/* 닫기 버튼 */
-.close-btn {
-  padding: 0;
-  background-color: transparent;
-  border: 0;
-  float: right;
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1;
-  color: #999;
-  text-shadow: 0 1px 0 #fff;
-  opacity: 0.5;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.close-btn:hover {
-  color: #000;
-  opacity: 0.75;
-}
-
-.close-btn:focus {
-  outline: none;
-}
-
-/* 모달 본문 */
-.modal-body {
-  position: relative;
-  flex: 1 1 auto;
-  padding: 1.5rem;
-  max-height: calc(100vh - 180px);
-  overflow-y: auto;
-  width: 100%;
-}
-
-/* 모달 푸터 */
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #e9ecef;
-  border-bottom-right-radius: 0.5rem;
-  border-bottom-left-radius: 0.5rem;
-  background-color: #f8f9fa;
-}
-
-.modal-footer > * {
-  margin: 0.25rem;
-}
-
+/* 모달 확장 스타일 */
 .modal-footer-left {
   margin-right: auto;
 }
@@ -200,115 +97,6 @@ body.modal-open {
   gap: 0.75rem;
 }
 
-/* 로딩 스피너 */
-.loading-spinner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 150px;
-}
-
-.spinner-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(215, 37, 25, 0.2);
-  border-radius: 50%;
-  border-top-color: #D72519;
-  animation: spin 1s linear infinite;
-}
-
-.spinner-text {
-  color: #777;
-  font-size: 0.875rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 버튼 스타일 */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  text-align: center;
-  vertical-align: middle;
-  user-select: none;
-  padding: 0.375rem 0.75rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.25rem;
-  transition: all 0.15s ease-in-out;
-  cursor: pointer;
-  gap: 0.375rem;
-}
-
-.btn i {
-  font-size: 0.875em;
-}
-
-.primary-btn {
-  color: #fff;
-  background-color: #D72519;
-  border: 1px solid #c42117;
-}
-
-.primary-btn:hover {
-  background-color: #c42117;
-  border-color: #b91e15;
-}
-
-.secondary-btn {
-  color: #333;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-}
-
-.secondary-btn:hover {
-  background-color: #e9ecef;
-  border-color: #d3d9df;
-}
-
-.warning-btn {
-  color: #212529;
-  background-color: #ffc107;
-  border: 1px solid #e0a800;
-}
-
-.warning-btn:hover {
-  background-color: #e0a800;
-  border-color: #d39e00;
-}
-
-.delete-btn {
-  color: #dc3545;
-  background-color: #fff;
-  border: 1px solid #dc3545;
-}
-
-.delete-btn:hover {
-  color: #fff;
-  background-color: #dc3545;
-  border-color: #c82333;
-}
-
-.btn:disabled,
-.btn.disabled {
-  opacity: 0.65;
-  pointer-events: none;
-  cursor: not-allowed;
-}
-
 /* 모달 락 정보 */
 .lock-info {
   display: flex;
@@ -326,30 +114,7 @@ body.modal-open {
   font-size: 1.125rem;
 }
 
-/* 반응형 */
-@media (max-width: 768px) {
-  .modal-dialog {
-    margin: 1rem;
-    max-width: calc(100% - 2rem);
-  }
-  
-  .modal-dialog.modal-lg,
-  .modal-dialog.modal-xl {
-    max-width: calc(100% - 2rem);
-  }
-  
-  .modal-body {
-    max-height: calc(100vh - 160px);
-    padding: 1rem;
-  }
-  
-  .modal-footer,
-  .modal-header {
-    padding: 0.75rem 1rem;
-  }
-}
-
-/* 폼 필드 스타일 */
+/* 폼 필드 확장 스타일 */
 .form-section {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
@@ -374,41 +139,8 @@ body.modal-open {
   flex-wrap: wrap;
 }
 
-.form-group {
-  padding: 0 0.625rem;
-  margin-bottom: 1rem;
-  flex: 1 0 calc(33.33% - 1.25rem);
-}
-
 .form-group.full-width {
   flex: 1 0 calc(100% - 1.25rem);
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.375rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #555;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  border-color: #D72519;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(215, 37, 25, 0.1);
 }
 
 .form-group input.editing,
@@ -424,7 +156,7 @@ body.modal-open {
   background-color: #fff8f8;
 }
 
-/* 반응형 폼 조정 */
+/* 반응형 설정 - 모달 특화 */
 @media (max-width: 992px) {
   .form-group {
     flex: 1 0 calc(50% - 1.25rem);
@@ -432,25 +164,27 @@ body.modal-open {
 }
 
 @media (max-width: 768px) {
+  .modal-dialog {
+    margin: 1rem;
+    max-width: calc(100% - 2rem);
+  }
+  
+  .modal-dialog.modal-lg,
+  .modal-dialog.modal-xl {
+    max-width: calc(100% - 2rem);
+  }
+  
+  .modal-body {
+    max-height: calc(100vh - 160px);
+    padding: 1rem;
+  }
+  
+  .modal-footer,
+  .modal-header {
+    padding: 0.75rem 1rem;
+  }
+  
   .form-group {
     flex: 1 0 calc(100% - 1.25rem);
   }
-}
-
-/* 전역 로딩 오버레이 */
-.loading-overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(255, 255, 255, 0.8);
-  z-index: 2000;
-  justify-content: center;
-  align-items: center;
-}
-
-.loading-overlay .loading-spinner {
-  min-height: auto;
 }

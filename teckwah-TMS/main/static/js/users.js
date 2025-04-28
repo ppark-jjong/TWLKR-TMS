@@ -1,296 +1,268 @@
 /**
- * 사용자 관리 페이지 모듈
- * 사용자 목록 조회, 생성, 삭제 기능을 제공합니다.
+ * 사용자 관리 페이지 스크립트
+ * 사용자 목록 조회, 추가, 삭제 등을 담당합니다.
  */
-window.UserManagement = (function() {
+
+// 사용자 관리 네임스페이스
+const Users = {
   /**
-   * 사용자 관리 페이지를 초기화합니다.
+   * 설정
    */
-  function init() {
-    // 인증 확인
-    if (window.Auth) {
-      Auth.checkLoginStatus().then(isLoggedIn => {
-        if (isLoggedIn) {
-          // 관리자 권한 확인
-          if (!Auth.hasRole('ADMIN')) {
-            // 관리자가 아니면 대시보드로 리다이렉트
-            window.location.href = '/dashboard';
-            return;
-          }
-        }
-      }).catch(error => {
-        console.error('인증 확인 오류:', error);
-      });
-    }
-    
-    // 이벤트 리스너 설정
-    setupEventListeners();
-    
-    console.log('사용자 관리 페이지 초기화 완료');
-  }
+  config: {
+    userTableId: 'userTable',
+    addUserModalId: 'addUserModal'
+  },
   
   /**
-   * 이벤트 리스너를 설정합니다.
+   * 초기화
    */
-  function setupEventListeners() {
-    // 사용자 생성 버튼
-    const createUserBtn = document.getElementById('createUserBtn');
-    if (createUserBtn) {
-      createUserBtn.addEventListener('click', () => {
-        openCreateUserModal();
+  init: function() {
+    console.log('[Users] 초기화 시작');
+    
+    // 버튼 이벤트 연결
+    this.initButtons();
+    
+    // 모달 초기화
+    this.initModals();
+    
+    // 사용자 테이블 초기화
+    this.initTable();
+    
+    // 사용자 목록 로드
+    this.loadUsers();
+    
+    console.log('[Users] 초기화 완료');
+  },
+  
+  /**
+   * 버튼 이벤트 초기화
+   */
+  initButtons: function() {
+    // 새로고침 버튼
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        this.loadUsers();
       });
     }
     
-    // 사용자 생성 모달 폼 제출
-    const submitUserBtn = document.getElementById('submitUserBtn');
-    if (submitUserBtn) {
-      submitUserBtn.addEventListener('click', () => {
-        submitUserForm();
+    // 사용자 추가 버튼
+    const addUserBtn = document.getElementById('addUserBtn');
+    if (addUserBtn) {
+      addUserBtn.addEventListener('click', () => {
+        this.openAddUserModal();
       });
     }
-    
-    // 모달 닫기 버튼들
-    document.querySelectorAll('.modal-close, .cancel-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        closeModal();
-      });
-    });
-    
-    // 삭제 버튼 이벤트 위임
-    const userTable = document.getElementById('userTable');
+  },
+  
+  /**
+   * 모달 초기화
+   */
+  initModals: function() {
+    // 사용자 추가 모달 초기화
+    const addUserModal = document.getElementById(this.config.addUserModalId);
+    if (addUserModal) {
+      // 모달 내 닫기 버튼
+      const closeBtn = addUserModal.querySelector('.modal-close, .close-btn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          TMS.modal.close(this.config.addUserModalId);
+        });
+      }
+      
+      // 사용자 추가 폼 제출
+      const addUserForm = addUserModal.querySelector('form');
+      if (addUserForm) {
+        addUserForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.addUser(new FormData(addUserForm));
+        });
+      }
+    }
+  },
+  
+  /**
+   * 테이블 초기화
+   */
+  initTable: function() {
+    // 테이블 클릭 이벤트 위임
+    const userTable = document.getElementById(this.config.userTableId);
     if (userTable) {
-      userTable.addEventListener('click', (event) => {
-        const deleteBtn = event.target.closest('.delete-user-btn');
-        if (deleteBtn) {
-          const userId = deleteBtn.dataset.userId;
+      userTable.addEventListener('click', (e) => {
+        // 삭제 버튼 처리
+        if (e.target.closest('.delete-user-btn')) {
+          const row = e.target.closest('tr');
+          const userId = row.getAttribute('data-id');
           if (userId) {
-            confirmDeleteUser(userId);
+            this.confirmDeleteUser(userId);
           }
         }
       });
     }
+  },
+  
+  /**
+   * 사용자 목록 로드
+   */
+  loadUsers: function() {
+    // 로딩 표시
+    const loadingOverlay = document.querySelector('.loading-overlay');
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
     
-    // 삭제 확인 버튼
-    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-    if (confirmDeleteBtn) {
-      confirmDeleteBtn.addEventListener('click', () => {
-        const userId = document.getElementById('deleteUserId').value;
-        if (userId) {
-          deleteUser(userId);
+    // API 호출
+    TMS.api.get('/api/v1/users')
+      .then(response => {
+        if (response && response.success) {
+          // 사용자 목록 업데이트
+          this.updateUserTable(response.data.users || []);
+          
+          // 성공 알림
+          TMS.notify('success', '사용자 목록을 성공적으로 불러왔습니다.');
+        } else {
+          TMS.notify('error', '사용자 목록을 불러오는데 실패했습니다.');
         }
+      })
+      .catch(error => {
+        console.error('사용자 목록 로드 오류:', error);
+        TMS.notify('error', '사용자 목록을 불러오는데 실패했습니다.');
+      })
+      .finally(() => {
+        // 로딩 숨김
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
       });
-    }
-    
-    // ESC 키로 모달 닫기
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeModal();
-      }
-    });
-    
-    // 모달 외부 클릭 시 닫기
-    document.querySelectorAll('.modal').forEach(modal => {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          closeModal();
-        }
-      });
-    });
-  }
+  },
   
   /**
-   * 사용자 생성 모달을 엽니다.
+   * 사용자 테이블 업데이트
+   * @param {Array} users - 사용자 목록
    */
-  function openCreateUserModal() {
-    // 폼 초기화
-    const form = document.getElementById('createUserForm');
-    if (form) {
-      form.reset();
-    }
+  updateUserTable: function(users) {
+    const table = document.getElementById(this.config.userTableId);
+    if (!table) return;
     
-    // 모달 표시
-    const modal = document.getElementById('createUserModal');
-    if (modal) {
-      modal.style.display = 'block';
-    }
-  }
-  
-  /**
-   * 사용자 삭제 확인 모달을 엽니다.
-   * @param {string} userId - 사용자 ID
-   */
-  function confirmDeleteUser(userId) {
-    const modal = document.getElementById('deleteUserModal');
-    const deleteUserIdField = document.getElementById('deleteUserId');
-    const userIdSpan = document.getElementById('deleteUserIdDisplay');
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
     
-    if (modal && deleteUserIdField && userIdSpan) {
-      deleteUserIdField.value = userId;
-      userIdSpan.textContent = userId;
-      modal.style.display = 'block';
-    }
-  }
-  
-  /**
-   * 모달을 닫습니다.
-   */
-  function closeModal() {
-    document.querySelectorAll('.modal').forEach(modal => {
-      modal.style.display = 'none';
-    });
-  }
-  
-  /**
-   * 사용자 생성 폼을 제출합니다.
-   */
-  async function submitUserForm() {
-    const form = document.getElementById('createUserForm');
-    if (!form) return;
+    // 테이블 내용 초기화
+    tbody.innerHTML = '';
     
-    // 유효성 검사
-    if (!form.checkValidity()) {
-      form.reportValidity();
+    // 데이터가 없는 경우
+    if (!users || users.length === 0) {
+      const noDataRow = document.createElement('tr');
+      noDataRow.className = 'no-data-row';
+      noDataRow.innerHTML = `
+        <td colspan="5" class="no-data-cell">데이터가 없습니다</td>
+      `;
+      tbody.appendChild(noDataRow);
       return;
     }
     
-    // 비밀번호 확인
-    const password = form.querySelector('#userPassword').value;
-    const confirmPassword = form.querySelector('#userPasswordConfirm').value;
+    // 사용자 목록 표시
+    users.forEach(user => {
+      const row = document.createElement('tr');
+      row.setAttribute('data-id', user.id);
+      
+      row.innerHTML = `
+        <td class="column-id">${user.user_id}</td>
+        <td class="column-name">${user.name || '-'}</td>
+        <td class="column-department">${user.department || '-'}</td>
+        <td class="column-role">
+          <span class="role-badge ${user.role.toLowerCase()}">${user.role}</span>
+        </td>
+        <td class="column-actions">
+          <button type="button" class="delete-user-btn action-btn">
+            <i class="fas fa-trash-alt"></i> 삭제
+          </button>
+        </td>
+      `;
+      
+      tbody.appendChild(row);
+    });
+  },
+  
+  /**
+   * 사용자 추가 모달 열기
+   */
+  openAddUserModal: function() {
+    TMS.modal.open(this.config.addUserModalId);
+  },
+  
+  /**
+   * 새 사용자 추가
+   * @param {FormData} formData - 폼 데이터
+   */
+  addUser: function(formData) {
+    // 폼 데이터를 객체로 변환
+    const userData = {};
+    for (const [key, value] of formData.entries()) {
+      userData[key] = value;
+    }
     
-    if (password !== confirmPassword) {
-      showAlert('비밀번호가 일치하지 않습니다.', 'error');
+    // 필수 입력 확인
+    if (!userData.user_id || !userData.password || !userData.role) {
+      TMS.notify('warning', '필수 항목을 모두 입력해주세요.');
       return;
     }
     
-    try {
-      // 로딩 표시
-      if (window.Utils) {
-        Utils.toggleLoading(true);
-      }
-      
-      // 폼 데이터 수집
-      const formData = new FormData(form);
-      const data = {};
-      
-      for (const [key, value] of formData.entries()) {
-        data[key] = value;
-      }
-      
-      // API 호출
-      const response = await fetch('/users/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
+    // API 호출
+    TMS.api.post('/api/v1/users', userData)
+      .then(response => {
+        if (response && response.success) {
+          TMS.notify('success', '사용자가 성공적으로 추가되었습니다.');
+          
+          // 모달 닫기
+          TMS.modal.close(this.config.addUserModalId);
+          
+          // 폼 초기화
+          const form = document.querySelector(`#${this.config.addUserModalId} form`);
+          if (form) form.reset();
+          
+          // 사용자 목록 새로고침
+          this.loadUsers();
+        } else {
+          TMS.notify('error', response.message || '사용자 추가에 실패했습니다.');
+        }
+      })
+      .catch(error => {
+        console.error('사용자 추가 오류:', error);
+        TMS.notify('error', '사용자 추가에 실패했습니다.');
       });
-      
-      const responseData = await response.json();
-      
-      if (responseData.success) {
-        // 모달 닫기
-        closeModal();
-        
-        // 성공 메시지 표시
-        showAlert('사용자가 성공적으로 생성되었습니다.', 'success');
-        
-        // 페이지 새로고침 (데이터 갱신)
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        showAlert(responseData.message || '사용자 생성에 실패했습니다.', 'error');
-      }
-    } catch (error) {
-      console.error('사용자 생성 중 오류:', error);
-      showAlert('사용자 생성 중 오류가 발생했습니다.', 'error');
-    } finally {
-      // 로딩 숨김
-      if (window.Utils) {
-        Utils.toggleLoading(false);
-      }
-    }
-  }
+  },
   
   /**
-   * 사용자를 삭제합니다.
+   * 사용자 삭제 확인
    * @param {string} userId - 사용자 ID
    */
-  async function deleteUser(userId) {
-    try {
-      // 로딩 표시
-      if (window.Utils) {
-        Utils.toggleLoading(true);
-      }
-      
-      // API 호출
-      const response = await fetch('/users/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({ user_id: userId }),
-        credentials: 'include'
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // 모달 닫기
-        closeModal();
-        
-        // 성공 메시지 표시
-        showAlert('사용자가 성공적으로 삭제되었습니다.', 'success');
-        
-        // 페이지 새로고침 (데이터 갱신)
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        showAlert(data.message || '사용자 삭제에 실패했습니다.', 'error');
-      }
-    } catch (error) {
-      console.error('사용자 삭제 중 오류:', error);
-      showAlert('사용자 삭제 중 오류가 발생했습니다.', 'error');
-    } finally {
-      // 로딩 숨김
-      if (window.Utils) {
-        Utils.toggleLoading(false);
-      }
+  confirmDeleteUser: function(userId) {
+    if (confirm('이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      this.deleteUser(userId);
     }
-  }
+  },
   
   /**
-   * 알림 메시지를 표시합니다.
-   * @param {string} message - 표시할 메시지
-   * @param {string} type - 알림 유형 (success, error, warning, info)
+   * 사용자 삭제
+   * @param {string} userId - 사용자 ID
    */
-  function showAlert(message, type = 'info') {
-    if (window.Alerts) {
-      Alerts.show(message, type);
-    } else if (window.Utils && Utils.showAlert) {
-      Utils.showAlert(message, type);
-    } else {
-      alert(message);
-    }
+  deleteUser: function(userId) {
+    TMS.api.delete(`/api/v1/users/${userId}`)
+      .then(response => {
+        if (response && response.success) {
+          TMS.notify('success', '사용자가 성공적으로 삭제되었습니다.');
+          
+          // 사용자 목록 새로고침
+          this.loadUsers();
+        } else {
+          TMS.notify('error', response.message || '사용자 삭제에 실패했습니다.');
+        }
+      })
+      .catch(error => {
+        console.error('사용자 삭제 오류:', error);
+        TMS.notify('error', '사용자 삭제에 실패했습니다.');
+      });
   }
-  
-  // 페이지 로드 시 초기화
-  document.addEventListener('DOMContentLoaded', init);
-  
-  // 전역 함수 노출
-  window.openCreateUserModal = openCreateUserModal;
-  window.confirmDeleteUser = confirmDeleteUser;
-  window.closeModal = closeModal;
-  
-  // 공개 API
-  return {
-    init,
-    openCreateUserModal,
-    confirmDeleteUser,
-    deleteUser
-  };
-})();
+};
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+  Users.init();
+});
