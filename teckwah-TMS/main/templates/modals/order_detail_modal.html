@@ -199,6 +199,9 @@
   const orderCache = new Map();
   const CACHE_TIMEOUT = 60000; // 1분 캐시
   
+  // 편집 중인 필드 추적
+  const editingFields = new Set();
+  
   // 주문 상세 정보 관련 변수
   
   /**
@@ -305,19 +308,42 @@
    * 주문 상세 정보 표시
    * @param {string} orderId - 주문 ID
    */
-  async function showOrderDetail(orderId) {
-    if (!orderId) return;
+  /**
+   * 주문 상세 정보를 표시합니다.
+   * @param {string} orderId - 주문 ID
+   * @param {Object} options - 추가 옵션
+   * @param {boolean} options.forceReload - 캐시를 무시하고 새로 로드할지 여부
+   * @param {boolean} options.showNotifications - 알림 표시 여부
+   */
+  async function showOrderDetail(orderId, options = {}) {
+    // 기본 옵션
+    const { 
+      forceReload = false,
+      showNotifications = true 
+    } = options;
     
-    console.log('[OrderDetailModal] 주문 상세 정보 표시:', orderId);
+    if (!orderId) {
+      console.error('[OrderDetailModal] 주문 ID가 없습니다.');
+      return;
+    }
     
-    // 현재 주문 ID 저장
-    localStorage.setItem('currentOrderId', orderId);
+    console.log(`[OrderDetailModal] 주문 상세 정보 표시: ID=${orderId}, 캐시무시=${forceReload}`);
+    
+    // 현재 주문 ID 저장 (세션 스토리지 사용 - 탭 닫으면 초기화)
+    sessionStorage.setItem('currentOrderId', orderId);
+    // 사용자 ID 및 타임스탬프도 저장하여 권한 및 시간 추적
+    const userId = document.body.dataset.userId || 'anonymous';
+    sessionStorage.setItem('orderDetailLastUser', userId);
+    sessionStorage.setItem('orderDetailLastAccess', new Date().toISOString());
     
     const orderDetailContent = document.getElementById('orderDetailContent');
     const modalLoadingSpinner = document.getElementById('modalLoadingSpinner');
     
     if (!orderDetailContent) {
-      console.error('[OrderDetailModal] 모달 요소를 찾을 수 없습니다.');
+      console.error('[OrderDetailModal] 모달 컨텐츠 요소를 찾을 수 없습니다.');
+      if (showNotifications) {
+        showAlert('내부 오류: 모달 요소를 찾을 수 없습니다.', 'error');
+      }
       return;
     }
     
@@ -332,73 +358,154 @@
       modalLoadingSpinner.style.display = 'flex';
     }
     
+    // 로딩 시작 시간 기록 (성능 측정용)
+    const loadStartTime = performance.now();
+    
     try {
       // 캐시 확인
       let orderData;
-      const cacheKey = `order_${orderId}`;
+      const userId = document.body.dataset.userId || 'unknown';
+      // 사용자 ID를 캐시 키에 포함시켜 다른 사용자 세션과 구분
+      const cacheKey = `order_${orderId}_${userId}`;
       const cachedData = orderCache.get(cacheKey);
       
-      if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TIMEOUT)) {
+      const now = Date.now();
+      const useCache = !forceReload && 
+                     cachedData && 
+                     (now - cachedData.timestamp < CACHE_TIMEOUT);
+      
+      if (useCache) {
         // 캐시된 데이터 사용
-        console.log('[OrderDetailModal] 캐시에서 주문 데이터 로드');
+        console.log('[OrderDetailModal] 캐시에서 주문 데이터 로드 (시간:', now - cachedData.timestamp, 'ms 경과)');
         orderData = cachedData.data;
+        
+        // 캐시 히트 증가 (캐시 성능 측정용)
+        cachedData.hits = (cachedData.hits || 0) + 1;
+        orderCache.set(cacheKey, cachedData);
       } else {
         // API에서 데이터 로드
-        console.log('[OrderDetailModal] API에서 주문 데이터 로드');
-        const response = await fetchOrderDetail(orderId);
+        console.log(`[OrderDetailModal] API에서 주문 데이터 로드 ${forceReload ? '(강제 로드)' : ''}`);
         
-        if (!response.success) {
-          throw new Error(response.message || '주문 정보를 불러오는 중 오류가 발생했습니다.');
+        try {
+          // 첫 번째 시도: 표준화된 API 호출
+          const response = await fetchOrderDetail(orderId);
+          
+          if (!response.success) {
+            throw new Error(response.message || '주문 정보를 불러오는 중 오류가 발생했습니다.');
+          }
+          
+          orderData = response.data;
+          
+        } catch (apiError) {
+          console.warn('[OrderDetailModal] 기본 API 호출 실패, 대체 방법 시도:', apiError);
+          
+          try {
+            // 두 번째 시도: 직접 API 호출 (fallback)
+            const directResponse = await fetch(`/dashboard/orders/${orderId}`, {
+              headers: { 'Accept': 'application/json' },
+              credentials: 'same-origin'
+            });
+            
+            if (!directResponse.ok) {
+              // HTTP 오류 처리
+              if (directResponse.status === 404) {
+                throw new Error(`주문을 찾을 수 없습니다. (ID: ${orderId})`);
+              } else if (directResponse.status === 401 || directResponse.status === 403) {
+                throw new Error('주문 정보에 접근할 권한이 없습니다.');
+              } else {
+                throw new Error(`API 호출 실패: ${directResponse.status} - ${directResponse.statusText}`);
+              }
+            }
+            
+            // 성공적인 응답 처리
+            const rawData = await directResponse.json();
+            console.log('[OrderDetailModal] 직접 API 호출로 데이터 로드 성공');
+            
+            // 필수 필드 검증
+            if (!rawData || !rawData.dashboardId) {
+              throw new Error('서버 응답에 필요한 데이터가 포함되어 있지 않습니다.');
+            }
+            
+            orderData = rawData;
+            
+          } catch (fallbackError) {
+            // 두 번째 시도도 실패
+            console.error('[OrderDetailModal] 모든 API 호출 방법 실패:', fallbackError);
+            throw fallbackError; // 에러를 상위로 전파
+          }
         }
         
-        orderData = response.data;
-        
-        // 캐시에 저장
-        orderCache.set(cacheKey, {
-          data: orderData,
-          timestamp: Date.now()
-        });
+        // 캐시에 저장 (새로 로드된 데이터)
+        if (orderData) {
+          orderCache.set(cacheKey, {
+            data: orderData,
+            timestamp: now,
+            hits: 0
+          });
+          console.log('[OrderDetailModal] 데이터를 캐시에 저장함 (키:', cacheKey, ')');
+        }
       }
       
-      // 로딩 완료
+      // 로딩 완료 시간 측정 (성능 모니터링)
+      const loadEndTime = performance.now();
+      console.log(`[OrderDetailModal] 데이터 로드 시간: ${Math.round(loadEndTime - loadStartTime)}ms`);
+      
+      // 로딩 완료 UI 처리
       if (modalLoadingSpinner) {
         modalLoadingSpinner.style.display = 'none';
       }
+      
+      // 데이터 유효성 검증 - 필수 필드 존재 여부 확인
+      if (!orderData || typeof orderData !== 'object') {
+        throw new Error('주문 정보가 유효하지 않습니다.');
+      }
+      
+      const requiredFields = ['dashboardId', 'orderNo', 'status'];
+      const missingFields = requiredFields.filter(field => orderData[field] === undefined);
+      
+      if (missingFields.length > 0) {
+        throw new Error(`필수 데이터 누락: ${missingFields.join(', ')}`);
+      }
+      
+      // 필요한 경우 데이터 추가 가공
+      processOrderData(orderData);
       
       // 모달 내용 업데이트
       renderOrderDetail(orderDetailContent, orderData);
       
       // 수정 버튼 상태 업데이트
-      const editBtn = document.getElementById('editOrderBtn');
-      if (editBtn) {
-        // 관리자 또는 락이 없는 경우 수정 가능
-        const userRole = document.body.dataset.userRole || 'USER';
-        const isAdmin = userRole === 'ADMIN';
-        
-        editBtn.disabled = !isAdmin && orderData.isLocked;
-        editBtn.title = editBtn.disabled ? 
-          '다른 사용자가 편집 중이거나 권한이 없습니다' : 
-          '주문 정보를 수정합니다';
-      }
+      updateEditButtonState(orderData);
       
-      // 인라인 편집 버튼 제거
+      // 주문 정보 표시 성공 이벤트 발생
+      const successEvent = new CustomEvent('orderDetailLoaded', { 
+        detail: { orderId, timestamp: new Date().toISOString() } 
+      });
+      document.dispatchEvent(successEvent);
       
     } catch (error) {
+      // 에러 발생 시 처리
       console.error('[OrderDetailModal] 상세 정보 로드 중 오류:', error);
       
-      // 에러 표시
+      // 로딩 완료 (오류 발생)
       if (modalLoadingSpinner) {
         modalLoadingSpinner.style.display = 'none';
       }
       
+      // 에러 UI 표시
       orderDetailContent.innerHTML = `
         <div class="error-message">
           <i class="fas fa-exclamation-circle"></i>
           <h3>정보 로드 실패</h3>
           <p>${error.message || '주문 정보를 불러오는 중 오류가 발생했습니다.'}</p>
-          <button class="btn retry-btn" id="retryLoadBtn">
-            <i class="fas fa-sync"></i> 다시 시도
-          </button>
+          <p class="error-details">오류 코드: ERR-${Math.floor(Math.random() * 10000)}</p>
+          <div class="error-actions">
+            <button class="btn retry-btn" id="retryLoadBtn">
+              <i class="fas fa-sync"></i> 다시 시도
+            </button>
+            <button class="btn secondary-btn" id="errorCloseBtn">
+              <i class="fas fa-times"></i> 닫기
+            </button>
+          </div>
         </div>
       `;
       
@@ -406,13 +513,107 @@
       const retryBtn = document.getElementById('retryLoadBtn');
       if (retryBtn) {
         retryBtn.addEventListener('click', function() {
-          // 캐시 삭제 후 다시 시도
-          orderCache.delete(`order_${orderId}`);
-          showOrderDetail(orderId);
+          // 캐시 삭제 후 다시 시도 (강제 새로고침)
+          orderCache.delete(`order_${orderId}_${userId}`);
+          showOrderDetail(orderId, { forceReload: true });
         });
       }
       
-      showAlert('주문 정보를 불러오는 중 오류가 발생했습니다.', 'error');
+      // 닫기 버튼
+      const errorCloseBtn = document.getElementById('errorCloseBtn');
+      if (errorCloseBtn) {
+        errorCloseBtn.addEventListener('click', hideModal);
+      }
+      
+      // 오류 알림 표시
+      if (showNotifications) {
+        showAlert('주문 정보를 불러오는 중 오류가 발생했습니다: ' + error.message, 'error');
+      }
+      
+      // 오류 이벤트 발생
+      const errorEvent = new CustomEvent('orderDetailError', { 
+        detail: { 
+          orderId, 
+          error: error.message, 
+          timestamp: new Date().toISOString() 
+        } 
+      });
+      document.dispatchEvent(errorEvent);
+    }
+  }
+  
+  /**
+   * 주문 데이터 전처리 및 보정
+   * @param {Object} data - 가공할 주문 데이터
+   */
+  function processOrderData(data) {
+    // 필드 타입 확인 및 기본값 설정
+    if (!data.status) data.status = 'WAITING';
+    if (!data.statusLabel) {
+      // 상태 라벨 자동 생성
+      const statusMap = {
+        'WAITING': '대기',
+        'IN_PROGRESS': '진행',
+        'COMPLETE': '완료',
+        'ISSUE': '이슈',
+        'CANCEL': '취소'
+      };
+      data.statusLabel = statusMap[data.status] || data.status;
+    }
+    
+    // 날짜 형식 변환 (있는 경우)
+    if (data.eta && data.eta.includes(' ') && !data.eta.includes('T')) {
+      // 'YYYY-MM-DD HH:MM:SS' 형식을 'YYYY-MM-DDTHH:MM:SS' 형식으로 변환 (datetime-local 입력용)
+      data.eta = data.eta.replace(' ', 'T');
+    }
+    
+    // 빈 값 처리
+    if (!data.address) data.address = '';
+    if (!data.customer) data.customer = '';
+    if (!data.remark) data.remark = '';
+    
+    // 업데이트 정보 처리
+    if (!data.updatedBy) data.updatedBy = '-';
+    if (!data.updateAt) data.updateAt = '-';
+    
+    return data;
+  }
+  
+  /**
+   * 주문 수정 버튼 상태 업데이트
+   * @param {Object} orderData - 주문 데이터
+   */
+  function updateEditButtonState(orderData) {
+    const editBtn = document.getElementById('editOrderBtn');
+    const deleteBtn = document.getElementById('deleteOrderBtn');
+    
+    if (editBtn) {
+      // 관리자 또는 락이 없는 경우 수정 가능
+      const userRole = document.body.dataset.userRole || 'USER';
+      const isAdmin = userRole === 'ADMIN';
+      const isLocked = orderData.isLocked === true;
+      const canEdit = isAdmin || !isLocked;
+      
+      // 버튼 상태 업데이트
+      editBtn.disabled = !canEdit;
+      editBtn.title = canEdit ? 
+        '주문 정보를 수정합니다' :
+        '다른 사용자가 편집 중이거나 권한이 없습니다';
+      
+      // 시각적 스타일 적용
+      if (canEdit) {
+        editBtn.classList.remove('disabled-btn');
+      } else {
+        editBtn.classList.add('disabled-btn');
+      }
+    }
+    
+    // 삭제 버튼은 관리자만 사용 가능
+    if (deleteBtn) {
+      const userRole = document.body.dataset.userRole || 'USER';
+      const isAdmin = userRole === 'ADMIN';
+      deleteBtn.disabled = !isAdmin;
+      deleteBtn.style.display = isAdmin ? 'inline-block' : 'none';
     }
   }
   
@@ -486,21 +687,70 @@
   /**
    * 주문 상세 정보 API 호출
    * @param {string} orderId - 주문 ID
+   * @returns {Promise<Object>} - 표준화된 응답 객체
    */
   async function fetchOrderDetail(orderId) {
     try {
-      const response = await fetch(`/dashboard/orders/${orderId}`);
+      // API 호출 전 로깅
+      console.log(`[OrderDetailModal] API 호출 시작: /dashboard/orders/${orderId}`);
+      const startTime = performance.now();
+      
+      // API 호출 실행
+      const response = await fetch(`/dashboard/orders/${orderId}`, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin' // 세션 쿠키 포함
+      });
+      
+      // 응답 시간 측정
+      const endTime = performance.now();
+      console.log(`[OrderDetailModal] API 호출 완료: ${Math.round(endTime - startTime)}ms`);
       
       if (!response.ok) {
-        throw new Error(`HTTP 오류: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP 오류 ${response.status}: ${errorText}`);
       }
       
-      return await response.json();
+      const data = await response.json();
+      
+      // 데이터 유효성 기본 검사
+      if (!data || typeof data !== 'object') {
+        throw new Error('API 응답이 유효한 JSON 객체가 아닙니다');
+      }
+      
+      // 필수 필드 확인
+      const requiredFields = ['dashboardId', 'orderNo', 'status'];
+      const missingFields = requiredFields.filter(field => data[field] === undefined);
+      
+      if (missingFields.length > 0) {
+        console.warn(`[OrderDetailModal] 응답에 필수 필드가 누락됨: ${missingFields.join(', ')}`);
+      }
+      
+      // 응답 데이터 로깅 (민감 정보 제외)
+      console.log('[OrderDetailModal] 응답 데이터:', {
+        dashboardId: data.dashboardId,
+        orderNo: data.orderNo,
+        status: data.status,
+        type: data.type,
+        // 전체 데이터는 로깅하지 않음
+      });
+      
+      // 백엔드 응답을 표준 형식으로 변환
+      return { 
+        success: true, 
+        data: data,
+        message: '주문 정보 로드 성공',
+        timestamp: new Date().toISOString()
+      };
     } catch (error) {
       console.error('[OrderDetailModal] API 오류:', error);
       return { 
         success: false, 
-        message: '서버 통신 중 오류가 발생했습니다.'
+        message: '서버 통신 중 오류가 발생했습니다.',
+        error: error.toString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -511,13 +761,22 @@
    * @param {Object} orderData - 주문 데이터
    */
   function renderOrderDetail(container, orderData) {
-    if (!container || !orderData) {
-      console.error('[OrderDetailModal] 상세 정보 렌더링 실패: 컨테이너 또는 데이터 누락');
-      container.innerHTML = '<div class="error-message">상세 정보를 표시할 수 없습니다.</div>';
+    if (!container) {
+      console.error('[OrderDetailModal] 상세 정보 렌더링 실패: 컨테이너 누락');
       return;
     }
     
-    console.log('[OrderDetailModal] 상세 정보 렌더링 시작', { orderId: orderData.dashboardId });
+    if (!orderData || typeof orderData !== 'object') {
+      console.error('[OrderDetailModal] 상세 정보 렌더링 실패: 데이터 누락 또는 유효하지 않음', orderData);
+      container.innerHTML = '<div class="error-message">상세 정보를 표시할 수 없습니다: 유효하지 않은 데이터</div>';
+      return;
+    }
+    
+    console.log('[OrderDetailModal] 상세 정보 렌더링 시작', { 
+      orderId: orderData.dashboardId,
+      orderNo: orderData.orderNo,
+      fields: Object.keys(orderData)
+    });
     
     // 폼 생성
     const html = `
