@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Form, 
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.orm import Session
 import os
+from datetime import datetime
 
 from main.utils.database import get_db
 from main.utils.security import delete_session, get_current_user
@@ -51,7 +52,12 @@ async def login_page(request: Request):
 
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "debug": settings.DEBUG, "return_to": return_to},
+        {
+            "request": request, 
+            "debug": settings.DEBUG, 
+            "return_to": return_to,
+            "current_year": datetime.now().year  # 현재 연도 추가
+        },
     )
 
 
@@ -77,6 +83,7 @@ async def login(
                 "error": "사용자 ID 또는 비밀번호가 일치하지 않습니다.",
                 "debug": settings.DEBUG,
                 "return_to": return_to,
+                "current_year": datetime.now().year  # 현재 연도 추가
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )

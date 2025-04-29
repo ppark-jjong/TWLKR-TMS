@@ -37,10 +37,10 @@
                 <input type="hidden" name="return_to" value="{{ request.query_params.get('return_to', '') }}">
                 
                 <div class="form-group">
-                    <label for="login_id">아이디</label>
+                    <label for="user_id">아이디</label>
                     <div class="input-with-icon">
                         <i class="fa-solid fa-user"></i>
-                        <input type="text" id="login_id" name="login_id" placeholder="사용자 아이디" required autofocus>
+                        <input type="text" id="user_id" name="user_id" placeholder="사용자 아이디" required autofocus>
                     </div>
                 </div>
                 
@@ -52,11 +52,6 @@
                     </div>
                 </div>
                 
-                <div class="remember-me">
-                    <input type="checkbox" id="remember" name="remember">
-                    <label for="remember">로그인 상태 유지</label>
-                </div>
-                
                 <button type="submit" class="login-button">
                     <i class="fa-solid fa-sign-in-alt"></i>
                     로그인
@@ -64,7 +59,7 @@
             </form>
             
             <div class="login-footer">
-                <p>© {% now 'Y' %} Teckwah Logistics Korea</p>
+                <p>© {{ current_year }} Teckwah Logistics Korea</p>
             </div>
         </div>
     </div>
