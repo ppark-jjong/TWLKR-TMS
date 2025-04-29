@@ -185,6 +185,18 @@
 {% endblock %} 
 
 {% block extra_js %}
-<!-- 대시보드 스크립트 -->
-<script src="/static/js/dashboard.js"></script>
+<!-- 공통 모듈 로드 -->
+<script src="/static/js/common/utils.js"></script>
+<script src="/static/js/common/api.js"></script>
+<script src="/static/js/common/notify.js"></script>
+<script src="/static/js/components/modal.js"></script>
+
+<!-- 대시보드 모듈 로드 -->
+<script src="/static/js/dashboard/index.js"></script>
+<script src="/static/js/dashboard/date-picker.js"></script>
+<script src="/static/js/dashboard/filters.js"></script>
+<script src="/static/js/dashboard/column-selector.js"></script>
+<script src="/static/js/dashboard/pagination.js"></script>
+<script src="/static/js/dashboard/table.js"></script>
+<script src="/static/js/dashboard/modals.js"></script>
 {% endblock %}
