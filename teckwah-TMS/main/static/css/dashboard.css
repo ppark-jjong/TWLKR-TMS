@@ -1,5 +1,26 @@
 /* 대시보드 페이지 스타일 */
 
+/* 테이블 행 상태별 배경색 */
+.data-table tr.status-waiting {
+  background-color: rgb(255, 246, 203);
+}
+
+.data-table tr.status-in_progress {
+  background-color: rgb(179, 228, 250);
+}
+
+.data-table tr.status-complete {
+  background-color: rgb(210, 250, 171);
+}
+
+.data-table tr.status-issue {
+  background-color: rgb(252, 173, 161);
+}
+
+.data-table tr.status-cancel {
+  background-color: rgb(196, 196, 196);
+}
+
 /* 필터 헤더 스타일 */
 .filter-header {
   display: flex;

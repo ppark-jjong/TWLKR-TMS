@@ -55,7 +55,23 @@
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">상태</span>
-                                <span class="detail-value status-badge status-{{ order.status|lower }}">{{ order.status_label }}</span>
+                                <div class="inline-edit-container">
+                                    <span class="detail-value status-badge status-{{ order.status|lower }}" id="statusDisplay">{{ order.status_label }}</span>
+                                    <div class="inline-edit-form" id="statusEditForm" style="display:none;">
+                                        <select id="statusInput" class="select-field">
+                                            <option value="WAITING" {% if order.status == 'WAITING' %}selected{% endif %}>대기</option>
+                                            <option value="IN_PROGRESS" {% if order.status == 'IN_PROGRESS' %}selected{% endif %}>진행</option>
+                                            <option value="COMPLETE" {% if order.status == 'COMPLETE' %}selected{% endif %}>완료</option>
+                                            <option value="ISSUE" {% if order.status == 'ISSUE' %}selected{% endif %}>이슈</option>
+                                            <option value="CANCEL" {% if order.status == 'CANCEL' %}selected{% endif %}>취소</option>
+                                        </select>
+                                        <button class="btn btn-sm primary-btn" id="saveStatusBtn">저장</button>
+                                        <button class="btn btn-sm secondary-btn" id="cancelStatusBtn">취소</button>
+                                    </div>
+                                    <button class="btn btn-sm edit-inline-btn" id="editStatusBtn">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">고객</span>
@@ -120,13 +136,34 @@
                             배송 및 연락처 정보
                         </div>
                         <div class="detail-grid">
-                            <div class="detail-item">
+                            <div class="detail-item driver-info-container">
                                 <span class="detail-label">배송기사</span>
-                                <span class="detail-value">{% if order.driver_name %}{{ order.driver_name }}{% else %}-{% endif %}</span>
+                                <div class="inline-edit-container">
+                                    <span class="detail-value" id="driverNameDisplay">{% if order.driver_name %}{{ order.driver_name }}{% else %}-{% endif %}</span>
+                                    <div class="inline-edit-form" id="driverEditForm" style="display:none;">
+                                        <div class="driver-edit-fields">
+                                            <div class="driver-field-group">
+                                                <label for="driverNameInput">기사명</label>
+                                                <input type="text" id="driverNameInput" class="input-field" value="{{ order.driver_name }}">
+                                            </div>
+                                            <div class="driver-field-group">
+                                                <label for="driverContactInput">연락처</label>
+                                                <input type="text" id="driverContactInput" class="input-field" value="{{ order.driver_contact }}">
+                                            </div>
+                                        </div>
+                                        <div class="driver-edit-actions">
+                                            <button class="btn btn-sm primary-btn" id="saveDriverBtn">저장</button>
+                                            <button class="btn btn-sm secondary-btn" id="cancelDriverBtn">취소</button>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm edit-inline-btn" id="editDriverBtn">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">배송기사 연락처</span>
-                                <span class="detail-value">{% if order.driver_contact %}{{ order.driver_contact }}{% else %}-{% endif %}</span>
+                                <span class="detail-value" id="driverContactDisplay">{% if order.driver_contact %}{{ order.driver_contact }}{% else %}-{% endif %}</span>
                             </div>
                             <div class="detail-item full-width">
                                 <span class="detail-label">배송주소</span>

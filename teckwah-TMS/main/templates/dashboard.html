@@ -97,6 +97,76 @@
             <a href="/orders/create" class="btn primary-btn">
                 <i class="fa-solid fa-plus"></i> 신규 등록
             </a>
+            <button class="btn secondary-btn" id="customizeColumnsBtn">
+                <i class="fa-solid fa-table-columns"></i> 컬럼 설정
+            </button>
+        </div>
+
+        <!-- 컬럼 커스터마이징 대화상자 -->
+        <div id="columnDialog" class="dialog">
+            <div class="dialog-content">
+                <h3>테이블 컬럼 설정</h3>
+                <p>표시할 컬럼을 선택하세요:</p>
+                
+                <div class="columns-grid" id="columnSettingsGrid">
+                    <!-- 기본 컬럼 (항상 표시) -->
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_order_no" name="columns" value="order_no" checked disabled>
+                        <label for="col_order_no">주문번호 (필수)</label>
+                    </div>
+                    
+                    <!-- 선택 가능한 컬럼들 -->
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_customer" name="columns" value="customer" checked>
+                        <label for="col_customer">고객</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_type" name="columns" value="type" checked>
+                        <label for="col_type">유형</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_status" name="columns" value="status" checked>
+                        <label for="col_status">상태</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_department" name="columns" value="department" checked>
+                        <label for="col_department">부서</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_warehouse" name="columns" value="warehouse" checked>
+                        <label for="col_warehouse">창고</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_eta" name="columns" value="eta" checked>
+                        <label for="col_eta">ETA</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_driver" name="columns" value="driver" checked>
+                        <label for="col_driver">기사명</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_address" name="columns" value="address">
+                        <label for="col_address">주소</label>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="col_contact" name="columns" value="contact">
+                        <label for="col_contact">연락처</label>
+                    </div>
+                </div>
+                
+                <div class="dialog-actions">
+                    <button type="button" class="btn secondary-btn" id="cancelColumnsBtn">취소</button>
+                    <button type="button" class="btn primary-btn" id="applyColumnsBtn">적용</button>
+                </div>
+            </div>
         </div>
 
         <!-- 요약 카드 영역 -->

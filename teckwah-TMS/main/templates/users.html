@@ -26,54 +26,30 @@
     </div>
     
     <div class="main-card">
-        <!-- 검색 및 필터링 -->
-        <div class="filter-box">
-            <div class="filter-controls">
-                <div class="filter-item">
-                    <label for="roleFilter">권한</label>
-                    <select id="roleFilter" class="filter-select">
-                        <option value="">전체</option>
-                        <option value="ADMIN">관리자</option>
-                        <option value="USER">일반 사용자</option>
-                    </select>
-                </div>
-                <div class="filter-item">
-                    <label for="departmentFilter">부서</label>
-                    <select id="departmentFilter" class="filter-select">
-                        <option value="">전체</option>
-                        <option value="CS">CS</option>
-                        <option value="HES">HES</option>
-                        <option value="LENOVO">LENOVO</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="search-container">
-                <input type="text" id="searchKeyword" class="search-input" placeholder="사용자 ID 또는 이름 검색">
-                <button class="btn search-button" id="searchBtn">
-                    <i class="fa-solid fa-search"></i>
-                </button>
+        <!-- 필터 및 검색 기능 간소화 -->
+        <div class="simple-header">
+            <div class="section-title">
+                <i class="fa-solid fa-users-gear"></i>
+                사용자 목록
             </div>
         </div>
         
-        <!-- 사용자 목록 테이블 -->
+        <!-- 사용자 목록 테이블 - 간소화된 버전 -->
         <div class="table-container">
             <table class="data-table" id="usersTable">
                 <thead>
                     <tr>
-                        <th>사용자 ID</th>
+                        <th>로그인 ID</th>
                         <th>이름</th>
                         <th>부서</th>
                         <th>권한</th>
-                        <th>최근 로그인</th>
-                        <th>상태</th>
                         <th>액션</th>
                     </tr>
                 </thead>
                 <tbody id="usersTableBody">
                     {% for user in users %}
                     <tr>
-                        <td>{{ user.user_id }}</td>
+                        <td>{{ user.login_id }}</td>
                         <td>{{ user.user_name }}</td>
                         <td>{{ user.department }}</td>
                         <td>
@@ -81,24 +57,16 @@
                                 {{ '관리자' if user.user_role == 'ADMIN' else '일반 사용자' }}
                             </span>
                         </td>
-                        <td>{{ user.last_login|datetime if user.last_login else '-' }}</td>
-                        <td>
-                            <span class="status-badge {{ 'active-status' if user.is_active else 'inactive-status' }}">
-                                {{ '활성' if user.is_active else '비활성' }}
-                            </span>
-                        </td>
                         <td class="action-cell">
-                            <button class="btn-action edit-user" data-userid="{{ user.user_id }}">
-                                <i class="fa-solid fa-edit"></i>
-                            </button>
                             <button class="btn-action delete-user" data-userid="{{ user.user_id }}">
                                 <i class="fa-solid fa-trash"></i>
+                                삭제
                             </button>
                         </td>
                     </tr>
                     {% else %}
                     <tr class="empty-data-row">
-                        <td colspan="7" class="empty-table">
+                        <td colspan="5" class="empty-table">
                             <div class="empty-placeholder">
                                 <i class="fa-solid fa-users"></i>
                                 <p>사용자 데이터가 없습니다</p>
@@ -110,26 +78,15 @@
             </table>
         </div>
         
-        <!-- 페이지네이션 -->
-        <div class="pagination" id="pagination">
-            <button class="page-btn" data-page="prev" {% if current_page == 1 %}disabled{% endif %}>
-                <i class="fa-solid fa-chevron-left"></i>
-            </button>
-            <span class="page-info" id="pageInfo">{{ current_page }} / {{ total_pages }}</span>
-            <button class="page-btn" data-page="next" {% if current_page == total_pages %}disabled{% endif %}>
-                <i class="fa-solid fa-chevron-right"></i>
-            </button>
-        </div>
+        <!-- 페이지네이션 제거 -->
     </div>
 </div>
 
-<!-- 신규 사용자 추가 다이얼로그 -->
+<!-- 신규 사용자 추가 다이얼로그 - 간소화 -->
 <div id="userFormDialog" class="dialog">
     <div class="dialog-content">
         <h3 id="dialogTitle">신규 사용자 추가</h3>
         <form id="userForm">
-            <input type="hidden" id="userId" name="user_id" value="">
-            
             <div class="form-group">
                 <label for="loginId">로그인 ID <span class="required">*</span></label>
                 <input type="text" id="loginId" name="login_id" class="input-field" required>
@@ -141,9 +98,8 @@
             </div>
             
             <div class="form-group">
-                <label for="password">비밀번호 <span class="required passwordRequired">*</span></label>
-                <input type="password" id="password" name="password" class="input-field">
-                <small class="help-text" id="passwordHelp"></small>
+                <label for="password">비밀번호 <span class="required">*</span></label>
+                <input type="password" id="password" name="password" class="input-field" required>
             </div>
             
             <div class="form-row">
@@ -161,13 +117,6 @@
                         <option value="USER">일반 사용자</option>
                         <option value="ADMIN">관리자</option>
                     </select>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <div class="checkbox-container">
-                    <input type="checkbox" id="isActive" name="is_active" checked>
-                    <label for="isActive">활성화 상태</label>
                 </div>
             </div>
             
