@@ -1,0 +1,44 @@
+{
+  "handovers": [
+    {
+      "handover_id": "H001",
+      "title": "서버 점검 안내",
+      "content": "오늘 저녁 10시부터 서버 점검이 예정되어 있습니다. 업무에 참고 바랍니다.",
+      "created_by": "CSAdmin",
+      "created_at": "2025-03-05 14:30",
+      "is_notice": true
+    },
+    {
+      "handover_id": "H002",
+      "title": "배송 지연 안내",
+      "content": "도로 공사로 인해 강남 지역 배송이 지연될 수 있습니다. 고객에게 미리 안내 바랍니다.",
+      "created_by": "CSAdmin",
+      "created_at": "2025-03-06 09:15",
+      "is_notice": false
+    },
+    {
+      "handover_id": "H003",
+      "title": "마포구 배차 스케줄 재확인 요망",
+      "content": "CS 대량 배송 건 인해 마포구 배차 스케줄 재확인 요망",
+      "created_by": "CSAdmin",
+      "created_at": "2025-03-06 11:20",
+      "is_notice": true
+    },
+    {
+      "handover_id": "H004",
+      "title": "기상 악화로 인한 배송 지연",
+      "content": "오늘 오전 기상 악화로 인해 배송 지연이 발생할 수 있습니다. 고객에게 미리 안내 바랍니다.",
+      "created_by": "CSAdmin",
+      "created_at": "2025-03-06 16:45",
+      "is_notice": true
+    },
+    {
+      "handover_id": "H005",
+      "title": "새로운 배송 프로세스 안내",
+      "content": "다음 주부터 신규 배송 프로세스가 적용됩니다. 상세 내용은 팀장에게 문의하세요.",
+      "created_by": "CSAdmin",
+      "created_at": "2025-03-07 10:20",
+      "is_notice": false
+    }
+  ]
+}

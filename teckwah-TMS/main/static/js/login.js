@@ -1,171 +1,164 @@
 /**
  * 로그인 페이지 스크립트
- * 로그인 폼 처리 및 검증을 담당합니다.
+ * 세션 기반 인증을 처리하고 백엔드 API와 연동
  */
-
-// 로그인 네임스페이스
-const Login = {
-  /**
-   * 설정
-   */
-  config: {
-    loginFormId: 'loginForm',
-    errorMsgId: 'loginError'
-  },
+document.addEventListener('DOMContentLoaded', function() {
+  // 폼 요소 찾기
+  const loginForm = document.querySelector('form.login-form');
   
-  /**
-   * 초기화
-   */
-  init: function() {
-    console.log('[Login] 초기화 시작');
-    
-    // 로그인 폼 초기화
-    this.initLoginForm();
-    
-    console.log('[Login] 초기화 완료');
-  },
-  
-  /**
-   * 로그인 폼 초기화
-   */
-  initLoginForm: function() {
-    const loginForm = document.getElementById(this.config.loginFormId);
-    
-    if (loginForm) {
-      // 폼 제출 이벤트
-      loginForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        if (this.validateForm(loginForm)) {
-          this.submitLogin(new FormData(loginForm));
-        }
-      });
+  // 폼 제출 이벤트 처리
+  if (loginForm) {
+    loginForm.addEventListener('submit', async function(event) {
+      event.preventDefault();
       
-      // 입력 필드 변경 시 오류 메시지 숨김
-      const inputs = loginForm.querySelectorAll('input');
-      inputs.forEach(input => {
-        input.addEventListener('input', () => {
-          input.classList.remove('invalid');
-          this.hideErrorMessage();
-        });
-      });
-    }
-  },
-  
-  /**
-   * 폼 유효성 검사
-   * @param {HTMLFormElement} form - 로그인 폼
-   * @returns {boolean} 유효성 여부
-   */
-  validateForm: function(form) {
-    const userId = form.querySelector('input[name="user_id"]');
-    const password = form.querySelector('input[name="password"]');
-    let isValid = true;
-    
-    // 아이디 검증
-    if (!userId.value.trim()) {
-      userId.classList.add('invalid');
-      this.showErrorMessage('아이디를 입력해주세요.');
-      isValid = false;
-    }
-    
-    // 비밀번호 검증
-    if (!password.value.trim()) {
-      password.classList.add('invalid');
-      this.showErrorMessage('비밀번호를 입력해주세요.');
-      isValid = false;
-    }
-    
-    return isValid;
-  },
-  
-  /**
-   * 로그인 폼 제출
-   * @param {FormData} formData - 폼 데이터
-   */
-  submitLogin: function(formData) {
-    // 로딩 표시
-    const loginBtn = document.querySelector('button[type="submit"]');
-    if (loginBtn) {
-      loginBtn.disabled = true;
-      loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 로그인 중...';
-    }
-    
-    // FormData를 객체로 변환
-    const loginData = {};
-    for (const [key, value] of formData.entries()) {
-      loginData[key] = value;
-    }
-    
-    // API 호출
-    fetch('/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: JSON.stringify(loginData),
-      credentials: 'same-origin'
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // 로그인 성공 시 대시보드로 이동
-        window.location.href = '/dashboard';
-      } else {
-        // 로그인 실패
-        this.showErrorMessage(data.message || '로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.');
-        
-        // 로그인 버튼 복원
-        if (loginBtn) {
-          loginBtn.disabled = false;
-          loginBtn.innerHTML = '로그인';
-        }
+      // 폼 데이터 수집
+      const formData = new FormData(loginForm);
+      const loginData = {
+        login_id: formData.get('login_id'),
+        password: formData.get('password'),
+        remember: formData.get('remember') === 'on'
+      };
+      
+      // 필수 입력 확인
+      if (!loginData.login_id || !loginData.password) {
+        showErrorMessage('아이디와 비밀번호를 모두 입력해주세요.');
+        return;
       }
-    })
-    .catch(error => {
-      console.error('로그인 요청 오류:', error);
-      this.showErrorMessage('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
       
-      // 로그인 버튼 복원
-      if (loginBtn) {
-        loginBtn.disabled = false;
-        loginBtn.innerHTML = '로그인';
+      try {
+        // 폼 비활성화
+        disableForm(true);
+        
+        // 로그인 요청
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(loginData),
+          credentials: 'include' // 세션 쿠키를 주고받기 위해 필요
+        });
+        
+        // 응답 처리
+        if (response.ok) {
+          // 로그인 성공 처리
+          const data = await response.json();
+          
+          // 리다이렉트 URL 결정 (return_to 파라미터 또는 기본값 /dashboard)
+          const returnTo = formData.get('return_to') || '/dashboard';
+          
+          // 성공 메시지 표시 (옵션)
+          showSuccessMessage('로그인 성공! 잠시 후 이동합니다...');
+          
+          // 잠시 후 리다이렉트
+          setTimeout(() => {
+            window.location.href = returnTo;
+          }, 800);
+        } else {
+          // 오류 응답 처리
+          let errorMessage = '로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.';
+          
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch (parseError) {
+            console.error('오류 응답 파싱 실패:', parseError);
+          }
+          
+          showErrorMessage(errorMessage);
+          
+          // 비밀번호 필드 초기화 및 포커스
+          document.getElementById('password').value = '';
+          document.getElementById('password').focus();
+        }
+      } catch (error) {
+        console.error('로그인 처리 오류:', error);
+        showErrorMessage('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      } finally {
+        // 폼 활성화
+        disableForm(false);
       }
     });
-  },
+  }
   
   /**
    * 오류 메시지 표시
-   * @param {string} message - 오류 메시지
+   * @param {string} message - 표시할 메시지
    */
-  showErrorMessage: function(message) {
-    const errorMsg = document.getElementById(this.config.errorMsgId);
-    
-    if (errorMsg) {
-      errorMsg.textContent = message;
-      errorMsg.style.display = 'block';
-      
-      // 애니메이션 효과
-      errorMsg.classList.remove('fade-in');
-      void errorMsg.offsetWidth; // 강제 리플로우
-      errorMsg.classList.add('fade-in');
+  function showErrorMessage(message) {
+    // 기존 알림이 있으면 제거
+    const existingAlert = document.querySelector('.alert');
+    if (existingAlert) {
+      existingAlert.remove();
     }
-  },
+    
+    // 새 알림 생성
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-error';
+    alert.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i><span>${message}</span>`;
+    
+    // 알림 삽입
+    const loginHeader = document.querySelector('.login-header');
+    loginHeader.insertAdjacentElement('afterend', alert);
+  }
   
   /**
-   * 오류 메시지 숨김
+   * 성공 메시지 표시
+   * @param {string} message - 표시할 메시지
    */
-  hideErrorMessage: function() {
-    const errorMsg = document.getElementById(this.config.errorMsgId);
+  function showSuccessMessage(message) {
+    // 기존 알림이 있으면 제거
+    const existingAlert = document.querySelector('.alert');
+    if (existingAlert) {
+      existingAlert.remove();
+    }
     
-    if (errorMsg) {
-      errorMsg.style.display = 'none';
+    // 새 알림 생성
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success';
+    alert.innerHTML = `<i class="fa-solid fa-check-circle"></i><span>${message}</span>`;
+    
+    // 알림 삽입
+    const loginHeader = document.querySelector('.login-header');
+    loginHeader.insertAdjacentElement('afterend', alert);
+  }
+  
+  /**
+   * 폼 비활성화/활성화
+   * @param {boolean} disabled - 비활성화 여부
+   */
+  function disableForm(disabled) {
+    // 폼 내 모든 입력 요소 찾기
+    const inputs = loginForm.querySelectorAll('input, button');
+    
+    // 비활성화 상태 설정
+    inputs.forEach(input => {
+      input.disabled = disabled;
+    });
+    
+    // 로그인 버튼 업데이트
+    const loginButton = loginForm.querySelector('.login-button');
+    if (loginButton) {
+      if (disabled) {
+        loginButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 로그인 중...';
+      } else {
+        loginButton.innerHTML = '<i class="fa-solid fa-sign-in-alt"></i> 로그인';
+      }
     }
   }
-};
-
-// 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', function() {
-  Login.init();
+  
+  // URL에서 오류 메시지 확인
+  const urlParams = new URLSearchParams(window.location.search);
+  const errorMsg = urlParams.get('error');
+  if (errorMsg) {
+    showErrorMessage(decodeURIComponent(errorMsg));
+  }
+  
+  // 페이지 로드 시 아이디 필드에 포커스
+  const loginIdInput = document.getElementById('login_id');
+  if (loginIdInput) {
+    loginIdInput.focus();
+  }
 });

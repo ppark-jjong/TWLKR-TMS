@@ -20,11 +20,12 @@ sessions: Dict[str, Any] = {}
 # 세션 정리 관련
 cleanup_interval = 60 * 30  # 30분마다 세션 정리
 cleanup_timer = None
+is_cleanup_initialized = False
 
 
 def cleanup_expired_sessions():
     """만료된 세션을 주기적으로 정리"""
-    global cleanup_timer
+    global cleanup_timer, is_cleanup_initialized
 
     # 현재 시간보다 만료 시간이 이전인 세션 찾기
     current_time = int(time.time())
@@ -42,10 +43,26 @@ def cleanup_expired_sessions():
     if expired_sessions:
         logger.info(f"만료된 세션 {len(expired_sessions)}개 정리 완료")
 
+    # 이전 타이머가 있다면 취소
+    if cleanup_timer:
+        cleanup_timer.cancel()
+
     # 다음 정리 예약
     cleanup_timer = threading.Timer(cleanup_interval, cleanup_expired_sessions)
     cleanup_timer.daemon = True
     cleanup_timer.start()
+
+
+def initialize_session_cleanup():
+    """
+    애플리케이션 시작 시 세션 정리 타이머 초기화
+    main.py의 lifespan 함수에서 호출됨
+    """
+    global is_cleanup_initialized
+    if not is_cleanup_initialized:
+        logger.info("세션 정리 타이머 초기화")
+        cleanup_expired_sessions()
+        is_cleanup_initialized = True
 
 
 def hash_password(password: str) -> str:
@@ -101,9 +118,10 @@ def create_session(user_data: Dict[str, Any]) -> str:
     # 세션 저장
     sessions[session_id] = session_data
 
-    # 첫 번째 세션이라면 정리 타이머 시작
-    if len(sessions) == 1 and not cleanup_timer:
-        cleanup_expired_sessions()
+    # 필요한 경우에만 정리 타이머 시작
+    global is_cleanup_initialized
+    if not is_cleanup_initialized:
+        initialize_session_cleanup()
 
     logger.info(f"세션 생성: {session_id[:8]}... (사용자: {user_data.get('user_id')})")
     return session_id

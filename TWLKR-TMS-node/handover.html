@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeckwahTMS</title>
+
+    <!-- 파비콘 -->
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon" />
+
+    <!-- Ant Design CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/antd@5.11.0/dist/reset.css"
+    />
+
+    <!-- 사용자 정의 CSS -->
+    <link rel="stylesheet" href="styles/additional.css" />
+
+    <!-- 폰트 어썸 -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+    <style>
+      .tab-container {
+        display: flex;
+        border-bottom: 1px solid #e8e8e8;
+        margin-bottom: 20px;
+      }
+
+      .tab {
+        padding: 12px 24px;
+        cursor: pointer;
+        font-weight: 500;
+        position: relative;
+        transition: all 0.3s;
+      }
+
+      .tab.active {
+        color: var(--primary-color);
+      }
+
+      .tab.active:after {
+        content: "";
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background-color: var(--primary-color);
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+        display: flex;
+        align-items: center;
+      }
+
+      .section-title i {
+        margin-right: 8px;
+        color: var(--primary-color);
+      }
+
+      .notice-indicator {
+        display: inline-block;
+        padding: 2px 8px;
+        background-color: #e6f7ff;
+        color: #1890ff;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        margin-left: 8px;
+      }
+
+      .handover-section {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        padding: 20px;
+        margin-bottom: 20px;
+        position: relative;
+      }
+
+      /* 페이지 내용이 표시되는/숨겨지는 스타일 */
+      .content-section {
+        display: none;
+      }
+
+      .content-section.active {
+        display: block;
+      }
+
+      tr {
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      /* 분할 화면 레이아웃 스타일 */
+      .split-screen-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .notice-section {
+        flex: 0 0 auto;
+        height: 30%;
+        min-height: 250px;
+      }
+
+      .handover-content-section {
+        flex: 1 1 auto;
+        height: 70%;
+        min-height: 400px;
+      }
+
+      .section-header {
+        margin-bottom: 15px;
+      }
+
+      /* 테이블 컬럼 스타일 개선 */
+      .data-table th {
+        background-color: #f5f7fa;
+        font-weight: 500;
+        text-align: left;
+        padding: 10px 15px;
+        border-bottom: 1px solid #e8e8e8;
+      }
+
+      tr:hover {
+        background-color: #f5f5f5;
+      }
+
+      .text-ellipsis {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+      }
+
+      /* 제목 너비 제한 */
+      .title-cell {
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 내용 너비 제한 */
+      .content-cell {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 공지사항 아이콘 */
+      .notice-icon {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 5px;
+        color: #1890ff;
+      }
+
+      /* 빈 데이터 행 */
+      .empty-data-row {
+        height: 200px;
+      }
+
+      /* 로딩 및 데이터 없음 표시 */
+      .loading-content,
+      .no-data-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+      }
+
+      .loading-content i,
+      .no-data-content i {
+        font-size: 24px;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <!-- 레이아웃 -->
+      <div class="main-layout">
+        <!-- 사이드바 -->
+        <aside id="sidebar" class="sidebar">
+          <div class="logo-container">
+            <h1 class="system-title">TWLKR-TMS</h1>
+            <img class="logo-image" src="assets/logo.png" alt="Teckwah 로고" />
+          </div>
+
+          <div class="user-info">
+            <div class="avatar">
+              <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="user-details">
+              <p class="user-name">CSAdmin</p>
+              <p class="user-role">CS</p>
+            </div>
+          </div>
+
+          <nav class="menu">
+            <ul>
+              <li class="menu-item">
+                <a href="index.html">
+                  <i class="fa-solid fa-chart-line"></i>
+                  <span>TMS</span>
+                </a>
+              </li>
+              <li class="menu-item active">
+                <a href="handover.html">
+                  <i class="fa-solid fa-right-left"></i>
+                  <span>Work-Notice</span>
+                </a>
+              </li>
+              <li class="menu-item">
+                <a href="visualization.html">
+                  <i class="fa-solid fa-chart-bar"></i>
+                  <span>Visualization</span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <div class="logout-container">
+            <button id="logoutBtn" class="logout-btn">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span>로그아웃</span>
+            </button>
+          </div>
+
+          <!-- 사이드바 하단 로고 추가 -->
+          <div class="sidebar-footer">
+            <img src="assets/logo.png" class="footer-logo" />
+          </div>
+        </aside>
+
+        <!-- 메인 컨텐츠 -->
+        <main class="main-content">
+          <!-- 컨텐츠 영역 -->
+          <div id="content-container" class="content-container">
+            <!-- 인수인계 페이지 -->
+            <div class="page-section" id="handoverPage">
+              <div class="main-card">
+                <div class="card-header" style="margin-bottom: 15px">
+                  <h2 style="margin: 0; font-size: 20px; font-weight: 600">
+                    Work-Notice
+                  </h2>
+                </div>
+
+                <!-- 분할 화면 레이아웃 -->
+                <div class="split-screen-layout">
+                  <!-- 공지사항 섹션 (상단 30%) -->
+                  <div class="notice-section" id="notice-section">
+                    <div
+                      class="section-header"
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                      "
+                    >
+                      <h3
+                        class="section-title"
+                        style="
+                          padding: 8px 0;
+                          display: flex;
+                          align-items: center;
+                          gap: 8px;
+                        "
+                      >
+                        <i
+                          class="fa-solid fa-thumbtack"
+                          style="color: var(--primary-color)"
+                        ></i>
+                        공지사항
+                        <span class="badge notice-count">0</span>
+                      </h3>
+
+                      <button
+                        class="btn secondary-btn"
+                        id="refreshHandoverBtn"
+                        style="height: 34px"
+                      >
+                        <i class="fa-solid fa-arrows-rotate"></i> 새로고침
+                      </button>
+                    </div>
+                    <div class="handover-section">
+                      <div class="table-container">
+                        <table class="data-table" id="noticeTable">
+                          <thead>
+                            <tr>
+                              <th
+                                width="100"
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                  border-right: 1px solid #e8e8e8;
+                                "
+                              >
+                                작성자
+                              </th>
+                              <th
+                                width="150"
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                  border-right: 1px solid #e8e8e8;
+                                "
+                              >
+                                작성일시
+                              </th>
+                              <th
+                                width="200"
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                  border-right: 1px solid #e8e8e8;
+                                "
+                              >
+                                제목
+                              </th>
+                              <th
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                "
+                              >
+                                내용
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody id="noticeTableBody">
+                            <!-- 데이터 로딩 중 또는 데이터 없음 표시 행 -->
+                            <tr class="empty-data-row">
+                              <td colspan="4" class="empty-table">
+                                <div class="loading-content">
+                                  <i
+                                    class="fa-solid fa-spinner loading-spinner"
+                                  ></i>
+                                  <div>데이터를 불러오는 중...</div>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <!-- 페이지네이션 영역 -->
+                      <div class="pagination">
+                        <button
+                          class="page-btn"
+                          data-page="prev"
+                          data-section="notice"
+                        >
+                          <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="page-info" id="noticePageInfo">1 / 1</span>
+                        <button
+                          class="page-btn"
+                          data-page="next"
+                          data-section="notice"
+                        >
+                          <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 인수인계 섹션 (하단 70%) -->
+                  <div class="handover-content-section" id="handover-section">
+                    <div
+                      class="section-header"
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                      "
+                    >
+                      <h3
+                        class="section-title"
+                        style="
+                          padding: 8px 0;
+                          display: flex;
+                          align-items: center;
+                          gap: 8px;
+                        "
+                      >
+                        <i
+                          class="fa-solid fa-exchange-alt"
+                          style="color: var(--primary-color)"
+                        ></i>
+                        인수인계
+                        <span class="badge handover-count">0</span>
+                      </h3>
+
+                      <button
+                        class="btn primary-btn"
+                        id="newHandoverBtn"
+                        style="height: 34px"
+                      >
+                        <i class="fa-solid fa-plus"></i> 신규 등록
+                      </button>
+                    </div>
+                    <div class="handover-section">
+                      <div class="table-container">
+                        <table class="data-table" id="handoverTable">
+                          <thead>
+                            <tr>
+                              <th
+                                width="100"
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                  border-right: 1px solid #e8e8e8;
+                                "
+                              >
+                                작성자
+                              </th>
+                              <th
+                                width="150"
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                  border-right: 1px solid #e8e8e8;
+                                "
+                              >
+                                작성일시
+                              </th>
+                              <th
+                                width="200"
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                  border-right: 1px solid #e8e8e8;
+                                "
+                              >
+                                제목
+                              </th>
+                              <th
+                                style="
+                                  text-align: center;
+                                  font-size: 14px;
+                                  padding: 12px;
+                                "
+                              >
+                                내용
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody id="handoverTableBody">
+                            <!-- 데이터 로딩 중 또는 데이터 없음 표시 행 -->
+                            <tr class="empty-data-row">
+                              <td colspan="4" class="empty-table">
+                                <div class="loading-content">
+                                  <i
+                                    class="fa-solid fa-spinner loading-spinner"
+                                  ></i>
+                                  <div>데이터를 불러오는 중...</div>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <!-- 페이지네이션 영역 -->
+                      <div class="pagination">
+                        <button
+                          class="page-btn"
+                          data-page="prev"
+                          data-section="handover"
+                        >
+                          <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="page-info" id="handoverPageInfo"
+                          >1 / 1</span
+                        >
+                        <button
+                          class="page-btn"
+                          data-page="next"
+                          data-section="handover"
+                        >
+                          <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- 모달: 인수인계 상세 정보 (개선된 UI/UX) -->
+    <div id="handoverDetailModal" class="modal">
+      <div
+        class="modal-content"
+        style="
+          max-width: 700px;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+          border-radius: 12px;
+        "
+      >
+        <div
+          class="modal-header"
+          style="
+            background-color: #f8f9fb;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          "
+        >
+          <h3
+            id="detailTitle"
+            style="
+              margin: 0;
+              font-size: 18px;
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            "
+          >
+            <i
+              class="fa-solid fa-clipboard-list"
+              style="color: var(--primary-color)"
+            ></i>
+            인수인계 상세 정보
+          </h3>
+          <button
+            class="close-modal"
+            data-modal="handoverDetailModal"
+            style="
+              background: none;
+              border: none;
+              font-size: 18px;
+              cursor: pointer;
+              color: #666;
+            "
+          >
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+
+        <div class="modal-body" style="padding: 20px 24px">
+          <!-- 기본 정보 영역 -->
+          <div class="handover-detail-section" style="margin-bottom: 24px">
+            <div
+              class="section-title"
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              <i
+                class="fa-solid fa-info-circle"
+                style="color: var(--primary-color)"
+              ></i>
+              기본 정보
+            </div>
+
+            <div
+              class="detail-grid"
+              style="
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+              "
+            >
+              <div class="detail-item">
+                <span
+                  class="detail-label"
+                  style="
+                    font-size: 14px;
+                    color: #666;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                  >제목</span
+                >
+                <span
+                  class="detail-value"
+                  id="detailTitle2"
+                  style="font-size: 16px; font-weight: 500"
+                ></span>
+              </div>
+              <div class="detail-item">
+                <span
+                  class="detail-label"
+                  style="
+                    font-size: 14px;
+                    color: #666;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                  >작성자</span
+                >
+                <span
+                  class="detail-value"
+                  id="detailAuthor"
+                  style="font-size: 16px"
+                ></span>
+              </div>
+              <div class="detail-item">
+                <span
+                  class="detail-label"
+                  style="
+                    font-size: 14px;
+                    color: #666;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                  >작성일시</span
+                >
+                <span
+                  class="detail-value"
+                  id="detailDate"
+                  style="font-size: 16px"
+                ></span>
+              </div>
+              <div class="detail-item">
+                <span
+                  class="detail-label"
+                  style="
+                    font-size: 14px;
+                    color: #666;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                  >공지여부</span
+                >
+                <span
+                  class="detail-value"
+                  id="detailIsNotice"
+                  style="font-size: 16px"
+                ></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 내용 영역 -->
+          <div class="handover-detail-section">
+            <div
+              class="section-title"
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              <i
+                class="fa-solid fa-file-lines"
+                style="color: var(--primary-color)"
+              ></i>
+              내용
+            </div>
+
+            <div
+              class="detail-value handover-text"
+              id="detailContent"
+              style="
+                white-space: pre-line;
+                background-color: #f9f9f9;
+                padding: 15px;
+                border-radius: 8px;
+                min-height: 100px;
+                font-size: 15px;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <div
+          class="modal-footer"
+          style="
+            padding: 16px 24px;
+            background-color: #f8f9fb;
+            border-top: 1px solid #eee;
+          "
+        >
+          <button
+            class="btn danger-btn"
+            id="deleteHandoverBtn"
+            style="margin-right: auto"
+          >
+            <i class="fa-solid fa-trash"></i> 삭제
+          </button>
+          <button class="btn secondary-btn" data-modal="handoverDetailModal">
+            닫기
+          </button>
+          <button class="btn primary-btn" id="editHandoverBtn">
+            <i class="fa-solid fa-edit"></i> 수정
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 모달: 인수인계 등록/수정 (개선된 UI/UX) -->
+    <div id="newHandoverModal" class="modal">
+      <div
+        class="modal-content"
+        style="
+          max-width: 700px;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+          border-radius: 12px;
+        "
+      >
+        <div
+          class="modal-header"
+          style="
+            background-color: #f8f9fb;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          "
+        >
+          <h3
+            id="handoverModalTitle"
+            style="
+              margin: 0;
+              font-size: 18px;
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            "
+          >
+            <i
+              class="fa-solid fa-pen-to-square"
+              style="color: var(--primary-color)"
+            ></i>
+            인수인계 등록
+          </h3>
+          <button
+            class="close-modal"
+            data-modal="newHandoverModal"
+            style="
+              background: none;
+              border: none;
+              font-size: 18px;
+              cursor: pointer;
+              color: #666;
+            "
+          >
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+
+        <div class="modal-body" style="padding: 20px 24px">
+          <form class="new-handover-form">
+            <input type="hidden" id="handoverId" value="" />
+
+            <div class="form-group" style="margin-bottom: 18px">
+              <label
+                for="handoverTitle"
+                style="
+                  display: block;
+                  margin-bottom: 8px;
+                  font-size: 15px;
+                  font-weight: 500;
+                "
+              >
+                제목 <span class="required" style="color: #ff4d4f">*</span>
+              </label>
+              <input
+                type="text"
+                id="handoverTitle"
+                class="input-field"
+                placeholder="인수인계 제목을 입력하세요"
+                style="
+                  width: 100%;
+                  padding: 10px 12px;
+                  border: 1px solid #d9d9d9;
+                  border-radius: 4px;
+                  font-size: 15px;
+                "
+              />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 18px">
+              <label
+                for="isNotice"
+                style="
+                  display: block;
+                  margin-bottom: 8px;
+                  font-size: 15px;
+                  font-weight: 500;
+                "
+                >공지여부</label
+              >
+              <div style="display: flex; align-items: center; gap: 8px">
+                <input
+                  type="checkbox"
+                  id="isNotice"
+                  style="width: 16px; height: 16px"
+                />
+                <span class="checkbox-label" style="font-size: 14px"
+                  >공지사항으로 등록 (상단 공지사항 섹션에 표시됩니다)</span
+                >
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 18px">
+              <label
+                for="handoverContent"
+                style="
+                  display: block;
+                  margin-bottom: 8px;
+                  font-size: 15px;
+                  font-weight: 500;
+                "
+              >
+                내용 <span class="required" style="color: #ff4d4f">*</span>
+              </label>
+              <textarea
+                id="handoverContent"
+                class="textarea-field"
+                placeholder="인수인계 내용을 자세히 입력하세요"
+                rows="8"
+                style="
+                  width: 100%;
+                  padding: 12px;
+                  border: 1px solid #d9d9d9;
+                  border-radius: 4px;
+                  font-size: 15px;
+                  resize: vertical;
+                  min-height: 150px;
+                "
+              ></textarea>
+            </div>
+          </form>
+        </div>
+
+        <div
+          class="modal-footer"
+          style="
+            padding: 16px 24px;
+            background-color: #f8f9fb;
+            border-top: 1px solid #eee;
+          "
+        >
+          <button class="btn secondary-btn" data-modal="newHandoverModal">
+            취소
+          </button>
+          <button
+            class="btn primary-btn"
+            id="submitHandoverBtn"
+            style="min-width: 100px"
+          >
+            <i class="fa-solid fa-paper-plane"></i>
+            <span id="submitBtnText">등록하기</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 메시지 팝업 컴포넌트 -->
+    <div id="messagePopup" class="message-popup">
+      <div class="message-content">
+        <i class="fa-solid message-icon"></i>
+        <span class="message-text"></span>
+      </div>
+    </div>
+
+    <!-- JavaScript 파일 -->
+    <script src="js/utils.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/handover.js"></script>
+  </body>
+</html>

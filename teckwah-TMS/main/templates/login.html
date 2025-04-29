@@ -1,90 +1,74 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>로그인 - TeckWahKRTMS</title>
-    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon" />
-    <link rel="stylesheet" href="/static/css/main.css" />
-    <link rel="stylesheet" href="/static/css/login.css" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
-  </head>
-  <body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 - Teckwah TMS</title>
+    
+    <!-- 파비콘 -->
+    <link rel="icon" href="{{ url_for('static', path='images/favicon.ico') }}" type="image/x-icon">
+    
+    <!-- 기본 스타일시트 -->
+    <link rel="stylesheet" href="{{ url_for('static', path='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/login.css') }}">
+    
+    <!-- 폰트어썸 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+</head>
+<body>
     <div class="login-container">
-      <div class="login-card">
-        <div class="login-header">
-          <img src="/static/images/logo.png" alt="Logo" class="login-logo" />
-          <h2 class="login-title">TeckWahKRTMS</h2>
-          <p class="login-subtitle">By TeckWahKR Operation Team</p>
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo-container">
+                    <img src="{{ url_for('static', path='images/logo.png') }}" alt="Teckwah 로고" class="logo">
+                    <h1 class="system-name">TWLKR-TMS</h1>
+                </div>
+                <h2 class="login-title">배송 실시간 관제 시스템</h2>
+            </div>
+            
+            {% if error %}
+            <div class="alert alert-error">
+                <i class="fa-solid fa-exclamation-circle"></i>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+            
+            <form action="/login" method="POST" class="login-form">
+                <input type="hidden" name="return_to" value="{{ request.query_params.get('return_to', '') }}">
+                
+                <div class="form-group">
+                    <label for="login_id">아이디</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="login_id" name="login_id" placeholder="사용자 아이디" required autofocus>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">비밀번호</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="password" name="password" placeholder="비밀번호" required>
+                    </div>
+                </div>
+                
+                <div class="remember-me">
+                    <input type="checkbox" id="remember" name="remember">
+                    <label for="remember">로그인 상태 유지</label>
+                </div>
+                
+                <button type="submit" class="login-button">
+                    <i class="fa-solid fa-sign-in-alt"></i>
+                    로그인
+                </button>
+            </form>
+            
+            <div class="login-footer">
+                <p>© {% now 'Y' %} Teckwah Logistics Korea</p>
+            </div>
         </div>
-
-        {% if error %}
-        <div class="login-error">
-          <p class="error-title">로그인 오류</p>
-          <p class="error-message">{{ error }}</p>
-          <button
-            class="error-close"
-            onclick="this.parentNode.style.display='none'"
-          >
-            ×
-          </button>
-        </div>
-        {% endif %}
-
-        {% if redirect_message %}
-        <div class="login-error">
-          <p class="error-title">인증 필요</p>
-          <p class="error-message">{{ redirect_message }}</p>
-          <button
-            class="error-close"
-            onclick="this.parentNode.style.display='none'"
-          >
-            ×
-          </button>
-        </div>
-        {% endif %}
-
-        <form action="/auth/login" method="post" class="login-form">
-          <div class="form-group">
-            <input
-              type="text"
-              name="user_id"
-              placeholder="사용자 ID"
-              required
-              autofocus
-            />
-          </div>
-          <div class="form-group">
-            <input
-              type="password"
-              name="password"
-              placeholder="비밀번호"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <button type="submit" class="login-button">로그인</button>
-          </div>
-        </form>
-
-        {% if debug %}
-        <div class="debug-login">
-          <p class="debug-title">개발 환경 전용 - 빠른 로그인</p>
-          <div class="debug-buttons">
-            <button onclick="quickLogin('admin', 'admin1234')">관리자 계정</button>
-            <button onclick="quickLogin('user1', 'user1234')">
-              일반 사용자 계정
-            </button>
-          </div>
-        </div>
-        {% endif %}
-      </div>
     </div>
-
-    <!-- 전역 알림 컨테이너 -->
-    <div id="alertContainer" class="alert-container"></div>
-
-    <!-- 로그인 스크립트 -->
-    <script src="/static/js/login.js"></script>
-  </body>
+    
+    <script src="{{ url_for('static', path='js/login.js') }}"></script>
+</body>
 </html>

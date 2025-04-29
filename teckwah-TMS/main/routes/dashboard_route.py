@@ -50,212 +50,37 @@ from main.service.dashboard_service import (
 router = APIRouter()
 
 
-@router.get("")
-async def dashboard_page(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    startDate: Optional[str] = None,
-    endDate: Optional[str] = None,
-    orderNo: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(100, ge=1, le=100),
-):
+@router.get("/dashboard")
+async def dashboard_page(request: Request):
     """
     대시보드 페이지 렌더링
     """
-    # 날짜 기본값은 오늘
-    today = datetime.now().date()
-    start_date = today
-    end_date = today
+    try:
+        # 세션에서 사용자 정보 확인
+        user = request.session.get("user")
+        logger.debug(f"대시보드 접근 - 세션 정보: {user}")
 
-    logger.info(
-        f"대시보드 페이지 접근: URL 파라미터 - startDate={startDate}, endDate={endDate}, orderNo={orderNo}"
-    )
-
-    # URL 파라미터에서 날짜 가져오기
-    if startDate:
-        try:
-            # 'YYYY-MM-DD' 또는 'YYYY-MM-DD HH:MM:SS' 형식 처리
-            start_date = datetime.strptime(startDate.split(" ")[0], "%Y-%m-%d").date()
-            logger.info(f"시작 날짜 설정: {start_date}")
-        except ValueError:
-            logger.warning(
-                f"잘못된 시작 날짜 형식: {startDate}. 오늘 날짜로 대체합니다."
-            )
-    else:
-        logger.info(f"시작 날짜 파라미터 없음. 오늘 날짜({today})로 설정")
-
-    if endDate:
-        try:
-            # 'YYYY-MM-DD' 또는 'YYYY-MM-DD HH:MM:SS' 형식 처리
-            end_date = datetime.strptime(endDate.split(" ")[0], "%Y-%m-%d").date()
-            logger.info(f"종료 날짜 설정: {end_date}")
-        except ValueError:
-            logger.warning(f"잘못된 종료 날짜 형식: {endDate}. 오늘 날짜로 대체합니다.")
-    else:
-        logger.info(f"종료 날짜 파라미터 없음. 오늘 날짜({today})로 설정")
-
-    # 주문번호로 검색
-    if orderNo:
-        try:
-            orders, pagination, stats = search_dashboard_by_order_no(
-                db=db,
-                order_no=orderNo,
-                page=page,
-                page_size=limit,
-            )
-        except Exception as e:
-            logger.error(f"주문번호 검색 중 오류 발생: {e}", exc_info=True)
-            orders, pagination, stats = (
-                [],
-                {
-                    "total": 0,
-                    "total_pages": 0,
-                    "current": 1,
-                    "page_size": limit,
-                    "start": 0,
-                    "end": 0,
-                },
-                {},
-            )
-    else:
-        # 기본 데이터 조회 (선택된 날짜 기준 - 나머지 필터링은 클라이언트에서 처리)
-        try:
-            orders, pagination, stats = get_dashboard_list(
-                db=db,
-                start_date=start_date,
-                end_date=end_date,
-                page=page,
-                page_size=limit,
-            )
-        except Exception as e:
-            logger.error(f"대시보드 데이터 조회 중 오류 발생: {e}", exc_info=True)
-            # 오류 발생 시 빈 데이터와 함께 오류 페이지 렌더링 또는 오류 메시지 표시
-            # 여기서는 간단히 빈 리스트 반환 처리
-            orders, pagination, stats = (
-                [],
-                {
-                    "total": 0,
-                    "total_pages": 0,
-                    "current": 1,
-                    "page_size": limit,
-                    "start": 0,
-                    "end": 0,
-                },
-                {},
+        if not user:
+            logger.warning("인증되지 않은 사용자의 대시보드 접근 시도")
+            return RedirectResponse(
+                url="/login?return_to=/dashboard", status_code=status.HTTP_303_SEE_OTHER
             )
 
-    # 주문 데이터 가공 (템플릿 표시용)
-    orders_data = []
-    for order in orders:
-        # 상태, 유형 레이블 설정
-        status_labels = {
-            "WAITING": "대기",
-            "IN_PROGRESS": "진행",
-            "COMPLETE": "완료",
-            "ISSUE": "이슈",
-            "CANCEL": "취소",
-        }
-        type_labels = {"DELIVERY": "배송", "RETURN": "반품"}
-
-        # 날짜 포맷팅
-        eta_formatted = order.eta.strftime("%Y-%m-%d %H:%M") if order.eta else ""
-        create_time_formatted = (
-            order.create_time.strftime("%Y-%m-%d %H:%M") if order.create_time else ""
-        )
-
-        orders_data.append(
+        # 세션이 있는 경우 바로 대시보드 페이지 렌더링
+        logger.info(f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}")
+        return templates.TemplateResponse(
+            "dashboard.html",
             {
-                "dashboardId": order.dashboard_id,
-                "orderNo": order.order_no,
-                "type": order.type,
-                "type_label": type_labels.get(order.type, order.type),
-                "status": order.status,
-                "status_label": status_labels.get(order.status, order.status),
-                "department": order.department,
-                "warehouse": order.warehouse,
-                "sla": order.sla,
-                "eta": eta_formatted,
-                "createTime": create_time_formatted,
-                "departTime": (
-                    order.depart_time.strftime("%Y-%m-%d %H:%M")
-                    if order.depart_time
-                    else ""
-                ),
-                "completeTime": (
-                    order.complete_time.strftime("%Y-%m-%d %H:%M")
-                    if order.complete_time
-                    else ""
-                ),
-                "postalCode": order.postal_code,
-                "address": order.address,
-                "region": getattr(order, "region", "") or "",
-                "city": getattr(order, "city", "") or "",
-                "county": getattr(order, "county", "") or "",
-                "district": getattr(order, "district", "") or "",
-                "distance": getattr(order, "distance", 0),
-                "durationTime": getattr(order, "duration_time", 0),
-                "customer": order.customer,
-                "contact": order.contact,
-                "driverName": order.driver_name,
-                "driverContact": order.driver_contact,
-                "remark": getattr(order, "remark", ""),
-                "isLocked": getattr(order, "is_locked", False),
-                "updatedBy": getattr(order, "update_by", None),
-                "updateAt": (
-                    getattr(order, "update_at", None).strftime("%Y-%m-%d %H:%M")
-                    if getattr(order, "update_at", None)
-                    else ""
-                ),
-            }
+                "request": request,
+                "user": user,
+                "debug": True,
+            },
         )
-
-    # 드롭다운 선택 옵션
-    statuses = [
-        {"value": "WAITING", "label": "대기"},
-        {"value": "IN_PROGRESS", "label": "진행"},
-        {"value": "COMPLETE", "label": "완료"},
-        {"value": "ISSUE", "label": "이슈"},
-        {"value": "CANCEL", "label": "취소"},
-    ]
-
-    departments = [
-        {"value": "CS", "label": "CS"},
-        {"value": "HES", "label": "HES"},
-        {"value": "LENOVO", "label": "LENOVO"},
-    ]
-
-    warehouses = [
-        {"value": "SEOUL", "label": "서울"},
-        {"value": "BUSAN", "label": "부산"},
-        {"value": "GWANGJU", "label": "광주"},
-        {"value": "DAEJEON", "label": "대전"},
-    ]
-
-    types = [
-        {"value": "DELIVERY", "label": "배송"},
-        {"value": "RETURN", "label": "회수"},
-    ]
-
-    # 템플릿 렌더링
-    return templates.TemplateResponse(  # 전역 templates 사용
-        "dashboard.html",
-        {
-            "request": request,
-            "user": current_user,
-            "orders": orders_data,
-            "pagination": pagination,
-            "stats": stats if stats else {},  # stats가 None일 경우 빈 dict 전달
-            "statuses": statuses,
-            "departments": departments,
-            "warehouses": warehouses,
-            "types": types,
-            "selected_date": start_date.strftime(
-                "%Y-%m-%d"
-            ),  # date_filter 대신 start_date 사용
-        },
-    )
+    except Exception as e:
+        logger.error(f"대시보드 페이지 렌더링 중 오류 발생: {str(e)}")
+        return RedirectResponse(
+            url="/login?return_to=/dashboard", status_code=status.HTTP_303_SEE_OTHER
+        )
 
 
 @router.get("/orders", response_model=DashboardListResponse)
@@ -531,15 +356,17 @@ async def change_order_status(
 ):
     """
     주문 상태 변경 API
-    
+
     참고: 현재 프론트엔드에서는 일괄 상태 변경 기능이 제거되었으며,
     단일 주문 상태 변경은 주문 상세 모달에서만 처리합니다.
     이 API는 향후 호환성을 위해 유지됩니다.
     """
     try:
         # API 호출 로깅
-        logger.info(f"일괄 상태 변경 API 호출: {len(status_data.ids)}건, 상태={status_data.status}")
-        
+        logger.info(
+            f"일괄 상태 변경 API 호출: {len(status_data.ids)}건, 상태={status_data.status}"
+        )
+
         # 상태 변경
         results = change_status(
             db=db,
@@ -575,15 +402,17 @@ async def assign_order_driver(
 ):
     """
     주문 기사 배정 API
-    
+
     참고: 현재 프론트엔드에서는 일괄 배차 기능이 제거되었으며,
     단일 주문 기사 배정은 주문 상세 모달에서만 처리합니다.
     이 API는 향후 호환성을 위해 유지됩니다.
     """
     try:
         # API 호출 로깅
-        logger.info(f"일괄 기사 배정 API 호출: {len(driver_data.ids)}건, 기사={driver_data.driver_name}")
-        
+        logger.info(
+            f"일괄 기사 배정 API 호출: {len(driver_data.ids)}건, 기사={driver_data.driver_name}"
+        )
+
         # 기사 배정
         results = assign_driver(
             db=db,
@@ -619,7 +448,7 @@ async def delete_order(
 ):
     """
     주문 삭제 API
-    
+
     참고: 현재 프론트엔드에서는 일괄 삭제 기능이 제거되었으며,
     단일 주문 삭제는 주문 상세 모달에서만 처리합니다.
     이 API는 향후 호환성을 위해 유지됩니다.
@@ -627,7 +456,7 @@ async def delete_order(
     try:
         # API 호출 로깅
         logger.info(f"일괄 삭제 API 호출: {len(delete_data.ids)}건")
-        
+
         # 관리자 권한 확인
         if current_user.get("user_role") != "ADMIN":
             return JSONResponse(

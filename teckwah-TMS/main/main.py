@@ -1,12 +1,16 @@
 import time
 import uuid
 import uvicorn
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
 from contextlib import asynccontextmanager
+from fastapi.templating import Jinja2Templates
+import os
+import logging
+from datetime import datetime
 
 # --- 프로젝트 모듈 임포트 ---
 # 주의: utils 내부 모듈들의 import 경로가 'backend.' 로 시작하는 경우,
@@ -15,7 +19,7 @@ from contextlib import asynccontextmanager
 from main.utils.config import get_settings
 from main.utils.database import test_db_connection
 from main.utils.logger import logger
-from main.routes import auth_route, dashboard_route
+from main.routes import auth_route, dashboard_route, handover_route, users_route, order_routes
 from main.core.templating import templates
 
 # --- 설정 로드 ---
@@ -24,6 +28,9 @@ settings = get_settings()
 # --- Jinja2 템플릿 설정 (제거) ---
 # templates = Jinja2Templates(directory="main/templates") # 제거
 
+# 템플릿 설정
+templates = Jinja2Templates(directory="main/templates")
+
 
 # --- Lifespan 이벤트 핸들러 ---
 @asynccontextmanager
@@ -31,6 +38,12 @@ async def lifespan(app: FastAPI):
     # 애플리케이션 시작 시
     logger.info("애플리케이션 시작 (lifespan)...")
     test_db_connection()
+
+    # 세션 정리 초기화
+    from main.utils.security import initialize_session_cleanup
+
+    initialize_session_cleanup()
+
     yield
     # 애플리케이션 종료 시
     logger.info("애플리케이션 종료 (lifespan)...")
@@ -108,6 +121,7 @@ app.add_middleware(
     max_age=settings.SESSION_EXPIRE_HOURS * 60 * 60,  # 시간 단위를 초 단위로 변환
     https_only=False,  # 로컬 테스트 및 GAE 환경 고려 (GAE가 TLS 처리)
     same_site="lax",
+    session_cookie="session",  # 명시적인 세션 쿠키 이름 지정
 )
 
 # 3. CORS 미들웨어 (규칙 4.3)
@@ -124,16 +138,16 @@ app.add_middleware(
 
 # --- 라우터 포함 ---
 # 주의: 라우터 파일 내부에 APIRouter 인스턴스가 'router' 변수명으로 정의되어 있어야 합니다.
-from main.routes import auth_route, dashboard_route, handover_route, users_route
-
-app.include_router(auth_route.router, prefix="/auth", tags=["Authentication"])
-app.include_router(dashboard_route.router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(auth_route.router, tags=["auth"])  # 인증 라우트를 루트 레벨로 이동
+app.include_router(
+    dashboard_route.router, tags=["dashboard"]
+)  # 대시보드 라우트를 루트 레벨로 이동
+app.include_router(order_routes.router)  # 주문 상세 페이지 라우트
 app.include_router(handover_route.router, prefix="/handover", tags=["Handover"])
 app.include_router(users_route.router, prefix="/users", tags=["Users"])
 
 
 # --- 정적 파일 서빙 --- (규칙 4.3.1)
-# React 빌드 결과물 등 정적 파일을 '/main/static' 디렉토리에서 서빙합니다.
 # Dockerfile에서 해당 경로에 파일이 복사되도록 구성해야 합니다.
 # 경로 "/static"으로 접근
 app.mount("/static", StaticFiles(directory="main/static"), name="static")
@@ -146,17 +160,22 @@ async def root(request: Request):
     서비스 진입점.
     로그인 상태를 확인하여 로그인 페이지 또는 대시보드로 리다이렉션합니다.
     """
-    user = request.session.get("user")
-    if user:
-        # 로그인 상태이면 대시보드로 리다이렉션
-        logger.debug(
-            f"로그인 사용자 감지 ({user.get('user_id', 'N/A')}), 대시보드로 리다이렉션"
-        )
-        return RedirectResponse(url="/dashboard", status_code=302)
-    else:
-        # 로그아웃 상태이면 로그인 페이지 렌더링
-        logger.debug("로그아웃 상태 감지, 로그인 페이지 렌더링")
-        return templates.TemplateResponse("login.html", {"request": request})
+    try:
+        # 세션에서 사용자 정보 확인
+        user = request.session.get("user")
+        if user:
+            logger.info(
+                f"인증된 사용자 대시보드 리다이렉트: {user.get('user_id', 'N/A')}"
+            )
+            return RedirectResponse(
+                url="/dashboard", status_code=status.HTTP_303_SEE_OTHER
+            )
+        else:
+            logger.info("미인증 사용자 로그인 페이지 리다이렉트")
+            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        logger.error(f"루트 경로 처리 중 오류 발생: {str(e)}")
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # --- Uvicorn 실행 (Dockerfile의 CMD와 연동) ---

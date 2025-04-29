@@ -9,7 +9,7 @@ from functools import lru_cache
 import logging
 
 # 시스템 전체 타임존을 Asia/Seoul로 설정
-os.environ['TZ'] = 'Asia/Seoul'
+os.environ["TZ"] = "Asia/Seoul"
 try:
     time.tzset()  # 타임존 적용
 except AttributeError:
@@ -22,10 +22,12 @@ try:
     # 환경 변수 로드 - Docker와 로컬 환경 모두 확인
     env_paths = [
         "/app/.env",  # Docker 컨테이너 내부 경로
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),  # 프로젝트 루트
+        os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), ".env"
+        ),  # 프로젝트 루트
         os.path.join(os.path.dirname(__file__), ".env"),  # backend 폴더
     ]
-    
+
     env_loaded = False
     for env_path in env_paths:
         if os.path.exists(env_path):
@@ -33,10 +35,12 @@ try:
             logging.info(f".env 파일을 로드했습니다: {env_path}")
             env_loaded = True
             break
-            
+
     if not env_loaded:
-        logging.warning("어떤 .env 파일도 찾을 수 없습니다. 기본 환경 변수를 사용합니다.")
-        
+        logging.warning(
+            "어떤 .env 파일도 찾을 수 없습니다. 기본 환경 변수를 사용합니다."
+        )
+
 except ImportError:
     logging.warning(
         "python-dotenv 패키지가 설치되지 않았습니다. 기본 환경 변수를 사용합니다."
@@ -57,6 +61,7 @@ class Settings:
         # 서버 설정
         self.DEBUG = os.getenv("DEBUG", "False").lower() == "true"
         self.PORT = int(os.getenv("PORT", "8080"))
+        self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")  # 로그 레벨 설정 추가
 
         # 콤마로 구분된 문자열을 리스트로 변환
         origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:8080")

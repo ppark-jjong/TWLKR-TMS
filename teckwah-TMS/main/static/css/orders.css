@@ -1,0 +1,149 @@
+/* 주문 관련 페이지 스타일 */
+
+/* 주문 상세 페이지 */
+.order-detail-content {
+  padding: var(--spacing-lg);
+}
+
+.order-detail-columns {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.detail-column {
+  flex: 1;
+  min-width: 300px;
+}
+
+/* 주문 상세 정보 섹션 */
+.order-detail-section {
+  margin-bottom: var(--spacing-lg);
+  background-color: white;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.section-title {
+  padding: var(--spacing-md);
+  background-color: var(--background-color-light);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.section-title i {
+  color: var(--primary-color);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
+}
+
+.detail-value {
+  font-size: var(--font-size-md);
+  color: var(--text-color);
+}
+
+/* 메모 영역 */
+.remark-container {
+  padding: var(--spacing-md);
+  background-color: var(--background-color-light);
+  border-radius: var(--border-radius-sm);
+  min-height: 100px;
+  white-space: pre-line;
+  margin: 0 var(--spacing-md) var(--spacing-md);
+}
+
+/* 주문 푸터 - 업데이트 정보 */
+.order-footer {
+  border-top: 1px solid var(--border-color);
+  padding: var(--spacing-md);
+  background-color: var(--background-color-light);
+}
+
+.update-info {
+  display: flex;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.update-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.update-item i {
+  color: var(--primary-color);
+  font-size: var(--font-size-sm);
+}
+
+.update-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
+}
+
+.update-value {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+/* 주문 생성/수정 폼 페이지 */
+.order-form-page .main-card {
+  max-width: 900px;
+  margin: 0 auto var(--spacing-lg);
+}
+
+.order-form {
+  padding: var(--spacing-lg);
+}
+
+.update-info-section {
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+/* 반응형 스타일 */
+@media (max-width: 768px) {
+  .order-detail-columns {
+    flex-direction: column;
+  }
+  
+  .detail-column {
+    width: 100%;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .update-info {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+}

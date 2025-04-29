@@ -35,7 +35,7 @@ class DashboardCreate(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
         json_encoders = {datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S")}
 
 
@@ -55,8 +55,12 @@ class DashboardUpdate(BaseModel):
     customer: Optional[str] = Field(None, description="고객명")
     contact: Optional[str] = Field(None, description="연락처")
     remark: Optional[str] = Field(None, description="비고")
-    driver_name: Optional[str] = Field(None, description="기사 이름", alias="driverName")
-    driver_contact: Optional[str] = Field(None, description="기사 연락처", alias="driverContact")
+    driver_name: Optional[str] = Field(
+        None, description="기사 이름", alias="driverName"
+    )
+    driver_contact: Optional[str] = Field(
+        None, description="기사 연락처", alias="driverContact"
+    )
 
     @validator("postal_code")
     def validate_postal_code(cls, v):
@@ -71,7 +75,7 @@ class DashboardUpdate(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
         json_encoders = {datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S")}
 
 
@@ -124,7 +128,7 @@ class DashboardResponse(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
         from_attributes = True
         json_encoders = {
             datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
@@ -150,12 +154,22 @@ class DashboardListItem(BaseModel):
     driver_name: Optional[str] = Field(
         None, description="기사 이름", alias="driverName"
     )
+    driver_contact: Optional[str] = Field(
+        None, description="기사 연락처", alias="driverContact"
+    )
+    updated_by: Optional[str] = Field(
+        None, description="마지막 업데이트 사용자", alias="updatedBy"
+    )
+    update_at: Optional[datetime] = Field(
+        None, description="마지막 업데이트 시간", alias="updateAt"
+    )
+    is_locked: bool = Field(False, description="락 여부", alias="isLocked")
 
     class Config:
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
         from_attributes = True
         json_encoders = {
             datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
@@ -175,7 +189,7 @@ class DashboardListResponse(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
 
 
 class StatusChangeRequest(BaseModel):
@@ -190,7 +204,7 @@ class StatusChangeRequest(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
 
 
 class DriverAssignRequest(BaseModel):
@@ -206,7 +220,7 @@ class DriverAssignRequest(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
 
 
 class DashboardDeleteRequest(BaseModel):
@@ -218,7 +232,7 @@ class DashboardDeleteRequest(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
 
 
 class LockStatusResponse(BaseModel):
@@ -235,7 +249,7 @@ class LockStatusResponse(BaseModel):
         """스키마 설정"""
 
         by_alias = True
-        populate_by_field_name = True
+        populate_by_name = True
         json_encoders = {
             datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
         }
