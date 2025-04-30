@@ -8,6 +8,14 @@
 
 {% block content %}
 <div class="dashboard-page">
+    <!-- 로딩 오버레이 추가 (기본적으로 활성화) -->
+    <div class="loading-overlay active" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>데이터를 불러오는 중입니다...</p>
+        </div>
+    </div>
+    
     <div class="main-card">
         <!-- 페이지 제목 -->
         <div class="page-header">
@@ -101,15 +109,15 @@
 
         <!-- 액션 버튼 -->
         <div class="action-buttons">
+            <button class="btn secondary-btn" id="customizeColumnsBtn">
+                <i class="fa-solid fa-table-columns"></i> 컬럼 설정
+            </button>
             <button class="btn primary-btn" id="refreshBtn">
                 <i class="fa-solid fa-arrows-rotate"></i> 새로고침
             </button>
             <a href="/orders/create" class="btn primary-btn">
                 <i class="fa-solid fa-plus"></i> 신규 등록
             </a>
-            <button class="btn secondary-btn" id="customizeColumnsBtn">
-                <i class="fa-solid fa-table-columns"></i> 컬럼 설정
-            </button>
         </div>
 
         <!-- 컬럼 커스터마이징 대화상자 (필요한 컬럼만 포함) -->
@@ -178,30 +186,30 @@
 
                 <!-- 통계 카드 영역 제거 -->
 
-        <!-- 데이터 테이블 (체크박스 제거) -->
+        <!-- 데이터 테이블 (최적화 버전) -->
         <div class="table-container">
             <table class="data-table" id="dashboardTable">
                 <thead>
                     <tr>
-                        <th>주문번호</th>
-                        <th>고객</th>
-                        <th>유형</th>
-                        <th>상태</th>
-                        <th>부서</th>
-                        <th>창고</th>
-                        <th>ETA</th>
-                        <th>지역</th>
-                        <th>배송기사</th>
+                        <th width="15%">주문번호</th>
+                        <th width="15%">고객</th>
+                        <th width="8%">유형</th>
+                        <th width="10%">상태</th>
+                        <th width="10%">부서</th>
+                        <th width="10%">창고</th>
+                        <th width="15%">ETA</th>
+                        <th width="10%">지역</th>
+                        <th width="12%">배송기사</th>
                     </tr>
                 </thead>
                 <tbody id="dashboardTableBody">
                     {% if initial_data.orders %}
                         {% for order in initial_data.orders %}
-                        <tr class="status-{{ order.status|lower }}" data-id="{{ order.dashboardId }}" style="cursor: pointer;">
+                        <tr class="status-{{ order.status|lower }} clickable-row" data-id="{{ order.dashboardId }}">
                             <td>
                                 <a href="/orders/{{ order.dashboardId }}" class="order-number">{{ order.orderNo }}</a>
                             </td>
-                            <td>{{ order.customer }}</td>
+                            <td class="truncate">{{ order.customer }}</td>
                             <td>{{ order.typeLabel }}</td>
                             <td>
                                 <span class="status-badge status-{{ order.status|lower }}">{{ order.statusLabel }}</span>
@@ -210,7 +218,7 @@
                             <td>{{ order.warehouse }}</td>
                             <td>{{ order.eta }}</td>
                             <td>{{ order.region }}</td>
-                            <td>{{ order.driverName }}</td>
+                            <td class="truncate">{{ order.driverName }}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
@@ -230,161 +238,139 @@
 
         <!-- 페이지네이션 -->
         <div class="pagination" id="pagination">
-            <button class="page-btn" data-page="prev" {% if initial_data.pagination.current_page <= 1 %}disabled{% endif %}>
+            <button class="page-btn" data-page="prev" {% if initial_data.pagination.current <= 1 %}disabled{% endif %}>
                 <i class="fa-solid fa-chevron-left"></i>
             </button>
-            <span class="page-info" id="pageInfo">{{ initial_data.pagination.current_page }} / {{ initial_data.pagination.total_pages }}</span>
-            <button class="page-btn" data-page="next" {% if initial_data.pagination.current_page >= initial_data.pagination.total_pages %}disabled{% endif %}>
+            <span class="page-info" id="pageInfo">{{ initial_data.pagination.current }} / {{ initial_data.pagination.total_pages }}</span>
+            <button class="page-btn" data-page="next" {% if initial_data.pagination.current >= initial_data.pagination.total_pages %}disabled{% endif %}>
                 <i class="fa-solid fa-chevron-right"></i>
             </button>
         </div>
 
-        <!-- 로딩 오버레이 -->
-        <div id="loadingOverlay" class="loading-overlay">
-            <div class="loading-content">
-                <i class="fa-solid fa-spinner loading-spinner"></i>
-                <span>데이터를 불러오는 중...</span>
+        <!-- 오류 메시지 표시 영역 추가 -->
+        {% if initial_data.error_message %}
+        <div class="error-message-container">
+            <div class="alert alert-danger">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                {{ initial_data.error_message }}
             </div>
         </div>
-        
-        <!-- 필터 태그 영역 제거 -->
+        {% endif %}
     </div>
 </div>
-
-<!-- 필터 표시 스타일 (개선된 디자인) -->
-<style>
-/* 활성 필터 표시 영역 */
-.active-filters {
-    margin-top: 15px;
-    padding: 10px;
-    border-top: 1px solid #eee;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    display: none; /* 기본적으로 숨김, 필터 적용시 표시 */
-}
-
-.filter-header {
-    font-weight: bold;
-    color: #666;
-}
-
-.filter-label {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 10px;
-    background-color: var(--primary-color-light);
-    color: var(--primary-color);
-    border-radius: 16px;
-    font-size: 0.85em;
-    font-weight: 500;
-}
-
-.filter-label:empty {
-    display: none;
-}
-
-/* 상태 요약 배지 */
-.status-summary {
-    margin: 15px 0;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.status-badge-container {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.status-count-badge {
-    padding: 4px 10px;
-    border-radius: 16px;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-.status-total {
-    background-color: var(--background-color-light);
-    color: var(--text-color-secondary);
-}
-
-.status-waiting {
-    background-color: var(--status-waiting-bg);
-    color: var(--status-waiting-text);
-}
-
-.status-progress {
-    background-color: var(--status-progress-bg);
-    color: var(--status-progress-text);
-}
-
-.status-complete {
-    background-color: var(--status-complete-bg);
-    color: var(--status-complete-text);
-}
-
-.status-issue {
-    background-color: var(--status-issue-bg);
-    color: var(--status-issue-text);
-}
-
-/* 필터 선택에 활성화 스타일 */
-.filter-select.filter-active {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(215, 37, 25, 0.1);
-}
-
-/* 락 메커니즘 개선 */
-.lock-details {
-    margin: 15px 0;
-    padding: 10px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    font-size: 0.9em;
-}
-
-.lock-suggestion {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: #fff8e1;
-    border-left: 3px solid #ffc107;
-    border-radius: 0 4px 4px 0;
-}
-
-.suggestion-text {
-    margin: 0;
-    color: #5a5a5a;
-    font-size: 0.9em;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-}
-
-.page-title {
-    margin: 0;
-    color: #333;
-}
-
-.page-subtitle {
-    color: #777;
-    margin: 5px 0 0 0;
-}
-</style>
 {% endblock %}
 
 {% block page_js %}
-<!-- 서버에서 전달된 초기 데이터를 JavaScript 변수로 선언 -->
+<!-- 초기 데이터를 페이지에 데이터 속성으로 추가 -->
+<div id="dashboardDataContainer" 
+     data-initial="{{ initial_data|tojson }}" 
+     class="hidden"></div>
+
+<!-- 로그 디버그 정보 (개발 모드에서만 표시) -->
+<div id="logContainer" class="log-container" style="display: none;">
+  <div class="log-header">
+    <h3>디버그 로그</h3>
+    <button id="toggleLogBtn" class="btn secondary-btn">닫기</button>
+  </div>
+  <div id="logContent" class="log-content"></div>
+</div>
+
 <script>
-    // 서버에서 전달된 초기 데이터
-    const initialData = {{ initial_data|tojson }};
+  // 디버그 모드 확인 (개발 환경에서만 사용)
+  const isDebugMode = true;
+  
+  if (isDebugMode) {
+    // 콘솔 로그 오버라이드하여 로그 컨테이너에 표시
+    const logContainer = document.getElementById('logContainer');
+    const logContent = document.getElementById('logContent');
+    const toggleLogBtn = document.getElementById('toggleLogBtn');
+    
+    // 로그 컨테이너 표시
+    logContainer.style.display = 'block';
+    
+    // 토글 버튼 이벤트
+    toggleLogBtn.addEventListener('click', function() {
+      if (logContent.style.display === 'none') {
+        logContent.style.display = 'block';
+        toggleLogBtn.textContent = '닫기';
+      } else {
+        logContent.style.display = 'none';
+        toggleLogBtn.textContent = '열기';
+      }
+    });
+    
+    // 로그 추가 함수
+    function addLogMessage(level, message) {
+      const logItem = document.createElement('div');
+      logItem.className = `log-item log-${level.toLowerCase()}`;
+      
+      const timestamp = new Date().toISOString().slice(11, 19);
+      logItem.innerHTML = `<span class="log-time">${timestamp}</span> <span class="log-level">${level}</span> ${message}`;
+      
+      logContent.appendChild(logItem);
+      logContent.scrollTop = logContent.scrollHeight;
+    }
+    
+    // 원본 콘솔 메서드 저장
+    const originalConsole = {
+      log: console.log,
+      warn: console.warn,
+      error: console.error,
+      info: console.info,
+      debug: console.debug
+    };
+    
+    // 콘솔 로그 오버라이드
+    console.log = function() {
+      originalConsole.log.apply(console, arguments);
+      
+      const message = Array.from(arguments).map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : arg
+      ).join(' ');
+      
+      // 로거 메시지 형식 확인 및 처리
+      if (message.startsWith('로거:')) {
+        const parts = message.split(' ');
+        const level = parts[1];
+        const logMessage = parts.slice(2).join(' ');
+        addLogMessage(level, logMessage);
+      } else {
+        // 일반 콘솔 로그
+        addLogMessage('LOG', message);
+      }
+    };
+    
+    console.error = function() {
+      originalConsole.error.apply(console, arguments);
+      
+      const message = Array.from(arguments).map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : arg
+      ).join(' ');
+      
+      if (message.startsWith('로거:') && message.includes('ERROR')) {
+        const logMessage = message.split('로거: ERROR ')[1];
+        addLogMessage('ERROR', logMessage);
+      } else {
+        addLogMessage('ERROR', message);
+      }
+    };
+    
+    console.warn = function() {
+      originalConsole.warn.apply(console, arguments);
+      
+      const message = Array.from(arguments).map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : arg
+      ).join(' ');
+      
+      if (message.startsWith('로거:') && message.includes('WARN')) {
+        const logMessage = message.split('로거: WARN ')[1];
+        addLogMessage('WARN', logMessage);
+      } else {
+        addLogMessage('WARN', message);
+      }
+    };
+  }
 </script>
+
 <script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
 {% endblock %}

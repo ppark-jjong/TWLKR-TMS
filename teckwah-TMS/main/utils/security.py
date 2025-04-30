@@ -191,15 +191,32 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     Raises:
         HTTPException: 인증되지 않은 경우
     """
-    session_id = request.cookies.get("session_id")
-    session_data = get_session(session_id)
+    # FastAPI의 세션 미들웨어 사용 - request.session에서 직접 사용자 정보 확인
+    user = request.session.get("user")
 
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="인증이 필요합니다"
-        )
+    # 세션에 사용자 정보가 없는 경우 쿠키의 세션 ID 확인
+    if not user:
+        session_id = request.cookies.get("session_id")
+        session_data = get_session(session_id)
 
-    return session_data
+        if session_data:
+            # 세션 데이터가 있으면 세션에 저장
+            request.session["user"] = session_data
+            user = session_data
+            logger.debug(f"세션 ID로 사용자 정보 복원: {session_id[:8]}...")
+        else:
+            # 세션 데이터가 없으면 인증 오류
+            logger.warning(f"인증되지 않은 접근 시도: {request.url.path}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="인증이 필요합니다"
+            )
+
+    # 사용자 정보 디버그 로깅
+    logger.debug(
+        f"인증된 사용자: {user.get('user_id', 'N/A')}, 권한: {user.get('user_role', 'N/A')}"
+    )
+
+    return user
 
 
 def get_admin_user(

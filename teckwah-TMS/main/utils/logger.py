@@ -68,6 +68,48 @@ def service(service_name, method_name, data=None):
     logger.debug(message)
 
 
+# 함수 시작/종료 로그 (중간 포인트 로깅)
+def function_start(func_name, params=None):
+    """함수 시작 로그"""
+    param_str = str(params) if params else ""
+    logger.info(f"{func_name} 시작: 매개변수={param_str}")
+
+
+def function_end(func_name, result=None):
+    """함수 종료 로그"""
+    result_str = str(result) if result is not None else ""
+    logger.info(f"{func_name} 완료: 결과={result_str}")
+
+
+# 데이터베이스 로그 함수
+def db_query_start(query_desc):
+    """DB 쿼리 시작 로그"""
+    logger.debug(f"DB 쿼리 시작: {query_desc}")
+
+
+def db_query_result(result_summary):
+    """DB 쿼리 결과 로그"""
+    logger.debug(f"DB 쿼리 결과: {result_summary}")
+
+
+# 조건부 분기점 로그
+def condition_check(condition_name, result):
+    """조건 평가 로그"""
+    logger.debug(f"조건 평가: {condition_name}={result}")
+
+
+# 상태 변경 로그
+def state_change(target, old_state, new_state):
+    """상태 변경 로그"""
+    logger.info(f"상태 변경: {target} {old_state}->{new_state}")
+
+
+# 계산 로그
+def calculation(calc_name, input_value, result_value):
+    """계산 로그"""
+    logger.debug(f"{calc_name} 계산: 입력={input_value}, 결과={result_value}")
+
+
 # API 요청 로그 함수
 def api(method, url, data=None):
     """API 요청 로그"""
@@ -87,12 +129,11 @@ def response(url, success, data=None):
     logger.debug(message)
 
 
-# 에러 로그 함수 (간소화)
+# 에러 로그 함수 (상세 정보 포함)
 def error(message, exception=None):
     """에러 로그"""
     if exception:
-        logger.error(f"{message}: {str(exception)}")
-        logger.error(traceback.format_exc())
+        logger.error(f"{message}: {str(exception)}", exc_info=True)
     else:
         logger.error(message)
 

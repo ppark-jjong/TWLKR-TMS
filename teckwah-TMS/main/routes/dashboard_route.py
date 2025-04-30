@@ -73,42 +73,39 @@ async def dashboard_page(
             return RedirectResponse(
                 url="/login?return_to=/dashboard", status_code=status.HTTP_303_SEE_OTHER
             )
-        
+
         # 기본값 설정
         today = datetime.now().date()
-        
+
         # 검색 요청 파라미터 처리
         search_mode = "default"
-        
+
         if order_no:
             # 주문번호 검색 모드
             search_mode = "order_no"
             orders, pagination, stats = search_dashboard_by_order_no(
-                db=db, 
-                order_no=order_no, 
-                page=page, 
-                page_size=page_size
+                db=db, order_no=order_no, page=page, page_size=page_size
             )
             logger.info(f"주문번호 검색: {order_no}, 결과: {len(orders)}건")
         else:
             # 날짜 범위 설정
             start_date_obj = None
             end_date_obj = None
-            
+
             if start_date:
                 try:
                     start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
                     search_mode = "date_range"
                 except ValueError:
                     logger.warning(f"잘못된 시작 날짜 형식: {start_date}")
-            
+
             if end_date:
                 try:
                     end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
                     search_mode = "date_range"
                 except ValueError:
                     logger.warning(f"잘못된 종료 날짜 형식: {end_date}")
-            
+
             # 날짜 범위가 없으면 오늘 날짜 사용
             if not start_date_obj and not end_date_obj:
                 start_date_obj = today
@@ -117,7 +114,7 @@ async def dashboard_page(
                 end_date_obj = start_date_obj  # 시작일만 있으면 종료일도 같게 설정
             elif not start_date_obj and end_date_obj:
                 start_date_obj = end_date_obj  # 종료일만 있으면 시작일도 같게 설정
-            
+
             # 주문 데이터 조회
             orders, pagination, stats = get_dashboard_list(
                 db=db,
@@ -126,9 +123,11 @@ async def dashboard_page(
                 page=page,
                 page_size=page_size,
             )
-            
-            logger.info(f"날짜 범위 조회: {start_date_obj} ~ {end_date_obj}, 결과: {len(orders)}건")
-        
+
+            logger.info(
+                f"날짜 범위 조회: {start_date_obj} ~ {end_date_obj}, 결과: {len(orders)}건"
+            )
+
         # JSON 응답과 동일한 형식으로 데이터 가공
         status_labels = {
             "WAITING": "대기",
@@ -150,14 +149,14 @@ async def dashboard_page(
                 "warehouse": order.warehouse,
                 "sla": order.sla,
                 "eta": order.eta,
-                "region": order.region or "",
+                "region": getattr(order, "region", "") or "",
                 "customer": order.customer,
                 "driverName": order.driver_name or "",
                 "statusLabel": status_labels.get(order.status, order.status),
                 "typeLabel": type_labels.get(order.type, order.type),
             }
             orders_data.append(order_dict)
-        
+
         # 템플릿에 전달할 날짜 문자열 형식으로 변환
         if search_mode == "date_range" or search_mode == "default":
             start_date_str = start_date_obj.strftime("%Y-%m-%d")
@@ -168,7 +167,9 @@ async def dashboard_page(
             end_date_str = today.strftime("%Y-%m-%d")
 
         # 세션이 있는 경우 대시보드 페이지 렌더링 (초기 데이터 포함)
-        logger.info(f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}, 데이터: {len(orders_data)}건")
+        logger.info(
+            f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}, 데이터: {len(orders_data)}건"
+        )
         return templates.TemplateResponse(
             "dashboard.html",
             {
@@ -187,9 +188,56 @@ async def dashboard_page(
             },
         )
     except Exception as e:
-        logger.error(f"대시보드 페이지 렌더링 중 오류 발생: {str(e)}")
-        return RedirectResponse(
-            url="/login?return_to=/dashboard", status_code=status.HTTP_303_SEE_OTHER
+        logger.error(f"대시보드 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
+        
+        # 오류의 상세 정보 로깅
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"오류 상세 정보: {error_traceback}")
+        
+        # 오류가 발생해도 리다이렉트하지 않고 빈 데이터로 대시보드 페이지를 렌더링
+        # 기본 페이지네이션 객체 생성
+        empty_pagination = {
+            "total": 0,
+            "page_size": 10,
+            "current": 1,
+            "total_pages": 1,
+            "start": 0,
+            "end": 0,
+        }
+
+        # 기본 통계 데이터 생성
+        empty_stats = {
+            "total": 0,
+            "waiting": 0,
+            "in_progress": 0,
+            "complete": 0,
+            "issue": 0,
+            "cancel": 0,
+        }
+
+        today_str = datetime.now().date().strftime("%Y-%m-%d")
+        
+        # 중요 중간 포인트 로깅
+        logger.info(f"오류 발생 후 기본 응답 생성: 사용자={request.session.get('user', {}).get('user_id', 'N/A')}")
+
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "user": request.session.get("user"),
+                "initial_data": {
+                    "orders": [],
+                    "pagination": empty_pagination,
+                    "stats": empty_stats,
+                    "today": today_str,
+                    "end_date": today_str,
+                    "search_mode": "default",
+                    "order_no": "",
+                    "error_message": f"데이터 조회 중 오류가 발생했습니다: {str(e)}",
+                },
+                "debug": True,
+            },
         )
 
 
@@ -299,7 +347,7 @@ async def search_order(
                 "warehouse": order.warehouse,
                 "sla": order.sla,
                 "eta": order.eta,
-                "region": order.region or "",
+                "region": getattr(order, "region", "") or "",
                 "customer": order.customer,
                 "driverName": order.driver_name or "",
                 "statusLabel": status_labels.get(order.status, order.status),
@@ -319,7 +367,7 @@ async def search_order(
         logger.error(f"주문번호 검색 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "검색 중 오류가 발생했습니다."}
+            content={"success": False, "message": "검색 중 오류가 발생했습니다."},
         )
 
 
@@ -351,16 +399,12 @@ async def get_order_detail(
         order_data = get_dashboard_response_data(order, is_editable)
 
         # 표준화된 응답 구조로 반환
-        return {
-            "success": True,
-            "message": "주문 상세 조회 성공",
-            "data": order_data
-        }
+        return {"success": True, "message": "주문 상세 조회 성공", "data": order_data}
     except Exception as e:
         logger.error(f"주문 상세 조회 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "서버 오류가 발생했습니다."}
+            content={"success": False, "message": "서버 오류가 발생했습니다."},
         )
 
 

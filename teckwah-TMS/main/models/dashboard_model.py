@@ -47,6 +47,7 @@ class Dashboard(Base):
         Enum("SEOUL", "BUSAN", "GWANGJU", "DAEJEON", name="dashboard_warehouse_enum"),
         nullable=False,
     )
+    region = Column(String(50), nullable=True)  # 지역 정보를 저장하는 필드 추가
     sla = Column(String(10), nullable=False)
     eta = Column(DateTime, nullable=False)
     create_time = Column(DateTime, nullable=False, default=func.now())

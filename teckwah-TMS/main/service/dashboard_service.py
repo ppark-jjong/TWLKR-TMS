@@ -43,7 +43,10 @@ def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
             detail="데이터베이스 오류가 발생했습니다.",
         )
 
-def get_dashboard_response_data(order: Dashboard, is_editable: bool = False) -> Dict[str, Any]:
+
+def get_dashboard_response_data(
+    order: Dashboard, is_editable: bool = False
+) -> Dict[str, Any]:
     """
     주문 정보를 응답 형식으로 변환
 
@@ -54,6 +57,10 @@ def get_dashboard_response_data(order: Dashboard, is_editable: bool = False) -> 
     Returns:
         Dict[str, Any]: 응답 형식으로 변환된 주문 데이터
     """
+    from main.utils.logger import logger, function_start, function_end
+
+    function_start("get_dashboard_response_data", {"order_id": order.dashboard_id, "is_editable": is_editable})
+    
     # 상태 및 유형 라벨 정의
     status_labels = {
         "WAITING": "대기",
@@ -64,40 +71,75 @@ def get_dashboard_response_data(order: Dashboard, is_editable: bool = False) -> 
     }
     type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
-    # 상세 페이지는 모든 필드 포함
-    # 대시보드 목록과 달리 상세 정보는 모든 필드가 필요함
-    return {
-        "dashboardId": order.dashboard_id,
-        "orderNo": order.order_no,
-        "type": order.type,
-        "status": order.status,
-        "department": order.department,
-        "warehouse": order.warehouse,
-        "sla": order.sla,
-        "eta": order.eta,
-        "createTime": order.create_time,
-        "departTime": order.depart_time,
-        "completeTime": order.complete_time,
-        "postalCode": order.postal_code,
-        "city": getattr(order, "city", "") or "",
-        "county": getattr(order, "county", "") or "",
-        "district": getattr(order, "district", "") or "",
-        "region": getattr(order, "region", "") or "",
-        "distance": getattr(order, "distance", None),
-        "durationTime": getattr(order, "duration_time", None),
-        "address": order.address,
-        "customer": order.customer,
-        "contact": order.contact,
-        "driverName": order.driver_name,
-        "driverContact": order.driver_contact,
-        "updatedBy": order.update_by,
-        "remark": order.remark,
-        "updateAt": order.update_at,
-        "isLocked": order.is_locked,
-        "statusLabel": status_labels.get(order.status, order.status),
-        "typeLabel": type_labels.get(order.type, order.type),
-        "editable": is_editable,
-    }
+    # 안전하게 속성 추출
+    try:
+        # 기본 필수 필드
+        response_data = {
+            "dashboardId": order.dashboard_id,
+            "orderNo": order.order_no,
+            "type": order.type,
+            "status": order.status,
+            "department": order.department,
+            "warehouse": order.warehouse,
+            "sla": order.sla,
+            "eta": order.eta,
+            "createTime": order.create_time,
+            "departTime": order.depart_time,
+            "completeTime": order.complete_time,
+            "postalCode": order.postal_code,
+            "address": order.address,
+            "customer": order.customer,
+            "contact": order.contact,
+            "driverName": order.driver_name,
+            "driverContact": order.driver_contact,
+            "updatedBy": order.update_by,
+            "remark": order.remark,
+            "updateAt": order.update_at,
+            "isLocked": order.is_locked,
+            "statusLabel": status_labels.get(order.status, order.status),
+            "typeLabel": type_labels.get(order.type, order.type),
+            "editable": is_editable,
+        }
+        
+        # 선택적 필드들은 getattr로 안전하게 접근
+        optional_fields = [
+            "city", "county", "district", "region", 
+            "distance", "durationTime"
+        ]
+        
+        for field in optional_fields:
+            # 스네이크 케이스에서 카멜 케이스로 변환 (duration_time -> durationTime)
+            if field == "durationTime":
+                db_field = "duration_time"
+            else:
+                db_field = field
+                
+            value = getattr(order, db_field, None)
+            if field in ["city", "county", "district", "region"] and (value is None or value == ""):
+                response_data[field] = ""
+            else:
+                response_data[field] = value
+                
+        logger.debug(f"응답 데이터 생성 완료: {len(response_data)} 필드")
+        function_end("get_dashboard_response_data", "성공")
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"응답 데이터 생성 중 오류 발생: {str(e)}", exc_info=True)
+        function_end("get_dashboard_response_data", f"실패: {str(e)}")
+        # 최소한의 필수 필드를 포함한 기본 응답 반환
+        return {
+            "dashboardId": order.dashboard_id,
+            "orderNo": order.order_no,
+            "type": order.type,
+            "status": order.status,
+            "department": order.department,
+            "warehouse": order.warehouse,
+            "region": "",  # 문제가 된 필드에 빈 문자열 기본값 설정
+            "statusLabel": status_labels.get(order.status, order.status),
+            "typeLabel": type_labels.get(order.type, order.type),
+            "editable": is_editable,
+        }
 
 
 def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]:
@@ -126,6 +168,7 @@ def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]
 
 from main.utils.pagination import paginate_query, calculate_dashboard_stats
 
+
 def get_dashboard_list(
     db: Session,
     start_date: Optional[date] = None,
@@ -153,11 +196,26 @@ def get_dashboard_list(
         Tuple[List[Dashboard], Dict[str, Any], Dict[str, int]]:
             (주문 목록, 페이지네이션 정보, 통계 정보)
     """
+    from main.utils.logger import function_start, function_end, db_query_start, db_query_result, condition_check
+
+    # 함수 시작 로깅
+    function_start("get_dashboard_list", {
+        "start_date": start_date, 
+        "end_date": end_date,
+        "status": status,
+        "department": department,
+        "warehouse": warehouse,
+        "page": page,
+        "page_size": page_size
+    })
+    
     try:
         # 기본 쿼리 생성
+        db_query_start("대시보드 기본 쿼리 생성")
         query = db.query(Dashboard)
 
         # 날짜 조건 적용 - start_date와 end_date가 모두 None이면 오늘 날짜로 설정
+        condition_check("날짜 필터 없음", start_date is None and end_date is None)
         if start_date is None and end_date is None:
             today = datetime.now().date()
             start_date = today
@@ -178,31 +236,94 @@ def get_dashboard_list(
 
         # 필터 조건 적용
         if status:
+            condition_check("상태 필터", True)
             query = query.filter(Dashboard.status == status)
+            logger.debug(f"상태 필터 적용: {status}")
 
         if department:
+            condition_check("부서 필터", True)
             query = query.filter(Dashboard.department == department)
+            logger.debug(f"부서 필터 적용: {department}")
 
         if warehouse:
+            condition_check("창고 필터", True)
             query = query.filter(Dashboard.warehouse == warehouse)
+            logger.debug(f"창고 필터 적용: {warehouse}")
 
         # 통계 계산 (필터가 적용된 상태에서)
+        db_query_start("통계 계산")
         stats = calculate_dashboard_stats(query)
+        db_query_result(f"통계 결과: 총 {stats['total']}건")
 
         # 정렬 적용
         query = query.order_by(desc(Dashboard.eta))
+        logger.debug("정렬 조건 적용: eta 내림차순")
 
         # 페이지네이션 적용
+        db_query_start(f"페이지네이션 (페이지 {page}, 크기 {page_size})")
         orders, pagination = paginate_query(query, page, page_size)
+        db_query_result(f"페이지네이션 결과: {len(orders)}건 조회됨")
 
+        # 로깅 - 결과 건수
+        result_count = len(orders)
+        logger.info(
+            f"대시보드 조회 결과: {result_count}건 (페이지 {page}/{pagination['total_pages']})"
+        )
+        
+        # 조회된 데이터의 필드 유효성 검증 로깅
+        if result_count > 0:
+            first_order = orders[0]
+            fields = [field for field in dir(first_order) if not field.startswith('_') and not callable(getattr(first_order, field))]
+            logger.debug(f"첫 번째 레코드 필드 확인: {', '.join(fields)}")
+            
+            # region 필드 유무 확인 및 로깅
+            has_region = hasattr(first_order, 'region')
+            logger.debug(f"region 필드 존재 여부: {has_region}")
+
+        function_end("get_dashboard_list", f"성공: {result_count}건")
         return orders, pagination, stats
 
     except SQLAlchemyError as e:
-        logger.error(f"주문 목록 조회 중 오류 발생: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류가 발생했습니다.",
-        )
+        logger.error(f"주문 목록 조회 중 DB 오류 발생: {str(e)}", exc_info=True)
+        # 오류 발생 시 빈 결과 반환
+        empty_pagination = {
+            "total": 0,
+            "page_size": page_size,
+            "current": 1,
+            "total_pages": 1,
+            "start": 0,
+            "end": 0,
+        }
+        empty_stats = {
+            "total": 0,
+            "waiting": 0,
+            "in_progress": 0,
+            "complete": 0,
+            "issue": 0,
+            "cancel": 0,
+        }
+        function_end("get_dashboard_list", f"실패: {str(e)}")
+        return [], empty_pagination, empty_stats
+    except Exception as e:
+        logger.error(f"주문 목록 조회 중 일반 오류 발생: {str(e)}", exc_info=True)
+        empty_pagination = {
+            "total": 0,
+            "page_size": page_size,
+            "current": 1,
+            "total_pages": 1,
+            "start": 0,
+            "end": 0,
+        }
+        empty_stats = {
+            "total": 0,
+            "waiting": 0,
+            "in_progress": 0,
+            "complete": 0,
+            "issue": 0,
+            "cancel": 0,
+        }
+        function_end("get_dashboard_list", f"실패: {str(e)}")
+        return [], empty_pagination, empty_stats
 
 
 def search_dashboard_by_order_no(
@@ -223,7 +344,7 @@ def search_dashboard_by_order_no(
     """
     try:
         # 기본 쿼리 생성 - 안전한 매개변수화 사용
-        # SQL 인젝션 방지를 위해 파라미터 이스케이프 
+        # SQL 인젝션 방지를 위해 파라미터 이스케이프
         search_pattern = f"%{order_no}%"
         query = db.query(Dashboard).filter(Dashboard.order_no.like(search_pattern))
 
@@ -236,14 +357,31 @@ def search_dashboard_by_order_no(
         # 페이지네이션 적용
         orders, pagination = paginate_query(query, page, page_size)
 
+        # 로깅 - 검색 결과
+        logger.info(f"주문번호 검색 결과: {order_no}, 검색결과: {len(orders)}건")
+
         return orders, pagination, stats
 
     except SQLAlchemyError as e:
         logger.error(f"주문번호 검색 중 오류 발생: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류가 발생했습니다.",
-        )
+        # 오류 발생 시 빈 결과 반환
+        empty_pagination = {
+            "total": 0,
+            "page_size": page_size,
+            "current": 1,
+            "total_pages": 1,
+            "start": 0,
+            "end": 0,
+        }
+        empty_stats = {
+            "total": 0,
+            "waiting": 0,
+            "in_progress": 0,
+            "complete": 0,
+            "issue": 0,
+            "cancel": 0,
+        }
+        return [], empty_pagination, empty_stats
 
 
 def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashboard:
@@ -433,7 +571,9 @@ def update_dashboard(
             release_lock(db, "dashboard", dashboard_id, user_id)
             logger.debug(f"주문 락 해제 완료: ID {dashboard_id}, 사용자 {user_id}")
         except Exception as e:
-            logger.error(f"주문 락 해제 실패: ID {dashboard_id}, 사용자 {user_id}, 오류: {str(e)}")
+            logger.error(
+                f"주문 락 해제 실패: ID {dashboard_id}, 사용자 {user_id}, 오류: {str(e)}"
+            )
 
 
 def change_status(

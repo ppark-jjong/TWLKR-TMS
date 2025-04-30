@@ -8,11 +8,12 @@
 
 {% block content %}
 <div class="users-page">
+    <!-- 페이지 제목 -->
     <div class="page-header">
-        <h1 class="page-title">
-            <i class="fa-solid fa-users"></i>
-            사용자 관리
-        </h1>
+        <div>
+            <h2 class="page-title">사용자 관리</h2>
+            <p class="page-subtitle">시스템 사용자 설정 및 권한 관리</p>
+        </div>
         <div class="header-actions">
             <button id="refreshBtn" class="btn secondary-btn">
                 <i class="fa-solid fa-arrows-rotate"></i>
@@ -26,11 +27,19 @@
     </div>
     
     <div class="main-card">
-        <!-- 필터 및 검색 기능 간소화 -->
-        <div class="simple-header">
+        <!-- 필터 헤더 영역 -->
+        <div class="filter-header">
             <div class="section-title">
                 <i class="fa-solid fa-users-gear"></i>
-                사용자 목록
+                <span>사용자 목록</span>
+            </div>
+            
+            <!-- 검색 기능 추가 -->
+            <div class="search-container">
+                <input type="text" id="searchUser" class="search-input" placeholder="이름 또는 ID 검색">
+                <button type="button" class="btn search-button" id="searchUserBtn">
+                    <i class="fa-solid fa-search"></i>
+                </button>
             </div>
         </div>
         

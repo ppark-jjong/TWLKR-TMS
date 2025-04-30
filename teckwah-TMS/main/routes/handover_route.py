@@ -4,8 +4,17 @@
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query, Path, status
-from fastapi.responses import JSONResponse
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    Query,
+    Path,
+    status,
+)
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from main.core.templating import templates
@@ -13,42 +22,45 @@ from main.utils.database import get_db
 from main.utils.security import get_current_user, get_admin_user
 from main.utils.lock import check_lock_status
 from main.utils.logger import logger
-from main.schema.handover_schema import (
-    HandoverCreate,
-    HandoverUpdate,
-    HandoverResponse
-)
+from main.schema.handover_schema import HandoverCreate, HandoverUpdate, HandoverResponse
 from main.service.handover_service import (
     get_handover_list,
     get_notice_list,
     get_handover_by_id,
     create_handover,
     update_handover,
-    delete_handover
+    delete_handover,
 )
 
 # 라우터 생성
 router = APIRouter()
 
+
 @router.get("")
 async def handover_page(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     인수인계 페이지 렌더링
     """
     try:
-        logger.info(f"인수인계 페이지 접근: {current_user.get('user_id', 'N/A')}")
-        
+        # 세션에서 사용자 정보 확인 (dashboard_route.py와 동일한 패턴)
+        user = request.session.get("user")
+        logger.debug(f"인수인계 페이지 접근 - 세션 정보: {user}")
+
+        # 인증 확인
+        if not user:
+            logger.warning("인증되지 않은 사용자의 인수인계 페이지 접근 시도")
+            return RedirectResponse(
+                url="/login?return_to=/handover", status_code=status.HTTP_303_SEE_OTHER
+            )
+
+        logger.info(f"인수인계 페이지 접근: {user.get('user_id', 'N/A')}")
+
         # 템플릿 렌더링 (데이터는 JavaScript에서 API로 가져옴)
         return templates.TemplateResponse(
-            "handover.html",
-            {
-                "request": request,
-                "user": current_user
-            }
+            "handover.html", {"request": request, "user": user}
         )
     except Exception as e:
         logger.error(f"인수인계 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
@@ -58,10 +70,15 @@ async def handover_page(
             {
                 "request": request,
                 "error_message": "인수인계 페이지를 불러오는 중 오류가 발생했습니다.",
-                "error_detail": str(e) if current_user.get("user_role") == "ADMIN" else "",
+                "error_detail": (
+                    str(e)
+                    if request.session.get("user", {}).get("user_role") == "ADMIN"
+                    else ""
+                ),
             },
-            status_code=500
+            status_code=500,
         )
+
 
 @router.get("/list")
 async def get_handover_list_api(
@@ -71,23 +88,20 @@ async def get_handover_list_api(
     is_notice: bool = Query(None),
     keyword: str = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100)
+    page_size: int = Query(10, ge=1, le=100),
 ):
     """
     인수인계 목록 조회 API (JSON)
     """
     try:
         result = {}
-        
+
         # 공지사항 요청 시
         if is_notice is True:
             notices = get_notice_list(
-                db=db,
-                page=page,
-                page_size=page_size,
-                search_term=keyword
+                db=db, page=page, page_size=page_size, search_term=keyword
             )
-            
+
             # 공지사항 응답 데이터 가공
             notices_data = []
             for notice in notices:
@@ -97,17 +111,21 @@ async def get_handover_list_api(
                     "content": notice.content,
                     "createBy": notice.create_by,
                     "updateBy": notice.update_by,
-                    "updateAt": notice.update_at.strftime("%Y-%m-%d %H:%M") if notice.update_at else None,
-                    "isNotice": notice.is_notice
+                    "updateAt": (
+                        notice.update_at.strftime("%Y-%m-%d %H:%M")
+                        if notice.update_at
+                        else None
+                    ),
+                    "isNotice": notice.is_notice,
                 }
                 notices_data.append(notice_dict)
-                
+
             return {
                 "success": True,
                 "message": "공지사항 목록 조회 성공",
-                "data": notices_data
+                "data": notices_data,
             }
-        
+
         # 일반 인수인계 목록 요청 시
         else:
             handovers, pagination = get_handover_list(
@@ -115,39 +133,50 @@ async def get_handover_list_api(
                 page=page,
                 page_size=page_size,
                 search_term=keyword,
-                is_notice=False
+                is_notice=False,
             )
-            
+
             # 인수인계 응답 데이터 가공
             handovers_data = []
             for handover in handovers:
                 # 편집 권한 계산: 작성자 또는 관리자
-                can_edit = current_user.get("user_id") == handover.create_by or current_user.get("user_role") == "ADMIN"
-                
+                can_edit = (
+                    current_user.get("user_id") == handover.create_by
+                    or current_user.get("user_role") == "ADMIN"
+                )
+
                 handover_dict = {
                     "handoverId": handover.handover_id,
                     "title": handover.title,
                     "content": handover.content,
                     "createBy": handover.create_by,
                     "updateBy": handover.update_by,
-                    "updateAt": handover.update_at.strftime("%Y-%m-%d %H:%M") if handover.update_at else None,
+                    "updateAt": (
+                        handover.update_at.strftime("%Y-%m-%d %H:%M")
+                        if handover.update_at
+                        else None
+                    ),
                     "isNotice": handover.is_notice,
-                    "canEdit": can_edit
+                    "canEdit": can_edit,
                 }
                 handovers_data.append(handover_dict)
-            
+
             return {
                 "success": True,
                 "message": "인수인계 목록 조회 성공",
                 "data": handovers_data,
-                "pagination": pagination
+                "pagination": pagination,
             }
     except Exception as e:
         logger.error(f"인수인계 목록 조회 중 오류 발생: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "인수인계 목록을 불러오는 중 오류가 발생했습니다."}
+            content={
+                "success": False,
+                "message": "인수인계 목록을 불러오는 중 오류가 발생했습니다.",
+            },
         )
+
 
 @router.get("/handovers/{handover_id}")
 async def get_handover_detail(
@@ -161,13 +190,13 @@ async def get_handover_detail(
     """
     try:
         handover = get_handover_by_id(db, handover_id)
-        
+
         if not handover:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
-                content={"success": False, "message": "인수인계를 찾을 수 없습니다."}
+                content={"success": False, "message": "인수인계를 찾을 수 없습니다."},
             )
-            
+
         # 응답 데이터 구성
         handover_data = {
             "id": handover.handover_id,
@@ -175,20 +204,29 @@ async def get_handover_detail(
             "content": handover.content,
             "is_notice": handover.is_notice,
             "writer_id": handover.update_by,
-            "updated_at": handover.update_at.strftime("%Y-%m-%d %H:%M") if handover.update_at else None,
+            "updated_at": (
+                handover.update_at.strftime("%Y-%m-%d %H:%M")
+                if handover.update_at
+                else None
+            ),
             # 편집 권한 확인 (작성자 또는 관리자만 가능)
-            "can_edit": current_user.get("user_id") == handover.update_by or current_user.get("user_role") == "ADMIN",
+            "can_edit": current_user.get("user_id") == handover.update_by
+            or current_user.get("user_role") == "ADMIN",
             # 삭제 권한 확인 (관리자만 가능)
-            "can_delete": current_user.get("user_role") == "ADMIN"
+            "can_delete": current_user.get("user_role") == "ADMIN",
         }
-        
+
         return {"success": True, "data": handover_data}
     except Exception as e:
         logger.error(f"인수인계 상세 조회 중 오류 발생: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "인수인계 상세 조회 중 오류가 발생했습니다."}
+            content={
+                "success": False,
+                "message": "인수인계 상세 조회 중 오류가 발생했습니다.",
+            },
         )
+
 
 @router.post("/handovers")
 async def create_handover_item(
@@ -205,30 +243,34 @@ async def create_handover_item(
         if handover_data.is_notice and current_user.get("user_role") != "ADMIN":
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                content={"success": False, "message": "공지사항 등록 권한이 없습니다."}
+                content={"success": False, "message": "공지사항 등록 권한이 없습니다."},
             )
-            
+
         # 인수인계 생성
         new_handover = create_handover(
-            db=db, 
+            db=db,
             title=handover_data.title,
             content=handover_data.content,
             is_notice=handover_data.is_notice,
             writer_id=current_user.get("user_id"),
-            writer_name=current_user.get("user_name", current_user.get("user_id"))
+            writer_name=current_user.get("user_name", current_user.get("user_id")),
         )
-        
+
         return {
-            "success": True, 
+            "success": True,
             "message": "인수인계가 성공적으로 등록되었습니다.",
-            "id": new_handover.handover_id
+            "id": new_handover.handover_id,
         }
     except Exception as e:
         logger.error(f"인수인계 생성 중 오류 발생: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "인수인계 등록 중 오류가 발생했습니다."}
+            content={
+                "success": False,
+                "message": "인수인계 등록 중 오류가 발생했습니다.",
+            },
         )
+
 
 @router.put("/handovers/{handover_id}")
 async def update_handover_item(
@@ -244,27 +286,30 @@ async def update_handover_item(
     try:
         # 기존 인수인계 조회
         handover = get_handover_by_id(db, handover_id)
-        
+
         if not handover:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
-                content={"success": False, "message": "인수인계를 찾을 수 없습니다."}
+                content={"success": False, "message": "인수인계를 찾을 수 없습니다."},
             )
-            
+
         # 수정 권한 확인 (작성자 또는 관리자만 가능)
-        if current_user.get("user_id") != handover.update_by and current_user.get("user_role") != "ADMIN":
+        if (
+            current_user.get("user_id") != handover.update_by
+            and current_user.get("user_role") != "ADMIN"
+        ):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                content={"success": False, "message": "인수인계 수정 권한이 없습니다."}
+                content={"success": False, "message": "인수인계 수정 권한이 없습니다."},
             )
-            
+
         # 공지사항 설정 시 관리자 권한 확인
         if handover_data.is_notice and current_user.get("user_role") != "ADMIN":
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                content={"success": False, "message": "공지사항 설정 권한이 없습니다."}
+                content={"success": False, "message": "공지사항 설정 권한이 없습니다."},
             )
-            
+
         # 인수인계 수정
         updated_handover = update_handover(
             db=db,
@@ -272,20 +317,24 @@ async def update_handover_item(
             title=handover_data.title,
             content=handover_data.content,
             is_notice=handover_data.is_notice,
-            updated_by=current_user.get("user_id")
+            updated_by=current_user.get("user_id"),
         )
-        
+
         return {
-            "success": True, 
+            "success": True,
             "message": "인수인계가 성공적으로 수정되었습니다.",
-            "id": updated_handover.handover_id
+            "id": updated_handover.handover_id,
         }
     except Exception as e:
         logger.error(f"인수인계 수정 중 오류 발생: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "인수인계 수정 중 오류가 발생했습니다."}
+            content={
+                "success": False,
+                "message": "인수인계 수정 중 오류가 발생했습니다.",
+            },
         )
+
 
 @router.get("/lock/{handover_id}")
 async def check_handover_lock(
@@ -313,6 +362,7 @@ async def check_handover_lock(
             },
         )
 
+
 @router.delete("/handovers/{handover_id}")
 async def delete_handover_item(
     request: Request,
@@ -326,33 +376,42 @@ async def delete_handover_item(
     try:
         # 기존 인수인계 조회
         handover = get_handover_by_id(db, handover_id)
-        
+
         if not handover:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
-                content={"success": False, "message": "인수인계를 찾을 수 없습니다."}
+                content={"success": False, "message": "인수인계를 찾을 수 없습니다."},
             )
-            
+
         # 삭제 권한 확인 (작성자 또는 관리자만 가능)
-        if current_user.get("user_id") != handover.update_by and current_user.get("user_role") != "ADMIN":
+        if (
+            current_user.get("user_id") != handover.update_by
+            and current_user.get("user_role") != "ADMIN"
+        ):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                content={"success": False, "message": "인수인계 삭제 권한이 없습니다."}
+                content={"success": False, "message": "인수인계 삭제 권한이 없습니다."},
             )
-        
+
         # 인수인계 삭제
         success = delete_handover(db, handover_id)
-        
+
         if not success:
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"success": False, "message": "인수인계 삭제 중 오류가 발생했습니다."}
+                content={
+                    "success": False,
+                    "message": "인수인계 삭제 중 오류가 발생했습니다.",
+                },
             )
-            
+
         return {"success": True, "message": "인수인계가 성공적으로 삭제되었습니다."}
     except Exception as e:
         logger.error(f"인수인계 삭제 중 오류 발생: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "인수인계 삭제 중 오류가 발생했습니다."}
+            content={
+                "success": False,
+                "message": "인수인계 삭제 중 오류가 발생했습니다.",
+            },
         )

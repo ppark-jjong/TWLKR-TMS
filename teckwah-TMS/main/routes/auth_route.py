@@ -52,10 +52,10 @@ async def login_page(request: Request):
     return templates.TemplateResponse(
         "login.html",
         {
-            "request": request, 
-            "debug": settings.DEBUG, 
+            "request": request,
+            "debug": settings.DEBUG,
             "return_to": return_to,
-            "current_year": datetime.now().year  # 현재 연도 추가
+            "current_year": datetime.now().year,  # 현재 연도 추가
         },
     )
 
@@ -82,7 +82,7 @@ async def login(
                 "error": "사용자 ID 또는 비밀번호가 일치하지 않습니다.",
                 "debug": settings.DEBUG,
                 "return_to": return_to,
-                "current_year": datetime.now().year  # 현재 연도 추가
+                "current_year": datetime.now().year,  # 현재 연도 추가
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -115,3 +115,32 @@ async def get_me(request: Request):
             detail="인증되지 않은 사용자입니다.",
         )
     return user
+
+
+@router.get("/api/check-session")
+async def check_session(request: Request):
+    """
+    현재 세션 유효성 확인 API
+    클라이언트에서 주기적으로 호출하여 세션 상태를 확인합니다.
+    """
+    logger.debug(f"세션 체크 API 호출: IP={request.client.host}")
+
+    user = request.session.get("user")
+    if not user:
+        logger.info(f"세션 체크 실패: 세션 없음 (IP={request.client.host})")
+        return {"authenticated": False, "message": "세션이 만료되었습니다."}
+
+    # 세션이 유효한 경우 사용자 정보 반환 (민감한 정보 제외)
+    logger.debug(
+        f"세션 체크 성공: 사용자={user.get('user_id')}, 권한={user.get('user_role')}"
+    )
+    return {
+        "authenticated": True,
+        "message": "세션이 유효합니다.",
+        "user": {
+            "user_id": user.get("user_id"),
+            "user_name": user.get("user_name"),
+            "user_role": user.get("user_role"),
+            "department": user.get("department"),
+        },
+    }

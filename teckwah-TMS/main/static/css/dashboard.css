@@ -41,7 +41,7 @@
   border-bottom: 1px solid var(--border-color);
 }
 
-/* 테이블 컬럼 너비 조정 (체크박스 제거) */
+/* 테이블 컬럼 너비 조정 */
 .data-table th:nth-child(1) {
   width: 15%;
 } /* 주문번호 */
@@ -78,59 +78,6 @@
   width: 12%;
 } /* 배송기사 */
 
-/* 상태 요약 배지 스타일 */
-.status-summary {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 15px 0;
-  padding: 0 5px;
-}
-
-.status-badge-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.status-count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  padding: 3px 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-/* 활성 필터 표시 스타일 */
-.active-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 12px;
-  background-color: var(--background-color-light);
-  border-radius: 4px;
-  align-items: center;
-}
-
-.filter-label {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  background-color: var(--primary-color-light);
-  color: var(--primary-color);
-  border-radius: 16px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-/* 필터 활성화 스타일 */
-.filter-select.filter-active {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 1px rgba(215, 37, 25, 0.2);
-}
-
 /* 테이블 내 주문번호 셀 스타일 */
 .order-number {
   font-weight: 500;
@@ -138,6 +85,9 @@
   cursor: pointer;
   position: relative;
   transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .order-number:hover {
@@ -145,37 +95,138 @@
   text-decoration: underline;
 }
 
-/* 미디어 쿼리 - 모바일 대응 */
-@media (max-width: 768px) {
-  .filter-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .date-filter-container {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-  }
-  
-  .date-input-group {
-    width: 100%;
-  }
-  
-  .page-size-selector {
-    margin-left: 0;
-    margin-top: var(--spacing-sm);
-  }
-  
-  .search-container {
-    width: 100%;
-  }
-  
-  .search-input {
-    width: 100%;
-  }
-  
-  .action-buttons {
-    flex-wrap: wrap;
-  }
+/* 빈 테이블 표시 */
+.empty-table {
+  padding: 60px 20px !important;
+  text-align: center;
+}
+
+.empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--text-color-secondary);
+}
+
+.empty-placeholder i {
+  font-size: 3rem;
+  opacity: 0.5;
+  margin-bottom: 1rem;
+}
+
+.empty-placeholder p {
+  font-size: 1.1rem;
+  margin: 0 0 1rem;
+}
+
+/* 클릭 가능한 행 */
+.clickable-row {
+  cursor: pointer;
+}
+
+/* 상태 뱃지 */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  min-width: 70px;
+}
+
+.status-badge.status-waiting {
+  background-color: rgb(255, 246, 203);
+  color: rgb(148, 116, 0);
+}
+
+.status-badge.status-in_progress {
+  background-color: rgb(179, 228, 250);
+  color: rgb(5, 95, 141);
+}
+
+.status-badge.status-complete {
+  background-color: rgb(210, 250, 171);
+  color: rgb(40, 124, 0);
+}
+
+.status-badge.status-issue {
+  background-color: rgb(252, 173, 161);
+  color: rgb(165, 25, 10);
+}
+
+.status-badge.status-cancel {
+  background-color: rgb(196, 196, 196);
+  color: rgb(70, 70, 70);
+}
+
+/* 필터 관련 스타일 */
+.filter-select.filter-active {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(215, 37, 25, 0.1);
+}
+
+/* 페이지 헤더 */
+.dashboard-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard-page .page-title {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.dashboard-page .page-subtitle {
+  color: var(--text-color-secondary);
+  margin: 5px 0 0 0;
+}
+
+/* 날짜 필터 */
+.date-filter-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.date-input-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-color-dark);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  background-color: white;
+}
+
+.date-input {
+  border: none;
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  width: 130px;
+  outline: none;
+}
+
+.date-separator {
+  color: var(--text-color-secondary);
+  padding: 0 5px;
+}
+
+/* 페이지 크기 선택기 */
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.page-size-selector span {
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
 }

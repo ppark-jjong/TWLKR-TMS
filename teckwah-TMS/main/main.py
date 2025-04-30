@@ -1,11 +1,11 @@
 import time
 import uuid
 import uvicorn
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Request, Response, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, JSONResponse
 from contextlib import asynccontextmanager
 from fastapi.templating import Jinja2Templates
 import os
@@ -117,6 +117,40 @@ async def logging_middleware(request: Request, call_next):
         raise e
 
 
+# 1.5 인증 예외 처리 미들웨어 (401 오류 처리)
+@app.middleware("http")
+async def auth_exception_middleware(request: Request, call_next):
+    """
+    인증 예외(401 Unauthorized)를 처리하는 미들웨어입니다.
+    인증 오류가 발생하면 로그인 페이지로 리다이렉트합니다.
+    """
+    try:
+        response = await call_next(request)
+
+        # 인증 오류 상태 코드 확인 - API 호출의 경우 원래 응답 유지
+        if response.status_code == status.HTTP_401_UNAUTHORIZED:
+            # API 엔드포인트는 JSON 응답을 유지
+            path = request.url.path
+            if (
+                path.startswith("/api/")
+                or request.headers.get("Accept") == "application/json"
+            ):
+                logger.debug(f"API 인증 오류 그대로 반환: {path}")
+                return response
+
+            logger.info(f"인증 오류 처리: {path} - 로그인 페이지로 리다이렉트")
+            # 현재 URL을 return_to 파라미터로 인코딩
+            return_url = f"/login?return_to={request.url.path}"
+            return RedirectResponse(
+                url=return_url, status_code=status.HTTP_303_SEE_OTHER
+            )
+
+        return response
+    except Exception as e:
+        logger.error(f"인증 예외 처리 미들웨어 오류: {str(e)}", exc_info=True)
+        raise e
+
+
 # 2. 세션 미들웨어 (규칙 4.5)
 app.add_middleware(
     SessionMiddleware,
@@ -148,6 +182,34 @@ app.include_router(
 app.include_router(order_routes.router)  # 주문 상세 페이지 라우트
 app.include_router(handover_route.router, prefix="/handover", tags=["Handover"])
 app.include_router(users_route.router, prefix="/users", tags=["Users"])
+
+
+# --- 글로벌 예외 핸들러 ---
+@app.exception_handler(status.HTTP_401_UNAUTHORIZED)
+async def unauthorized_exception_handler(request: Request, exc: HTTPException):
+    """
+    401 Unauthorized 에러를 처리하는 전역 예외 핸들러
+    """
+    # API 요청이 아닌 경우 로그인 페이지로 리다이렉트
+    path = request.url.path
+    if (
+        not path.startswith("/api/")
+        and request.headers.get("Accept") != "application/json"
+    ):
+        logger.info(f"인증 오류 예외 핸들러: {path} - 로그인 페이지로 리다이렉트")
+        return_url = f"/login?return_to={request.url.path}"
+        return RedirectResponse(url=return_url, status_code=status.HTTP_303_SEE_OTHER)
+
+    # API 요청인 경우 원래의 JSON 응답 유지
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={
+            "success": False,
+            "message": (
+                str(exc.detail) if hasattr(exc, "detail") else "인증이 필요합니다"
+            ),
+        },
+    )
 
 
 # --- 정적 파일 서빙 --- (규칙 4.3.1)

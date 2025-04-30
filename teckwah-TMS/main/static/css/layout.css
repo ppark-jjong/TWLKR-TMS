@@ -13,11 +13,11 @@
   height: 100%;
 }
 
-/* 사이드바 레이아웃 */
+/* 사이드바 레이아웃 - Claude 스타일 */
 .sidebar {
   width: 240px;
   height: 100%;
-  background-color: white;
+  background-color: #f9fafb;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -25,6 +25,72 @@
   z-index: 10;
   box-shadow: var(--shadow-sm);
   overflow-y: auto;
+  position: relative;
+}
+
+/* 추가: 접힌 사이드바 스타일 */
+.sidebar.collapsed {
+  width: 50px;
+  overflow-x: hidden;
+}
+
+/* 추가: 접힌 상태일 때 텍스트 숨김 */
+.sidebar.collapsed .menu-item span,
+.sidebar.collapsed .logout-btn span,
+.sidebar.collapsed .user-details,
+.sidebar.collapsed .system-title {
+  display: none;
+}
+
+/* 추가: 접힌 상태일 때 아이콘만 표시 */
+.sidebar.collapsed .menu-item a,
+.sidebar.collapsed .logout-btn {
+  justify-content: center;
+}
+
+/* 사이드바 토글 버튼 - Claude 스타일 */
+.sidebar-toggle {
+  position: absolute;
+  top: 10px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  background-color: white;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 11;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  font-size: 12px;
+}
+
+.sidebar-toggle:hover {
+  background-color: var(--background-color-light);
+  box-shadow: var(--shadow-md);
+  color: var(--primary-color);
+}
+
+.sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  right: -12px;
+}
+
+/* 토글 버튼 아이콘 */
+.sidebar-toggle i {
+  font-size: 12px;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-toggle:hover i {
+  color: var(--primary-color);
 }
 
 /* 로고 컨테이너 */
@@ -56,36 +122,26 @@
   height: auto;
 }
 
-/* 사용자 정보 영역 */
+/* 사용자 정보 영역 - 개선된 스타일 */
 .user-info {
   padding: var(--spacing-md);
   display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
+  flex-direction: column;
+  gap: var(--spacing-xs);
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--background-color-light);
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  background-color: var(--primary-color-light);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--primary-color);
-  font-size: var(--font-size-md);
-  box-shadow: var(--shadow-sm);
+  background-color: #f0f2f5;
 }
 
 .user-details {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.user-name {
+.user-id {
   margin: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: var(--font-size-sm);
   color: var(--text-color);
 }
@@ -94,11 +150,19 @@
   margin: 0;
   font-size: var(--font-size-xs);
   color: var(--text-color-secondary);
-  background-color: var(--background-color-active);
-  padding: 2px 8px;
-  border-radius: 10px;
-  display: inline-block;
-  margin-top: 4px;
+  padding: 2px 0;
+}
+
+/* 접힌 사이드바에서 사용자 정보 숨기기 */
+.sidebar.collapsed .user-info {
+  padding: 10px 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar.collapsed .user-id,
+.sidebar.collapsed .user-role {
+  display: none;
 }
 
 /* 메뉴 레이아웃 */
@@ -192,23 +256,51 @@
   flex: 1;
   overflow: auto;
   background-color: var(--background-color);
-  transition: margin-left var(--transition-normal);
+  transition: all var(--transition-normal);
+  width: calc(100% - 240px);
+  min-height: 100vh;
+}
+
+/* 메인 컨테이너 조정 (사이드바 접힐 때) */
+.sidebar.collapsed + .main-content {
+  width: calc(100% - 60px);
 }
 
 .content-container {
-  padding: var(--spacing-lg);
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: var(--spacing-md) var(--spacing-lg);
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+}
+
+/* 전체 너비 콘텐츠 컨테이너 */
+.content-full-width {
+  max-width: 100%;
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  height: 100%;
+}
+
+/* 대시보드 페이지 콘텐츠 컨테이너 */
+.dashboard-page .content-container,
+.users-page .content-container,
+.handover-page .content-container {
+  padding: var(--spacing-md) var(--spacing-lg);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 페이지 헤더 */
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: var(--spacing-lg);
   flex-wrap: wrap;
   gap: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .page-title {
@@ -218,6 +310,13 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  font-weight: 600;
+}
+
+.page-subtitle {
+  margin: var(--spacing-xs) 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
 }
 
 .page-title i {
@@ -234,11 +333,14 @@
   background-color: white;
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-sm);
-  margin-bottom: var(--spacing-lg);
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border-color);
   transition: box-shadow var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: calc(100vh - 100px); /* 헤더와 여백 고려 */
 }
 
 .main-card:hover {
@@ -409,11 +511,15 @@
   width: 100%;
   height: 100%;
   background-color: rgba(255, 255, 255, 0.8);
-  display: flex;
+  display: none;
   justify-content: center;
   align-items: center;
   z-index: 50;
   backdrop-filter: blur(2px);
+}
+
+.loading-overlay.active {
+  display: flex;
 }
 
 .loading-content {
@@ -427,56 +533,93 @@
 }
 
 .loading-spinner {
+  width: 40px;
+  height: 40px;
   margin-bottom: var(--spacing-sm);
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  font-size: var(--font-size-2xl);
-  color: var(--primary-color);
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* 반응형 레이아웃 */
 @media (max-width: 992px) {
   .sidebar {
-    width: 200px;
-    transform: translateX(-200px);
     position: fixed;
-    z-index: 1000;
-    height: 100vh;
-    transition: transform var(--transition-normal);
-  }
-  
-  .sidebar.active {
+    left: 0;
+    top: 0;
+    height: 100%;
+    z-index: 100;
     transform: translateX(0);
+    transition: transform var(--transition-normal),
+      width var(--transition-normal);
   }
-  
+
+  .sidebar.collapsed {
+    transform: translateX(-240px);
+    width: 240px;
+  }
+
   .main-content {
-    width: 100%;
     margin-left: 0;
+    width: 100%;
+  }
+
+  .sidebar.collapsed + .main-content {
+    margin-left: 0;
+    width: 100%;
   }
   
-  .menu-toggle {
-    display: flex !important;
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    z-index: 1100;
-    padding: 8px;
-    background-color: white;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  /* 접힌 사이드바 상태에서 토글 버튼 위치 조정 */
+  .sidebar.collapsed .sidebar-toggle {
+    right: -60px;
+    transform: rotate(180deg);
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
   }
-  
+
   .content-container {
     padding: var(--spacing-md);
   }
-  
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .header-actions {
     width: 100%;
     justify-content: flex-end;
+    margin-top: var(--spacing-sm);
+  }
+  
+  /* 메인 카드 패딩 조정 */
+  .main-card {
+    padding: var(--spacing-sm);
+  }
+  
+  /* 필터 헤더 조정 */
+  .filter-header {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .date-filter-container {
+    width: 100%;
+  }
+  
+  .search-container {
+    width: 100%;
   }
 }
 
@@ -484,13 +627,39 @@
   .content-container {
     padding: var(--spacing-sm);
   }
-  
+
   .header-actions {
     flex-wrap: wrap;
     gap: var(--spacing-xs);
   }
-  
+
   .main-card {
     margin-bottom: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+  }
+  
+  .date-input-group {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .date-input {
+    width: 100%;
+  }
+  
+  .date-separator {
+    display: none;
+  }
+  
+  /* 테이블 레이아웃 조정 */
+  .table-container {
+    margin: 0 -10px;
+    width: calc(100% + 20px);
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: 8px;
+    font-size: var(--font-size-xs);
   }
 }

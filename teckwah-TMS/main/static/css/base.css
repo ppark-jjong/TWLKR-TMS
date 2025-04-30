@@ -92,6 +92,9 @@ html, body {
   background-color: var(--background-color);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
 a {

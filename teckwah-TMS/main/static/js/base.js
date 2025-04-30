@@ -1,0 +1,235 @@
+/**
+ * 기본 레이아웃 스크립트
+ * 모든 페이지에서 공통으로 사용되는 기능을 구현합니다.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+  // 기본 모듈
+  const BaseApp = {
+    // 세션 체크 타이머
+    sessionCheckTimer: null,
+
+    // 세션 체크 간격 (5분)
+    SESSION_CHECK_INTERVAL: 5 * 60 * 1000,
+
+    /**
+     * 초기화 함수
+     */
+    init() {
+      // 사용자 정보 초기화
+      this.initUserInfo();
+
+      // 로그아웃 이벤트 핸들러 추가
+      this.initLogoutButton();
+
+      // 세션 만료 대화상자 버튼 이벤트
+      this.initSessionExpiredDialog();
+      
+      // 세션 체크 타이머 시작
+      this.startSessionCheck();
+
+      // 권한 필요한 페이지 체크
+      this.checkPagePermission();
+
+      console.log('기본 앱 초기화 완료');
+    },
+
+    /**
+     * 사용자 정보 초기화
+     */
+    initUserInfo() {
+      console.log('로거: INFO 사용자 정보 초기화 시작');
+      
+      // 전역 사용자 객체 - base 템플릿에서 data-user-* 속성으로 전달받음
+      const userInfoContainer = document.getElementById('userInfo');
+
+      if (userInfoContainer && Utils && Utils.auth) {
+        console.log('로거: DEBUG 사용자 정보 컨테이너 및 Utils 모듈 존재 확인');
+        
+        const userData = {
+          user_id: userInfoContainer.dataset.userId || '',
+          user_role: userInfoContainer.dataset.userRole || '',
+          department: userInfoContainer.dataset.department || '',
+        };
+
+        // 유효한 사용자 정보가 있는 경우에만 설정
+        if (userData.user_id) {
+          Utils.auth.setCurrentUser(userData);
+          console.log('사용자 정보 초기화됨:', userData.user_id);
+          console.log(`로거: INFO 사용자(${userData.user_id}) 초기화 완료, 권한: ${userData.user_role}, 부서: ${userData.department}`);
+          
+          // UI 요소 업데이트
+          const userIdDisplay = document.getElementById('userDisplayId');
+          const userRoleDisplay = document.getElementById('userDisplayRole');
+          
+          if (userIdDisplay) {
+            userIdDisplay.innerHTML = `<strong>ID:</strong> ${userData.user_id}`;
+            console.log('로거: DEBUG 사용자 ID 표시 업데이트');
+          }
+          
+          if (userRoleDisplay) {
+            let roleText = `<strong>권한:</strong> ${userData.user_role}`;
+            if (userData.department) {
+              roleText += ` / ${userData.department}`;
+            }
+            userRoleDisplay.innerHTML = roleText;
+            console.log('로거: DEBUG 사용자 권한 표시 업데이트');
+          }
+        } else {
+          console.log('로거: WARN 유효한 사용자 ID 없음');
+        }
+      } else {
+        console.log('로거: ERROR 사용자 정보 컨테이너 또는 Utils 모듈 누락');
+      }
+    },
+
+    /**
+     * 로그아웃 버튼 이벤트 핸들러
+     */
+    initLogoutButton() {
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', function () {
+          if (confirm('로그아웃 하시겠습니까?')) {
+            if (Utils && Utils.auth) {
+              Utils.auth.logout();
+            } else {
+              window.location.href = '/logout';
+            }
+          }
+        });
+
+        console.log('로그아웃 버튼 이벤트 등록됨');
+      }
+    },
+
+    /**
+     * 세션 만료 대화상자 설정
+     */
+    initSessionExpiredDialog() {
+      const sessionLoginBtn = document.getElementById('sessionLoginBtn');
+      const sessionExpiredDialog = document.getElementById('sessionExpiredDialog');
+
+      if (sessionLoginBtn) {
+        sessionLoginBtn.addEventListener('click', function () {
+          window.location.href =
+            '/login?return_to=' + encodeURIComponent(window.location.pathname);
+        });
+
+        console.log('세션 만료 대화상자 이벤트 등록됨');
+      }
+    },
+    
+    /**
+     * 세션 체크 타이머 시작
+     */
+    startSessionCheck() {
+      // 로그인 페이지에서는 세션 체크 하지 않음
+      if (window.location.pathname === '/login') {
+        return;
+      }
+      
+      // 기존 타이머 정리
+      if (this.sessionCheckTimer) {
+        clearInterval(this.sessionCheckTimer);
+      }
+
+      // 새로운 타이머 설정
+      this.sessionCheckTimer = setInterval(() => {
+        this.checkSession();
+      }, this.SESSION_CHECK_INTERVAL);
+      
+      // 최초 1회 세션 체크
+      this.checkSession();
+      
+      console.log('세션 체크 타이머 시작됨');
+    },
+    
+    /**
+     * 세션 유효성 체크
+     */
+    async checkSession() {
+      try {
+        console.debug('세션 체크 시작: 유효성 확인');
+
+        // 세션 체크 API 호출
+        const response = await fetch('/api/check-session');
+        
+        if (response.status === 401) {
+          console.warn('세션 체크: 인증 실패 (401)');
+          this.handleSessionExpired();
+          return;
+        }
+
+        // 응답이 성공적이지 않은 경우 무시
+        if (!response.ok) {
+          console.warn(`세션 체크: 응답 실패 (${response.status})`);
+          return;
+        }
+
+        // 응답 처리
+        const result = await response.json();
+
+        // 인증 상태 확인
+        if (!result.authenticated) {
+          console.warn('세션 체크: 세션 만료됨');
+          this.handleSessionExpired();
+        }
+      } catch (error) {
+        // 오류 무시 (네트워크 오류는 세션 만료로 간주하지 않음)
+        console.warn('세션 체크 중 오류:', error);
+      }
+    },
+    
+    /**
+     * 세션 만료 처리
+     */
+    handleSessionExpired() {
+      // 세션 체크 중지
+      if (this.sessionCheckTimer) {
+        clearInterval(this.sessionCheckTimer);
+        this.sessionCheckTimer = null;
+      }
+
+      // 세션 만료 대화상자 표시
+      const dialog = document.getElementById('sessionExpiredDialog');
+      if (dialog) {
+        dialog.classList.add('active');
+      } else {
+        // 대화상자가 없으면 즉시 리다이렉트
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        window.location.href =
+          '/login?return_to=' + encodeURIComponent(window.location.pathname);
+      }
+    },
+    
+    /**
+     * 현재 페이지의 접근 권한 체크
+     */
+    checkPagePermission() {
+      // 사용자 관리 페이지는 관리자만 접근 가능
+      if (window.location.pathname.startsWith('/users') && Utils && Utils.auth) {
+        const currentUser = Utils.auth.getCurrentUser();
+        if (!currentUser || currentUser.user_role !== 'ADMIN') {
+          console.warn('권한 없음: 사용자 관리 페이지는 관리자만 접근 가능합니다.');
+          
+          // 알림 메시지 표시
+          if (Utils.alerts) {
+            Utils.alerts.showError('권한이 없습니다. 관리자만 접근 가능한 페이지입니다.');
+          }
+          
+          // 3초 후 대시보드로 리다이렉트
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 3000);
+        }
+      }
+    }
+  };
+
+  // 기본 앱 초기화
+  BaseApp.init();
+
+  // 전역 접근을 위해 window에 할당
+  window.BaseApp = BaseApp;
+});
