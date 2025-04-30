@@ -1,603 +1,365 @@
 /**
- * 공통 유틸리티 함수 모듈
- * 인증, 권한, HTTP 요청 등의 공통 기능 제공
+ * 공통 유틸리티 함수 모음
+ * 모든 페이지에서 재사용 가능한 헬퍼 함수들을 제공합니다.
  */
-
 const Utils = {
-  /**
-   * 인증 관련 유틸리티
-   */
-  auth: {
     /**
-     * 현재 로그인한 사용자 정보를 로컬 스토리지에서 가져오기
-     * @returns {Object|null} 사용자 정보 또는 null
+     * 우편번호 포맷팅 (4자리 -> 5자리)
+     * @param {string} code - 입력된 우편번호
+     * @returns {string} - 포맷팅된 우편번호
      */
-    getCurrentUser() {
-      try {
-        const userStr = localStorage.getItem('tms_user');
-        return userStr ? JSON.parse(userStr) : null;
-      } catch (e) {
-        console.error('사용자 정보 파싱 오류:', e);
-        return null;
-      }
-    },
-
-    /**
-     * 사용자 정보를 로컬 스토리지에 저장
-     * @param {Object} user - 저장할 사용자 정보
-     */
-    setCurrentUser(user) {
-      if (user) {
-        localStorage.setItem('tms_user', JSON.stringify(user));
-      } else {
-        localStorage.removeItem('tms_user');
-      }
-    },
-
-    /**
-     * 관리자 권한 확인
-     * @returns {boolean} 관리자 여부
-     */
-    isAdmin() {
-      const user = this.getCurrentUser();
-      return user && user.user_role === 'ADMIN';
-    },
-
-    /**
-     * 현재 페이지에서 권한 확인
-     * 권한이 없으면 경고 메시지 표시 후 대시보드로 리다이렉트
-     * @param {string} requiredRole - 필요한 권한 ('ADMIN' 또는 'USER')
-     * @returns {boolean} 권한 있음 여부
-     */
-    checkPermission(requiredRole = 'USER') {
-      const user = this.getCurrentUser();
-      
-      // 사용자 정보가 없음
-      if (!user) {
-        Utils.message.error('로그인이 필요합니다.');
-        setTimeout(() => {
-          window.location.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
-        }, 1000);
-        return false;
-      }
-      
-      // 관리자 권한 필요한데 일반 사용자인 경우
-      if (requiredRole === 'ADMIN' && user.user_role !== 'ADMIN') {
-        Utils.message.error('접근 권한이 없습니다.');
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 1000);
-        return false;
-      }
-      
-      return true;
-    },
-
-    /**
-     * 로그아웃 처리
-     */
-    logout() {
-      fetch('/logout', {
-        method: 'POST',
-        credentials: 'include'
-      }).finally(() => {
-        // 로컬 사용자 정보 삭제
-        this.setCurrentUser(null);
+    formatPostalCode: function(code) {
+        if (!code) return '';
         
-        // 로그인 페이지로 리다이렉트
-        window.location.href = '/login';
-      });
-    }
-  },
-  /**
-   * 메시지 팝업 유틸리티
-   */
-  message: {
-    /**
-     * 메시지 팝업 표시
-     * @param {string} text - 표시할 메시지 텍스트
-     * @param {string} type - 메시지 유형 (success, error, warning, info)
-     * @param {number} duration - 표시 시간 (밀리초)
-     */
-    show(text, type = 'info', duration = 3000) {
-      const messageEl = document.getElementById('messagePopup');
-      if (!messageEl) return;
-
-      // 이전 타이머 제거
-      if (this.timer) {
-        clearTimeout(this.timer);
-      }
-
-      // 메시지 유형에 따른 아이콘 설정
-      const iconMap = {
-        success: 'fa-check-circle',
-        error: 'fa-times-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-      };
-
-      // 필요한 요소 찾기
-      const messageIcon = messageEl.querySelector('.message-icon');
-      const messageText = messageEl.querySelector('.message-text');
-
-      // 메시지 내용 및 스타일 설정
-      messageEl.className = 'message-popup';
-      messageEl.classList.add(`message-${type}`);
-      messageIcon.className = `fa-solid ${iconMap[type]} message-icon`;
-      messageText.textContent = text;
-
-      // 메시지 표시
-      messageEl.classList.add('active');
-
-      // 일정 시간 후 메시지 숨김
-      this.timer = setTimeout(() => {
-        messageEl.classList.remove('active');
-      }, duration);
-    },
-
-    // 메시지 타이머 저장용 변수
-    timer: null,
-
-    /**
-     * 성공 메시지 표시
-     * @param {string} text - 메시지 내용
-     * @param {number} duration - 표시 시간 (밀리초)
-     */
-    success(text, duration = 3000) {
-      this.show(text, 'success', duration);
-    },
-
-    /**
-     * 오류 메시지 표시
-     * @param {string} text - 메시지 내용
-     * @param {number} duration - 표시 시간 (밀리초)
-     */
-    error(text, duration = 3000) {
-      this.show(text, 'error', duration);
-    },
-
-    /**
-     * 경고 메시지 표시
-     * @param {string} text - 메시지 내용
-     * @param {number} duration - 표시 시간 (밀리초)
-     */
-    warning(text, duration = 3000) {
-      this.show(text, 'warning', duration);
-    },
-
-    /**
-     * 정보 메시지 표시
-     * @param {string} text - 메시지 내용
-     * @param {number} duration - 표시 시간 (밀리초)
-     */
-    info(text, duration = 3000) {
-      this.show(text, 'info', duration);
-    }
-  },
-
-  /**
-   * 날짜 관련 유틸리티
-   */
-  date: {
-    /**
-     * 오늘 날짜를 YYYY-MM-DD 형식으로 반환
-     * @returns {string} YYYY-MM-DD 형식의 날짜
-     */
-    today() {
-      const now = new Date();
-      return this.format(now);
-    },
-
-    /**
-     * 날짜 객체를 YYYY-MM-DD 형식으로 변환
-     * @param {Date} date - 날짜 객체
-     * @returns {string} YYYY-MM-DD 형식의 날짜
-     */
-    format(date) {
-      if (!(date instanceof Date) || isNaN(date.getTime())) {
-        console.warn('유효하지 않은 날짜:', date);
-        return '';
-      }
-
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-
-      return `${year}-${month}-${day}`;
-    },
-
-    /**
-     * 날짜 및 시간을 YYYY-MM-DD HH:MM 형식으로 변환
-     * @param {Date} date - 날짜 객체
-     * @returns {string} YYYY-MM-DD HH:MM 형식의 날짜 및 시간
-     */
-    formatDateTime(date) {
-      if (!(date instanceof Date) || isNaN(date.getTime())) {
-        console.warn('유효하지 않은 날짜:', date);
-        return '';
-      }
-
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
-    },
-
-    /**
-     * 문자열을 Date 객체로 변환
-     * @param {string} dateStr - 날짜 문자열
-     * @returns {Date|null} 변환된 Date 객체 또는 null
-     */
-    parse(dateStr) {
-      if (!dateStr) return null;
-      
-      try {
-        return new Date(dateStr);
-      } catch (e) {
-        console.warn('날짜 파싱 오류:', dateStr, e);
-        return null;
-      }
-    }
-  },
-
-  /**
-   * HTTP 요청 관련 유틸리티
-   */
-  http: {
-    /**
-     * 기본 fetch 래퍼 함수
-     * @param {string} url - 요청 URL
-     * @param {Object} options - fetch 옵션
-     * @returns {Promise} fetch 응답 Promise
-     */
-    async fetch(url, options = {}) {
-      try {
-        // 기본 헤더 설정
-        const headers = {
-          'Content-Type': 'application/json',
-          ...options.headers
-        };
-
-        // 로딩 표시
-        if (options.showLoading !== false) {
-          this.showLoading();
+        // 숫자만 추출
+        const numericValue = code.replace(/[^\d]/g, '');
+        
+        // 4자리인 경우 앞에 0 추가
+        if (numericValue.length === 4) {
+            return '0' + numericValue;
         }
-
-        // 세션 쿠키 포함 설정
-        const fetchOptions = {
-          ...options,
-          headers,
-          credentials: 'include' // 항상 세션 쿠키 포함
-        };
-
-        // fetch 요청
-        const response = await fetch(url, fetchOptions);
-
-        // 로딩 숨김
-        if (options.showLoading !== false) {
-          this.hideLoading();
-        }
-
-        // 응답 처리
-        if (!response.ok) {
-          // 세션 만료 처리 (401 상태코드)
-          if (response.status === 401) {
-            Utils.message.error('세션이 만료되었습니다. 다시 로그인해주세요.');
-            // 현재 URL을 저장하여 로그인 후 복귀할 수 있도록 함
-            const returnPath = encodeURIComponent(window.location.pathname + window.location.search);
-            setTimeout(() => {
-              window.location.href = `/login?return_to=${returnPath}`;
-            }, 1500);
-            throw new Error('Unauthorized');
-          }
-          
-          // 권한 없음 처리 (403 상태코드)
-          if (response.status === 403) {
-            Utils.message.error('해당 작업에 대한 권한이 없습니다.');
-            throw new Error('Forbidden');
-          }
-
-          // 기타 에러 처리
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.message || `요청 실패: ${response.status} ${response.statusText}`;
-          throw new Error(errorMessage);
-        }
-
-        // 빈 응답 처리
-        if (response.status === 204) {
-          return null;
-        }
-
-        // JSON 응답 처리
-        return await response.json();
-      } catch (error) {
-        // 로딩 숨김
-        if (options.showLoading !== false) {
-          this.hideLoading();
-        }
-
-        // 네트워크 오류 처리
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-          Utils.message.error('네트워크 오류: 서버에 연결할 수 없습니다.');
-        } else if (!['Unauthorized', 'Forbidden'].includes(error.message)) {
-          Utils.message.error(error.message || '요청 처리 중 오류가 발생했습니다.');
-        }
-
-        throw error;
-      }
+        
+        return numericValue;
     },
-
+    
     /**
-     * GET 요청
-     * @param {string} url - 요청 URL
-     * @param {Object} options - fetch 옵션
-     * @returns {Promise} fetch 응답 Promise
+     * 날짜 형식 변환 (YYYY-MM-DD HH:MM)
+     * @param {string|Date} dateString - 변환할 날짜 문자열 또는 Date 객체
+     * @returns {string} - 포맷팅된 날짜 문자열
      */
-    async get(url, options = {}) {
-      return this.fetch(url, {
-        method: 'GET',
-        ...options
-      });
+    formatDate: function(dateString) {
+        if (!dateString) return '';
+        
+        const date = dateString instanceof Date ? dateString : new Date(dateString);
+        
+        // 유효한 날짜가 아니면 원래 값 반환
+        if (isNaN(date.getTime())) return dateString;
+        
+        // YYYY-MM-DD HH:MM 포맷으로 변환
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
     },
-
+    
     /**
-     * POST 요청
-     * @param {string} url - 요청 URL
-     * @param {Object} data - 전송할 데이터
-     * @param {Object} options - fetch 옵션
-     * @returns {Promise} fetch 응답 Promise
+     * 알림 메시지 표시 관련 유틸리티
      */
-    async post(url, data, options = {}) {
-      return this.fetch(url, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        ...options
-      });
-    },
-
-    /**
-     * PUT 요청
-     * @param {string} url - 요청 URL
-     * @param {Object} data - 전송할 데이터
-     * @param {Object} options - fetch 옵션
-     * @returns {Promise} fetch 응답 Promise
-     */
-    async put(url, data, options = {}) {
-      return this.fetch(url, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-        ...options
-      });
-    },
-
-    /**
-     * DELETE 요청
-     * @param {string} url - 요청 URL
-     * @param {Object} options - fetch 옵션
-     * @returns {Promise} fetch 응답 Promise
-     */
-    async delete(url, options = {}) {
-      return this.fetch(url, {
-        method: 'DELETE',
-        ...options
-      });
-    },
-
-    /**
-     * 로딩 오버레이 표시
-     */
-    showLoading() {
-      const loadingEl = document.getElementById('loadingOverlay');
-      if (loadingEl) {
-        loadingEl.style.display = 'flex';
-      }
-    },
-
-    /**
-     * 로딩 오버레이 숨김
-     */
-    hideLoading() {
-      const loadingEl = document.getElementById('loadingOverlay');
-      if (loadingEl) {
-        loadingEl.style.display = 'none';
-      }
-    }
-  },
-
-  /**
-   * 폼 관련 유틸리티
-   */
-  form: {
-    /**
-     * 폼 필드 유효성 검사
-     * @param {HTMLFormElement} form - 검사할 폼 요소
-     * @returns {boolean} 유효성 여부
-     */
-    validate(form) {
-      if (!form) return false;
-      
-      // HTML5 내장 유효성 검사 사용
-      if (form.checkValidity()) {
-        return true;
-      } else {
-        // 첫 번째 오류 필드에 포커스
-        const invalidField = form.querySelector(':invalid');
-        if (invalidField) {
-          invalidField.focus();
-        }
-        return false;
-      }
-    },
-
-    /**
-     * 폼 데이터를 객체로 변환
-     * @param {HTMLFormElement} form - 변환할 폼 요소
-     * @returns {Object} 폼 데이터 객체
-     */
-    getValues(form) {
-      if (!form) return {};
-      
-      const formData = new FormData(form);
-      const data = {};
-      
-      for (const [key, value] of formData.entries()) {
-        data[key] = value;
-      }
-      
-      return data;
-    },
-
-    /**
-     * 객체 데이터로 폼 필드 설정
-     * @param {HTMLFormElement} form - 대상 폼 요소
-     * @param {Object} data - 설정할 데이터 객체
-     */
-    setValues(form, data) {
-      if (!form || !data) return;
-      
-      for (const [key, value] of Object.entries(data)) {
-        const field = form.querySelector(`[name="${key}"]`);
-        if (field) {
-          // 폼 요소 유형에 따라 처리
-          if (field.type === 'checkbox') {
-            field.checked = Boolean(value);
-          } else if (field.type === 'radio') {
-            const radio = form.querySelector(`[name="${key}"][value="${value}"]`);
-            if (radio) {
-              radio.checked = true;
+    alerts: {
+        /**
+         * 성공 메시지 표시
+         * @param {string} message - 표시할 메시지
+         * @param {number} duration - 표시 지속 시간 (밀리초)
+         */
+        showSuccess: function(message, duration = 3000) {
+            Utils.alerts._showAlert(message, 'success', duration);
+        },
+        
+        /**
+         * 오류 메시지 표시
+         * @param {string} message - 표시할 메시지
+         * @param {number} duration - 표시 지속 시간 (0이면 수동으로 닫을 때까지 유지)
+         */
+        showError: function(message, duration = 0) {
+            Utils.alerts._showAlert(message, 'error', duration);
+        },
+        
+        /**
+         * 경고 메시지 표시
+         * @param {string} message - 표시할 메시지
+         * @param {number} duration - 표시 지속 시간 (밀리초)
+         */
+        showWarning: function(message, duration = 5000) {
+            Utils.alerts._showAlert(message, 'warning', duration);
+        },
+        
+        /**
+         * 정보 메시지 표시
+         * @param {string} message - 표시할 메시지
+         * @param {number} duration - 표시 지속 시간 (밀리초)
+         */
+        showInfo: function(message, duration = 3000) {
+            Utils.alerts._showAlert(message, 'info', duration);
+        },
+        
+        /**
+         * 알림 메시지 내부 구현
+         * @private
+         */
+        _showAlert: function(message, type, duration) {
+            // 기존 알림이 있으면 제거
+            const existingAlert = document.querySelector('.alert');
+            if (existingAlert) {
+                existingAlert.remove();
             }
-          } else if (field.tagName === 'SELECT') {
-            field.value = value || '';
-          } else if (field.tagName === 'TEXTAREA') {
-            field.value = value || '';
-          } else {
-            field.value = value || '';
-          }
+            
+            // 알림 요소 생성
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            // 아이콘 선택
+            let icon = 'info-circle';
+            switch (type) {
+                case 'success': icon = 'check-circle'; break;
+                case 'error': icon = 'exclamation-circle'; break;
+                case 'warning': icon = 'exclamation-triangle'; break;
+            }
+            
+            // 내용 설정
+            alert.innerHTML = `<i class="fa-solid fa-${icon}"></i><span>${message}</span>`;
+            
+            // 닫기 버튼 추가 (오류 메시지 또는 duration이 0인 경우에만)
+            if (type === 'error' || duration === 0) {
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'close-btn';
+                closeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
+                closeBtn.addEventListener('click', function() {
+                    alert.remove();
+                });
+                alert.appendChild(closeBtn);
+            }
+            
+            // 알림 추가
+            document.body.appendChild(alert);
+            
+            // 자동 제거 타이머 설정 (duration이 0보다 큰 경우에만)
+            if (duration > 0) {
+                setTimeout(() => {
+                    if (alert && alert.parentNode) {
+                        alert.remove();
+                    }
+                }, duration);
+            }
         }
-      }
     },
-
+    
     /**
-     * 폼 초기화
-     * @param {HTMLFormElement} form - 초기화할 폼 요소
+     * 폼 관련 공통 기능
      */
-    reset(form) {
-      if (form) {
-        form.reset();
-      }
-    }
-  },
-
-  /**
-   * 상태 관련 유틸리티
-   */
-  status: {
-    /**
-     * 상태 코드에 따른 텍스트 반환
-     * @param {string} status - 상태 코드
-     * @returns {string} 상태 텍스트
-     */
-    getText(status) {
-      const statusMap = {
-        'WAITING': '대기',
-        'PENDING': '대기',
-        'IN_PROGRESS': '진행',
-        'COMPLETE': '완료',
-        'ISSUE': '이슈',
-        'CANCEL': '취소'
-      };
-      
-      return statusMap[status] || status;
+    forms: {
+        /**
+         * 폼 비활성화/활성화
+         * @param {HTMLFormElement} form - 대상 폼 요소
+         * @param {boolean} disabled - 비활성화 여부
+         * @param {string} loadingText - 로딩 중 표시할 텍스트 (optional)
+         * @param {string} originalText - 원래 버튼 텍스트 (optional)
+         */
+        disable: function(form, disabled, loadingText, originalText) {
+            if (!form) return;
+            
+            // 폼 내 모든 입력 요소 찾기
+            const inputs = form.querySelectorAll('input, select, textarea, button');
+            
+            // 비활성화 상태 설정
+            inputs.forEach(input => {
+                input.disabled = disabled;
+            });
+            
+            // 제출 버튼 업데이트 (제공된 경우)
+            if (loadingText && originalText) {
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    if (disabled) {
+                        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${loadingText}`;
+                    } else {
+                        submitBtn.innerHTML = originalText;
+                    }
+                }
+            }
+        },
+        
+        /**
+         * 필수 입력 필드 검증
+         * @param {HTMLFormElement} form - 검증할 폼
+         * @returns {boolean} - 모든 필수 필드가 입력되었는지 여부
+         */
+        validateRequired: function(form) {
+            if (!form) return false;
+            
+            // required 속성이 있는 모든 필드 검색
+            const requiredFields = form.querySelectorAll('[required]');
+            let isValid = true;
+            
+            // 각 필수 필드 검증
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    isValid = false;
+                    // 오류 스타일 적용
+                    field.classList.add('input-error');
+                    
+                    // 오류 메시지 표시 (필드 아래)
+                    const fieldName = field.getAttribute('data-name') || field.name;
+                    const errorSpan = document.createElement('span');
+                    errorSpan.className = 'error-message';
+                    errorSpan.textContent = `${fieldName}을(를) 입력해주세요.`;
+                    
+                    // 기존 오류 메시지 제거
+                    const existingError = field.parentNode.querySelector('.error-message');
+                    if (existingError) {
+                        existingError.remove();
+                    }
+                    
+                    // 새 오류 메시지 추가
+                    field.parentNode.appendChild(errorSpan);
+                    
+                    // 입력 시 오류 스타일 제거
+                    field.addEventListener('input', function() {
+                        if (field.value.trim()) {
+                            field.classList.remove('input-error');
+                            const error = field.parentNode.querySelector('.error-message');
+                            if (error) error.remove();
+                        }
+                    }, { once: true });
+                }
+            });
+            
+            return isValid;
+        }
     },
-
+    
     /**
-     * 상태 코드에 따른 CSS 클래스 반환
-     * @param {string} status - 상태 코드
-     * @returns {string} CSS 클래스명
+     * API 요청 관련 공통 기능
      */
-    getClass(status) {
-      const classMap = {
-        'WAITING': 'status-waiting',
-        'PENDING': 'status-waiting',
-        'IN_PROGRESS': 'status-progress',
-        'COMPLETE': 'status-complete',
-        'ISSUE': 'status-issue',
-        'CANCEL': 'status-cancel'
-      };
-      
-      return classMap[status] || '';
-    }
-  },
-
-  /**
-   * 우편번호 관련 유틸리티
-   */
-  postal: {
+    api: {
+        /**
+         * GET 요청 수행
+         * @param {string} url - 요청 URL
+         * @param {Object} options - 추가 옵션
+         * @returns {Promise<Object>} - 응답 데이터
+         */
+        get: async function(url, options = {}) {
+            return Utils.api._request(url, { 
+                method: 'GET', 
+                ...options 
+            });
+        },
+        
+        /**
+         * POST 요청 수행 (JSON 데이터)
+         * @param {string} url - 요청 URL
+         * @param {Object} data - 전송할 데이터
+         * @param {Object} options - 추가 옵션
+         * @returns {Promise<Object>} - 응답 데이터
+         */
+        post: async function(url, data, options = {}) {
+            return Utils.api._request(url, { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(options.headers || {})
+                },
+                body: JSON.stringify(data),
+                ...options
+            });
+        },
+        
+        /**
+         * 내부 요청 처리 함수
+         * @private
+         */
+        _request: async function(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    credentials: 'include'
+                });
+                
+                // 세션 만료 체크 (401 상태 코드)
+                if (response.status === 401) {
+                    Utils.api._handleSessionExpired();
+                    return null;
+                }
+                
+                // 기타 오류 상태 처리
+                if (!response.ok) {
+                    return Utils.api._handleErrorResponse(response);
+                }
+                
+                // 성공 응답 처리
+                return await response.json();
+            } catch (error) {
+                Utils.alerts.showError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+                console.error('API 요청 오류:', error);
+                return null;
+            }
+        },
+        
+        /**
+         * 세션 만료 처리
+         * @private
+         */
+        _handleSessionExpired: function() {
+            Utils.alerts.showError('세션이 만료되었습니다. 다시 로그인해주세요.');
+            
+            // 현재 URL을 저장하여 로그인 후 돌아올 수 있도록 함
+            const returnUrl = encodeURIComponent(window.location.pathname);
+            
+            // 잠시 후 로그인 페이지로 리다이렉트
+            setTimeout(() => {
+                window.location.href = `/login?return_to=${returnUrl}`;
+            }, 1500);
+        },
+        
+        /**
+         * 오류 응답 처리
+         * @private
+         */
+        _handleErrorResponse: async function(response) {
+            let errorMessage = '요청 처리 중 오류가 발생했습니다.';
+            
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.message) {
+                    errorMessage = errorData.message;
+                }
+                
+                Utils.alerts.showError(errorMessage);
+                return errorData;
+            } catch (parseError) {
+                Utils.alerts.showError(errorMessage);
+                console.error('오류 응답 파싱 실패:', parseError);
+                return null;
+            }
+        }
+    },
+    
     /**
-     * 우편번호 자동 보완 (4자리 -> 5자리)
-     * @param {string} code - 우편번호
-     * @returns {string} 보완된 우편번호
+     * 인증 및 사용자 관련 공통 기능
      */
-    formatCode(code) {
-      if (!code) return '';
-      
-      const cleaned = code.replace(/[^0-9]/g, '');
-      
-      // 4자리인 경우 앞에 0 추가
-      if (cleaned.length === 4) {
-        return '0' + cleaned;
-      }
-      
-      return cleaned;
+    auth: {
+        /**
+         * 현재 로그인한 사용자 정보 반환
+         * (세션에서 window._currentUser를 통해 전달됨)
+         * @returns {Object|null} - 사용자 정보 또는 null
+         */
+        getCurrentUser: function() {
+            // 서버에서 렌더링 시 window._currentUser에 사용자 정보를 초기화해야 함
+            return window._currentUser || null;
+        },
+        
+        /**
+         * 현재 사용자가 관리자인지 확인
+         * @returns {boolean} - 관리자 여부
+         */
+        isAdmin: function() {
+            const user = Utils.auth.getCurrentUser();
+            return user && user.user_role === 'ADMIN';
+        },
+        
+        /**
+         * 현재 사용자가 특정 리소스의 소유자인지 확인
+         * @param {string} resourceOwner - 리소스 소유자 ID
+         * @returns {boolean} - 소유자 여부
+         */
+        isOwner: function(resourceOwner) {
+            const user = Utils.auth.getCurrentUser();
+            return user && user.user_id === resourceOwner;
+        }
     }
-  },
-
-  /**
-   * 문자열 유틸리티
-   */
-  string: {
-    /**
-     * 텍스트를 일정 길이로 자르고 말줄임표 처리
-     * @param {string} text - 원본 텍스트
-     * @param {number} maxLength - 최대 길이
-     * @returns {string} 처리된 텍스트
-     */
-    truncate(text, maxLength = 50) {
-      if (!text) return '';
-      
-      if (text.length <= maxLength) {
-        return text;
-      }
-      
-      return text.substring(0, maxLength) + '...';
-    }
-  },
-
-  /**
-   * DOM 유틸리티
-   */
-  dom: {
-    /**
-     * 클립보드에 텍스트 복사
-     * @param {string} text - 복사할 텍스트
-     * @returns {Promise<boolean>} 성공 여부
-     */
-    async copyToClipboard(text) {
-      try {
-        await navigator.clipboard.writeText(text);
-        Utils.message.success('복사되었습니다.');
-        return true;
-      } catch (err) {
-        console.error('클립보드 복사 실패:', err);
-        Utils.message.error('클립보드 복사에 실패했습니다.');
-        return false;
-      }
-    }
-  }
 };
 
-// 글로벌 스코프에 Utils 노출
+// 글로벌 스코프에 Utils 공개
 window.Utils = Utils;

@@ -51,9 +51,17 @@ router = APIRouter()
 
 
 @router.get("/dashboard")
-async def dashboard_page(request: Request):
+async def dashboard_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    order_no: Optional[str] = None,
+):
     """
-    대시보드 페이지 렌더링
+    대시보드 페이지 렌더링 (SSR 방식으로 초기 데이터 포함)
     """
     try:
         # 세션에서 사용자 정보 확인
@@ -65,14 +73,116 @@ async def dashboard_page(request: Request):
             return RedirectResponse(
                 url="/login?return_to=/dashboard", status_code=status.HTTP_303_SEE_OTHER
             )
+        
+        # 기본값 설정
+        today = datetime.now().date()
+        
+        # 검색 요청 파라미터 처리
+        search_mode = "default"
+        
+        if order_no:
+            # 주문번호 검색 모드
+            search_mode = "order_no"
+            orders, pagination, stats = search_dashboard_by_order_no(
+                db=db, 
+                order_no=order_no, 
+                page=page, 
+                page_size=page_size
+            )
+            logger.info(f"주문번호 검색: {order_no}, 결과: {len(orders)}건")
+        else:
+            # 날짜 범위 설정
+            start_date_obj = None
+            end_date_obj = None
+            
+            if start_date:
+                try:
+                    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+                    search_mode = "date_range"
+                except ValueError:
+                    logger.warning(f"잘못된 시작 날짜 형식: {start_date}")
+            
+            if end_date:
+                try:
+                    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+                    search_mode = "date_range"
+                except ValueError:
+                    logger.warning(f"잘못된 종료 날짜 형식: {end_date}")
+            
+            # 날짜 범위가 없으면 오늘 날짜 사용
+            if not start_date_obj and not end_date_obj:
+                start_date_obj = today
+                end_date_obj = today
+            elif start_date_obj and not end_date_obj:
+                end_date_obj = start_date_obj  # 시작일만 있으면 종료일도 같게 설정
+            elif not start_date_obj and end_date_obj:
+                start_date_obj = end_date_obj  # 종료일만 있으면 시작일도 같게 설정
+            
+            # 주문 데이터 조회
+            orders, pagination, stats = get_dashboard_list(
+                db=db,
+                start_date=start_date_obj,
+                end_date=end_date_obj,
+                page=page,
+                page_size=page_size,
+            )
+            
+            logger.info(f"날짜 범위 조회: {start_date_obj} ~ {end_date_obj}, 결과: {len(orders)}건")
+        
+        # JSON 응답과 동일한 형식으로 데이터 가공
+        status_labels = {
+            "WAITING": "대기",
+            "IN_PROGRESS": "진행",
+            "COMPLETE": "완료",
+            "ISSUE": "이슈",
+            "CANCEL": "취소",
+        }
+        type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
-        # 세션이 있는 경우 바로 대시보드 페이지 렌더링
-        logger.info(f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}")
+        orders_data = []
+        for order in orders:
+            order_dict = {
+                "dashboardId": order.dashboard_id,
+                "orderNo": order.order_no,
+                "type": order.type,
+                "status": order.status,
+                "department": order.department,
+                "warehouse": order.warehouse,
+                "sla": order.sla,
+                "eta": order.eta,
+                "region": order.region or "",
+                "customer": order.customer,
+                "driverName": order.driver_name or "",
+                "statusLabel": status_labels.get(order.status, order.status),
+                "typeLabel": type_labels.get(order.type, order.type),
+            }
+            orders_data.append(order_dict)
+        
+        # 템플릿에 전달할 날짜 문자열 형식으로 변환
+        if search_mode == "date_range" or search_mode == "default":
+            start_date_str = start_date_obj.strftime("%Y-%m-%d")
+            end_date_str = end_date_obj.strftime("%Y-%m-%d")
+        else:
+            # 주문번호 검색 모드에서는 오늘 날짜 기본값 사용
+            start_date_str = today.strftime("%Y-%m-%d")
+            end_date_str = today.strftime("%Y-%m-%d")
+
+        # 세션이 있는 경우 대시보드 페이지 렌더링 (초기 데이터 포함)
+        logger.info(f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}, 데이터: {len(orders_data)}건")
         return templates.TemplateResponse(
             "dashboard.html",
             {
                 "request": request,
                 "user": user,
+                "initial_data": {
+                    "orders": orders_data,
+                    "pagination": pagination,
+                    "stats": stats,
+                    "today": start_date_str,
+                    "end_date": end_date_str,
+                    "search_mode": search_mode,
+                    "order_no": order_no or "",
+                },
                 "debug": True,
             },
         )
@@ -83,8 +193,8 @@ async def dashboard_page(request: Request):
         )
 
 
-@router.get("/orders", response_model=DashboardListResponse)
-async def get_orders(
+@router.get("/dashboard/list", response_model=DashboardListResponse)
+async def get_dashboard_list_api(
     request: Request,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -97,7 +207,7 @@ async def get_orders(
     page_size: int = Query(10, ge=1, le=100),
 ):
     """
-    주문 목록 조회 API
+    대시보드 목록 조회 API (JSON)
     """
     # 주문 목록 조회
     orders, pagination, stats = get_dashboard_list(
@@ -111,7 +221,7 @@ async def get_orders(
         page_size=page_size,
     )
 
-    # 응답 데이터 가공
+    # 응답 데이터 가공 - 필요한 컬럼만 포함하여 최적화
     status_labels = {
         "WAITING": "대기",
         "IN_PROGRESS": "진행",
@@ -124,7 +234,7 @@ async def get_orders(
     orders_data = []
     for order in orders:
         order_dict = {
-            "dashboardId": order.dashboard_id,
+            "dashboardId": order.dashboard_id,  # ID는 상세 페이지 이동을 위해 필요
             "orderNo": order.order_no,
             "type": order.type,
             "status": order.status,
@@ -132,10 +242,9 @@ async def get_orders(
             "warehouse": order.warehouse,
             "sla": order.sla,
             "eta": order.eta,
-            "postalCode": order.postal_code,
+            "region": order.region or "",
             "customer": order.customer,
-            "region": order.region,
-            "driverName": order.driver_name,
+            "driverName": order.driver_name or "",
             "statusLabel": status_labels.get(order.status, order.status),
             "typeLabel": type_labels.get(order.type, order.type),
         }
@@ -163,49 +272,55 @@ async def search_order(
     """
     주문번호로 주문 검색 API
     """
-    # 주문 검색
-    orders, pagination, stats = search_dashboard_by_order_no(
-        db=db, order_no=order_no, page=page, page_size=page_size
-    )
+    try:
+        # 주문 검색
+        orders, pagination, stats = search_dashboard_by_order_no(
+            db=db, order_no=order_no, page=page, page_size=page_size
+        )
 
-    # 응답 데이터 가공
-    status_labels = {
-        "WAITING": "대기",
-        "IN_PROGRESS": "진행",
-        "COMPLETE": "완료",
-        "ISSUE": "이슈",
-        "CANCEL": "취소",
-    }
-    type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
-
-    orders_data = []
-    for order in orders:
-        order_dict = {
-            "dashboardId": order.dashboard_id,
-            "orderNo": order.order_no,
-            "type": order.type,
-            "status": order.status,
-            "department": order.department,
-            "warehouse": order.warehouse,
-            "sla": order.sla,
-            "eta": order.eta,
-            "postalCode": order.postal_code,
-            "customer": order.customer,
-            "region": order.region,
-            "driverName": order.driver_name,
-            "statusLabel": status_labels.get(order.status, order.status),
-            "typeLabel": type_labels.get(order.type, order.type),
+        # 응답 데이터 가공 - 검색 결과도 동일하게 최적화
+        status_labels = {
+            "WAITING": "대기",
+            "IN_PROGRESS": "진행",
+            "COMPLETE": "완료",
+            "ISSUE": "이슈",
+            "CANCEL": "취소",
         }
-        orders_data.append(order_dict)
+        type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
-    # 응답 반환
-    return {
-        "success": True,
-        "message": f"주문번호 '{order_no}' 검색 결과",
-        "data": orders_data,
-        "pagination": pagination,
-        "stats": stats,
-    }
+        orders_data = []
+        for order in orders:
+            order_dict = {
+                "dashboardId": order.dashboard_id,
+                "orderNo": order.order_no,
+                "type": order.type,
+                "status": order.status,
+                "department": order.department,
+                "warehouse": order.warehouse,
+                "sla": order.sla,
+                "eta": order.eta,
+                "region": order.region or "",
+                "customer": order.customer,
+                "driverName": order.driver_name or "",
+                "statusLabel": status_labels.get(order.status, order.status),
+                "typeLabel": type_labels.get(order.type, order.type),
+            }
+            orders_data.append(order_dict)
+
+        # 응답 반환
+        return {
+            "success": True,
+            "message": f"주문번호 '{order_no}' 검색 결과",
+            "data": orders_data,
+            "pagination": pagination,
+            "stats": stats,
+        }
+    except Exception as e:
+        logger.error(f"주문번호 검색 중 오류 발생: {str(e)}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "message": "검색 중 오류가 발생했습니다."}
+        )
 
 
 @router.get("/orders/{dashboard_id}", response_model=DashboardResponse)
@@ -218,60 +333,35 @@ async def get_order_detail(
     """
     주문 상세 조회 API
     """
-    order = get_dashboard_by_id(db, dashboard_id)
+    try:
+        # 주문 정보 조회
+        order = get_dashboard_by_id(db, dashboard_id)
 
-    if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="주문을 찾을 수 없습니다."
+        if not order:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"success": False, "message": "주문을 찾을 수 없습니다."},
+            )
+
+        # 락 상태 확인
+        lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
+        is_editable = lock_status.get("editable", False)
+
+        # 서비스 레이어에서 응답 데이터 생성
+        order_data = get_dashboard_response_data(order, is_editable)
+
+        # 표준화된 응답 구조로 반환
+        return {
+            "success": True,
+            "message": "주문 상세 조회 성공",
+            "data": order_data
+        }
+    except Exception as e:
+        logger.error(f"주문 상세 조회 중 오류 발생: {str(e)}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
         )
-
-    # 락 상태 확인
-    lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
-
-    # 응답 데이터 가공
-    status_labels = {
-        "WAITING": "대기",
-        "IN_PROGRESS": "진행",
-        "COMPLETE": "완료",
-        "ISSUE": "이슈",
-        "CANCEL": "취소",
-    }
-    type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
-
-    order_data = {
-        "dashboardId": order.dashboard_id,
-        "orderNo": order.order_no,
-        "type": order.type,
-        "status": order.status,
-        "department": order.department,
-        "warehouse": order.warehouse,
-        "sla": order.sla,
-        "eta": order.eta,
-        "createTime": order.create_time,
-        "departTime": order.depart_time,
-        "completeTime": order.complete_time,
-        "postalCode": order.postal_code,
-        "city": getattr(order, "city", "") or "",
-        "county": getattr(order, "county", "") or "",
-        "district": getattr(order, "district", "") or "",
-        "region": getattr(order, "region", "") or "",
-        "distance": getattr(order, "distance", None),
-        "durationTime": getattr(order, "duration_time", None),
-        "address": order.address,
-        "customer": order.customer,
-        "contact": order.contact,
-        "driverName": order.driver_name,
-        "driverContact": order.driver_contact,
-        "updatedBy": order.update_by,
-        "remark": order.remark,
-        "updateAt": order.update_at,
-        "isLocked": order.is_locked,
-        "statusLabel": status_labels.get(order.status, order.status),
-        "typeLabel": type_labels.get(order.type, order.type),
-        "editable": lock_status.get("editable", False),
-    }
-
-    return order_data
 
 
 @router.post("/orders", status_code=status.HTTP_201_CREATED)

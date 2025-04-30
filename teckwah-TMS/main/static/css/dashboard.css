@@ -41,42 +41,95 @@
   border-bottom: 1px solid var(--border-color);
 }
 
-/* 테이블 컬럼 너비 조정 */
+/* 테이블 컬럼 너비 조정 (체크박스 제거) */
 .data-table th:nth-child(1) {
-  width: 40px;
-} /* 체크박스 */
-
-.data-table th:nth-child(2) {
   width: 15%;
 } /* 주문번호 */
 
-.data-table th:nth-child(3) {
+.data-table th:nth-child(2) {
   width: 12%;
 } /* 고객 */
 
-.data-table th:nth-child(4) {
+.data-table th:nth-child(3) {
   width: 7%;
 } /* 유형 */
 
-.data-table th:nth-child(5) {
+.data-table th:nth-child(4) {
   width: 10%;
 } /* 상태 */
 
-.data-table th:nth-child(6) {
-  width: 10%;
+.data-table th:nth-child(5) {
+  width: 8%;
 } /* 부서 */
 
-.data-table th:nth-child(7) {
-  width: 10%;
+.data-table th:nth-child(6) {
+  width: 8%;
 } /* 창고 */
 
-.data-table th:nth-child(8) {
+.data-table th:nth-child(7) {
   width: 15%;
 } /* ETA */
+
+.data-table th:nth-child(8) {
+  width: 12%;
+} /* 지역 */
 
 .data-table th:nth-child(9) {
   width: 12%;
 } /* 배송기사 */
+
+/* 상태 요약 배지 스타일 */
+.status-summary {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 15px 0;
+  padding: 0 5px;
+}
+
+.status-badge-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.status-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  padding: 3px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* 활성 필터 표시 스타일 */
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background-color: var(--background-color-light);
+  border-radius: 4px;
+  align-items: center;
+}
+
+.filter-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: var(--primary-color-light);
+  color: var(--primary-color);
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* 필터 활성화 스타일 */
+.filter-select.filter-active {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px rgba(215, 37, 25, 0.2);
+}
 
 /* 테이블 내 주문번호 셀 스타일 */
 .order-number {

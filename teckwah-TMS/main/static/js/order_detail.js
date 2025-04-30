@@ -336,12 +336,89 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async checkLockStatus() {
       try {
-        this.lockStatus = await Utils.http.get(`/lock/${this.orderId}`);
+        const response = await Utils.http.get(`/lock/${this.orderId}`);
+        
+        // 응답 구조 검증
+        if (!response || !response.success) {
+          throw new Error(response?.message || '락 상태 확인 실패');
+        }
+        
+        this.lockStatus = response.data || {};
+        
+        // 락 상태 UI 업데이트
+        this.updateLockStatusUI();
+        
         return this.lockStatus;
       } catch (error) {
         console.error('락 상태 확인 오류:', error);
         Utils.message.error('락 상태를 확인하는 중 오류가 발생했습니다.');
         return null;
+      }
+    },
+    
+    /**
+     * 락 상태 UI 업데이트
+     */
+    updateLockStatusUI() {
+      // 락 상태 정보 컨테이너
+      const lockInfoContainer = document.querySelector('.lock-info');
+      if (!lockInfoContainer) return;
+      
+      // 락 상태에 따라 UI 업데이트
+      if (this.lockStatus.locked) {
+        // 다른 사용자의 락인 경우
+        if (!this.lockStatus.editable) {
+          lockInfoContainer.innerHTML = `
+            <div class="lock-status locked">
+              <i class="fa-solid fa-lock"></i>
+              <span>${this.lockStatus.lockedBy || '다른 사용자'}님이 편집 중입니다. 
+              ${this.lockStatus.expiresIn ? `(${Math.ceil(this.lockStatus.expiresIn / 60)}분 후 자동 해제)` : ''}</span>
+            </div>
+          `;
+          
+          // 편집 버튼 비활성화
+          const editButtons = document.querySelectorAll('.edit-btn');
+          editButtons.forEach(btn => {
+            btn.classList.add('disabled');
+            btn.setAttribute('disabled', 'disabled');
+            btn.setAttribute('title', '현재 다른 사용자가 편집 중입니다');
+          });
+        } 
+        // 본인의 락인 경우
+        else {
+          lockInfoContainer.innerHTML = `
+            <div class="lock-status self-locked">
+              <i class="fa-solid fa-unlock"></i>
+              <span>현재 내가 편집 중입니다. 
+              ${this.lockStatus.expiresIn ? `(${Math.ceil(this.lockStatus.expiresIn / 60)}분 후 자동 해제)` : ''}</span>
+            </div>
+          `;
+          
+          // 편집 버튼 활성화
+          const editButtons = document.querySelectorAll('.edit-btn');
+          editButtons.forEach(btn => {
+            btn.classList.remove('disabled');
+            btn.removeAttribute('disabled');
+            btn.setAttribute('title', '클릭하여 편집');
+          });
+        }
+      } 
+      // 락이 없는 경우
+      else {
+        lockInfoContainer.innerHTML = `
+          <div class="lock-status unlocked">
+            <i class="fa-solid fa-unlock"></i>
+            <span>편집 가능한 상태입니다</span>
+          </div>
+        `;
+        
+        // 편집 버튼 활성화
+        const editButtons = document.querySelectorAll('.edit-btn');
+        editButtons.forEach(btn => {
+          btn.classList.remove('disabled');
+          btn.removeAttribute('disabled');
+          btn.setAttribute('title', '클릭하여 편집');
+        });
       }
     },
     

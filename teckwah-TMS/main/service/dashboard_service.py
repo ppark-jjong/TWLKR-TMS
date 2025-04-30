@@ -15,6 +15,7 @@ from main.models.postal_code_model import PostalCode
 from main.schema.dashboard_schema import DashboardCreate, DashboardUpdate
 from main.utils.logger import logger
 from main.utils.lock import acquire_lock, release_lock, check_lock_status
+from main.utils.pagination import paginate_query, calculate_dashboard_stats
 
 
 def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
@@ -42,6 +43,62 @@ def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
             detail="데이터베이스 오류가 발생했습니다.",
         )
 
+def get_dashboard_response_data(order: Dashboard, is_editable: bool = False) -> Dict[str, Any]:
+    """
+    주문 정보를 응답 형식으로 변환
+
+    Args:
+        order: 주문 모델 인스턴스
+        is_editable: 편집 가능 여부
+
+    Returns:
+        Dict[str, Any]: 응답 형식으로 변환된 주문 데이터
+    """
+    # 상태 및 유형 라벨 정의
+    status_labels = {
+        "WAITING": "대기",
+        "IN_PROGRESS": "진행",
+        "COMPLETE": "완료",
+        "ISSUE": "이슈",
+        "CANCEL": "취소",
+    }
+    type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
+
+    # 상세 페이지는 모든 필드 포함
+    # 대시보드 목록과 달리 상세 정보는 모든 필드가 필요함
+    return {
+        "dashboardId": order.dashboard_id,
+        "orderNo": order.order_no,
+        "type": order.type,
+        "status": order.status,
+        "department": order.department,
+        "warehouse": order.warehouse,
+        "sla": order.sla,
+        "eta": order.eta,
+        "createTime": order.create_time,
+        "departTime": order.depart_time,
+        "completeTime": order.complete_time,
+        "postalCode": order.postal_code,
+        "city": getattr(order, "city", "") or "",
+        "county": getattr(order, "county", "") or "",
+        "district": getattr(order, "district", "") or "",
+        "region": getattr(order, "region", "") or "",
+        "distance": getattr(order, "distance", None),
+        "durationTime": getattr(order, "duration_time", None),
+        "address": order.address,
+        "customer": order.customer,
+        "contact": order.contact,
+        "driverName": order.driver_name,
+        "driverContact": order.driver_contact,
+        "updatedBy": order.update_by,
+        "remark": order.remark,
+        "updateAt": order.update_at,
+        "isLocked": order.is_locked,
+        "statusLabel": status_labels.get(order.status, order.status),
+        "typeLabel": type_labels.get(order.type, order.type),
+        "editable": is_editable,
+    }
+
 
 def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]:
     """
@@ -66,6 +123,8 @@ def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]
             detail="데이터베이스 오류가 발생했습니다.",
         )
 
+
+from main.utils.pagination import paginate_query, calculate_dashboard_stats
 
 def get_dashboard_list(
     db: Session,
@@ -128,66 +187,20 @@ def get_dashboard_list(
             query = query.filter(Dashboard.warehouse == warehouse)
 
         # 통계 계산 (필터가 적용된 상태에서)
-        stats_query = query.with_entities(
-            func.count().label("total"),
-            func.sum(case((Dashboard.status == "WAITING", 1), else_=0)).label(
-                "waiting"
-            ),
-            func.sum(case((Dashboard.status == "IN_PROGRESS", 1), else_=0)).label(
-                "in_progress"
-            ),
-            func.sum(case((Dashboard.status == "COMPLETE", 1), else_=0)).label(
-                "complete"
-            ),
-            func.sum(case((Dashboard.status == "ISSUE", 1), else_=0)).label("issue"),
-            func.sum(case((Dashboard.status == "CANCEL", 1), else_=0)).label("cancel"),
-        )
+        stats = calculate_dashboard_stats(query)
 
-        stats_result = stats_query.first()
+        # 정렬 적용
+        query = query.order_by(desc(Dashboard.eta))
 
-        # 통계 딕셔너리 생성
-        stats = {
-            "total": stats_result.total or 0,
-            "waiting": stats_result.waiting or 0,
-            "in_progress": stats_result.in_progress or 0,
-            "complete": stats_result.complete or 0,
-            "issue": stats_result.issue or 0,
-            "cancel": stats_result.cancel or 0,
-        }
-
-        # 페이지네이션 정보 계산
-        total_items = query.count()
-        total_pages = (total_items + page_size - 1) // page_size
-
-        if page < 1:
-            page = 1
-        elif page > total_pages and total_pages > 0:
-            page = total_pages
-
-        offset = (page - 1) * page_size
-
-        # 최종 쿼리 실행
-        orders = (
-            query.order_by(desc(Dashboard.eta)).offset(offset).limit(page_size).all()
-        )
-
-        # 페이지네이션 정보
-        pagination = {
-            "total": total_items,
-            "page_size": page_size,
-            "current": page,
-            "total_pages": total_pages,
-            "start": offset + 1 if total_items > 0 else 0,
-            "end": min(offset + page_size, total_items) if total_items > 0 else 0,
-        }
+        # 페이지네이션 적용
+        orders, pagination = paginate_query(query, page, page_size)
 
         return orders, pagination, stats
 
     except SQLAlchemyError as e:
         logger.error(f"주문 목록 조회 중 오류 발생: {str(e)}")
-        # 명시적으로 상태 코드 숫자 사용
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="데이터베이스 오류가 발생했습니다.",
         )
 
@@ -209,62 +222,19 @@ def search_dashboard_by_order_no(
             (주문 목록, 페이지네이션 정보, 통계 정보)
     """
     try:
-        # 기본 쿼리 생성
-        query = db.query(Dashboard).filter(Dashboard.order_no.like(f"%{order_no}%"))
+        # 기본 쿼리 생성 - 안전한 매개변수화 사용
+        # SQL 인젝션 방지를 위해 파라미터 이스케이프 
+        search_pattern = f"%{order_no}%"
+        query = db.query(Dashboard).filter(Dashboard.order_no.like(search_pattern))
 
         # 통계 계산
-        stats_query = query.with_entities(
-            func.count().label("total"),
-            func.sum(case((Dashboard.status == "WAITING", 1), else_=0)).label(
-                "waiting"
-            ),
-            func.sum(case((Dashboard.status == "IN_PROGRESS", 1), else_=0)).label(
-                "in_progress"
-            ),
-            func.sum(case((Dashboard.status == "COMPLETE", 1), else_=0)).label(
-                "complete"
-            ),
-            func.sum(case((Dashboard.status == "ISSUE", 1), else_=0)).label("issue"),
-            func.sum(case((Dashboard.status == "CANCEL", 1), else_=0)).label("cancel"),
-        )
+        stats = calculate_dashboard_stats(query)
 
-        stats_result = stats_query.first()
+        # 정렬 적용
+        query = query.order_by(desc(Dashboard.eta))
 
-        # 통계 딕셔너리 생성
-        stats = {
-            "total": stats_result.total or 0,
-            "waiting": stats_result.waiting or 0,
-            "in_progress": stats_result.in_progress or 0,
-            "complete": stats_result.complete or 0,
-            "issue": stats_result.issue or 0,
-            "cancel": stats_result.cancel or 0,
-        }
-
-        # 페이지네이션 정보 계산
-        total_items = query.count()
-        total_pages = (total_items + page_size - 1) // page_size
-
-        if page < 1:
-            page = 1
-        elif page > total_pages and total_pages > 0:
-            page = total_pages
-
-        offset = (page - 1) * page_size
-
-        # 최종 쿼리 실행
-        orders = (
-            query.order_by(desc(Dashboard.eta)).offset(offset).limit(page_size).all()
-        )
-
-        # 페이지네이션 정보
-        pagination = {
-            "total": total_items,
-            "page_size": page_size,
-            "current": page,
-            "total_pages": total_pages,
-            "start": offset + 1 if total_items > 0 else 0,
-            "end": min(offset + page_size, total_items) if total_items > 0 else 0,
-        }
+        # 페이지네이션 적용
+        orders, pagination = paginate_query(query, page, page_size)
 
         return orders, pagination, stats
 
@@ -387,11 +357,15 @@ def update_dashboard(
                 detail="해당 주문을 찾을 수 없습니다.",
             )
 
-        # 우편번호 변경 시 4자리 → 5자리 변환
+        # 우편번호 변경 시 유효성 검증
         if data.postal_code:
             postal_code = data.postal_code
-            if len(postal_code) == 4:
-                postal_code = "0" + postal_code
+            # 5자리 아닐 경우 오류 발생
+            if len(postal_code) != 5:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="우편번호는 5자리여야 합니다.",
+                )
 
             # 우편번호 존재 확인
             postal_exists = (
@@ -443,9 +417,6 @@ def update_dashboard(
         db.flush()
         db.commit()
 
-        # 락 해제
-        release_lock(db, "dashboard", dashboard_id, user_id)
-
         logger.info(f"주문 업데이트 성공: ID {dashboard_id}, 사용자 {user_id}")
         return order
 
@@ -456,6 +427,13 @@ def update_dashboard(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="데이터베이스 오류가 발생했습니다.",
         )
+    finally:
+        # 락 해제 (성공하든 실패하든 항상 실행)
+        try:
+            release_lock(db, "dashboard", dashboard_id, user_id)
+            logger.debug(f"주문 락 해제 완료: ID {dashboard_id}, 사용자 {user_id}")
+        except Exception as e:
+            logger.error(f"주문 락 해제 실패: ID {dashboard_id}, 사용자 {user_id}, 오류: {str(e)}")
 
 
 def change_status(

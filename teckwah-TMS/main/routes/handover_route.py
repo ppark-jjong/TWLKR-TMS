@@ -34,41 +34,20 @@ router = APIRouter()
 async def handover_page(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     인수인계 페이지 렌더링
     """
     try:
-        # 공지사항 목록 조회 (is_notice=True)
-        notices = get_notice_list(
-            db=db,
-            page=1,  # 공지사항은 1페이지만 표시
-            page_size=5  # 최근 5개만 표시
-        )
+        logger.info(f"인수인계 페이지 접근: {current_user.get('user_id', 'N/A')}")
         
-        # 인수인계 목록 조회 (is_notice=False)
-        handovers, pagination = get_handover_list(
-            db=db,
-            page=page,
-            page_size=limit,
-            search_term=None  # 검색 기능 제거
-        )
-        
-        logger.info(f"인수인계 페이지 접근: 공지사항 {len(notices)}개, 인수인계 {len(handovers)}개")
-        
-        # 템플릿 렌더링
+        # 템플릿 렌더링 (데이터는 JavaScript에서 API로 가져옴)
         return templates.TemplateResponse(
             "handover.html",
             {
                 "request": request,
-                "user": current_user,
-                "notices": notices,
-                "handovers": handovers,
-                "current_page": page,
-                "total_pages": pagination["total_pages"]
+                "user": current_user
             }
         )
     except Exception as e:
@@ -78,10 +57,96 @@ async def handover_page(
             "error.html",
             {
                 "request": request,
-                "error_message": "인수인계 목록을 불러오는 중 오류가 발생했습니다.",
+                "error_message": "인수인계 페이지를 불러오는 중 오류가 발생했습니다.",
                 "error_detail": str(e) if current_user.get("user_role") == "ADMIN" else "",
             },
             status_code=500
+        )
+
+@router.get("/list")
+async def get_handover_list_api(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    is_notice: bool = Query(None),
+    keyword: str = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100)
+):
+    """
+    인수인계 목록 조회 API (JSON)
+    """
+    try:
+        result = {}
+        
+        # 공지사항 요청 시
+        if is_notice is True:
+            notices = get_notice_list(
+                db=db,
+                page=page,
+                page_size=page_size,
+                search_term=keyword
+            )
+            
+            # 공지사항 응답 데이터 가공
+            notices_data = []
+            for notice in notices:
+                notice_dict = {
+                    "handoverId": notice.handover_id,
+                    "title": notice.title,
+                    "content": notice.content,
+                    "createBy": notice.create_by,
+                    "updateBy": notice.update_by,
+                    "updateAt": notice.update_at.strftime("%Y-%m-%d %H:%M") if notice.update_at else None,
+                    "isNotice": notice.is_notice
+                }
+                notices_data.append(notice_dict)
+                
+            return {
+                "success": True,
+                "message": "공지사항 목록 조회 성공",
+                "data": notices_data
+            }
+        
+        # 일반 인수인계 목록 요청 시
+        else:
+            handovers, pagination = get_handover_list(
+                db=db,
+                page=page,
+                page_size=page_size,
+                search_term=keyword,
+                is_notice=False
+            )
+            
+            # 인수인계 응답 데이터 가공
+            handovers_data = []
+            for handover in handovers:
+                # 편집 권한 계산: 작성자 또는 관리자
+                can_edit = current_user.get("user_id") == handover.create_by or current_user.get("user_role") == "ADMIN"
+                
+                handover_dict = {
+                    "handoverId": handover.handover_id,
+                    "title": handover.title,
+                    "content": handover.content,
+                    "createBy": handover.create_by,
+                    "updateBy": handover.update_by,
+                    "updateAt": handover.update_at.strftime("%Y-%m-%d %H:%M") if handover.update_at else None,
+                    "isNotice": handover.is_notice,
+                    "canEdit": can_edit
+                }
+                handovers_data.append(handover_dict)
+            
+            return {
+                "success": True,
+                "message": "인수인계 목록 조회 성공",
+                "data": handovers_data,
+                "pagination": pagination
+            }
+    except Exception as e:
+        logger.error(f"인수인계 목록 조회 중 오류 발생: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "message": "인수인계 목록을 불러오는 중 오류가 발생했습니다."}
         )
 
 @router.get("/handovers/{handover_id}")

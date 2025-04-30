@@ -13,20 +13,23 @@ import logging
 from datetime import datetime
 
 # --- 프로젝트 모듈 임포트 ---
-# 주의: utils 내부 모듈들의 import 경로가 'backend.' 로 시작하는 경우,
 # 실제 프로젝트 구조('main.')에 맞게 수정 필요할 수 있음.
 # 여기서는 main.py 기준으로 올바른 경로 사용.
 from main.utils.config import get_settings
 from main.utils.database import test_db_connection
 from main.utils.logger import logger
-from main.routes import auth_route, dashboard_route, handover_route, users_route, order_routes
+from main.routes import (
+    auth_route,
+    dashboard_route,
+    handover_route,
+    users_route,
+    order_routes,
+)
 from main.core.templating import templates
 
 # --- 설정 로드 ---
 settings = get_settings()
 
-# --- Jinja2 템플릿 설정 (제거) ---
-# templates = Jinja2Templates(directory="main/templates") # 제거
 
 # 템플릿 설정
 templates = Jinja2Templates(directory="main/templates")

@@ -82,9 +82,11 @@ CREATE TABLE IF NOT EXISTS handover (
     content TEXT NOT NULL,
     update_at DATETIME NOT NULL,
     update_by VARCHAR(50) NOT NULL,
+    create_by VARCHAR(50) NOT NULL,
     is_notice BOOLEAN DEFAULT FALSE,
     is_locked BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE
+    FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (create_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;

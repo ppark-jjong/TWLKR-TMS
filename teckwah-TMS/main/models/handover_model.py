@@ -19,9 +19,21 @@ class Handover(Base):
     update_by = Column(
         String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False
     )
+    create_by = Column(
+        String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False
+    )
     is_notice = Column(Boolean, default=False)
-    update_at = Column(DateTime, nullable=False, default=func.now())  # create_at 제거, nullable=False로 변경
+    update_at = Column(DateTime, nullable=False, default=func.now())
     is_locked = Column(Boolean, default=False)
 
-    # 관계 설정
-    user = relationship("User", back_populates="handovers")
+    # 관계 설정 - backref 대신 back_populates로 명시적 양방향 관계 정의
+    updater = relationship(
+        "User", 
+        foreign_keys=[update_by], 
+        back_populates="updated_handovers"
+    )
+    creator = relationship(
+        "User", 
+        foreign_keys=[create_by], 
+        back_populates="created_handovers"
+    )

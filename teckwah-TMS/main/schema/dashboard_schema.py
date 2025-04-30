@@ -138,7 +138,6 @@ class DashboardResponse(BaseModel):
 class DashboardListItem(BaseModel):
     """주문 목록 항목 스키마"""
 
-    dashboard_id: int = Field(..., description="대시보드 ID", alias="dashboardId")
     order_no: str = Field(..., description="주문번호", alias="orderNo")
     type: str = Field(..., description="유형(DELIVERY/RETURN)")
     department: str = Field(..., description="부서(CS/HES/LENOVO)")
@@ -154,16 +153,6 @@ class DashboardListItem(BaseModel):
     driver_name: Optional[str] = Field(
         None, description="기사 이름", alias="driverName"
     )
-    driver_contact: Optional[str] = Field(
-        None, description="기사 연락처", alias="driverContact"
-    )
-    updated_by: Optional[str] = Field(
-        None, description="마지막 업데이트 사용자", alias="updatedBy"
-    )
-    update_at: Optional[datetime] = Field(
-        None, description="마지막 업데이트 시간", alias="updateAt"
-    )
-    is_locked: bool = Field(False, description="락 여부", alias="isLocked")
 
     class Config:
         """스키마 설정"""

@@ -24,7 +24,6 @@ settings = get_settings()
 router = APIRouter()
 
 # 올바른 경로에서 get_session 임포트 (get_session 함수 존재 가정)
-# from backend.utils.security import get_session -> 수정
 try:
     from main.utils.security import get_session
 except ImportError:
@@ -66,14 +65,14 @@ async def login(
     request: Request,
     response: Response,
     user_id: str = Form(...),
-    password: str = Form(...),
+    user_password: str = Form(...),
     return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db),
 ):
     """
     로그인 처리 (폼 데이터 방식)
     """
-    authenticated, user_data = authenticate_user(db, user_id, password)
+    authenticated, user_data = authenticate_user(db, user_id, user_password)
 
     if not authenticated or not user_data:
         return templates.TemplateResponse(
