@@ -127,34 +127,35 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async saveUser() {
       try {
-        // 입력 필드 값 가져오기
-        const loginId = document.getElementById('loginId').value.trim();
-        const userName = document.getElementById('userName').value.trim();
-        const password = document.getElementById('password').value;
-        const department = document.getElementById('department').value;
+        // 입력 필드 값 가져오기 (ID를 모델/스키마 기준으로 변경)
+        const userId = document.getElementById('userId').value.trim(); // loginId -> userId
+        // const userName = document.getElementById('userName').value.trim(); // userName 필드 제거 (모델/스키마에 없음)
+        const userPassword = document.getElementById('userPassword').value; // password -> userPassword
+        const userDepartment = document.getElementById('userDepartment').value; // department -> userDepartment
         const userRole = document.getElementById('userRole').value;
         
-        // 필수 입력 값 검증
-        if (!loginId || !userName || !password) {
-          Utils.message.warning('필수 입력 항목을 모두 입력해주세요.');
+        // 필수 입력 값 검증 (userName 제거)
+        if (!userId || !userPassword) {
+          Utils.message.warning('필수 입력 항목(ID, 비밀번호)을 모두 입력해주세요.');
           return;
         }
         
         // 로딩 표시
         Utils.http.showLoading();
         
-        // 사용자 데이터 객체 생성
+        // 사용자 데이터 객체 생성 (필드명 수정, userName, is_active 제거)
         const userData = {
-          login_id: loginId,
-          user_name: userName,
-          password: password,
-          department: department,
+          user_id: userId,
+          // user_name: userName, 
+          user_password: userPassword,
+          user_department: userDepartment,
           user_role: userRole,
-          is_active: true
+          // is_active: true 
         };
         
-        // API 호출
-        const response = await Utils.http.post('/users', userData);
+        // API 호출 (엔드포인트는 /admin/users 가정)
+        // 실제 엔드포인트는 users_route.py 확인 필요
+        const response = await Utils.http.post('/admin/users', userData); 
         
         // 성공 처리
         if (response && response.success) {
@@ -219,11 +220,10 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       try {
-        // 로딩 표시
         Utils.http.showLoading();
         
-        // 삭제 API 호출
-        const response = await Utils.http.post(`/users/${this.userIdToDelete}/delete`);
+        // 삭제 API 호출 (엔드포인트는 /admin/users/{userId}/delete 가정)
+        const response = await Utils.http.post(`/admin/users/${this.userIdToDelete}/delete`); 
         
         // 성공 처리
         if (response && response.success) {

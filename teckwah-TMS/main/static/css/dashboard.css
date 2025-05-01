@@ -111,6 +111,14 @@
   min-width: 120px;
 }
 
+/* 행 개수 선택 스타일 */
+.filter-item.rows-per-page label {
+    margin-right: 5px; /* 레이블과 셀렉트 박스 간격 */
+}
+.filter-item.rows-per-page select {
+    min-width: 80px; /* 너비 조정 */
+}
+
 .date-input {
   width: 150px;
 }
@@ -188,26 +196,24 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
-/* 테이블 행 상태별 배경색 - 파스텔 톤으로 변경 */
+/* 테이블 행 상태별 배경색 - 주석 처리 (디자인 불필요 시 제거 가능) */
+/* 
 .data-table tr.status-waiting {
   background-color: rgb(255, 250, 230);
 }
-
 .data-table tr.status-in_progress {
   background-color: rgb(220, 240, 255);
 }
-
 .data-table tr.status-complete {
   background-color: rgb(230, 250, 230);
 }
-
 .data-table tr.status-issue {
   background-color: rgb(255, 230, 230);
 }
-
 .data-table tr.status-cancel {
   background-color: rgb(240, 240, 240);
 }
+*/
 
 /* 테이블 내 주문번호 셀 스타일 */
 .order-number {
@@ -340,79 +346,4 @@
   display: inline-block;
   min-width: 80px;
   text-align: center;
-}
-
-/* 필터 관련 스타일 */
-.filter-select.filter-active {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(215, 37, 25, 0.1);
-}
-
-/* 대시보드 페이지 반응형 */
-@media (max-width: 1200px) {
-  .top-filter-row {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: flex-start;
-  }
-  
-  .search-container {
-    width: 100%;
-  }
-  
-  .search-box {
-    width: 100%;
-  }
-  
-  .search-input {
-    width: 100%;
-  }
-  
-  .filter-controls {
-    flex-wrap: wrap;
-  }
-  
-  .actions-row {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: flex-start;
-  }
-  
-  .right-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 768px) {
-  .date-range-filter {
-    flex-direction: column;
-    width: 100%;
-    gap: var(--spacing-xs);
-  }
-  
-  .date-input {
-    width: 100%;
-  }
-  
-  .date-separator {
-    display: none;
-  }
-  
-  .filter-item {
-    width: 100%;
-  }
-  
-  .filter-select {
-    width: 100%;
-  }
-  
-  .data-table {
-    font-size: var(--font-size-xs);
-  }
-  
-  .data-table th,
-  .data-table td {
-    padding: 8px;
-  }
 }

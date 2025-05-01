@@ -3,7 +3,7 @@
 """
 
 from typing import Dict, Any
-from fastapi import APIRouter, Depends, Request, Query, Form, status
+from fastapi import APIRouter, Depends, Request, Query, Form, status, Path
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import logging
@@ -17,6 +17,8 @@ from main.service.user_service import (
     update_user_role,
     delete_user,
 )
+
+logger = logging.getLogger(__name__)
 
 # 라우터 생성 (관리자 전용)
 router = APIRouter()
@@ -37,8 +39,10 @@ async def users_page(
     사용자 관리 페이지 렌더링 (관리자 전용)
     """
     # 함수 진입점 로깅
-    logging.info(f"users_page 시작: 매개변수={{'page': {page}, 'limit': {limit}, 'role': {role}, 'search_type': {search_type}, 'search_value': {search_value}}}")
-    
+    logging.info(
+        f"users_page 시작: 매개변수={{'page': {page}, 'limit': {limit}, 'role': {role}, 'search_type': {search_type}, 'search_value': {search_value}}}"
+    )
+
     try:
         # 필터 정보 생성
         filter_data = {
@@ -46,7 +50,7 @@ async def users_page(
             "search_type": search_type or "user_id",
             "search_value": search_value or "",
         }
-        
+
         # 중간 포인트 로깅 - DB 쿼리 전
         logging.debug(f"DB 쿼리 시작: 사용자 목록 조회 (필터: {filter_data})")
 
@@ -59,13 +63,13 @@ async def users_page(
             search_type=search_type,
             search_value=search_value,
         )
-        
+
         # 중간 포인트 로깅 - DB 쿼리 결과
         logging.info(f"사용자 관리 페이지 접근: 사용자 {len(users)}개 조회됨")
 
         # 함수 종료 로깅
         logging.info(f"users_page 완료: 결과=성공, 데이터={len(users)}건")
-        
+
         # 템플릿 렌더링
         return templates.TemplateResponse(
             "users.html",
@@ -79,11 +83,13 @@ async def users_page(
             },
         )
     except Exception as e:
-        logging.error(f"사용자 관리 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
-        
+        logging.error(
+            f"사용자 관리 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True
+        )
+
         # 함수 종료 로깅 (오류 발생)
         logging.info(f"users_page 완료: 결과=오류, 메시지={str(e)[:100]}")
-        
+
         # 오류 발생 시 에러 페이지 렌더링
         return templates.TemplateResponse(
             "error.html",
@@ -98,27 +104,21 @@ async def users_page(
 from main.schema.user_schema import UserCreateForm
 
 
-@router.post("/create")
+@router.post("")
 async def create_new_user(
+    request: Request,
     user_data: UserCreateForm,
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 접근 가능
+    current_admin: Dict[str, Any] = Depends(get_admin_user),
 ):
     """
-    사용자 생성 API (관리자 전용)
-
-    Pydantic 모델을 사용하여 JSON 요청 처리
+    사용자 생성 API (관리자 전용, JSON 요청)
     """
-    # 함수 진입점 로깅
-    logging.info(f"create_new_user 시작: 사용자 ID={user_data.user_id}, 권한={user_data.user_role}")
-    
+    logging.info(
+        f"사용자 생성 API 호출: userId={user_data.user_id}, role={user_data.user_role}, by={current_admin.get('user_id')}"
+    )
     try:
-        # 비밀번호 해싱
-        logging.debug(f"비밀번호 해싱 시작: 사용자 ID={user_data.user_id}")
         hashed_password = hash_password(user_data.user_password)
-
-        # 사용자 생성
-        logging.debug(f"DB 생성 시작: 사용자 ID={user_data.user_id}, 부서={user_data.user_department}")
         create_user(
             db=db,
             user_id=user_data.user_id,
@@ -126,108 +126,39 @@ async def create_new_user(
             user_role=user_data.user_role,
             user_department=user_data.user_department,
         )
-        
-        # 함수 종료 로깅
-        logging.info(f"create_new_user 완료: 결과=성공, 사용자 ID={user_data.user_id}")
-
+        logging.info(f"사용자 생성 성공: userId={user_data.user_id}")
         return {"success": True, "message": "사용자가 성공적으로 생성되었습니다."}
     except Exception as e:
         logging.error(f"사용자 생성 중 오류 발생: {str(e)}", exc_info=True)
-        
-        # 함수 종료 로깅 (오류 발생)
-        logging.info(f"create_new_user 완료: 결과=오류, 메시지={str(e)[:100]}")
-        
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "success": False,
-                "message": "사용자 생성 중 오류가 발생했습니다.",
-            },
+        raise HTTPException(
+            status_code=500, detail="사용자 생성 중 오류가 발생했습니다."
         )
 
 
-@router.post("/role")
-async def change_user_role(
-    user_id: str = Form(...),
-    user_role: str = Form(...),
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 접근 가능
-):
-    """
-    사용자 권한 변경 API (관리자 전용)
-    """
-    # 함수 진입점 로깅
-    logging.info(f"change_user_role 시작: 사용자 ID={user_id}, 새 권한={user_role}")
-    
-    try:
-        # 사용자 권한 변경
-        logging.debug(f"DB 업데이트 시작: 사용자 ID={user_id}, 권한={user_role}")
-        update_user_role(db=db, user_id=user_id, user_role=user_role)
-        
-        # 함수 종료 로깅
-        logging.info(f"change_user_role 완료: 결과=성공, 사용자 ID={user_id}, 권한={user_role}")
-
-        return {"success": True, "message": "사용자 권한이 성공적으로 변경되었습니다."}
-    except Exception as e:
-        logging.error(f"사용자 권한 변경 중 오류 발생: {str(e)}", exc_info=True)
-        
-        # 함수 종료 로깅 (오류 발생)
-        logging.info(f"change_user_role 완료: 결과=오류, 메시지={str(e)[:100]}")
-        
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "success": False,
-                "message": "사용자 권한 변경 중 오류가 발생했습니다.",
-            },
-        )
-
-
-# 사용자 삭제 요청을 위한 Pydantic 모델
-from pydantic import BaseModel, Field
-
-
-class UserDeleteRequest(BaseModel):
-    user_id: str = Field(..., description="사용자 ID", alias="userId")
-
-    class Config:
-        by_alias = True
-        populate_by_name = True
-
-
-@router.post("/delete")
+@router.post("/{user_id_to_delete}/delete")
 async def delete_user_account(
-    user_data: UserDeleteRequest,
+    user_id_to_delete: str = Path(..., description="삭제할 사용자 ID", alias="userId"),
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 접근 가능
+    current_admin: Dict[str, Any] = Depends(get_admin_user),
 ):
     """
-    사용자 삭제 API (관리자 전용)
-
-    JSON 요청 형식 사용
+    사용자 삭제 API (관리자 전용, 경로 파라미터 사용)
     """
-    # 함수 진입점 로깅
-    logging.info(f"delete_user_account 시작: 사용자 ID={user_data.user_id}")
-    
-    try:
-        # 사용자 삭제
-        logging.debug(f"DB 삭제 시작: 사용자 ID={user_data.user_id}")
-        delete_user(db=db, user_id=user_data.user_id)
-        
-        # 함수 종료 로깅
-        logging.info(f"delete_user_account 완료: 결과=성공, 사용자 ID={user_data.user_id}")
+    logging.info(
+        f"사용자 삭제 API 호출: targetUserId={user_id_to_delete}, by={current_admin.get('user_id')}"
+    )
 
+    # 자기 자신 삭제 방지 (선택적)
+    if user_id_to_delete == current_admin.get("user_id"):
+        logging.warning(f"자기 자신 삭제 시도: user={user_id_to_delete}")
+        raise HTTPException(status_code=400, detail="자기 자신은 삭제할 수 없습니다.")
+
+    try:
+        delete_user(db=db, user_id=user_id_to_delete)
+        logging.info(f"사용자 삭제 성공: targetUserId={user_id_to_delete}")
         return {"success": True, "message": "사용자가 성공적으로 삭제되었습니다."}
     except Exception as e:
         logging.error(f"사용자 삭제 중 오류 발생: {str(e)}", exc_info=True)
-        
-        # 함수 종료 로깅 (오류 발생)
-        logging.info(f"delete_user_account 완료: 결과=오류, 메시지={str(e)[:100]}")
-        
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "success": False,
-                "message": "사용자 삭제 중 오류가 발생했습니다.",
-            },
+        raise HTTPException(
+            status_code=500, detail="사용자 삭제 중 오류가 발생했습니다."
         )

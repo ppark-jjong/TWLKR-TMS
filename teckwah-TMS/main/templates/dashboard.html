@@ -4,10 +4,12 @@
   rel="stylesheet"
   href="{{ url_for('static', path='css/dashboard.css') }}"
 />
-{% endblock %} {% block content %}
+{% endblock %}
+
+{% block content %}
 <div class="dashboard-page">
-  <!-- 로딩 오버레이 추가 (기본적으로 활성화) -->
-  <div class="loading-overlay active" id="loadingOverlay">
+  <!-- 로딩 오버레이 -->
+  <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-content">
       <div class="loading-spinner"></div>
       <p>데이터를 불러오는 중입니다...</p>
@@ -20,46 +22,28 @@
       <h2 class="page-title">대시보드</h2>
     </div>
 
-    <!-- 필터 헤더 영역 -->
+    <!-- 필터 바 -->
     <div class="filter-bar">
-      <!-- 날짜 범위 및 검색 영역 -->
       <div class="top-filter-row">
         <!-- 날짜 범위 선택 -->
         <div class="date-range-filter">
           <div class="filter-item">
             <label for="startDate">시작일</label>
-            <input
-              type="date"
-              id="startDate"
-              class="date-input"
-              value="{{ initial_data.today}}"
-            />
+            <input type="date" id="startDate" class="date-input" />
           </div>
           <span class="date-separator">~</span>
           <div class="filter-item">
             <label for="endDate">종료일</label>
-            <input
-              type="date"
-              id="endDate"
-              class="date-input"
-              value="{{ initial_data.end_date}}"
-            />
+            <input type="date" id="endDate" class="date-input" />
           </div>
           <button type="button" id="dateSearchBtn" class="btn primary-btn date-search-btn">
             <i class="fa-solid fa-search"></i> 조회
           </button>
         </div>
-
         <!-- 주문번호 검색 -->
         <div class="search-container">
           <div class="search-box">
-            <input 
-              type="text" 
-              id="orderNoSearch"
-              class="search-input" 
-              placeholder="주문번호 검색" 
-              value="{{ initial_data.order_no }}"
-            />
+            <input type="text" id="orderNoSearch" class="search-input" placeholder="주문번호 검색" />
             <button type="button" id="orderSearchBtn" class="search-btn">
               <i class="fa-solid fa-search"></i>
             </button>
@@ -80,7 +64,6 @@
             <option value="CANCEL">취소</option>
           </select>
         </div>
-
         <div class="filter-item">
           <label for="departmentFilter">부서</label>
           <select id="departmentFilter" class="filter-select">
@@ -90,21 +73,8 @@
             <option value="LENOVO">LENOVO</option>
           </select>
         </div>
-
-        <div class="filter-item">
-          <label for="warehouseFilter">창고</label>
-          <select id="warehouseFilter" class="filter-select">
-            <option value="">전체</option>
-            <option value="SEOUL">서울</option>
-            <option value="BUSAN">부산</option>
-            <option value="GWANGJU">광주</option>
-            <option value="DAEJEON">대전</option>
-          </select>
-        </div>
-
-        <button class="btn secondary-btn" id="applyFilterBtn">
-          <i class="fa-solid fa-filter"></i> 필터 적용
-        </button>
+        <!-- 창고 필터 제거 (요구사항 아님) -->
+        <!-- <button class="btn secondary-btn" id="applyFilterBtn"> 필터 적용 </button> -->
         <button class="btn secondary-btn" id="resetFilterBtn">
           <i class="fa-solid fa-rotate-left"></i> 초기화
         </button>
@@ -116,6 +86,14 @@
           <button class="btn secondary-btn" id="customizeColumnsBtn">
             <i class="fa-solid fa-table-columns"></i> 컬럼 설정
           </button>
+           <div class="filter-item rows-per-page">
+             <label for="rowsPerPageSelect">행 개수:</label>
+             <select id="rowsPerPageSelect" class="filter-select">
+               <option value="30">30</option>
+               <option value="50">50</option>
+               <option value="100">100</option>
+             </select>
+           </div>
         </div>
         <div class="right-actions">
           <button class="btn secondary-btn" id="refreshBtn">
@@ -133,137 +111,12 @@
       <div class="dialog-content">
         <h3>테이블 컬럼 설정</h3>
         <p>표시할 컬럼을 선택하세요:</p>
-
         <div class="columns-grid" id="columnSettingsGrid">
-          <!-- 기본 컬럼 (항상 표시) -->
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_order_no"
-              name="columns"
-              value="order_no"
-              checked
-              disabled
-            />
-            <label for="col_order_no">주문번호 (필수)</label>
-          </div>
-
-          <!-- 선택 가능한 컬럼들 - DashboardListItem 스키마 순서로 변경 -->
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_type"
-              name="columns"
-              value="type"
-              checked
-            />
-            <label for="col_type">유형</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_department"
-              name="columns"
-              value="department"
-              checked
-            />
-            <label for="col_department">부서</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_warehouse"
-              name="columns"
-              value="warehouse"
-              checked
-            />
-            <label for="col_warehouse">창고</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_sla"
-              name="columns"
-              value="sla"
-              checked
-            />
-            <label for="col_sla">SLA</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_region"
-              name="columns"
-              value="region"
-              checked
-            />
-            <label for="col_region">지역</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_eta"
-              name="columns"
-              value="eta"
-              checked
-            />
-            <label for="col_eta">ETA</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_customer"
-              name="columns"
-              value="customer"
-              checked
-            />
-            <label for="col_customer">고객</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_status"
-              name="columns"
-              value="status"
-              checked
-            />
-            <label for="col_status">상태</label>
-          </div>
-
-          <div class="checkbox-container">
-            <input
-              type="checkbox"
-              id="col_driver"
-              name="columns"
-              value="driver"
-              checked
-            />
-            <label for="col_driver">기사명</label>
-          </div>
+          <!-- JS로 컬럼 목록 동적 생성 예정 -->
         </div>
-
         <div class="dialog-actions">
-          <button
-            type="button"
-            class="btn secondary-btn"
-            id="cancelColumnsBtn"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="btn primary-btn"
-            id="applyColumnsBtn"
-          >
-            적용
-          </button>
+          <button type="button" class="btn secondary-btn" id="cancelColumnsBtn">취소</button>
+          <button type="button" class="btn primary-btn" id="applyColumnsBtn">적용</button>
         </div>
       </div>
     </div>
@@ -272,60 +125,19 @@
     <div class="table-scroll-container">
       <div class="table-container">
         <table class="data-table" id="dashboardTable">
-          <thead>
-            <tr>
-              <th width="15%">주문번호</th>
-              <th width="8%">유형</th>
-              <th width="10%">부서</th>
-              <th width="10%">창고</th>
-              <th width="8%">SLA</th>
-              <th width="10%">지역</th>
-              <th width="15%">ETA</th>
-              <th width="15%">고객</th>
-              <th width="10%">상태</th>
-              <th width="12%">배송기사</th>
-            </tr>
+          <thead id="dashboardTableHead">
+            <!-- JS로 헤더 동적 생성 예정 -->
           </thead>
           <tbody id="dashboardTableBody">
-            {% if initial_data.orders %} {% for order in
-            initial_data.orders %}
-            <tr
-              class="status-{{ order.status|lower }} clickable-row"
-              data-id="{{ order.dashboardId }}"
-              data-order="{{ order|tojson|safe }}"
-            >
-              <td>
-                <a
-                  href="/orders/{{ order.dashboardId }}"
-                  class="order-number"
-                  >{{ order.orderNo }}</a
-                >
-              </td>
-              <td>{{ order.typeLabel }}</td>
-              <td>{{ order.department }}</td>
-              <td>{{ order.warehouse }}</td>
-              <td>{{ order.sla }}</td>
-              <td>{{ order.region }}</td>
-              <td>{{ order.eta }}</td>
-              <td>{{ order.customer }}</td>
-              <td>
-                <span class="status-badge status-{{ order.status|lower }}"
-                  >{{ order.statusLabel }}</span
-                >
-              </td>
-              <td>{{ order.driverName }}</td>
-            </tr>
-            {% endfor %} {% else %}
-            <!-- 데이터 없음 표시 행 -->
-            <tr class="empty-data-row">
+            <!-- JS로 데이터 로드 및 렌더링 예정 -->
+            <tr class="initial-loading-row">
               <td colspan="10" class="empty-table">
                 <div class="empty-placeholder">
-                  <i class="fa-solid fa-inbox"></i>
-                  <p>조건에 맞는 주문이 없습니다</p>
+                   <i class="fa-solid fa-spinner fa-spin"></i>
+                   <p>데이터를 로딩 중입니다...</p>
                 </div>
               </td>
             </tr>
-            {% endif %}
           </tbody>
         </table>
       </div>
@@ -333,37 +145,25 @@
 
     <!-- 페이지네이션 -->
     <div class="pagination-container">
-      <div class="pagination" id="pagination">
-        <button
-          class="page-btn"
-          data-page="prev"
-          {% if initial_data.pagination.current|int <= 1 %}disabled{% endif %}
-        >
+      <div class="pagination" id="paginationControls">
+         <button class="page-btn" data-page="prev" disabled>
           <i class="fa-solid fa-chevron-left"></i>
         </button>
-        <span class="page-info" id="pageInfo"
-          >{{ initial_data.pagination.current }} / {{
-          initial_data.pagination.total_pages }}</span
-        >
-        <button 
-          class="page-btn" 
-          data-page="next"
-          {% if initial_data.pagination.current|int >= initial_data.pagination.total_pages|int %}disabled{% endif %}
-        >
+         <span class="page-info" id="pageInfo">- / -</span>
+         <button class="page-btn" data-page="next" disabled>
           <i class="fa-solid fa-chevron-right"></i>
         </button>
       </div>
     </div>
 
-    <!-- 오류 메시지 표시 영역 추가 -->
-    {% if initial_data.error_message %}
-    <div class="error-message-container">
+    <!-- 오류 메시지 표시 영역 -->
+    <div id="errorMessageContainer" class="error-message-container" style="display: none;">
       <div class="alert alert-danger">
         <i class="fa-solid fa-circle-exclamation"></i>
-        {{ initial_data.error_message }}
+        <span id="errorMessageText"></span>
       </div>
     </div>
-    {% endif %}
+
   </div>
 </div>
 {% endblock %}
@@ -371,278 +171,517 @@
 {% block page_js %}
 <!-- 초기 데이터를 페이지에 데이터 속성으로 추가 -->
 <div
-  id="dashboardDataContainer"
+  id="initialDataContainer"
   data-initial='{{ initial_data|tojson|safe }}'
   class="hidden"
 ></div>
 
+<!-- 대시보드 스크립트 -->
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    // --- DOM 요소 가져오기 ---
+    const loadingOverlay = document.getElementById('loadingOverlay');
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
     const dateSearchBtn = document.getElementById('dateSearchBtn');
     const orderNoInput = document.getElementById('orderNoSearch');
     const orderSearchBtn = document.getElementById('orderSearchBtn');
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    
-    // 원본 데이터를 저장할 변수
-    let originalData = [];
-    
-    // 초기 데이터 로드
-    const initialData = JSON.parse(document.getElementById('dashboardDataContainer').getAttribute('data-initial'));
-    if (initialData && initialData.orders) {
-      originalData = initialData.orders;
-    }
-    
-    // 로딩 오버레이 표시/숨김 함수
-    function showLoading() {
-      loadingOverlay.classList.add('active');
-    }
-    
-    function hideLoading() {
-      loadingOverlay.classList.remove('active');
-    }
-    
-    // 테이블 업데이트 함수 - 필터링용
-    function updateTableWithFilters() {
-      const status = document.getElementById('statusFilter').value;
-      const department = document.getElementById('departmentFilter').value;
-      const warehouse = document.getElementById('warehouseFilter').value;
+    const statusFilter = document.getElementById('statusFilter');
+    const departmentFilter = document.getElementById('departmentFilter');
+    const resetFilterBtn = document.getElementById('resetFilterBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const rowsPerPageSelect = document.getElementById('rowsPerPageSelect');
+    const dashboardTableHead = document.getElementById('dashboardTableHead');
+    const dashboardTableBody = document.getElementById('dashboardTableBody');
+    const paginationControls = document.getElementById('paginationControls');
+    const pageInfo = document.getElementById('pageInfo');
+    const prevPageBtn = paginationControls.querySelector('[data-page="prev"]');
+    const nextPageBtn = paginationControls.querySelector('[data-page="next"]');
+    const errorMessageContainer = document.getElementById('errorMessageContainer');
+    const errorMessageText = document.getElementById('errorMessageText');
+    const customizeColumnsBtn = document.getElementById('customizeColumnsBtn');
+    const columnDialog = document.getElementById('columnDialog');
+    const columnSettingsGrid = document.getElementById('columnSettingsGrid');
+    const cancelColumnsBtn = document.getElementById('cancelColumnsBtn');
+    const applyColumnsBtn = document.getElementById('applyColumnsBtn');
+
+    // --- 상태 변수 --- 
+    let allOrders = []; // API로부터 받은 전체 주문 데이터
+    let filteredOrders = []; // 현재 필터가 적용된 주문 데이터
+    let currentPage = 1;
+    let rowsPerPage = 30; // 기본값
+    let totalItems = 0;
+    let totalPages = 1;
+    let initialLoadComplete = false; // 전체 데이터 로드 완료 여부
+
+    // 컬럼 정보 (표시 순서 및 기본 표시 여부 정의)
+    const columnDefinitions = [
+      { key: 'orderNo', label: '주문번호', width: '15%', visible: true, required: true },
+      { key: 'typeLabel', label: '유형', width: '8%', visible: true },
+      { key: 'department', label: '부서', width: '10%', visible: true },
+      { key: 'warehouse', label: '창고', width: '10%', visible: true },
+      { key: 'sla', label: 'SLA', width: '8%', visible: true },
+      { key: 'region', label: '지역', width: '10%', visible: false }, // 기본 숨김
+      { key: 'eta', label: 'ETA', width: '15%', visible: true },
+      { key: 'customer', label: '고객', width: '15%', visible: true },
+      { key: 'statusLabel', label: '상태', width: '10%', visible: true },
+      { key: 'driverName', label: '배송기사', width: '12%', visible: true },
+    ];
+    let visibleColumns = loadVisibleColumns(); // 로컬 스토리지에서 로드
+
+    // 상태 라벨 매핑 (템플릿 필터 대신 JS에서 사용)
+    const statusLabels = {
+        "WAITING": "대기", "IN_PROGRESS": "진행", 
+        "COMPLETE": "완료", "ISSUE": "이슈", "CANCEL": "취소"
+    };
+    const typeLabels = {"DELIVERY": "배송", "RETURN": "회수"};
+
+    // --- 초기화 함수 ---
+    function initDashboard() {
+      showLoading(); // 초기 로딩 시작
+      const initialDataElement = document.getElementById('initialDataContainer');
+      if (!initialDataElement) {
+          console.error("Initial data container not found!");
+          showError("페이지 초기화 오류.");
+          hideLoading();
+          return;
+      }
+      const initialData = JSON.parse(initialDataElement.getAttribute('data-initial') || '{}');
+
+      // 1. 날짜 초기화
+      startDateInput.value = initialData?.start_date || getTodayDate();
+      endDateInput.value = initialData?.end_date || getTodayDate();
       
-      const rows = document.querySelectorAll('#dashboardTableBody tr');
-      let visibleCount = 0;
-      
-      rows.forEach(row => {
-        if (row.classList.contains('empty-data-row')) return;
+      // 2. 페이지당 행 수 초기화
+      rowsPerPage = parseInt(rowsPerPageSelect.value);
         
-        const orderData = JSON.parse(row.getAttribute('data-order'));
-        
-        let shouldShow = true;
-        
-        // 상태 필터링
-        if (status && orderData.status !== status) {
-          shouldShow = false;
-        }
-        
-        // 부서 필터링
-        if (department && orderData.department !== department) {
-          shouldShow = false;
-        }
-        
-        // 창고 필터링
-        if (warehouse && orderData.warehouse !== warehouse) {
-          shouldShow = false;
-        }
-        
-        // 행 표시 여부 설정
-        if (shouldShow) {
-          row.style.display = '';
-          visibleCount++;
-        } else {
-          row.style.display = 'none';
-        }
+      // 3. 컬럼 설정 초기화
+      renderColumnSettings();
+      renderTableHeader(); // 초기 헤더 렌더링
+
+      // 4. SSR 데이터로 첫 화면 렌더링
+      if (initialData && initialData.orders && initialData.pagination) {
+        allOrders = addLabelsToOrders(initialData.orders); // 라벨 추가
+        totalItems = initialData.pagination.totalCount || 0;
+        currentPage = initialData.pagination.page || 1;
+        // rowsPerPage는 select 값 따름
+        console.log(`Initial SSR data loaded: ${allOrders.length} items, total: ${totalItems}`);
+        applyFiltersAndRender(); // 필터 적용 및 렌더링 (첫 페이지)
+      } else {
+          console.warn("No initial SSR data found. Table might be empty initially.");
+          dashboardTableBody.innerHTML = renderEmptyRow("표시할 데이터가 없습니다.");
+          updatePaginationUI();
+      }
+
+      // 5. 비동기적으로 전체 데이터 로드
+      fetchAllOrders(startDateInput.value, endDateInput.value).then(() => {
+          initialLoadComplete = true;
+          console.log('Initial full data load complete.');
+          hideLoading(); // 전체 데이터 로드 후 로딩 숨김
+      }).catch(error => {
+          console.error("Error fetching initial full data:", error);
+          showError("전체 데이터를 불러오는 중 오류 발생");
+          hideLoading();
       });
+
+      // 6. 이벤트 리스너 설정
+      setupEventListeners();
+        }
+        
+    // --- 데이터 처리 함수 ---
+    // 날짜 범위로 전체 주문 데이터 가져오기
+    async function fetchAllOrders(startDate, endDate) {
+      showLoading();
+      clearError();
+      console.log(`Fetching all orders for ${startDate} to ${endDate}`);
+      try {
+        const response = await fetch(`/dashboard/list?start_date=${startDate}&end_date=${endDate}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        if (result.success && result.data) {
+          allOrders = addLabelsToOrders(result.data); // 전체 데이터 업데이트 및 라벨 추가
+          totalItems = allOrders.length; // 전체 개수 업데이트
+          currentPage = 1; // 데이터 변경 시 첫 페이지로
+          applyFiltersAndRender(); // 새 데이터로 필터 적용 및 렌더링
+          console.log(`Successfully fetched ${allOrders.length} orders.`);
+        } else {
+          throw new Error(result.message || "Failed to fetch data");
+        }
+      } catch (error) {
+          console.error("Error in fetchAllOrders:", error);
+          showError(`데이터 조회 실패: ${error.message}`);
+          allOrders = []; // 오류 시 데이터 비움
+          applyFiltersAndRender(); // 빈 테이블 렌더링
+          // 에러 발생 시 Promise reject 하여 호출 측에서 인지하도록
+          throw error; 
+      } finally {
+          // 성공/실패 무관 로딩 숨김 (비동기 완료 시)
+          // 단, initDashboard에서 호출 시에는 거기서 처리하도록 함
+          if (initialLoadComplete) { 
+              hideLoading(); 
+          }
+      }
+    }
+    
+    // 주문 데이터에 라벨 추가
+    function addLabelsToOrders(orders) {
+        return orders.map(order => ({
+            ...order,
+            statusLabel: statusLabels[order.status] || order.status,
+            typeLabel: typeLabels[order.type] || order.type,
+            // ETA 포맷팅 (이미 문자열로 올 수 있으므로 안전하게 처리)
+            etaFormatted: order.eta ? formatDateTime(order.eta) : '-' 
+        }));
+    }
+
+    // 현재 필터 및 페이지 상태에 따라 테이블 렌더링
+    function applyFiltersAndRender() {
+        console.log(`Applying filters and rendering page ${currentPage}`);
+        // 1. 필터 적용
+        const status = statusFilter.value;
+        const department = departmentFilter.value;
+        
+        filteredOrders = allOrders.filter(order => {
+          const statusMatch = !status || order.status === status;
+          const departmentMatch = !department || order.department === department;
+          return statusMatch && departmentMatch;
+        });
+        totalItems = filteredOrders.length; // 필터링된 결과로 전체 아이템 수 업데이트
+        console.log(`Filtered orders count: ${totalItems}`);
       
-      // 모든 행이 숨겨진 경우 '데이터 없음' 메시지 표시
-      const emptyRow = document.querySelector('.empty-data-row');
-      if (visibleCount === 0) {
-        if (!emptyRow) {
-          const tableBody = document.getElementById('dashboardTableBody');
-          const newEmptyRow = document.createElement('tr');
-          newEmptyRow.className = 'empty-data-row';
-          newEmptyRow.innerHTML = `
-            <td colspan="9" class="empty-table">
+        // 2. 페이지네이션 계산
+        totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+        currentPage = Math.max(1, Math.min(currentPage, totalPages)); // 현재 페이지 보정
+
+        // 3. 현재 페이지 데이터 슬라이싱
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        const pageOrders = filteredOrders.slice(startIndex, endIndex);
+        console.log(`Rendering ${pageOrders.length} orders for page ${currentPage}`);
+
+        // 4. 테이블 렌더링
+        renderTableRows(pageOrders);
+
+        // 5. 페이지네이션 UI 업데이트
+        updatePaginationUI();
+    }
+
+    // 테이블 행 HTML 생성 및 업데이트
+    function renderTableRows(orders) {
+      if (!dashboardTableBody) return;
+
+      if (orders.length === 0) {
+        dashboardTableBody.innerHTML = renderEmptyRow("조건에 맞는 주문이 없습니다.");
+        return;
+      }
+
+      let tableHTML = '';
+      orders.forEach(order => {
+        tableHTML += `<tr class="status-${order.status?.toLowerCase()} clickable-row" data-id="${order.dashboardId}">`;
+        columnDefinitions.forEach(col => {
+            if (visibleColumns[col.key]) {
+                let content = '';
+                switch (col.key) {
+                    case 'orderNo':
+                        content = `<a href="/orders/${order.dashboardId}" class="order-number">${order.orderNo || '-'}</a>`;
+                        break;
+                    case 'statusLabel':
+                        content = `<span class="status-badge status-${order.status?.toLowerCase()}">${order.statusLabel || '-'}</span>`;
+                        break;
+                    case 'eta': // 포맷팅된 eta 사용
+                         content = order.etaFormatted || '-'; 
+                         break;
+                    default:
+                        content = order[col.key] !== null && order[col.key] !== undefined ? order[col.key] : '-';
+                }
+                tableHTML += `<td>${content}</td>`;
+            }
+        });
+        tableHTML += '</tr>';
+      });
+
+      dashboardTableBody.innerHTML = tableHTML;
+    }
+    
+    // 테이블 헤더 렌더링
+    function renderTableHeader() {
+        if (!dashboardTableHead) return;
+        let headerHTML = '<tr>';
+        columnDefinitions.forEach(col => {
+            if (visibleColumns[col.key]) {
+                headerHTML += `<th width="${col.width}">${col.label}</th>`;
+            }
+        });
+        headerHTML += '</tr>';
+        dashboardTableHead.innerHTML = headerHTML;
+    }
+
+    // 빈 결과 행 HTML 생성
+    function renderEmptyRow(message) {
+        const colspan = Object.values(visibleColumns).filter(v => v).length;
+        return `
+            <tr class="empty-data-row">
+              <td colspan="${colspan}" class="empty-table">
               <div class="empty-placeholder">
                 <i class="fa-solid fa-inbox"></i>
-                <p>조건에 맞는 주문이 없습니다</p>
+                  <p>${message}</p>
               </div>
             </td>
-          `;
-          tableBody.appendChild(newEmptyRow);
-        } else {
-          emptyRow.style.display = '';
-        }
-      } else if (emptyRow) {
-        emptyRow.style.display = 'none';
-      }
+            </tr>`;
+    }
+
+    // 페이지네이션 UI 업데이트
+    function updatePaginationUI() {
+      if (!pageInfo || !prevPageBtn || !nextPageBtn) return;
+      pageInfo.textContent = `${currentPage} / ${totalPages}`;
+      prevPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= totalPages;
     }
     
-    // 날짜 검색 API 호출
-    dateSearchBtn.addEventListener('click', function() {
+    // 주문번호 검색 결과 렌더링
+    function renderSearchResult(order) {
+        if (order) {
+            const singleOrder = addLabelsToOrders([order])[0]; // 라벨 추가
+            renderTableRows([singleOrder]);
+            pageInfo.textContent = '1 / 1';
+            prevPageBtn.disabled = true;
+            nextPageBtn.disabled = true;
+            paginationControls.style.display = 'none'; // 페이지네이션 숨김
+        } else {
+            dashboardTableBody.innerHTML = renderEmptyRow("검색 결과가 없습니다.");
+            pageInfo.textContent = '0 / 0';
+            prevPageBtn.disabled = true;
+            nextPageBtn.disabled = true;
+            paginationControls.style.display = 'none';
+        }
+    }
+
+    // --- 컬럼 커스터마이징 관련 함수 ---
+    // 로컬 스토리지에서 컬럼 설정 로드
+    function loadVisibleColumns() {
+        const saved = localStorage.getItem('dashboardVisibleColumns');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                // 기본값과 병합하여 반환 (새 컬럼 추가 대비)
+                const defaults = columnDefinitions.reduce((acc, col) => {
+                    acc[col.key] = col.visible;
+                    return acc;
+                }, {});
+                return { ...defaults, ...parsed };
+            } catch (e) {
+                console.error("Error parsing saved columns:", e);
+      }
+    }
+        // 저장된 설정 없으면 기본값 반환
+        return columnDefinitions.reduce((acc, col) => {
+            acc[col.key] = col.visible;
+            return acc;
+        }, {});
+    }
+
+    // 로컬 스토리지에 컬럼 설정 저장
+    function saveVisibleColumns() {
+        localStorage.setItem('dashboardVisibleColumns', JSON.stringify(visibleColumns));
+    }
+
+    // 컬럼 설정 대화상자 렌더링
+    function renderColumnSettings() {
+        if (!columnSettingsGrid) return;
+        columnSettingsGrid.innerHTML = ''; // 기존 내용 초기화
+        columnDefinitions.forEach(col => {
+            const isChecked = visibleColumns[col.key];
+            const isDisabled = col.required;
+            const div = document.createElement('div');
+            div.className = 'checkbox-container';
+            div.innerHTML = `
+                <input
+                  type="checkbox"
+                  id="col_${col.key}"
+                  name="columns"
+                  value="${col.key}"
+                  ${isChecked ? 'checked' : ''}
+                  ${isDisabled ? 'disabled' : ''}
+                />
+                <label for="col_${col.key}">${col.label} ${isDisabled ? '(필수)' : ''}</label>
+            `;
+            columnSettingsGrid.appendChild(div);
+        });
+    }
+
+    // --- 유틸리티 함수 ---
+    function showLoading() { loadingOverlay?.classList.add('active'); }
+    function hideLoading() { loadingOverlay?.classList.remove('active'); }
+    function showError(message) {
+      if (!errorMessageContainer || !errorMessageText) return;
+      errorMessageText.textContent = message;
+      errorMessageContainer.style.display = 'block';
+    }
+    function clearError() {
+      if (!errorMessageContainer || !errorMessageText) return;
+      errorMessageText.textContent = '';
+      errorMessageContainer.style.display = 'none';
+    }
+    function getTodayDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+      }
+    function formatDateTime(dateString) {
+        try {
+            // ISO 8601 형식이거나 다른 표준 형식으로 가정
+            const date = new Date(dateString);
+            if (isNaN(date)) return dateString; // 파싱 실패 시 원본 반환
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
+        } catch (e) {
+            console.warn(`Error formatting date: ${dateString}`, e);
+            return dateString; // 오류 시 원본 반환
+        }
+    }
+
+    // --- 이벤트 리스너 설정 ---
+    function setupEventListeners() {
+      // 날짜 조회 버튼
+      dateSearchBtn?.addEventListener('click', () => {
       const startDate = startDateInput.value;
       const endDate = endDateInput.value;
-      
-      // 날짜 검증
-      if (new Date(endDate) < new Date(startDate)) {
-        alert('종료일은 시작일보다 같거나 늦어야 합니다.');
+        if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+          showError('종료일은 시작일보다 같거나 늦어야 합니다.');
         return;
       }
-      
-      showLoading();
-      
-      // 날짜 API 호출
-      window.location.href = `/dashboard?start_date=${startDate}&end_date=${endDate}`;
+        fetchAllOrders(startDate, endDate);
     });
     
-    // 주문번호 검색
-    orderSearchBtn.addEventListener('click', function() {
-      const orderNo = orderNoInput.value.trim();
-      
-      if (!orderNo) {
-        alert('주문번호를 입력해주세요.');
-        return;
-      }
-      
-      showLoading();
-      
-      // 주문번호 검색 페이지로 이동
-      window.location.href = `/dashboard/search?order_no=${encodeURIComponent(orderNo)}`;
+      // 필터 변경 (상태, 부서)
+      statusFilter?.addEventListener('change', () => {
+          currentPage = 1; // 필터 변경 시 첫 페이지로
+          applyFiltersAndRender();
     });
-    
-    // 주문번호 검색 엔터키 이벤트
-    orderNoInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        orderSearchBtn.click();
-      }
-    });
-    
-    // 필터 적용 버튼 - 클라이언트 측 필터링
-    document.getElementById('applyFilterBtn').addEventListener('click', function() {
-      updateTableWithFilters();
-    });
-    
-    // 필터 초기화 버튼
-    document.getElementById('resetFilterBtn').addEventListener('click', function() {
+      departmentFilter?.addEventListener('change', () => {
+          currentPage = 1;
+          applyFiltersAndRender();
+      });
+      
       // 필터 초기화
-      document.getElementById('statusFilter').value = '';
-      document.getElementById('departmentFilter').value = '';
-      document.getElementById('warehouseFilter').value = '';
-      
-      // 모든 행 표시
-      const rows = document.querySelectorAll('#dashboardTableBody tr');
-      rows.forEach(row => {
-        if (!row.classList.contains('empty-data-row')) {
-          row.style.display = '';
+      resetFilterBtn?.addEventListener('click', () => {
+          statusFilter.value = '';
+          departmentFilter.value = '';
+          // 검색 결과 상태 해제 (선택적)
+          if (paginationControls.style.display === 'none') {
+              paginationControls.style.display = ''; // 페이지네이션 다시 표시
+              fetchAllOrders(startDateInput.value, endDateInput.value); // 원래 데이터 다시 로드
+          } else {
+             currentPage = 1;
+             applyFiltersAndRender();
+      }
+    });
+    
+      // 페이지네이션 버튼
+      prevPageBtn?.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          applyFiltersAndRender();
         }
       });
-      
-      // 데이터 없음 행 숨김
-      const emptyRow = document.querySelector('.empty-data-row');
-      if (emptyRow && document.querySelectorAll('#dashboardTableBody tr:not(.empty-data-row)').length > 0) {
-        emptyRow.style.display = 'none';
-      }
-    });
-    
-    // 페이지네이션 버튼 이벤트
-    document.querySelectorAll('.page-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        if (this.disabled) return;
-        
-        const direction = this.getAttribute('data-page');
-        const currentPage = parseInt(document.getElementById('pageInfo').textContent.split(' / ')[0]);
-        const newPage = direction === 'prev' ? currentPage - 1 : currentPage + 1;
-        
-        // 현재 URL에서 페이지 파라미터만 변경
-        const url = new URL(window.location.href);
-        url.searchParams.set('page', newPage);
-        
-        window.location.href = url.toString();
+      nextPageBtn?.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          applyFiltersAndRender();
+        }
       });
+        
+      // 행 개수 변경
+      rowsPerPageSelect?.addEventListener('change', (e) => {
+        rowsPerPage = parseInt(e.target.value);
+        currentPage = 1; // 첫 페이지로 이동
+        applyFiltersAndRender();
     });
     
     // 새로고침 버튼
-    document.getElementById('refreshBtn').addEventListener('click', function() {
-      // 현재 URL 그대로 새로고침
-      window.location.reload();
+      refreshBtn?.addEventListener('click', () => {
+        fetchAllOrders(startDateInput.value, endDateInput.value);
     });
     
-    // 행 클릭 이벤트 추가
-    document.querySelectorAll('.clickable-row').forEach(row => {
-      row.addEventListener('click', function(e) {
-        // 주문번호 링크를 클릭한 경우 무시 (링크는 그대로 동작)
-        if (e.target.classList.contains('order-number') || e.target.closest('.order-number')) {
+      // 주문번호 검색 버튼
+      orderSearchBtn?.addEventListener('click', async () => {
+        const orderNo = orderNoInput.value.trim();
+        if (!orderNo) {
+          showError('주문번호를 입력해주세요.');
           return;
         }
-        
-        // 테이블 행의 주문ID로 상세 페이지 이동
-        const id = this.getAttribute('data-id');
-        window.location.href = `/orders/${id}`;
+        showLoading();
+        clearError();
+        try {
+          const response = await fetch(`/dashboard/search?order_no=${encodeURIComponent(orderNo)}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const result = await response.json();
+          if (result.success) {
+            renderSearchResult(result.data.order);
+          } else {
+            throw new Error(result.message || 'Search failed');
+          }
+        } catch (error) {
+          console.error("Search error:", error);
+          showError(`검색 실패: ${error.message}`);
+          renderSearchResult(null); // 오류 시 빈 결과 표시
+        } finally {
+          hideLoading();
+        }
       });
-    });
-    
-    // 컬럼 설정 버튼
-    const customizeColumnsBtn = document.getElementById('customizeColumnsBtn');
-    const columnDialog = document.getElementById('columnDialog');
-    const cancelColumnsBtn = document.getElementById('cancelColumnsBtn');
-    const applyColumnsBtn = document.getElementById('applyColumnsBtn');
-    
-    customizeColumnsBtn.addEventListener('click', function() {
-      columnDialog.classList.add('active');
-    });
-    
-    cancelColumnsBtn.addEventListener('click', function() {
-      columnDialog.classList.remove('active');
-    });
-    
-    applyColumnsBtn.addEventListener('click', function() {
-      // 컬럼 표시 여부 설정
-      const columns = document.querySelectorAll('[name="columns"]:checked');
-      const columnIndexes = Array.from(columns).map(col => col.value);
-      
-      // 테이블 헤더와 모든 행에서 컬럼 표시/숨김 처리
-      const table = document.getElementById('dashboardTable');
-      const headers = table.querySelectorAll('thead th');
-      const rows = table.querySelectorAll('tbody tr');
-      
-      headers.forEach((header, index) => {
-        if (index === 0) return; // 주문번호 컬럼은 항상 표시
-        
-        const columnName = getColumnNameByIndex(index);
-        if (columnIndexes.includes(columnName)) {
-          header.style.display = '';
-        } else {
-          header.style.display = 'none';
+      // 주문번호 엔터키 검색
+      orderNoInput?.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+              e.preventDefault();
+              orderSearchBtn.click();
+          }
+      });
+
+      // 테이블 행 클릭 (이벤트 위임)
+      dashboardTableBody?.addEventListener('click', (e) => {
+        const row = e.target.closest('tr.clickable-row');
+        if (row && !e.target.closest('a')) { // 링크 클릭은 제외
+          const orderId = row.dataset.id;
+          if (orderId) {
+            window.location.href = `/orders/${orderId}`;
+          }
         }
       });
       
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        cells.forEach((cell, index) => {
-          if (index === 0) return; // 주문번호 컬럼은 항상 표시
-          
-          const columnName = getColumnNameByIndex(index);
-          if (columnIndexes.includes(columnName)) {
-            cell.style.display = '';
-          } else {
-            cell.style.display = 'none';
-          }
-        });
-      });
-      
-      columnDialog.classList.remove('active');
+      // 컬럼 설정 버튼
+      customizeColumnsBtn?.addEventListener('click', () => {
+          renderColumnSettings(); // 대화상자 열 때 최신 상태 반영
+          columnDialog?.classList.add('active');
+    });
+      cancelColumnsBtn?.addEventListener('click', () => {
+          columnDialog?.classList.remove('active');
+    });
+      applyColumnsBtn?.addEventListener('click', () => {
+          const checkboxes = columnSettingsGrid.querySelectorAll('input[name="columns"]');
+          checkboxes.forEach(cb => {
+              visibleColumns[cb.value] = cb.checked;
+          });
+          saveVisibleColumns(); // 변경사항 저장
+          renderTableHeader(); // 헤더 다시 렌더링
+          applyFiltersAndRender(); // 테이블 내용 다시 렌더링
+          columnDialog?.classList.remove('active');
     });
     
-    // 컬럼 인덱스에 따른 컬럼명 가져오기
-    function getColumnNameByIndex(index) {
-      const columnMap = {
-        0: 'order_no',
-        1: 'customer',
-        2: 'type',
-        3: 'status',
-        4: 'department',
-        5: 'warehouse',
-        6: 'eta',
-        7: 'region',
-        8: 'driver'
-      };
-      return columnMap[index] || '';
     }
-    
-    // 페이지 로드 시 로딩 오버레이 숨김
-    setTimeout(() => {
-      hideLoading();
-    }, 500);
+
+    // --- 초기화 실행 ---
+    initDashboard();
+
   });
 </script>
 {% endblock %}

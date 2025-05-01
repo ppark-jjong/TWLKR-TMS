@@ -9,13 +9,13 @@
   background-color: #fcfcfc;
 }
 
-/* 상단 필터 행 (탭 및 검색) */
+/* 상단 필터 행 (탭만 있음) */
 .top-filter-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-between; /* 탭과 액션 버튼 영역 분리 */
   align-items: center;
   width: 100%;
-  margin-bottom: var(--spacing-md);
+  /* margin-bottom 제거 */
   padding-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--border-color-dark);
 }
@@ -64,72 +64,6 @@
   font-weight: 500;
 }
 
-/* 검색바 */
-.search-container {
-  display: flex;
-  align-items: center;
-}
-
-.search-box {
-  display: flex;
-  border: 1px solid var(--border-color-dark);
-  border-radius: var(--border-radius-md);
-  overflow: hidden;
-  background-color: white;
-}
-
-.search-input {
-  border: none;
-  padding: 8px 12px;
-  width: 200px;
-  outline: none;
-  font-size: var(--font-size-sm);
-}
-
-.search-btn {
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background-color var(--transition-fast);
-}
-
-.search-btn:hover {
-  background-color: var(--primary-color-dark);
-}
-
-/* 필터 컨트롤 영역 */
-.filter-controls {
-  display: flex;
-  gap: var(--spacing-md);
-  align-items: flex-end;
-  margin-bottom: var(--spacing-md);
-  flex-wrap: wrap;
-}
-
-.filter-item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.filter-item label {
-  font-size: var(--font-size-xs);
-  color: var(--text-color-secondary);
-  font-weight: 500;
-}
-
-.filter-select {
-  padding: 6px 10px;
-  border: 1px solid var(--border-color-dark);
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-sm);
-  color: var(--text-color);
-  background-color: white;
-  min-width: 120px;
-}
-
 /* 액션 버튼 영역 */
 .actions-row {
   display: flex;
@@ -137,12 +71,26 @@
   align-items: center;
   width: 100%;
   padding-top: var(--spacing-md);
-  border-top: 1px solid var(--border-color);
+  /* border-top 제거 (상단 행에서 이미 구분선 있음) */
 }
 
 .left-actions, .right-actions {
   display: flex;
   gap: var(--spacing-sm);
+}
+
+/* 행 개수 선택 (대시보드와 동일 스타일 재사용 고려) */
+.filter-item.rows-per-page label {
+    margin-right: 5px;
+}
+.filter-item.rows-per-page select {
+    min-width: 80px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-color);
+    background-color: white;
 }
 
 /* 테이블 영역 - 스크롤 적용 */
@@ -157,7 +105,7 @@
 .table-container {
   width: 100%;
   overflow-y: auto;
-  max-height: calc(100vh - 300px);
+  max-height: calc(100vh - 260px); /* 높이 조정 (필터바 간소화 반영) */
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
@@ -184,15 +132,15 @@
   border-bottom: 1px solid var(--border-color-dark);
   background-color: white;
   color: var(--text-color);
-  font-size: calc(var(--font-size-sm) + 2pt);
-  text-align: center; /* 가운데 정렬 */
+  font-size: calc(var(--font-size-sm) + 1pt); /* 컬럼명 폰트 크기 조정 */
+  text-align: center;
 }
 
 .data-table td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
-  text-align: center; /* 가운데 정렬 */
+  text-align: center;
 }
 
 .data-table tbody tr:last-child td {
@@ -203,7 +151,7 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
-/* 페이지네이션 */
+/* 페이지네이션 (대시보드와 동일) */
 .pagination-container {
   display: flex;
   justify-content: center;
@@ -251,59 +199,26 @@
 }
 
 /* 인수인계 목록 테이블 스타일 */
-.handover-row {
+.handover-row, .notice-row {
   transition: background-color var(--transition-fast);
 }
 
-.handover-row:hover {
+.handover-row:hover, .notice-row:hover {
   background-color: var(--background-color-hover);
 }
 
+/* 공지사항 행 강조 (선택적) */
 .notice-row {
-  background-color: rgba(215, 37, 25, 0.05);
+  /* background-color: rgba(215, 37, 25, 0.05); */ 
+  font-weight: 500; /* 약간 굵게 */
 }
 
 .title-cell a {
-  color: var(--text-color);
-  transition: color var(--transition-fast);
-  font-weight: 500;
+  /* 상세 페이지 링크 스타일 - 필요시 추가 */
 }
 
-.title-cell a:hover {
-  color: var(--primary-color);
-  text-decoration: underline;
-}
-
-/* 액션 셀 */
-.action-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-}
-
-.btn-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background-color: var(--background-color-light);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-sm);
-  color: var(--text-color);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.btn-action:hover {
-  background-color: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
-
-/* 태그와 배지 */
-.tag, .priority-badge {
+/* 태그 */
+.tag {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -324,22 +239,7 @@
   color: #0056b3;
 }
 
-.priority-badge.priority-high {
-  background-color: rgba(255, 77, 79, 0.1);
-  color: var(--danger-color);
-}
-
-.priority-badge.priority-medium {
-  background-color: rgba(250, 173, 20, 0.1);
-  color: var(--warning-color-dark);
-}
-
-.priority-badge.priority-low {
-  background-color: rgba(82, 196, 26, 0.1);
-  color: var(--secondary-color-dark);
-}
-
-/* 빈 테이블 표시 */
+/* 빈 테이블 표시 (대시보드와 동일) */
 .empty-table {
   padding: 60px 20px !important;
   text-align: center;
@@ -431,94 +331,6 @@
   white-space: pre-line;
 }
 
-/* 확인 목록 섹션 */
-.confirmation-section {
-  background-color: white;
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--border-color);
-  overflow: hidden;
-}
-
-.confirmation-list {
-  padding: var(--spacing-md);
-}
-
-.confirmation-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-color-light);
-  margin-bottom: var(--spacing-sm);
-}
-
-.confirmation-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.confirm-icon {
-  width: 32px;
-  height: 32px;
-  background-color: var(--status-complete-bg);
-  color: var(--status-complete-text);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-sm);
-}
-
-.confirm-info {
-  flex: 1;
-}
-
-.confirm-name {
-  font-weight: 500;
-  font-size: var(--font-size-sm);
-}
-
-.confirm-time {
-  font-size: var(--font-size-xs);
-  color: var(--text-color-secondary);
-}
-
-.empty-confirmation {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--spacing-lg);
-  color: var(--text-color-light);
-  text-align: center;
-  gap: var(--spacing-sm);
-}
-
-.empty-confirmation i {
-  font-size: 24px;
-}
-
-.confirm-action {
-  padding: var(--spacing-md);
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
-}
-
-.confirmed-message {
-  padding: var(--spacing-md);
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  background-color: var(--status-complete-bg);
-  color: var(--status-complete-text);
-  font-weight: 500;
-}
-
-.confirmed-message i {
-  font-size: var(--font-size-md);
-}
-
 /* 인수인계 작성/수정 폼 */
 .handover-form-page .main-card {
   max-width: 800px;
@@ -527,94 +339,4 @@
 
 .handover-form {
   padding: var(--spacing-lg);
-}
-
-/* 반응형 스타일 */
-@media (max-width: 1200px) {
-  .top-filter-row {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: flex-start;
-  }
-  
-  .search-container {
-    width: 100%;
-  }
-  
-  .search-box {
-    width: 100%;
-  }
-  
-  .search-input {
-    width: 100%;
-  }
-  
-  .tabs {
-    width: 100%;
-    overflow-x: auto;
-  }
-  
-  .filter-controls {
-    flex-wrap: wrap;
-  }
-  
-  .actions-row {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: flex-start;
-  }
-  
-  .right-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 768px) {
-  .tabs {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: var(--spacing-xs);
-  }
-  
-  .tab {
-    flex: 1;
-    white-space: nowrap;
-  }
-  
-  .filter-item {
-    width: 100%;
-  }
-  
-  .filter-select {
-    width: 100%;
-  }
-  
-  .data-table {
-    font-size: var(--font-size-xs);
-  }
-  
-  .data-table th,
-  .data-table td {
-    padding: 8px;
-  }
-  
-  .handover-meta {
-    flex-direction: column;
-    gap: var(--spacing-sm);
-  }
-  
-  .handover-tags {
-    flex-wrap: wrap;
-  }
-  
-  .handover-title {
-    font-size: var(--font-size-lg);
-  }
-  
-  .confirmation-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-sm);
-  }
 }

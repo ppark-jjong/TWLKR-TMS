@@ -10,7 +10,9 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 from fastapi import Depends, HTTPException, Request, status
 from main.utils.config import get_settings
-from main.utils.logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
