@@ -1,868 +1,287 @@
-# 배송 실시간 관제 시스템 상세 동작 명세서 (업데이트)
+# 배송 실시간 관제 시스템 상세 동작 명세서 (2025‑05‑01 전체판)
 
-본 문서는 배송 실시간 관제 시스템의 백엔드 및 프론트엔드 구현에 필요한 모든 정보를 통합한 종합 명세서입니다. 실제 DB 스키마(init-db.sql)와의 일치성을 높이고, 불필요한 필드나 기능에 대한 언급을 제거했습니다.
-그리고 아직 개발 중이여서 중간 포인트 마다 정상 작동여부를 확인할 수 있는 로그를 간략히 적으세요
+본 문서는 배송 실시간 관제 시스템의 백엔드·프론트엔드 구현에 필요한 **모든** 정보를 통합합니다. 실제 DB 스키마(init‑db.sql)와 1 : 1 매핑되며, 개발 중 정상 동작 여부를 확인할 **중간 포인트 로깅** 예시를 포함합니다.
+
+---
+
 ## Ⅰ. 프로젝트 개요 및 목표
 
-- **실시간 배송 주문 관리**: ETA 기준으로 주문을 조회하고 상태를 관리합니다.
-- **효율적 배차 처리**: 담당자(기사) 배정 및 상태 관리를 통합 제공합니다.
-- **권한별 기능 구분**: 일반 사용자 / 관리자 권한으로 분리하여 처리합니다.
-- **지역 특화 시스템**: 한국어 UI, 국내 사용자 전용.
-- **고정 브랜드 컬러**: `#D72519` (포인트 색상).
-- **예상 부하**: 동시 접속 50명 · TPS 100 · 시간당 ≤ 100 MB.
-- **렌더링 방식**: 초기 요청 시 SSR(서버 사이드 렌더링)으로 전체 페이지를 렌더링하고, 이후 사용자 상호작용에 따라 CSR(JavaScript)로 동적 동작을 처리합니다.
+| 구분           | 내용                          |
+| ------------ | --------------------------- |
+| 실시간 주문·배송 관리 | ETA 기준 조회·상태 관리             |
+| 효율적 배차       | 기사 배정·연락처 관리 통합             |
+| 권한           | USER / ADMIN 2‑레벨           |
+| UI           | 한국어, 데스크톱 전용                |
+| 브랜드 컬러       | `#D72519` (포인트)             |
+| 예상 부하        | 동시 50 · TPS 100 · ≤100 MB/h |
+| 렌더링          | 초기 SSR → 이후 CSR             |
 
-## Ⅱ. 아키텍처 원칙 및 기술 스택
+---
 
-### 2.1 아키텍처 원칙
+## Ⅱ. 아키텍처 원칙 · 기술 스택
 
-1. **SSR 우선, CSR 보조**: 초기 페이지 로드는 SSR로 처리하고, 사용자 상호작용은 CSR로 보완
-2. **Form 데이터 방식과 JSON API 방식의 전략적 혼합**:
-   - 단일 레코드 작업: Form 데이터 방식 + PRG(Post-Redirect-Get) 패턴
-   - 목록 조회 및 동적 UI: JSON API 방식 + AJAX
-3. **명시적 액션 기반**: 자동화 최소화, 사용자 명시적 액션으로 데이터 갱신
-4. **YAGNI (You Aren't Gonna Need It)**: 지금 필요한 기능만 구현
-5. 과도한 추상화·복잡성 지양
-6. 핵심 보안·정합성 검증만 백엔드 수행
-7. **프론트엔드 검증 중심** – UI 단에서 대부분의 유효성 검증 수행
-8. **일관된 UI** – 동일 상황에서 동일 UI 요소·패턴, 데스크탑 환경 비율만 생각해야해 (모바일 환경 고려 하지마)
+### 2.1 원칙
 
-### 2.2 기술 스택
+1. **SSR 우선 + CSR 보조**
+2. **Form(PRG) vs JSON API** 분리
+3. **명시적 액션** – 자동 최소화
+4. **YAGNI**
+5. 과도한 추상화 금지
+6. **서버 최종 검증 · 클라이언트 실시간 검증**
+7. UI 일관성 (모바일 미지원)
 
-- **백엔드**: Python 3.12.9, FastAPI, Jinja2 (SSR)
-- **프론트엔드**: HTML/CSS/JavaScript, 필요 시 Bootstrap/Tailwind 사용 가능
-- **데이터베이스**: MySQL 8.0 (init‑db.sql 기반 스키마)
-- **배포 환경**: Docker 컨테이너 (GAE Flexible Environment runtime `custom`)
-- **Cloud SQL 연동**: Private IP, IAM DB Auth, 자동 백업, SSL / Cloud SQL Auth Proxy(로컬)
+### 2.2 스택
 
-## Ⅲ. 권한 구조 및 인증
+| 레이어      | 스택                                            |
+| -------- | --------------------------------------------- |
+| Backend  | Python 3.12 · FastAPI · Jinja2                |
+| Frontend | HTML/CSS/JS (+ Bootstrap/Tailwind)            |
+| DB       | MySQL 8.0                                     |
+| Infra    | Docker (GAE Flexible) · Cloud SQL(Private IP) |
 
-### 3.1 권한 구조
+### 2.3 **로깅 시스템** ★
 
-| 구분 | 접근 페이지 | CRUD 권한 | 상태 변경 |
-|------|-------------|-----------|-----------|
-| **ADMIN** | 대시보드, 인수인계, 사용자 관리 | 전체(락 확보 시) | 5가지 상태 간 자유 전이(역행·롤백 포함) |
-| **USER**  | 대시보드, 인수인계 | 조회, 생성, 수정(락 확보 & 본인 작성 시) | 대기 → 진행, 진행 → 완료/이슈/취소 |
+- `logger.py` **삭제** → 표준 **Python logging** 사용
+- 전역 설정(main.py)
 
-### 3.2 인증 및 세션 관리
-
-- **세션 기반 인증**: `SessionMiddleware` 통해 구현
-- **쿠키 속성**: 
-  - 유효기간: `SESSION_EXPIRE_HOURS` 환경변수 (시간 단위)
-  - 쿠키명: `session`
-  - HTTPS: 프로덕션에서는 활성화 필요
-  - SameSite: `lax` 모드로 설정
-- **세션 정리**: `initialize_session_cleanup` 호출로 만료된 세션 정리
-
-### 3.3 인증 흐름
-
-- **로그인 경로**: `/login` (POST)
-- **데이터 구조**: `{"user_id": string, "user_password": string}`
-- **리턴값**: 성공 시 `{"success": true, "message": string}`
-- **로그아웃 경로**: `/logout` (GET/POST)
-- **인증 실패 처리**: 401 응답 또는 로그인 페이지 리다이렉트
-- **리다이렉션**: 인증 필요 URL 접근 시 `/login?return_to={original_url}` 형태로 리다이렉트
-
-### 3.4 세션 검증 및 미들웨어
-
-- **inject_user_middleware**: 모든 요청에 사용자 정보 주입
-- **인증 검증**: 보호된 경로 접근 시 자동으로 세션 확인 후 인증 안된 경우 `/login`으로 리다이렉트
-- **사용자 정보**: 세션에 `user` 키로 저장 (`user_id`, `user_role`, `user_department` 등 포함)
-
-## Ⅳ. 데이터 전송 방식 구분
-
-### 4.1 Form 데이터 방식 적용 기능 (확정)
-
-- **인증 및 세션 관리**:
-  - 로그인: `POST /login` (form-data: `user_id`, `user_password`)
-  - 로그아웃: `GET/POST /logout`
-
-- **주문 관련 단일 레코드 작업**:
-  - 주문 생성: `POST /orders` (form-data: 주문 필드들)
-  - 주문 수정: `POST /orders/{dashboard_id}` (form-data: 주문 필드들)
-  - 주문 삭제: `POST /orders/{dashboard_id}/delete`
-  - 상태 변경: `POST /orders/{dashboard_id}/status` (form-data: `status`)
-  - 기사 배정: `POST /orders/{dashboard_id}/driver` (form-data: `driver_name`, `driver_contact`)
-
-- **인수인계 관련 단일 레코드 작업**:
-  - 인수인계 생성: `POST /handover` (form-data: 인수인계 필드들)
-  - 인수인계 수정: `POST /handover/{handover_id}` (form-data: 인수인계 필드들)
-  - 인수인계 삭제: `POST /handover/{handover_id}/delete`
-
-- **사용자 관리 CRUD**:
-  - 사용자 생성: `POST /users` (form-data: 사용자 필드들)
-  - 사용자 수정: `POST /users/{user_id}` (form-data: 사용자 필드들)
-  - 사용자 삭제: `POST /users/{user_id}/delete`
-
-### 4.2 JSON API 방식 적용 기능 (확정)
-
-- **락 메커니즘**:
-  - 락 상태 확인: `GET /lock/order/{dashboard_id}`, `GET /lock/handover/{handover_id}`
-  - 응답: `{"success": true, "locked": boolean, "owner": string?, "editable": boolean}`
-
-- **클라이언트 측 동적 기능**:
-  - 대시보드 상태/부서/창고 필터링: 클라이언트 JavaScript
-  - 컬럼 커스터마이징: localStorage 활용
-  - 실시간 유효성 검증: 클라이언트 JavaScript
-  - 알림 메시지 표시: 클라이언트 JavaScript
-
-- **목록 조회 및 페이지네이션 (인수인계)**:
-  - 인수인계 목록 조회: `GET /api/handover/list` (JSON 응답)
-  - 인수인계 페이지네이션: `GET /api/handover/list?page=1&page_size=10` (JSON 응답)
-
-### 4.3 하이브리드 접근법 (신규)
-
-- **대시보드 목록 조회**:
-  - 초기 로드: SSR 방식 (서버에서 전체 HTML 렌더링)
-  - 날짜 필터 및 주문번호 검색: Form submit (전체 페이지 새로고침)
-  - 상태/부서/창고 필터: 클라이언트 JavaScript (페이지 새로고침 없음)
-
-## Ⅴ. 데이터 스키마
-
-### 5.1 주문(Dashboard) 스키마
+```python
+import logging, sys
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(module)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 ```
+
+- 함수 진입·중간·종료·예외에 로그 삽입
+
+---
+
+## Ⅲ. 권한 구조 · 인증
+
+| 역할    | 접근            | CRUD      | 상태 전이                                      |
+| ----- | ------------- | --------- | ------------------------------------------ |
+| ADMIN | 대시보드·인수인계·사용자 | 전체(락 확보)  | 5 상태 자유+역행                                 |
+| USER  | 대시보드·인수인계     | 본인 데이터 수정 | WAITING→IN\_PROGRESS→COMPLETE/ISSUE/CANCEL |
+
+- SessionMiddleware / 쿠키 `session` (SameSite lax, HTTPS prod)
+- 만료 정리 `initialize_session_cleanup`
+
+---
+
+## Ⅳ. 데이터 전송 방식
+
+### 4.1 **Form** (HTML 302 PRG)
+
+| 기능        | 엔드포인트                      | 요청                                | 응답               | 비고         |
+| --------- | -------------------------- | --------------------------------- | ---------------- | ---------- |
+| 로그인       | `POST /login`              | form (`user_id`, `user_password`) | 302→/dashboard   | –          |
+| 로그아웃      | `GET/POST /logout`         | –                                 | 302→/login       | –          |
+| 주문 생성     | `POST /orders`             | DashboardCreate                   | 302→/orders/{id} | –          |
+| 주문 수정     | `POST /orders/{id}`        | DashboardUpdate                   | 302→상세           | –          |
+| 주문 삭제     | `POST /orders/{id}/delete` | –                                 | 302→/dashboard   | **개별** 삭제  |
+| 상태 변경     | `POST /orders/{id}/status` | `status`                          | 302→상세           | 상세 "변경" 버튼 |
+| 기사 배정     | `POST /orders/{id}/driver` | `driver_name`,`driver_contact`    | 302→상세           | 상세 "배정" 버튼 |
+| 인수인계 CRUD | `/handover…`               | Form                              | 302              | –          |
+
+### 4.2 **JSON API** (`application/json`)
+
+| 기능       | 엔드포인트                     | 메서드 | Response                                          |
+| -------- | ------------------------- | --- | ------------------------------------------------- |
+| 주문 목록    | `GET /dashboard/list`     | GET | `{success,message,data:{items,pagination,stats}}` |
+| 주문 검색    | `GET /search`             | GET | 동일                                                |
+| 인수인계 목록  | `GET /api/handover/list`  | GET | `{success,message,data:{items,pagination}}`       |
+| 락 확인(주문) | `GET /lock/order/{id}`    | GET | `{success,locked,owner,editable}`                 |
+| 락 확인(인수) | `GET /lock/handover/{id}` | GET | 위와 동일                                             |
+
+### 4.3 대시보드 하이브리드
+
+- **GET /dashboard** (SSR) — Query `page,page_size,start_date,end_date`\
+   · `start_date`,`end_date` 기본값 **오늘** → 자동 조회
+- 날짜·주문번호 → Form PRG,  상태·부서·창고 필터 & 컬럼 설정 → CSR
+
+---
+
+## Ⅴ. 데이터 스키마 (init‑db.sql 대응)
+
+```json
 {
-  "dashboard_id": number,        // 주문 ID (PK)
-  "order_no": string,            // 주문번호 (필수)
-  "type": string,                // 유형: DELIVERY(배송) / RETURN(회수) (필수)
-  "status": string,              // 상태: WAITING(대기) / IN_PROGRESS(진행) / COMPLETE(완료) / ISSUE(이슈) / CANCEL(취소) (필수)
-  "department": string,          // 부서: CS / HES / LENOVO (필수)
-  "warehouse": string,           // 창고: SEOUL / BUSAN / GWANGJU / DAEJEON (필수)
-  "sla": string,                 // SLA (필수)
-  "eta": string,                 // ETA 일자 (필수, YYYY-MM-DD HH:MM 형식)
-  "create_time": string,         // 생성 시간 (자동 생성, YYYY-MM-DD HH:MM 형식)
-  "depart_time": string,         // 출발 시간 (IN_PROGRESS 상태로 변경시 자동 생성)
-  "complete_time": string,       // 완료 시간 (COMPLETE 상태로 변경시 자동 생성)
-  "postal_code": string,         // 우편번호 (필수, 5자리)
-  "city": string,                // 도시 (선택)
-  "county": string,              // 군/구 (선택)
-  "district": string,            // 지역 (선택)
-  "region": string,              // 권역 (자동 생성: city + county + district)
-  "distance": number,            // 거리 (선택)
-  "duration_time": number,       // 소요 시간 (선택)
-  "address": string,             // 주소 (필수)
-  "customer": string,            // 고객명 (필수)
-  "contact": string,             // 연락처 (선택)
-  "driver_name": string,         // 기사명 (선택)
-  "driver_contact": string,      // 기사 연락처 (선택)
-  "update_by": string,           // 마지막 수정자 (락 소유자)
-  "update_at": string,           // 마지막 수정 시간 (YYYY-MM-DD HH:MM 형식)
-  "remark": string,              // 메모 (선택)
-  "is_locked": boolean           // 락 상태
+  "dashboard_id": int,
+  "order_no": "string",
+  "type": "DELIVERY|RETURN",
+  "status": "WAITING|IN_PROGRESS|COMPLETE|ISSUE|CANCEL",
+  "department": "CS|HES|LENOVO",
+  "warehouse": "SEOUL|BUSAN|GWANGJU|DAEJEON",
+  "sla": "string",
+  "eta": "YYYY-MM-DD HH:MM",
+  "create_time": "YYYY-MM-DD HH:MM",
+  "depart_time": "YYYY-MM-DD HH:MM",
+  "complete_time": "YYYY-MM-DD HH:MM",
+  "postal_code": "string(5)",
+  "city": "string",
+  "county": "string",
+  "district": "string",
+  "region": "string",
+  "distance": int,
+  "duration_time": int,
+  "address": "string",
+  "customer": "string",
+  "contact": "string",
+  "driver_name": "string",
+  "driver_contact": "string",
+  "update_by": "string",
+  "update_at": "YYYY-MM-DD HH:MM",
+  "remark": "string",
+  "is_locked": bool
 }
 ```
 
-### 5.2 인수인계(Handover) 스키마
-```
+```json
 {
-  "handover_id": number,         // 인수인계 ID (PK) 
-  "title": string,               // 제목 (필수)
-  "content": string,             // 내용 (필수)
-  "update_at": string,           // 마지막 수정 시간 (YYYY-MM-DD HH:MM 형식)
-  "update_by": string,           // 마지막 수정자
-  "create_by": string,           // 작성자
-  "is_notice": boolean,          // 공지사항 여부
-  "is_locked": boolean           // 락 상태
+  "handover_id": int,
+  "title": "string",
+  "content": "string",
+  "update_at": "YYYY-MM-DD HH:MM",
+  "update_by": "string",
+  "create_by": "string",
+  "is_notice": bool,
+  "is_locked": bool
 }
 ```
 
-### 5.3 사용자(User) 스키마
-```
+```json
 {
-  "user_id": string,             // 사용자 ID (PK)
-  "user_password": string,       // 비밀번호
-  "user_department": string,     // 부서: CS / HES / LENOVO
-  "user_role": string,           // 권한: USER / ADMIN
+  "user_id": "string",
+  "user_password": "string",
+  "user_department": "CS|HES|LENOVO",
+  "user_role": "USER|ADMIN"
 }
 ```
 
-## Ⅵ. 페이지별 상세 구현 지침
+---
 
-### 6.1 대시보드(Dashboard) 페이지
+## Ⅵ. 페이지별 구현 지침
 
-#### 6.1.1 하이브리드 렌더링 접근법 (업데이트)
-대시보드는 SSR과 CSR을 전략적으로 혼합한 하이브리드 접근법을 사용합니다. 초기 데이터 로드와 서버 데이터 의존적인 기능은 SSR로, 사용자 경험과 관련된 동적 기능은 CSR로 처리합니다.
+### 6.1 대시보드
 
-##### SSR로 처리하는 부분 (FastAPI + Jinja2)
-- **초기 페이지 로드**: 오늘 날짜 기준 주문 데이터를 서버에서 직접 렌더링
-- **기본 UI 요소**: 테이블, 필터 폼, 페이지네이션 UI 구조
-- **날짜 범위 조회**: 폼 제출 방식으로 서버에 요청하여 전체 페이지 새로고침
-- **주문번호 검색**: 폼 제출 방식으로 서버에 요청하여 전체 페이지 새로고침
-- **페이지 크기 변경**: 서버에 새 요청으로 처리
+- **SSR** : 오늘 데이터·테이블·폼 렌더
+- **CSR** : 상태/부서/창고 필터, 컬럼 커스터마이징, 클라이언트 페이지네이션
+- **상세 \*\*\*\*****`/orders/{id}`**\
+   · 진입 시 `GET /lock/order/{id}`\
+   · 상태 옆 **[변경]** → `POST /orders/{id}/status`\
+   · 기사 옆 **[배정]** → `POST /orders/{id}/driver`\
+   · PRG + Flash 메시지
 
-##### CSR로 처리하는 부분 (JavaScript)
-- **클라이언트 필터링**: 이미 로드된 데이터에 대한 상태/부서/창고 필터링
-- **컬럼 커스터마이징**: 사용자별 설정 localStorage 저장 및 적용
-- **필터링 후 페이지네이션**: 클라이언트 필터 적용 후 페이지 계산
-- **행 클릭 이벤트**: 주문 상세 페이지로 이동
+### 6.2 인수인계
 
-#### 6.1.2 데이터 구조 및 컬럼 정의
-- **주요 컬럼 (순서 고정)**: 주문번호, 고객, 유형, 상태, 부서, 창고, ETA, 지역, 배송기사
-- **행 배경색**: 대기 `rgb(255,246,203)`, 진행 `rgb(179,228,250)`, 완료 `rgb(210,250,171)`, 이슈 `rgb(252,173,161)`, 취소 `rgb(196,196,196)`
+- 목록(JSON)+CSR
+- 상세 락 확인 → 수정·삭제 버튼 노출
+- 공지(`is_notice`) = 관리자 전용
 
-#### 6.1.3 필수 기능 및 제거 기능 명세 (업데이트)
+### 6.3 사용자 관리
 
-##### 필수 유지 기능
-1. **데이터 로드 및 표시**
-   - 주문 목록 조회 및 테이블 렌더링
-   - 페이지네이션 처리 (10/30/50행)
+- 관리자 전용 CRUD(Form) + 목록(JSON)
 
-2. **필터링 기능**
-   - 날짜(ETA) 범위 필터 (서버 측 - SSR)
-   - 상태/부서/창고 필터 (클라이언트 측 - CSR)
-   - 주문번호 검색 (서버 측 - SSR)
-   - '오늘' 단축 버튼
+---
 
-3. **테이블 커스터마이징**
-   - 컬럼 표시/숨김 설정 (localStorage에 저장)
+## Ⅶ. 공통 기능 가이드
 
-4. **주문 상세**
-   - 주문 행 클릭 시 상세 페이지로 이동
+### 7.1 **로깅** (재강조)
 
-##### 제거 대상 기능 (불필요한 기능)
-1. **체크박스 기능** - 완전 제거
-   - 체크박스 열 및 관련 HTML 요소
-   - 전체 선택/해제 기능 및 이벤트 리스너
-   - 선택 상태 관리 변수 및 함수
+- 예외 `exc_info=True` 포함
+- 로깅 레벨 : DEBUG/INFO/WARNING/ERROR/CRITICAL
 
-2. **통계 카드** - 완전 제거
-   - 통계 요약 카드 UI
-   - 통계 데이터 계산 및 업데이트 함수
-   - 필터링에 따른 통계 재계산 로직
+### 7.2 **락 메커니즘**
 
-3. **필터 태그** - 완전 제거
-   - 적용된 필터 표시 UI 영역
-   - 태그 생성 및 관리 함수
-   - 필터 적용 시 태그 업데이트 로직
+| 위치   | 처리                         |
+| ---- | -------------------------- |
+| 목록   | 락 기능 없음 (대화상자 제거)          |
+| 상세   | 진입·편집 전 `GET /lock/...` 필수 |
+| 타임아웃 | 5 분                        |
 
-4. **락 대화상자** - 완전 제거 (신규)
-   - 대시보드 목록 페이지에서 `lockInfoDialog` 대화상자 삭제
-   - 관련 JavaScript 이벤트 리스너 및 함수 제거
-   - 락 확인 로직은 주문 상세 페이지에서만 유지
+### 7.3 API 응답 표준
 
-#### 6.1.4 혼합 렌더링 방식의 이점
-- **초기 로드 속도 향상**: API 요청 없이 서버에서 바로 데이터와 함께 HTML 제공
-- **서버 부하 감소**: 불필요한 API 호출 감소로 서버 리소스 절약
-- **UX 개선**: 간단한 필터링은 페이지 새로고침 없이 즉시 반영
-- **코드 복잡도 감소**: JavaScript 코드 크게 단순화
-- **SEO 강화**: 콘텐츠를 서버에서 렌더링하므로 검색 엔진 최적화에 유리
-
-#### 6.1.3 주문 상세 페이지 (`/orders/{dashboard_id}`)
-- **주문 상세 표시**: 모든 필드, 마지막 업데이트 정보 (Form 방식)
-- **편집 모드**: 락 확보 시에만 표시
-- **락 메커니즘**: JSON API 방식으로 락 상태 확인
-- **편집 가능 항목**:
-  - 기본 정보: type, department, warehouse, SLA, ETA
-  - 배송 정보: postalCode, address, customer, contact
-  - 상태 정보: status (상태 변경 통합)
-  - 배차 정보: driverName, driverContact (기사 배정 통합)
-  - 기타 정보: remark
-- 편집 완료 시 POST 후 **PRG(Post-Redirect-Get)** 패턴 적용 → Flash 메시지로 결과 표시
-- 관리자에게만 **삭제** 버튼 노출
-- **수정 이력 자동 기록**: 수정 시 현재 사용자 정보로 `update_by`, 현재 시간으로 `update_at` 자동 업데이트
-
-#### 6.1.4 주문 생성 페이지 (`/orders/new`)
-- **필수 입력 필드**: order_no, type, department, warehouse, SLA, ETA, postal_code(5), address, customer, contact
-- **우편번호 처리**: 4자리 입력 시 앞에 0 자동 추가 (프론트엔드 실시간 / 백엔드 재검증)
-- **생성 이력 자동 기록**: 생성 시 현재 사용자 정보로 `update_by`, 현재 시간으로 `update_at` 자동 설정
-
-#### 6.1.5 주문 상태 변경
-- **상태 종류**: 대기(WAITING) · 진행(IN_PROGRESS) · 완료(COMPLETE) · 이슈(ISSUE) · 취소(CANCEL)
-- **자동 시간 기록**: 
-  - 진행 상태로 변경 시 depart_time 자동 기록
-  - 완료 상태로 변경 시 complete_time 자동 기록
-- **권한 제한**:
-  - 일반 사용자: 대기 → 진행, 진행 → 완료/이슈/취소만 가능
-  - 관리자: 모든 상태 간 자유 전이 가능 (역행/롤백 포함)
-- **수정 이력 자동 기록**: 상태 변경 시 `update_by`, `update_at` 자동 업데이트
-
-#### 6.1.6 배차 (기사 배정)
-- 주문 상세 페이지에서 driverName, driverContact 수정
-- 락 확인 로직 적용
-- **수정 이력 자동 기록**: 배차 정보 변경 시 `update_by`, `update_at` 자동 업데이트
-
-### 6.2 인수인계(Handover) 페이지
-
-#### 6.2.1 페이지 구조
-- **목록 페이지**: `/handover` - 공지사항 및 인수인계 목록 (JSON API)
-- **상세 페이지**: `/handover/{handover_id}` - 인수인계/공지사항 상세 내용 (Form 방식)
-- **생성 페이지**: `/handover/new` - 새 인수인계/공지사항 작성 (Form 기반)
-- **수정 페이지**: `/handover/{handover_id}/edit` - 기존 인수인계/공지사항 편집 (Form 기반)
-
-#### 6.2.2 초기 로드 및 구조
-- **초기 로드**: 공지(30%), 인수인계(70%) 동시에 JSON API로 로드
-
-#### 6.2.3 권한 및 데이터 관리
-- **공지사항**: 관리자만 생성, 수정, 삭제 가능
-- **일반 인수인계**: 일반 사용자는 본인 작성 글만 수정/삭제 가능
-- **관리자 권한**: 모든 글 수정/삭제 가능
-- **공지사항 구분**: `is_notice` 필드로 일반 게시글/공지사항 구분
-  - 관리자만 공지글로 설정 가능 (프론트에서 권한 검증)
-- **생성 이력 자동 기록**: 생성 시 `create_by`, `update_by`, `update_at` 자동 설정
-- **수정 이력 자동 기록**: 수정 시 `update_by`, `update_at` 자동 업데이트
-
-#### 6.2.4 인수인계 상세 페이지 구현
-
-##### 6.2.4.1 페이지 구성
-- **상세 내용 표시**: 제목, 내용, 작성자, 생성일, 마지막 수정자, 수정일 등 모든 필드
-- **구분 표시**: 공지사항/인수인계 구분 시각적 표시
-- **권한 기반 액션 버튼**:
-  - 관리자: 모든 글에 대해 '수정', '삭제' 버튼 표시
-  - 일반 사용자: 본인 작성 글에만 '수정', '삭제' 버튼 표시
-
-##### 6.2.4.2 상세 페이지 접근 흐름
-1. 목록 페이지에서 항목 클릭 시 상세 페이지로 이동
-2. 상세 페이지에서 액션 버튼('수정', '삭제')은 권한 확인 후 표시
-3. '수정' 버튼 클릭 시 편집 페이지(`/handover/{handover_id}/edit`)로 이동
-4. '삭제' 버튼 클릭 시 삭제 확인 후 Form 제출 방식으로 삭제 처리
-
-##### 6.2.4.3 권한 처리 로직
-```javascript
-// 클라이언트 측 권한 확인
-function checkEditDeletePermission(handoverId, createBy, isNotice) {
-    // 현재 로그인한 사용자 정보
-    const currentUser = Utils.auth.getCurrentUser();
-    
-    // 1. 관리자는 모든 글에 대한 수정/삭제 권한 있음
-    if (currentUser.user_role === 'ADMIN') {
-        return true;
-    }
-    
-    // 2. 일반 사용자는 자신이 작성한 글만 수정/삭제 가능
-    if (currentUser.user_id === createBy) {
-        return true;
-    }
-    
-    // 3. 공지사항은 관리자만 수정/삭제 가능 (위에서 이미 체크됨)
-    if (isNotice) {
-        return false;
-    }
-    
-    return false;
+```json
+{
+  "success": true,
+  "message": "문구",
+  "data": {...}
 }
 ```
 
-##### 6.2.4.4 인수인계 페이지 락 처리 (신규)
-- **락 대화상자 위치**: 
-  - 인수인계 상세 페이지(`/handover/{handover_id}`)에만 락 대화상자 구현
-  - 인수인계 목록 페이지에서는 락 대화상자 완전 제거
-- **락 확인 API**: `/lock/handover/{handover_id}` (GET)
-- **락 응답 처리**: 
-  - 다른 사용자가 락을 보유한 경우, 편집 불가 상태로 UI 전환
-  - 현재 사용자가 락을 획득한 경우, 편집 가능 상태로 UI 전환
-- **락 해제**: 페이지 이탈 또는 편집 완료 시 자동 해제
-
-#### 6.2.5 구현 방식
-- **목록 조회**: JSON API 방식으로 구현
-- **CRUD 작업**: Form 데이터 방식으로 구현
-- **필터링**: client-side 필터링 (JSON 기반)
-
-### 6.3 사용자 관리(User Manage) 페이지 - 관리자 전용
-
-- **초기 로드**: 모든 사용자 목록(권한, ID, 이름, 부서) 테이블
-- **기능**: 사용자 추가(ID, PW, department, 권한), 사용자 삭제
-- **구현 방식**: 기본 CRUD는 Form 방식, 검색/필터링은 JSON 방식
-
-## Ⅶ. 공통 기능 구현 가이드
-
-### 7.1 락(Lock) 메커니즘 (업데이트)
-
-- **락 적용 범위 명확화**: 
-  - 락은 상세 정보 페이지에서 수정/삭제 작업 시에만 필요
-  - 목록 페이지(대시보드, 인수인계)에서는 락 메커니즘 불필요
-
-- **락 대화상자 위치**:
-  - 주문 상세 페이지(`/orders/{dashboard_id}`)에만 락 대화상자 구현
-  - 인수인계 상세 페이지(`/handover/{handover_id}`)에만 락 대화상자 구현
-  - 목록 페이지(대시보드, 인수인계)에서는 락 대화상자 요소 완전 제거
-
-- **락 획득 전략**: JSON API로 락 상태 확인 후 Form 방식으로 데이터 수정
-- **락 충돌 처리**: 다른 사용자가 락 보유 시 Flash 메시지로 알림
-- **락 확인 API**: 
-  - 주문: `/lock/order/{dashboard_id}` (GET)
-  - 인수인계: `/lock/handover/{handover_id}` (GET)
-- **응답 구조**: `{"success": true, "locked": boolean, "owner": string?, "editable": boolean}`
-- **자동 해제**: 작업 완료 후 락 자동 해제
-- **타임아웃**: 마지막 업데이트 시간으로부터 5분 후 자동 만료
-
-### 7.2 데이터 유효성 검증 전략
-
-- **서버 측 검증**: 모든 입력 데이터에 대한 타입 및 값 검증
-- **클라이언트 측 검증**: 
-  - 실시간 필드 검증 (JavaScript)
-  - 우편번호: 4자리 입력 시 앞에 0 자동 추가
-
-### 7.3 알림 시스템 (Flash 메시지)
-
-| 유형 | 배경색 예시 | 기본 지속 시간 |
-|------|------------|----------------|
-| 오류 | 빨간색 | 사용자가 닫을 때까지 |
-| 경고 | 주황색 | 5초 |
-| 성공 | 녹색 | 3초 |
-| 정보 | 파란색 | 3초 |
-
-- **구현 방식**: JSON API를 통한 Flash 메시지 렌더링
-- **우상단 Toast / Alert Box** 하나만 렌더링
-- **우선순위**: 오류 > 경고 > 성공 > 정보 (동시 존재 시 상위 우선)
-- **중복 방지**: 동일 메시지 중복 표시하지 않음
-
-### 7.4 마지막 수정자·수정 시간 자동 관리
-
-- **모든 작업에서 자동 기록**: 
-  - 주문 생성, 수정, 상태 변경, 배차 정보 변경 시 `update_by`, `update_at` 자동 업데이트
-  - 인수인계 생성, 수정 시 `update_by`, `update_at` 자동 업데이트
-- **이력 추적**: 모든 엔티티는 마지막 수정자와 수정 시간을 통해 변경 이력 추적
-- **서버 측 처리**: API 요청 처리 시 현재 사용자와 현재 시간으로 필드 자동 설정
-- **충돌 해결**: 락 메커니즘과 연계하여 동시 편집 충돌 방지
-
-### 7.5 시간 및 날짜 표준
-
-- **시간대**: 모든 날짜/시간은 KST(UTC+9) 기준
-- **날짜 형식**: `YYYY-MM-DD` (예: 2025-04-25)
-- **시간 형식**: `HH:MM` (예: 14:30)
-- **일시 형식**: `YYYY-MM-DD HH:MM`
-- **DB 저장**: `DATETIME`(KST) 필드 사용
-
-### 7.6 API 응답 구조 표준화 (신규)
-
-- **모든 API 응답은 다음 구조를 준수해야 함**:
-  ```json
-  {
-    "success": true|false,       // 성공/실패 여부 (필수)
-    "message": "처리 결과 메시지",  // 사용자에게 표시될 메시지 (필수)
-    "data": {...},               // 응답 데이터 (선택)
-    "error_code": 123            // 오류 코드 (실패 시 선택)
-  }
-  ```
-
-- **성공 응답 예시**:
-  ```json
-  {
-    "success": true,
-    "message": "주문이 성공적으로 생성되었습니다.",
-    "data": {
-      "dashboard_id": 123,
-      "order_no": "ORD-20250430-001"
-    }
-  }
-  ```
-
-- **오류 응답 예시**:
-  ```json
-  {
-    "success": false,
-    "message": "필수 필드가 누락되었습니다.",
-    "error_code": 422
-  }
-  ```
-
-- **모든 백엔드 API 엔드포인트는 이 표준 응답 구조를 준수해야 함**
-- **프론트엔드에서는 success 필드를 통해 결과 판단 후 처리 수행**
-
-## Ⅷ. 프론트엔드 구현 패턴 및 코드 품질 원칙
-
-### 8.1 코드 구조화 원칙 (신규)
-
-1. **인라인 JavaScript 금지**
-   - HTML 요소에 직접 `onclick`, `onchange` 등의 이벤트 핸들러 작성 금지
-   - 모든 이벤트 핸들러는 외부 JS 파일에서 정의하고 `addEventListener` 사용
-   - HTML과 JavaScript 코드 완전 분리 필수
-
-2. **모듈화 및 단일 책임 원칙**
-   - 기능별로 함수 분리하여 300줄 이상의 단일 함수 지양
-   - 반복 코드 패턴은 반복문이나 헬퍼 함수로 추출
-
-3. **코드 중복 최소화**
-   - 조건부 렌더링 로직에서 반복 코드 제거
-   - 컬럼 정의와 같은 설정값은 중앙화하여 관리
-
-4. **불필요한 주석 제거**
-   - 명확한 코드에 중복 설명하는 주석 제거
-
-### 8.2 폼 제출 패턴 (Form 데이터 방식)
-
-```html
-<!-- 기본 폼 제출 패턴 -->
-<form action="/orders" method="POST" id="orderForm">
-    <!-- 폼 필드들 -->
-    <input type="text" name="user_id" required>
-    <input type="password" name="user_password" required>
-    <!-- 저장 버튼 -->
-    <button type="submit">저장</button>
-</form>
-```
-
-```javascript
-// 외부 JS 파일 (올바른 방식)
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('orderForm');
-    if (form) {
-        form.addEventListener('submit', function(event) {
-            // 클라이언트 측 검증
-            if (!validateForm()) {
-                event.preventDefault();
-                showErrorMessage('필수 정보를 모두 입력해주세요.');
-            }
-        });
-    }
-});
-```
-
-### 8.3 AJAX 통신 패턴 (JSON API 방식)
-
-```javascript
-// 표준 AJAX 통신 패턴
-async function fetchData(url, options = {}) {
-    try {
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(options.headers || {})
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('요청 처리 중 오류가 발생했습니다.');
-        }
-        
-        return await response.json();
-    } catch (error) {
-        showErrorMessage(error.message);
-        return null;
-    }
-}
-
-// 데이터 필터링 예제
-async function applyFilters() {
-    const filters = {
-        status: document.getElementById('statusFilter').value,
-        department: document.getElementById('departmentFilter').value
-    };
-    
-    const data = await fetchData('/api/dashboard/filter', {
-        method: 'POST',
-        body: JSON.stringify(filters)
-    });
-    
-    if (data) {
-        updateTableData(data);
-    }
-}
-```
-
-### 8.3 컬럼 커스터마이징 패턴
-
-```javascript
-// 컬럼 설정 저장 및 적용
-function saveColumnSettings() {
-    const columns = Array.from(
-        document.querySelectorAll('input[name="columns"]:checked')
-    ).map(cb => cb.value);
-    
-    // 로컬 저장소에 저장
-    localStorage.setItem('dashboardColumns', JSON.stringify(columns));
-    
-    // 테이블 컬럼 업데이트
-    applyColumnSettings(columns);
-}
-
-// 페이지 로드 시 저장된 설정 복원
-function loadColumnSettings() {
-    const savedColumns = localStorage.getItem('dashboardColumns');
-    
-    if (savedColumns) {
-        const columns = JSON.parse(savedColumns);
-        applyColumnSettings(columns);
-        
-        // 체크박스 상태 복원
-        columns.forEach(column => {
-            const checkbox = document.querySelector(`input[name="columns"][value="${column}"]`);
-            if (checkbox) checkbox.checked = true;
-        });
-    }
-}
-```
-
-### 8.4 클라이언트 필터링과 페이지네이션 통합
-
-```javascript
-// 클라이언트 측 필터링 적용 및 페이지네이션 업데이트
-function applyClientSideFilters() {
-    // 필터 조건 가져오기
-    const statusFilter = document.getElementById('statusFilter').value;
-    const departmentFilter = document.getElementById('departmentFilter').value;
-    const warehouseFilter = document.getElementById('warehouseFilter').value;
-    
-    // 전체 데이터에서 필터링
-    const filteredData = allOrders.filter(order => {
-        // 상태 필터
-        if (statusFilter && order.status !== statusFilter) return false;
-        
-        // 부서 필터
-        if (departmentFilter && order.department !== departmentFilter) return false;
-        
-        // 창고 필터
-        if (warehouseFilter && order.warehouse !== warehouseFilter) return false;
-        
-        return true;
-    });
-    
-    // 필터링된 결과로 페이지네이션 정보 업데이트
-    updatePaginationInfo(filteredData.length, currentPage, pageSize);
-    
-    // 현재 페이지에 표시할 데이터 계산
-    const startIndex = (currentPage - 1) * pageSize;
-    const pageData = filteredData.slice(startIndex, startIndex + pageSize);
-    
-    // 테이블 데이터 렌더링
-    renderTableData(pageData);
-}
-```
-
-### 8.5 JavaScript ↔ 서버 통신 원칙
-
-- 비동기 호출 최소화. 가능하면 full-page POST → Redirect → GET.
-- 세션 만료 시 서버가 로그인 페이지로 리다이렉트.
-- 프론트 캐싱(localStorage) 및 폴링 기능 제거.
-- 이벤트 위임 최소화, 필요 시 이벤트 Listener 1회 바인딩.
-- **전역 네임스페이스 오염 방지**, 이벤트 핸들러 중복 방지.
-
-### 8.6 세션 만료 및 오류 처리
-
-```javascript
-// AJAX 요청 공통 처리
-async function makeApiRequest(url, options = {}) {
-    try {
-        const response = await fetch(url, options);
-        
-        // 세션 만료 체크 (401 상태 코드)
-        if (response.status === 401) {
-            showSessionExpiredDialog();
-            return null;
-        }
-        
-        // 기타 오류 상태 처리
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: '알 수 없는 오류가 발생했습니다.' }));
-            showErrorMessage(errorData.message || '요청 처리 중 오류가 발생했습니다.');
-            return null;
-        }
-        
-        return await response.json();
-    } catch (error) {
-        showErrorMessage('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
-        return null;
-    }
-}
-
-// 세션 만료 대화상자 표시
-function showSessionExpiredDialog() {
-    const dialog = document.getElementById('sessionExpiredDialog');
-    if (dialog) {
-        dialog.classList.add('active');
-    }
-}
-```
-
-### 8.7 주요 구현 오류 방지 지침 (신규)
-
-1. **ID 참조 오류 방지**
-   - HTML의 `id` 속성과 JS의 `getElementById()` 참조가 정확히 일치해야 함
-
-2. **불필요한 UI 요소 제거**
-   - 대시보드와 인수인계 목록 페이지에서 락 대화상자(`lockInfoDialog`) 제거
-   - 체크박스 기능, 통계 카드, 필터 태그는 설계에서 제외된 기능으로 완전히 제거
-
-3. **일관된 API 응답 구조**
-   - 모든 API 응답은 `{"success": boolean, "message": string, "data": any}` 형식 준수
-   - status code와 함께 일관된 응답 형식 제공으로 프론트엔드 오류 처리 단순화
-
-4. **코드 중복 최소화**
-   - 우편번호 포맷팅, 날짜 변환, 알림 메시지 표시와 같은 공통 기능은 `utils.js`로 통합
-   - 각 JS 파일에서는 중복 구현 대신 공통 유틸리티 함수 참조
-
-## Ⅸ. 백엔드 API 엔드포인트 정리
-
-### 9.1 인증 관련 API
-- **GET /login**: 로그인 페이지 렌더링
-- **POST /login**: 로그인 처리 (Form 데이터 구조)
-- **GET/POST /logout**: 로그아웃 처리
-
-### 9.2 대시보드 관련 API
-- **GET /dashboard**: 대시보드 페이지 렌더링 (SSR)
-- **GET /dashboard/list**: 주문 목록 조회 (JSON API)
-  - **필터 파라미터**: `start_date`, `end_date`, `status`, `department`, `warehouse`, `page`, `page_size`
-  - **응답**: `{"success": true, "message": string, "data": Array, "pagination": Object, "stats": Object}`
-- **GET /search**: 주문번호로 검색
-  - **파라미터**: `order_no`, `page`, `page_size`
-  - **응답**: `{"success": true, "message": string, "data": Array, "pagination": Object, "stats": Object}`
-- **GET /orders/{dashboard_id}**: 주문 상세 조회
-  - **응답**: `{"success": true, "message": string, "data": Object}`
-- **POST /orders**: 주문 생성
-  - **요청**: 주문 생성 데이터 (DashboardCreate 스키마)
-  - **응답**: `{"success": true, "message": string, "id": number}`
-- **PUT /orders/{dashboard_id}**: 주문 업데이트
-  - **요청**: 주문 업데이트 데이터 (DashboardUpdate 스키마)
-  - **응답**: `{"success": true, "message": string, "id": number}`
-- **POST /status**: 상태 변경 API
-  - **요청**: `{"ids": number[], "status": string}`
-  - **응답**: `{"success": true, "message": string, "results": Array}`
-- **POST /driver**: 기사 배정 API
-  - **요청**: `{"ids": number[], "driver_name": string, "driver_contact": string}`
-  - **응답**: `{"success": true, "message": string, "results": Array}`
-- **POST /delete**: 주문 삭제 API (관리자 전용)
-  - **요청**: `{"ids": number[]}`
-  - **응답**: `{"success": true, "message": string, "results": Array}`
-- **GET /lock/order/{dashboard_id}**: 락 상태 확인 API
-  - **응답**: `{"success": true, "locked": boolean, "owner": string?, "editable": boolean}`
-
-### 9.3 인수인계 관련 API
-- **GET /handover**: 인수인계 페이지 렌더링
-- **GET /handover/list**: 인수인계 목록 조회
-  - **필터 파라미터**: `is_notice`, `keyword`, `page`, `page_size`
-  - **응답**: `{"success": true, "message": string, "data": Array, "pagination": Object}`
-- **GET /handover/{handover_id}**: 인수인계 상세 조회
-  - **응답**: `{"success": true, "message": string, "data": Object}`
-- **POST /handover**: 인수인계 생성
-  - **요청**: 인수인계 생성 데이터
-  - **응답**: `{"success": true, "message": string, "id": number}`
-- **PUT /handover/{handover_id}**: 인수인계 업데이트
-  - **요청**: 인수인계 업데이트 데이터
-  - **응답**: `{"success": true, "message": string, "id": number}`
-- **POST /handover/{handover_id}/delete**: 인수인계 삭제 (작성자/관리자)
-  - **응답**: `{"success": true, "message": string}`
-- **GET /lock/handover/{handover_id}**: 인수인계 락 상태 확인 API
-  - **응답**: `{"success": true, "locked": boolean, "owner": string?, "editable": boolean}`
-
-### 9.4 사용자 관리 API (관리자 전용)
-- **GET /users**: 사용자 관리 페이지 렌더링
-- **GET /users/list**: 사용자 목록 조회
-  - **필터 파라미터**: `role`, `department`, `keyword`, `page`, `page_size`
-  - **응답**: `{"success": true, "message": string, "data": Array, "pagination": Object}`
-- **POST /users**: 사용자 생성
-  - **요청**: 사용자 생성 데이터
-  - **응답**: `{"success": true, "message": string, "id": string}`
-- **PUT /users/{user_id}**: 사용자 업데이트
-  - **요청**: 사용자 업데이트 데이터
-  - **응답**: `{"success": true, "message": string, "id": string}`
-- **POST /users/{user_id}/delete**: 사용자 삭제
-  - **응답**: `{"success": true, "message": string}`
-
-## Ⅹ. 보안 및 기타 고려사항
-
-### 10.1 입력 유효성 검증
-- **우편번호**: 4자리 입력 시 앞에 0을 자동으로 추가하여 5자리로 만듦
-- **날짜 형식**: KST(한국 표준시, UTC+9) 기준으로 YYYY-MM-DD HH:MM 형식 사용
-
-### 10.2 오류 처리
-- **오류 응답 형식**: `{"success": false, "message": string, "error_code": number?}`
-- **Status Code**: 400(잘못된 요청), 401(인증 필요), 403(권한 없음), 404(찾을 수 없음), 500(서버 오류)
-
-### 10.3 CORS 설정
-- **허용 Origin**: 환경 변수 `ALLOWED_ORIGINS`로 설정된 도메인만 허용
-- **자격 증명**: `allow_credentials=True` 설정으로 쿠키 전송 허용
-
-### 10.4 캐싱 정책
-- **자주 사용하는 데이터**: 클라이언트에서 localStorage 사용 가능
-- **세션 캐싱**: 서버 측에서 세션 정보 캐싱 및 주기적 정리
-
-### 10.5 보안 헤더
-- **Strict-Transport-Security**: HTTPS 강제
-- **X-Content-Type-Options**: MIME 타입 스니핑 방지
-- **X-Frame-Options**: 클릭재킹 방지
-
-### 10.6 속성 일치성 엄격 관리 (신규)
-
-- **HTML 요소 ID 및 name 속성의 일관성 유지**: 모든 HTML 요소의 ID와 name 속성은 JavaScript에서 참조되는 선택자와 정확히 일치해야 함
-- **ID 속성 불일치 오류**: ID 불일치는 `Cannot set properties of null` 오류의 주요 원인이며, 앱 동작 중단의 원인이 됨
-- **개발 시 필수 검증 사항**:
-  - HTML 요소 정의 시 ID/name 속성과 JavaScript 참조 일치 여부 확인
-  - 폼 submit 처리 전 모든 요소 참조 유효성 확인
-  - 리팩토링 시 ID 변경에 따른 모든 참조 업데이트
-- **명명 규칙 통일**:
-  - 폼 요소 ID: 스네이크 케이스(user_id, user_password)로 통일
-  - 자바스크립트 변수: 카멜 케이스(userId, userPassword)로 통일
-
-## ⅩⅠ. 개발 및 배포 지침
-
-### 11.1 개발 환경
-- **로컬 환경**: Windows + PowerShell + Cursor 에디터
-- **Docker**: 단일 컨테이너 환경
-
-### 11.2 코드 작성 원칙
-- **주석**: 한국어, 가독성 유지
-- **추상화**: 과도한 계층화, 추상화 지양
-- **오류 처리**: 일관된 오류 처리 패턴 적용
-
-### 11.3 배포 고려사항
-- **Dockerfile** 하나로 간단 빌드·배포
-- **필수 설정은 환경 변수**로 관리
-- **헬스 체크·로그**는 1회 선언
-- **CORS**: 최소 허용 도메인만 화이트리스트
-
-### 11.4 구현 시 주의사항
-1. 모든 API 요청에 CSRF 토큰이 필요하지 않음 (세션 기반 인증에서 GAE 보안 설정으로 충분히 보호됨)
-2. 백엔드에서는 SSR로 초기 페이지를 렌더링함
-3. CSS 및 JavaScript는 `/static` 경로에서 제공됨
-4. 상태 변경 시 반드시 권한 및 락 확보 여부 체크
-5. 우편번호 처리 시 4자리 → 5자리 자동 변환 로직 필요
-6. 모든 시간은 KST 기준으로 처리
-7. 프론트엔드에서 요청 자동 재시도 로직 사용 금지 (명세서 규칙)
-
-### 11.5 코드 중복 방지 및 유틸리티 통합 (신규)
-
-- **유틸리티 파일 구조**:
-  ```javascript
-  // utils.js - 공통 유틸리티 함수 모음
-  const Utils = {
-    // 우편번호 포맷팅 (4자리 -> 5자리)
-    formatPostalCode: function(code) { ... },
-    
-    // 날짜 형식 변환
-    formatDate: function(dateString) { ... },
-    
-    // 공통 메시지 표시
-    alerts: {
-      showSuccess: function(message) { ... },
-      showError: function(message) { ... },
-      showWarning: function(message) { ... },
-      showInfo: function(message) { ... }
-    },
-    
-    // 폼 공통 처리
-    forms: {
-      disable: function(form, disabled) { ... },
-      validateRequired: function(form) { ... }
-    },
-    
-    // 공통 AJAX 요청 처리
-    api: {
-      get: async function(url) { ... },
-      post: async function(url, data) { ... }
-    },
-    
-    // 세션 및 인증 관련
-    auth: {
-      getCurrentUser: function() { ... },
-      isAdmin: function() { ... }
-    }
-  };
-  
-  // 다른 모듈에서 사용
-  export default Utils;
-  ```
-
-- **적용 방법**:
-  1. `utils.js` 파일을 `/static/js/` 디렉토리에 생성
-  2. 페이지별 JS 파일에서 중복 코드를 제거하고 Utils 객체 참조
-  3. 모든 HTML 파일에 Utils.js 스크립트 태그 추가 (공통 파일로 포함)
-
-## ⅩⅠⅠ. 성능 및 안정성 고려사항
-
-- 필요한 필드만 인덱싱, 과도한 인덱스 금지
-- 복잡한 조인 최소화·트랜잭션 범위 축소
-- 네트워크 오류·타임아웃 예외 처리
-- **요청 자동 재시도 금지** – 사용자의 명시적 재시도만 허용
-- **API 응답 일관성 유지** - 모든 API가 같은 구조(`{"success": boolean, "message": string, "data": any}`)로 응답
+### 7.4 Flash 알림
+
+| 유형 | 색  | 지속     |
+| -- | -- | ------ |
+| 오류 | 빨강 | 닫을 때까지 |
+| 경고 | 주황 | 5 s    |
+| 성공 | 녹색 | 3 s    |
+| 정보 | 파랑 | 3 s    |
+
+---
+
+## Ⅷ. 백엔드 API 상세
+
+### 8.1 인증
+
+| 메서드       | URL     | 요청   | 응답             | 비고          |
+| --------- | ------- | ---- | -------------- | ----------- |
+| GET       | /login  | –    | **HTML**       | 로그인 페이지 SSR |
+| POST      | /login  | Form | 302→/dashboard | 세션 생성       |
+| GET\|POST | /logout | –    | 302→/login     | 세션 삭제       |
+
+### 8.2 대시보드
+
+| 메서드  | URL                 | 요청          | 응답       | 비고         |
+| ---- | ------------------- | ----------- | -------- | ---------- |
+| GET  | /dashboard          |             | **HTML** |            |
+| GET  | /dashboard/list     | Query       | **JSON** | 목록 + stats |
+| GET  | /search             | order\_no   | **JSON** | 주문번호 검색    |
+| GET  | /orders/{id}        | –           | **HTML** | 상세 SSR     |
+| POST | /orders             | Form        | 302      | 생성         |
+| POST | /orders/{id}        | Form        | 302      | 수정         |
+| POST | /orders/{id}/delete | –           | 302      | **개별 삭제**  |
+| POST | /orders/{id}/status | status      | 302      | 상태 변경 버튼   |
+| POST | /orders/{id}/driver | driver info | 302      | 기사 배정 버튼   |
+| GET  | /lock/order/{id}    | –           | **JSON** | 상세 락       |
+
+### 8.3 인수인계
+
+| 메서드  | URL                   | 요청    | 응답       | 비고      |
+| ---- | --------------------- | ----- | -------- | ------- |
+| GET  | /handover             | –     | **HTML** | 페이지 SSR |
+| GET  | /api/handover/list    | Query | **JSON** | 목록      |
+| GET  | /handover/{id}        | –     | **HTML** | 상세 SSR  |
+| POST | /handover             | Form  | 302      | 생성      |
+| POST | /handover/{id}        | Form  | 302      | 수정      |
+| POST | /handover/{id}/delete | –     | 302      | 삭제      |
+| GET  | /lock/handover/{id}   | –     | **JSON** | 상세 락    |
+
+---
+
+## Ⅸ. 보안 · 기타
+
+- KST(UTC+9) / `YYYY-MM-DD HH:MM`
+- CORS `ALLOWED_ORIGINS` 화이트리스트
+- HSTS · X-Content-Type-Options · X-Frame-Options
+- 우편번호 4→5 자리 자동 보정
+
+---
+
+## Ⅹ. 개발 · 배포 지침
+
+1. 로컬 : Windows + PowerShell + Cursor
+2. Dockerfile 1개, env vars, 헬스체크 1회
+3. CSRF 토큰 불필요(SameSite lax)
+4. 자동 재시도 로직 금지
+5. `utils.js` 공통 함수
+
+---
+
+## Ⅺ. 성능 · 안정성
+
+- 필요한 컬럼에만 인덱스
+- 트랜잭션 범위 최소
+- 네트워크 타임아웃 처리
+- JSON 응답 형식 일관 유지
 

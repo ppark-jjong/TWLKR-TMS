@@ -12,12 +12,18 @@ import os
 import logging
 from datetime import datetime
 
+# --- 로깅 설정 초기화 ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+
 # --- 프로젝트 모듈 임포트 ---
 # 실제 프로젝트 구조('main.')에 맞게 수정 필요할 수 있음.
 # 여기서는 main.py 기준으로 올바른 경로 사용.
 from main.utils.config import get_settings
 from main.utils.database import test_db_connection
-from main.utils.logger import logger
 from main.routes import (
     auth_route,
     dashboard_route,
@@ -39,7 +45,7 @@ templates = Jinja2Templates(directory="main/templates")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 애플리케이션 시작 시
-    logger.info("애플리케이션 시작 (lifespan)...")
+    logging.info("애플리케이션 시작 (lifespan)...")
     test_db_connection()
 
     # 세션 정리 초기화
@@ -49,7 +55,7 @@ async def lifespan(app: FastAPI):
 
     yield
     # 애플리케이션 종료 시
-    logger.info("애플리케이션 종료 (lifespan)...")
+    logging.info("애플리케이션 종료 (lifespan)...")
 
 
 # --- FastAPI 앱 생성 (lifespan 적용) ---
@@ -95,7 +101,7 @@ async def logging_middleware(request: Request, call_next):
     # 클라이언트 IP 확인 (로드밸런서/프록시 고려)
     client_host = request.headers.get("x-forwarded-for") or request.client.host
 
-    logger.info(
+    logging.info(
         f"[Request Start] ID: {request_id}, IP: {client_host}, Method: {request.method}, Path: {request.url.path}"
     )
 
@@ -103,13 +109,13 @@ async def logging_middleware(request: Request, call_next):
         response: Response = await call_next(request)
         process_time = time.time() - start_time
         response.headers["X-Request-ID"] = request_id
-        logger.info(
+        logging.info(
             f"[Request End] ID: {request_id}, Status: {response.status_code}, Time: {process_time:.4f}s"
         )
         return response
     except Exception as e:
         process_time = time.time() - start_time
-        logger.error(
+        logging.error(
             f"[Request Error] ID: {request_id}, Error: {str(e)}, Time: {process_time:.4f}s",
             exc_info=True,
         )
@@ -135,10 +141,10 @@ async def auth_exception_middleware(request: Request, call_next):
                 path.startswith("/api/")
                 or request.headers.get("Accept") == "application/json"
             ):
-                logger.debug(f"API 인증 오류 그대로 반환: {path}")
+                logging.debug(f"API 인증 오류 그대로 반환: {path}")
                 return response
 
-            logger.info(f"인증 오류 처리: {path} - 로그인 페이지로 리다이렉트")
+            logging.info(f"인증 오류 처리: {path} - 로그인 페이지로 리다이렉트")
             # 현재 URL을 return_to 파라미터로 인코딩
             return_url = f"/login?return_to={request.url.path}"
             return RedirectResponse(
@@ -147,7 +153,7 @@ async def auth_exception_middleware(request: Request, call_next):
 
         return response
     except Exception as e:
-        logger.error(f"인증 예외 처리 미들웨어 오류: {str(e)}", exc_info=True)
+        logging.error(f"인증 예외 처리 미들웨어 오류: {str(e)}", exc_info=True)
         raise e
 
 
@@ -196,7 +202,7 @@ async def unauthorized_exception_handler(request: Request, exc: HTTPException):
         not path.startswith("/api/")
         and request.headers.get("Accept") != "application/json"
     ):
-        logger.info(f"인증 오류 예외 핸들러: {path} - 로그인 페이지로 리다이렉트")
+        logging.info(f"인증 오류 예외 핸들러: {path} - 로그인 페이지로 리다이렉트")
         return_url = f"/login?return_to={request.url.path}"
         return RedirectResponse(url=return_url, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -229,17 +235,17 @@ async def root(request: Request):
         # 세션에서 사용자 정보 확인
         user = request.session.get("user")
         if user:
-            logger.info(
+            logging.info(
                 f"인증된 사용자 대시보드 리다이렉트: {user.get('user_id', 'N/A')}"
             )
             return RedirectResponse(
                 url="/dashboard", status_code=status.HTTP_303_SEE_OTHER
             )
         else:
-            logger.info("미인증 사용자 로그인 페이지 리다이렉트")
+            logging.info("미인증 사용자 로그인 페이지 리다이렉트")
             return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     except Exception as e:
-        logger.error(f"루트 경로 처리 중 오류 발생: {str(e)}")
+        logging.error(f"루트 경로 처리 중 오류 발생: {str(e)}")
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -248,7 +254,7 @@ if __name__ == "__main__":
     # Dockerfile의 CMD ["python", "main/main.py"] 실행을 위해
     # uvicorn 직접 실행 로직을 여기에 배치합니다.
     # 실제 GAE 배포 등에서는 gunicorn과 uvicorn worker를 사용할 수 있습니다.
-    logger.info(f"서버를 http://0.0.0.0:{settings.PORT} 에서 시작합니다.")
+    logging.info(f"서버를 http://0.0.0.0:{settings.PORT} 에서 시작합니다.")
     uvicorn.run(
         "main.main:app",
         host="0.0.0.0",

@@ -24,7 +24,7 @@ from main.core.templating import templates  # 수정된 경로에서 임포트
 
 from main.utils.database import get_db
 from main.utils.security import get_current_user, get_admin_user
-from main.utils.logger import logger
+import logging
 from main.schema.dashboard_schema import (
     DashboardCreate,
     DashboardUpdate,
@@ -65,65 +65,65 @@ async def dashboard_page(
     날짜 기반 대시보드 조회 (기본 대시보드 페이지)
     """
     # 함수 진입점 로깅
-    logger.info(f"dashboard_page 시작: 매개변수={{'page': {page}, 'page_size': {page_size}, 'start_date': {start_date}, 'end_date': {end_date}}}")
+    logging.info(f"dashboard_page 시작: 매개변수={{'page': {page}, 'page_size': {page_size}, 'start_date': {start_date}, 'end_date': {end_date}}}")
     
     try:
         # 세션에서 사용자 정보 확인
         user = request.session.get("user")
-        logger.debug(f"대시보드 접근 - 세션 정보: {user}")
+        logging.debug(f"대시보드 접근 - 세션 정보: {user}")
 
         if not user:
-            logger.warning("인증되지 않은 사용자의 대시보드 접근 시도")
+            logging.warning("인증되지 않은 사용자의 대시보드 접근 시도")
             # 중간 포인트 로깅 - 인증 실패
-            logger.info("dashboard_page 종료: 인증 실패로 로그인 페이지로 리다이렉트")
+            logging.info("dashboard_page 종료: 인증 실패로 로그인 페이지로 리다이렉트")
             return RedirectResponse(
                 url="/login?return_to=/dashboard", status_code=status.HTTP_303_SEE_OTHER
             )
 
         # 기본값 설정
         today = datetime.now().date()
-        logger.debug(f"현재 날짜: {today}")
+        logging.debug(f"현재 날짜: {today}")
 
         # 날짜 범위 설정
         start_date_obj = None
         end_date_obj = None
 
         # 날짜 파싱 로깅
-        logger.debug(f"날짜 파싱 시작: start_date={start_date}, end_date={end_date}")
+        logging.debug(f"날짜 파싱 시작: start_date={start_date}, end_date={end_date}")
         
         if start_date:
             try:
                 start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
-                logger.debug(f"시작 날짜 파싱 성공: {start_date} -> {start_date_obj}")
+                logging.debug(f"시작 날짜 파싱 성공: {start_date} -> {start_date_obj}")
             except ValueError:
-                logger.warning(f"잘못된 시작 날짜 형식: {start_date}")
+                logging.warning(f"잘못된 시작 날짜 형식: {start_date}")
 
         if end_date:
             try:
                 end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
-                logger.debug(f"종료 날짜 파싱 성공: {end_date} -> {end_date_obj}")
+                logging.debug(f"종료 날짜 파싱 성공: {end_date} -> {end_date_obj}")
             except ValueError:
-                logger.warning(f"잘못된 종료 날짜 형식: {end_date}")
+                logging.warning(f"잘못된 종료 날짜 형식: {end_date}")
 
         # 날짜 범위 조정 로직
-        logger.debug(f"날짜 범위 조정 전: start_date_obj={start_date_obj}, end_date_obj={end_date_obj}")
+        logging.debug(f"날짜 범위 조정 전: start_date_obj={start_date_obj}, end_date_obj={end_date_obj}")
         
         # 날짜 범위가 없으면 오늘 날짜 사용
         if not start_date_obj and not end_date_obj:
             start_date_obj = today
             end_date_obj = today
-            logger.debug(f"날짜 미지정: 오늘 날짜로 설정 ({today})")
+            logging.debug(f"날짜 미지정: 오늘 날짜로 설정 ({today})")
         elif start_date_obj and not end_date_obj:
             end_date_obj = start_date_obj  # 시작일만 있으면 종료일도 같게 설정
-            logger.debug(f"종료일 미지정: 시작일로 설정 ({start_date_obj})")
+            logging.debug(f"종료일 미지정: 시작일로 설정 ({start_date_obj})")
         elif not start_date_obj and end_date_obj:
             start_date_obj = end_date_obj  # 종료일만 있으면 시작일도 같게 설정
-            logger.debug(f"시작일 미지정: 종료일로 설정 ({end_date_obj})")
+            logging.debug(f"시작일 미지정: 종료일로 설정 ({end_date_obj})")
             
-        logger.debug(f"날짜 범위 조정 완료: {start_date_obj} ~ {end_date_obj}")
+        logging.debug(f"날짜 범위 조정 완료: {start_date_obj} ~ {end_date_obj}")
 
         # 주문 데이터 조회 전 로깅
-        logger.debug(f"DB 쿼리 시작: 주문 목록 조회 (날짜: {start_date_obj} ~ {end_date_obj}, 페이지: {page}/{page_size})")
+        logging.debug(f"DB 쿼리 시작: 주문 목록 조회 (날짜: {start_date_obj} ~ {end_date_obj}, 페이지: {page}/{page_size})")
         
         # 주문 데이터 조회
         orders, pagination, stats = get_dashboard_list(
@@ -135,10 +135,10 @@ async def dashboard_page(
         )
 
         # 중요 중간 포인트 로깅
-        logger.info(
+        logging.info(
             f"날짜 범위 조회: {start_date_obj} ~ {end_date_obj}, 결과: {len(orders)}건"
         )
-        logger.debug(f"DB 쿼리 결과: 총={pagination.get('total', 0)}건, 현재 페이지={pagination.get('current', 0)}/{pagination.get('total_pages', 0)}")
+        logging.debug(f"DB 쿼리 결과: 총={pagination.get('total', 0)}건, 현재 페이지={pagination.get('current', 0)}/{pagination.get('total_pages', 0)}")
 
         # 데이터 가공
         orders_data = format_order_list(orders)
@@ -148,7 +148,7 @@ async def dashboard_page(
         end_date_str = end_date_obj.strftime("%Y-%m-%d")
 
         # 세션이 있는 경우 대시보드 페이지 렌더링 (초기 데이터 포함)
-        logger.info(
+        logging.info(
             f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}, 데이터: {len(orders_data)}건"
         )
         
@@ -163,10 +163,10 @@ async def dashboard_page(
         }
         
         # 템플릿 렌더링 로깅
-        logger.debug(f"템플릿 렌더링 시작: dashboard.html, 사용자={user.get('user_id', 'N/A')}")
+        logging.debug(f"템플릿 렌더링 시작: dashboard.html, 사용자={user.get('user_id', 'N/A')}")
         
         # 함수 종료 로깅
-        logger.info(f"dashboard_page 완료: 결과=성공, 데이터={len(orders_data)}건")
+        logging.info(f"dashboard_page 완료: 결과=성공, 데이터={len(orders_data)}건")
         
         return templates.TemplateResponse(
             "dashboard.html",
@@ -178,10 +178,10 @@ async def dashboard_page(
         )
     except Exception as e:
         # 오류 상세 로깅
-        logger.error(f"대시보드 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
+        logging.error(f"대시보드 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
         
         # 함수 종료 로깅 (오류 발생)
-        logger.info(f"dashboard_page 완료: 결과=오류, 메시지={str(e)[:100]}")
+        logging.info(f"dashboard_page 완료: 결과=오류, 메시지={str(e)[:100]}")
         
         return render_error_response(request, str(e))
 
@@ -198,79 +198,73 @@ async def search_order_page(
     주문번호 검색 전용 엔드포인트 (간소화된 검색 기능)
     """
     # 함수 진입점 로깅
-    logger.info(f"search_order_page 시작: 매개변수={{'order_no': '{order_no}', 'page': {page}, 'page_size': {page_size}}}")
+    logging.info(f"search_order_page 시작: 매개변수={{'order_no': '{order_no}', 'page': {page}, 'page_size': {page_size}}}")
     
     try:
         # 세션에서 사용자 정보 확인
         user = request.session.get("user")
-        logger.debug(f"주문번호 검색 접근 - 세션 정보: {user}")
+        logging.debug(f"주문번호 검색 접근 - 세션 정보: {user}")
 
         if not user:
-            logger.warning("인증되지 않은 사용자의 검색 접근 시도")
+            logging.warning("인증되지 않은 사용자의 검색 접근 시도")
             # 중간 포인트 로깅 - 인증 실패
-            logger.info("search_order_page 종료: 인증 실패로 로그인 페이지로 리다이렉트")
+            logging.info("search_order_page 종료: 인증 실패로 로그인 페이지로 리다이렉트")
             return RedirectResponse(
                 url="/login?return_to=/dashboard/search", status_code=status.HTTP_303_SEE_OTHER
             )
 
-        # 주문번호로 간단히 검색
-        logger.info(f"주문번호 검색 시작: {order_no}")
-        logger.debug(f"DB 쿼리 시작: 주문번호 검색 (검색어: '{order_no}')")
+        # 주문번호 검증
+        order_no = order_no.strip()
+        if not order_no:
+            logging.warning("빈 주문번호로 검색 시도")
+            return render_error_response(request, "검색할 주문번호를 입력해주세요.")
         
-        # 간소화된 검색 쿼리
-        logger.debug(f"SQL 쿼리 실행: SELECT * FROM dashboard WHERE order_no LIKE '%{order_no}%'")
-        query = db.query(Dashboard).filter(Dashboard.order_no.ilike(f"%{order_no}%"))
-        orders = query.all()
+        # 중요 중간 포인트 로깅 - 검색 시작
+        logging.info(f"주문번호 검색 시작: 사용자={user.get('user_id', 'N/A')}, 검색어='{order_no}'")
         
-        # 쿼리 결과 로깅
-        logger.debug(f"DB 쿼리 결과: 검색어='{order_no}', 결과={len(orders)}건")
+        # DB 쿼리 로깅
+        logging.debug(f"DB 쿼리 시작: 주문번호 검색 (검색어: '{order_no}')")
         
-        # 단순 페이지네이션 생성
-        total = len(orders)
-        total_pages = max(1, (total + page_size - 1) // page_size)  # 올림 연산
+        try:
+            # 최적화된 검색 쿼리 - 서비스 레이어 이용
+            orders, pagination, stats = search_dashboard_by_order_no(
+                db=db,
+                order_no=order_no,
+                page=page,
+                page_size=page_size
+            )
+            # DB 쿼리 성공 로깅
+            logging.debug(f"DB 쿼리 성공: 검색어='{order_no}', 검색 결과={pagination.get('total', 0)}건")
+        except SQLAlchemyError as db_error:
+            # DB 오류 로깅
+            logging.error(f"DB 쿼리 실패: 검색어='{order_no}', 오류={str(db_error)}", exc_info=True)
+            return render_error_response(request, f"데이터베이스 오류: {str(db_error)}")
         
-        # 페이지네이션 로깅
-        logger.debug(f"페이지네이션 계산: 총={total}건, 페이지 크기={page_size}, 총 페이지={total_pages}")
-        
-        pagination = {
-            "total": total,
-            "page_size": page_size,
-            "current": min(page, total_pages),  # 현재 페이지가 총 페이지 수를 넘지 않도록
-            "total_pages": total_pages,
-            "start": (page - 1) * page_size,
-            "end": min(page * page_size, total),
-        }
-        
-        # 중간 포인트 로깅
-        logger.debug(f"페이지네이션 적용: 현재 페이지={pagination['current']}, 범위={pagination['start']}-{pagination['end']}")
-        
-        # 간단한 통계
-        stats = {
-            "total": total,
-            "waiting": sum(1 for o in orders if o.status == "WAITING"),
-            "in_progress": sum(1 for o in orders if o.status == "IN_PROGRESS"),
-            "complete": sum(1 for o in orders if o.status == "COMPLETE"),
-            "issue": sum(1 for o in orders if o.status == "ISSUE"),
-            "cancel": sum(1 for o in orders if o.status == "CANCEL"),
-        }
-        
-        # 통계 로깅
-        logger.debug(f"주문 상태 통계: {stats}")
-        
-        # 페이지에 맞게 데이터 슬라이싱
-        start = pagination["start"]
-        end = pagination["end"]
-        paged_orders = orders[start:end]
-        
-        # 중요 중간 포인트 로깅
-        logger.info(f"주문번호 검색 결과: {total}건 (페이지 {page}/{total_pages})")
+        # 중요 중간 포인트 로깅 - 주문 숫자
+        total_orders = pagination.get('total', 0)
+        if total_orders == 0:
+            logging.info(f"주문번호 검색 결과 없음: 검색어='{order_no}'")
+        else:
+            logging.info(f"주문번호 검색 결과: {total_orders}건 (페이지 {page}/{pagination.get('total_pages', 1)})")
+            
+            # 처음 발견된 20개 주문번호 로깅 (대량 결과시 로그 과부하 방지)
+            order_sample = [o.order_no for o in orders[:20]] if len(orders) > 0 else []
+            if order_sample:
+                logging.debug(f"검색된 주문 샘플: {order_sample}")
+            
+            # 상태별 로깅
+            logging.debug(f"검색 결과 상태 통계: 대기={stats.get('waiting', 0)}, 진행={stats.get('in_progress', 0)}, "+
+                         f"완료={stats.get('complete', 0)}, 이슈={stats.get('issue', 0)}, 취소={stats.get('cancel', 0)}")
 
-        # 데이터 가공
-        orders_data = format_order_list(paged_orders)
+        # 데이터 가공 로깅
+        logging.debug(f"주문 데이터 가공 시작: {len(orders)}건")
+        orders_data = format_order_list(orders)
+        logging.debug(f"주문 데이터 가공 완료: {len(orders_data)}건")
 
         # 현재 날짜
         today_str = datetime.now().date().strftime("%Y-%m-%d")
         
+        # 초기 데이터 구성
         initial_data = {
             "orders": orders_data,
             "pagination": pagination,
@@ -282,10 +276,15 @@ async def search_order_page(
         }
         
         # 템플릿 렌더링 로깅
-        logger.debug(f"템플릿 렌더링 시작: dashboard.html, 검색모드=주문번호, 사용자={user.get('user_id', 'N/A')}")
+        logging.debug(f"템플릿 렌더링 시작: dashboard.html, 검색모드=주문번호, 사용자={user.get('user_id', 'N/A')}")
+        
+        # 조건 평가 로깅 - 결과가 없는 경우 메시지
+        if len(orders_data) == 0:
+            logging.debug(f"조건 평가: 빈 결과={True}, 빈 결과 메시지 표시")
+            initial_data["error_message"] = f"'{order_no}' 검색 결과가 없습니다."
         
         # 함수 종료 로깅
-        logger.info(f"search_order_page 완료: 결과=성공, 검색어='{order_no}', 결과={len(orders_data)}건")
+        logging.info(f"search_order_page 완료: 결과=성공, 검색어='{order_no}', 결과={len(orders_data)}건")
         
         # 템플릿에 데이터 전달
         return templates.TemplateResponse(
@@ -298,10 +297,10 @@ async def search_order_page(
         )
     except Exception as e:
         # 상세 오류 로깅
-        logger.error(f"주문번호 검색 중 오류 발생: {str(e)}", exc_info=True)
+        logging.error(f"주문번호 검색 중 오류 발생: {str(e)}", exc_info=True)
         
         # 함수 종료 로깅 (오류 발생)
-        logger.info(f"search_order_page 완료: 결과=오류, 검색어='{order_no}', 메시지={str(e)[:100]}")
+        logging.info(f"search_order_page 완료: 결과=오류, 검색어='{order_no}', 메시지={str(e)[:100]}")
         
         return render_error_response(request, str(e))
 
@@ -310,7 +309,13 @@ async def search_order_page(
 def format_order_list(orders):
     """주문 목록 데이터 가공"""
     # 함수 진입점 로깅
-    logger.debug(f"format_order_list 시작: 주문 개수={len(orders)}")
+    logging.debug(f"format_order_list 시작: 주문 개수={len(orders)}")
+    
+    # 중간 포인트 로깅 - DashboardListItem 스키마 순서 확인
+    logging.info(f"DashboardListItem 스키마에 따른 대시보드 목록 순서 적용: order_no → type → department → warehouse → sla → region → eta → customer → status → driver_name")
+    
+    # 상태별 색상 변경 로깅
+    logging.info(f"상태별 파스텔 톤 색상 적용: 대기(#FFF9E6), 진행(#DCF0FF), 완료(#E6FAE6), 이슈(#FFE6E6), 취소(#F0F0F0)")
     
     status_labels = {
         "WAITING": "대기",
@@ -325,6 +330,27 @@ def format_order_list(orders):
     orders_data = []
     date_format_error_count = 0
     
+    # 첫 주문의 필드 타입 로깅 (디버깅 용도)
+    if orders and len(orders) > 0:
+        first_order = orders[0]
+        logging.debug("첫 번째 주문 객체 필드 타입 분석:")
+        for field_name in ['dashboard_id', 'order_no', 'type', 'status', 'department', 
+                          'warehouse', 'distance', 'duration_time', 'eta', 'region', 
+                          'customer', 'driver_name', 'create_time', 'depart_time', 
+                          'complete_time', 'update_at']:
+            if hasattr(first_order, field_name):
+                value = getattr(first_order, field_name)
+                logging.debug(f"  - {field_name}: 값={value}, 타입={type(value).__name__}")
+    
+    from decimal import Decimal
+    import json
+    
+    class DecimalEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return super(DecimalEncoder, self).default(obj)
+    
     for order in orders:
         try:
             # datetime 객체를 문자열로 변환 처리
@@ -337,6 +363,33 @@ def format_order_list(orders):
             depart_time = order.depart_time.strftime('%Y-%m-%d %H:%M') if order.depart_time else None
             complete_time = order.complete_time.strftime('%Y-%m-%d %H:%M') if order.complete_time else None
             update_at = order.update_at.strftime('%Y-%m-%d %H:%M') if order.update_at else None
+            
+            # 숫자 필드 처리 - Decimal 타입 자동 변환
+            distance = None
+            if hasattr(order, 'distance') and order.distance is not None:
+                try:
+                    # Decimal 타입인 경우 float으로 변환
+                    if isinstance(order.distance, Decimal):
+                        distance = float(order.distance)
+                        logging.debug(f"distance 필드 Decimal→float 변환: {order.distance} → {distance}")
+                    else:
+                        distance = order.distance
+                except Exception as e:
+                    logging.warning(f"distance 필드 변환 오류: {str(e)}")
+                    distance = 0
+            
+            duration_time = None
+            if hasattr(order, 'duration_time') and order.duration_time is not None:
+                try:
+                    # Decimal 타입인 경우 float으로 변환
+                    if isinstance(order.duration_time, Decimal):
+                        duration_time = float(order.duration_time)
+                        logging.debug(f"duration_time 필드 Decimal→float 변환: {order.duration_time} → {duration_time}")
+                    else:
+                        duration_time = order.duration_time
+                except Exception as e:
+                    logging.warning(f"duration_time 필드 변환 오류: {str(e)}")
+                    duration_time = 0
             
             order_dict = {
                 "dashboardId": order.dashboard_id,
@@ -355,12 +408,38 @@ def format_order_list(orders):
                 "createTime": create_time,
                 "departTime": depart_time,
                 "completeTime": complete_time,
-                "updateAt": update_at
+                "updateAt": update_at,
+                "distance": distance,
+                "durationTime": duration_time
             }
-            orders_data.append(order_dict)
+            
+            # 직렬화 가능 여부 테스트 - 오류 방지
+            try:
+                # 명시적 직렬화 테스트
+                json.dumps(order_dict, cls=DecimalEncoder)
+                orders_data.append(order_dict)
+                logging.debug(f"주문 {order.order_no} 직렬화 테스트 성공")
+            except TypeError as json_error:
+                logging.error(f"JSON 직렬화 오류 발생: {str(json_error)}, 주문번호={order.order_no}")
+                # 문제 필드 찾기
+                for key, value in order_dict.items():
+                    try:
+                        json.dumps({key: value})
+                    except TypeError:
+                        logging.error(f"직렬화 불가능한 필드 발견: {key}={value}, 타입={type(value).__name__}")
+                        # 문제 필드 안전하게 변환
+                        if isinstance(value, Decimal):
+                            order_dict[key] = float(value)
+                        elif hasattr(value, '__dict__'):
+                            order_dict[key] = str(value)
+                        else:
+                            order_dict[key] = None
+                # 정리된 딕셔너리 추가
+                orders_data.append(order_dict)
+                logging.debug(f"주문 {order.order_no} 수정 후 직렬화 성공")
         except Exception as e:
             # 날짜 변환 오류 발생 시 처리
-            logger.warning(f"주문 데이터 변환 중 오류 발생: 주문번호={getattr(order, 'order_no', 'N/A')}, 오류={str(e)}")
+            logging.warning(f"주문 데이터 변환 중 오류 발생: 주문번호={getattr(order, 'order_no', 'N/A')}, 오류={str(e)}")
             date_format_error_count += 1
             
             # 최소한의 정보라도 추가
@@ -374,15 +453,15 @@ def format_order_list(orders):
                 })
             except:
                 # 심각한 오류 시 건너뛰기
-                logger.error(f"주문 데이터 변환 중 심각한 오류 발생: {str(e)}")
+                logging.error(f"주문 데이터 변환 중 심각한 오류 발생: {str(e)}")
                 continue
     
     # 중간 포인트 로깅
     if date_format_error_count > 0:
-        logger.warning(f"날짜 형식 변환 오류 발생: {date_format_error_count}건")
+        logging.warning(f"날짜 형식 변환 오류 발생: {date_format_error_count}건")
     
     # 함수 종료 로깅
-    logger.debug(f"format_order_list 완료: 입력={len(orders)}건, 출력={len(orders_data)}건")
+    logging.debug(f"format_order_list 완료: 입력={len(orders)}건, 출력={len(orders_data)}건")
     
     return orders_data
 
@@ -390,7 +469,18 @@ def format_order_list(orders):
 def render_error_response(request, error_message):
     """오류 발생 시 기본 응답 생성"""
     # 함수 진입점 로깅
-    logger.info(f"render_error_response 시작: 오류='{error_message[:100]}'")
+    logging.info(f"render_error_response 시작: 오류='{error_message[:100]}'")
+    
+    import sys
+    import traceback
+    
+    # 콜 스택 로깅 - 오류 발생 위치 추적
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    if exc_traceback:
+        tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        logging.error("콜 스택 정보:")
+        for line in tb_lines:
+            logging.error(line.rstrip())
     
     # 기본 페이지네이션 객체 생성
     empty_pagination = {
@@ -415,18 +505,48 @@ def render_error_response(request, error_message):
     today_str = datetime.now().date().strftime("%Y-%m-%d")
     
     # 빈 데이터 생성 로깅
-    logger.debug(f"빈 데이터로 대시보드 렌더링 준비: 날짜={today_str}")
+    logging.debug(f"빈 데이터로 대시보드 렌더링 준비: 날짜={today_str}")
     
     # 중요 중간 포인트 로깅
-    logger.info(f"오류 발생 후 기본 응답 생성: 사용자={request.session.get('user', {}).get('user_id', 'N/A')}")
+    user_id = request.session.get('user', {}).get('user_id', 'N/A')
+    logging.info(f"오류 발생 후 기본 응답 생성: 사용자={user_id}")
     
-    # 오류 메시지 로깅
-    error_display = f"데이터 조회 중 오류가 발생했습니다: {error_message}"
-    logger.debug(f"사용자에게 표시할 오류 메시지: '{error_display[:100]}'")
+    # 요청 정보 로깅
+    request_path = request.url.path
+    request_query = str(request.query_params)
+    logging.debug(f"오류 발생 요청 정보: 경로={request_path}, 쿼리={request_query}")
+    
+    # TypeError 관련 오류 처리 (JSON 직렬화 오류 확인)
+    if "TypeError" in error_message and "JSON serializable" in error_message:
+        logging.error("JSON 직렬화 오류 감지: 자세한 진단이 필요합니다")
+        error_display = "데이터 표시 중 오류가 발생했습니다. 관리자에게 문의하세요."
+        
+        # 구체적인 오류 타입 로깅 (Decimal 등)
+        error_type = error_message.split("Object of type ", 1)[-1].split(" ", 1)[0] if "Object of type" in error_message else "알 수 없음"
+        logging.error(f"직렬화할 수 없는 데이터 타입: {error_type}")
+    else:
+        # 일반 오류 메시지
+        error_display = f"데이터 조회 중 오류가 발생했습니다: {error_message}"
+    
+    logging.debug(f"사용자에게 표시할 오류 메시지: '{error_display[:100]}'")
+    
+    # 요청 매개변수에 따른 검색 모드 설정
+    search_mode = "default"
+    order_no = ""
+    
+    if request_path == "/dashboard/search" and "order_no" in request_query:
+        search_mode = "order_no"
+        try:
+            # 안전하게 order_no 추출
+            order_no = request.query_params.get("order_no", "")
+            logging.debug(f"검색 모드 감지: 주문번호 검색, 검색어='{order_no}'")
+        except:
+            logging.warning("요청 쿼리 파싱 실패")
     
     # 함수 종료 로깅
-    logger.info(f"render_error_response 완료: 빈 대시보드 페이지 렌더링")
+    logging.info(f"render_error_response 완료: 빈 대시보드 페이지 렌더링")
 
+    # 최소한의 JSON 직렬화 가능한 데이터로 응답
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -438,155 +558,12 @@ def render_error_response(request, error_message):
                 "stats": empty_stats,
                 "today": today_str,
                 "end_date": today_str,
-                "search_mode": "default",
-                "order_no": "",
+                "search_mode": search_mode,
+                "order_no": order_no,
                 "error_message": error_display,
             },
         },
     )
-
-        # 이 중복 코드 블록은 제거합니다 - 이미 위에서 동일한 로직이 실행되었습니다
-        # 로그 추가: 데이터 가공 시작
-        logger.debug(f"주문 데이터 가공 시작: {len(orders)}건")
-        
-        # JSON 응답과 동일한 형식으로 데이터 가공
-        status_labels = {
-            "WAITING": "대기",
-            "IN_PROGRESS": "진행",
-            "COMPLETE": "완료",
-            "ISSUE": "이슈",
-            "CANCEL": "취소",
-        }
-        type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
-
-        orders_data = []
-        for order in orders:
-            # datetime 객체를 문자열로 변환 처리
-            eta_value = order.eta
-            if isinstance(eta_value, datetime):
-                eta_value = eta_value.strftime('%Y-%m-%d %H:%M')
-                
-            # 다른 datetime 필드도 문자열로 변환
-            create_time = order.create_time.strftime('%Y-%m-%d %H:%M') if order.create_time else None
-            depart_time = order.depart_time.strftime('%Y-%m-%d %H:%M') if order.depart_time else None
-            complete_time = order.complete_time.strftime('%Y-%m-%d %H:%M') if order.complete_time else None
-            update_at = order.update_at.strftime('%Y-%m-%d %H:%M') if order.update_at else None
-            
-            order_dict = {
-                "dashboardId": order.dashboard_id,
-                "orderNo": order.order_no,
-                "type": order.type,
-                "status": order.status,
-                "department": order.department,
-                "warehouse": order.warehouse,
-                "sla": order.sla,
-                "eta": eta_value,
-                "region": getattr(order, "region", "") or "",
-                "customer": order.customer,
-                "driverName": order.driver_name or "",
-                "statusLabel": status_labels.get(order.status, order.status),
-                "typeLabel": type_labels.get(order.type, order.type),
-                "createTime": create_time,
-                "departTime": depart_time,
-                "completeTime": complete_time,
-                "updateAt": update_at
-            }
-            orders_data.append(order_dict)
-        
-        # 로그 추가: 데이터 가공 완료
-        logger.debug(f"주문 데이터 가공 완료: {len(orders_data)}건")
-
-        # 템플릿에 전달할 날짜 문자열 형식으로 변환
-        start_date_str = start_date_obj.strftime("%Y-%m-%d")
-        end_date_str = end_date_obj.strftime("%Y-%m-%d")
-
-        # 세션이 있는 경우 대시보드 페이지 렌더링 (초기 데이터 포함)
-        logger.info(
-            f"대시보드 페이지 접근: {user.get('user_id', 'N/A')}, 데이터: {len(orders_data)}건"
-        )
-        return templates.TemplateResponse(
-            "dashboard.html",
-            {
-                "request": request,
-                "user": user,
-                "initial_data": {
-                    "orders": orders_data,
-                    "pagination": pagination,
-                    "stats": stats,
-                    "today": start_date_str,
-                    "end_date": end_date_str,
-                    "search_mode": search_mode,
-                    "order_no": order_no or "",
-                },
-                "debug": True,
-            },
-        )
-    except Exception as e:
-        logger.error(f"대시보드 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
-        
-        # 오류의 상세 정보 로깅
-        import traceback
-        error_traceback = traceback.format_exc()
-        logger.error(f"오류 상세 정보: {error_traceback}")
-        
-        # 오류가 발생해도 리다이렉트하지 않고 빈 데이터로 대시보드 페이지를 렌더링
-        # 기본 페이지네이션 객체 생성
-        empty_pagination = {
-            "total": 0,
-            "page_size": 10,
-            "current": 1,
-            "total_pages": 1,
-            "start": 0,
-            "end": 0,
-        }
-
-        # 기본 통계 데이터 생성
-        empty_stats = {
-            "total": 0,
-            "waiting": 0,
-            "in_progress": 0,
-            "complete": 0,
-            "issue": 0,
-            "cancel": 0,
-        }
-
-        today_str = datetime.now().date().strftime("%Y-%m-%d")
-        
-        # 중요 중간 포인트 로깅
-        logger.info(f"오류 발생 후 기본 응답 생성: 사용자={request.session.get('user', {}).get('user_id', 'N/A')}")
-        
-        # 초기 데이터 로깅 (디버깅용)
-        today_str = datetime.now().date().strftime("%Y-%m-%d")
-        initial_data = {
-            "orders": [],
-            "pagination": empty_pagination,
-            "stats": empty_stats,
-            "today": today_str,
-            "end_date": today_str,
-            "search_mode": "default",
-            "order_no": "",
-            "error_message": f"데이터 조회 중 오류가 발생했습니다: {str(e)}",
-        }
-        logger.debug(f"템플릿 전달 데이터: {str(initial_data)[:200]}...")
-
-        return templates.TemplateResponse(
-            "dashboard.html",
-            {
-                "request": request,
-                "user": request.session.get("user"),
-                "initial_data": {
-                    "orders": [],
-                    "pagination": empty_pagination,
-                    "stats": empty_stats,
-                    "today": today_str,
-                    "end_date": today_str,
-                    "search_mode": "default",
-                    "order_no": "",
-                    "error_message": f"데이터 조회 중 오류가 발생했습니다: {str(e)}",
-                },
-                "debug": True,
-            },
-        )
 
 
 @router.get("/dashboard/list", response_model=DashboardListResponse)
@@ -605,12 +582,14 @@ async def get_dashboard_list_api(
     """
     대시보드 목록 조회 API (JSON)
     """
+    # 중간 포인트 로깅 - DashboardListItem 스키마 순서 확인
+    logging.info(f"DashboardListItem 스키마 순서: order_no → type → department → warehouse → sla → region → eta → customer → status → driver_name")
     # 함수 진입점 로깅 - 자세한 매개변수 정보 포함
-    logger.info(f"get_dashboard_list_api 시작: 매개변수={{'start_date': {start_date}, 'end_date': {end_date}, 'status': {status}, 'department': {department}, 'warehouse': {warehouse}}}")
-    logger.debug(f"API 요청 세부정보: 사용자={current_user.get('user_id', 'N/A')}, 페이지={page}/{page_size}")
+    logging.info(f"get_dashboard_list_api 시작: 매개변수={{'start_date': {start_date}, 'end_date': {end_date}, 'status': {status}, 'department': {department}, 'warehouse': {warehouse}}}")
+    logging.debug(f"API 요청 세부정보: 사용자={current_user.get('user_id', 'N/A')}, 페이지={page}/{page_size}")
     
     # 중간 포인트 로깅 - DB 쿼리 전
-    logger.debug(f"DB 쿼리 시작: 대시보드 목록 조회")
+    logging.debug(f"DB 쿼리 시작: 대시보드 목록 조회")
     
     # 주문 목록 조회
     orders, pagination, stats = get_dashboard_list(
@@ -625,10 +604,10 @@ async def get_dashboard_list_api(
     )
     
     # 중간 포인트 로깅 - DB 쿼리 결과
-    logger.debug(f"DB 쿼리 결과: 주문={len(orders)}건, 총={pagination.get('total', 0)}건")
+    logging.debug(f"DB 쿼리 결과: 주문={len(orders)}건, 총={pagination.get('total', 0)}건")
     
     # 상태별 개수 로깅 - 주요 통계 정보
-    logger.debug(f"주문 상태 통계: 대기={stats.get('waiting', 0)}, 진행={stats.get('in_progress', 0)}, 완료={stats.get('complete', 0)}, 이슈={stats.get('issue', 0)}, 취소={stats.get('cancel', 0)}건")
+    logging.debug(f"주문 상태 통계: 대기={stats.get('waiting', 0)}, 진행={stats.get('in_progress', 0)}, 완료={stats.get('complete', 0)}, 이슈={stats.get('issue', 0)}, 취소={stats.get('cancel', 0)}건")
 
     # 응답 데이터 가공 - 필요한 컬럼만 포함하여 최적화
     status_labels = {
@@ -660,10 +639,10 @@ async def get_dashboard_list_api(
         orders_data.append(order_dict)
 
     # 응답 데이터 로깅
-    logger.debug(f"API 응답 데이터 준비 완료: {len(orders_data)}건")
+    logging.debug(f"API 응답 데이터 준비 완료: {len(orders_data)}건")
     
     # 함수 종료 로깅
-    logger.info(f"get_dashboard_list_api 완료: 결과=성공, 데이터={len(orders_data)}건")
+    logging.info(f"get_dashboard_list_api 완료: 결과=성공, 데이터={len(orders_data)}건")
     
     # 응답 반환
     return {
@@ -746,7 +725,7 @@ async def search_order(
             "stats": stats,
         }
     except Exception as e:
-        logger.error(f"주문번호 검색 중 오류 발생: {str(e)}")
+        logging.error(f"주문번호 검색 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "검색 중 오류가 발생했습니다."},
@@ -764,10 +743,10 @@ async def get_order_detail(
     주문 상세 조회 API
     """
     try:
-        logger.info(f"get_order_detail 시작: 주문ID={dashboard_id}, 사용자={current_user.get('user_id')}")
+        logging.info(f"get_order_detail 시작: 주문ID={dashboard_id}, 사용자={current_user.get('user_id')}")
         
         # 주문 정보 조회
-        logger.debug(f"DB 쿼리 시작: 주문ID={dashboard_id} 상세 조회")
+        logging.debug(f"DB 쿼리 시작: 주문ID={dashboard_id} 상세 조회")
         order = get_dashboard_by_id(db, dashboard_id)
 
         if not order:
@@ -777,7 +756,7 @@ async def get_order_detail(
             )
 
         # 락 상태 확인
-        logger.debug(f"락 상태 확인: 주문ID={dashboard_id}, 사용자={current_user.get('user_id')}")
+        logging.debug(f"락 상태 확인: 주문ID={dashboard_id}, 사용자={current_user.get('user_id')}")
         lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
         is_editable = lock_status.get("editable", False)
 
@@ -785,10 +764,10 @@ async def get_order_detail(
         order_data = get_dashboard_response_data(order, is_editable)
 
         # 표준화된 응답 구조로 반환
-        logger.info(f"get_order_detail 완료: 주문ID={dashboard_id}, 결과=성공")
+        logging.info(f"get_order_detail 완료: 주문ID={dashboard_id}, 결과=성공")
         return {"success": True, "message": "주문 상세 조회 성공", "data": order_data}
     except Exception as e:
-        logger.error(f"주문 상세 조회 중 오류 발생: {str(e)}")
+        logging.error(f"주문 상세 조회 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "서버 오류가 발생했습니다."},
@@ -821,7 +800,7 @@ async def create_order(
             status_code=e.status_code, content={"success": False, "message": e.detail}
         )
     except Exception as e:
-        logger.error(f"주문 생성 중 오류 발생: {str(e)}")
+        logging.error(f"주문 생성 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "주문 생성 중 오류가 발생했습니다."},
@@ -840,11 +819,11 @@ async def update_order(
     주문 업데이트 API
     """
     try:
-        logger.info(f"update_order 시작: 주문ID={dashboard_id}, 사용자={current_user.get('user_id')}")
-        logger.debug(f"업데이트 데이터: {order_data}")
+        logging.info(f"update_order 시작: 주문ID={dashboard_id}, 사용자={current_user.get('user_id')}")
+        logging.debug(f"업데이트 데이터: {order_data}")
         
         # 주문 업데이트
-        logger.debug(f"DB 업데이트 시작: 주문ID={dashboard_id}")
+        logging.debug(f"DB 업데이트 시작: 주문ID={dashboard_id}")
         updated_order = update_dashboard(
             db=db,
             dashboard_id=dashboard_id,
@@ -852,7 +831,7 @@ async def update_order(
             user_id=current_user.get("user_id"),
         )
 
-        logger.info(f"update_order 완료: 주문ID={dashboard_id}, 결과=성공")
+        logging.info(f"update_order 완료: 주문ID={dashboard_id}, 결과=성공")
         return {
             "success": True,
             "message": "주문이 성공적으로 업데이트되었습니다.",
@@ -863,7 +842,7 @@ async def update_order(
             status_code=e.status_code, content={"success": False, "message": e.detail}
         )
     except Exception as e:
-        logger.error(f"주문 업데이트 중 오류 발생: {str(e)}")
+        logging.error(f"주문 업데이트 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
@@ -889,7 +868,7 @@ async def change_order_status(
     """
     try:
         # API 호출 로깅
-        logger.info(
+        logging.info(
             f"일괄 상태 변경 API 호출: {len(status_data.ids)}건, 상태={status_data.status}"
         )
 
@@ -912,7 +891,7 @@ async def change_order_status(
             "results": results,
         }
     except Exception as e:
-        logger.error(f"상태 변경 중 오류 발생: {str(e)}")
+        logging.error(f"상태 변경 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "상태 변경 중 오류가 발생했습니다."},
@@ -935,7 +914,7 @@ async def assign_order_driver(
     """
     try:
         # API 호출 로깅
-        logger.info(
+        logging.info(
             f"일괄 기사 배정 API 호출: {len(driver_data.ids)}건, 기사={driver_data.driver_name}"
         )
 
@@ -958,7 +937,7 @@ async def assign_order_driver(
             "results": results,
         }
     except Exception as e:
-        logger.error(f"기사 배정 중 오류 발생: {str(e)}")
+        logging.error(f"기사 배정 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "기사 배정 중 오류가 발생했습니다."},
@@ -981,7 +960,7 @@ async def delete_order(
     """
     try:
         # API 호출 로깅
-        logger.info(f"일괄 삭제 API 호출: {len(delete_data.ids)}건")
+        logging.info(f"일괄 삭제 API 호출: {len(delete_data.ids)}건")
 
         # 관리자 권한 확인
         if current_user.get("user_role") != "ADMIN":
@@ -1008,7 +987,7 @@ async def delete_order(
             "results": results,
         }
     except Exception as e:
-        logger.error(f"주문 삭제 중 오류 발생: {str(e)}")
+        logging.error(f"주문 삭제 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "주문 삭제 중 오류가 발생했습니다."},
@@ -1030,7 +1009,7 @@ async def check_order_lock(
         lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
         return lock_status
     except Exception as e:
-        logger.error(f"락 상태 확인 중 오류 발생: {str(e)}")
+        logging.error(f"락 상태 확인 중 오류 발생: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={

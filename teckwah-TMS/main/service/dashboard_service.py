@@ -13,7 +13,7 @@ from starlette import status
 from main.models.dashboard_model import Dashboard
 from main.models.postal_code_model import PostalCode
 from main.schema.dashboard_schema import DashboardCreate, DashboardUpdate
-from main.utils.logger import logger
+import logging
 from main.utils.lock import acquire_lock, release_lock, check_lock_status
 from main.utils.pagination import paginate_query, calculate_dashboard_stats
 
@@ -57,7 +57,7 @@ def get_dashboard_response_data(
     Returns:
         Dict[str, Any]: 응답 형식으로 변환된 주문 데이터
     """
-    from main.utils.logger import logger, function_start, function_end
+    import logging, function_start, function_end
 
     function_start("get_dashboard_response_data", {"order_id": order.dashboard_id, "is_editable": is_editable})
     
