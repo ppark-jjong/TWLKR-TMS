@@ -1,6 +1,8 @@
 from fastapi.templating import Jinja2Templates
 import os
-from datetime import datetime
+from datetime import datetime, date
+import json
+from decimal import Decimal
 
 # 템플릿 디렉토리 경로 설정 (main 폴더 기준)
 # Docker 환경(/app/main/templates)과 로컬 환경 모두 고려
@@ -43,20 +45,63 @@ def datetime_format(value, format="%Y-%m-%d %H:%M"):
     return value.strftime(format)
 
 # JSON 변환을 위한 커스텀 필터 추가 
-import json
+class TemplateJSONEncoder(json.JSONEncoder):
+    """템플릿에서 안전한 JSON 직렬화를 위한 커스텀 인코더"""
+    def default(self, obj):
+        # Decimal 타입 처리 (데이터베이스에서 가져온 숫자형)
+        if isinstance(obj, Decimal):
+            return float(obj)
+        
+        # datetime 타입 처리
+        if isinstance(obj, datetime):
+            return obj.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # date 타입 처리
+        if isinstance(obj, date):
+            return obj.strftime('%Y-%m-%d')
+        
+        # SQLAlchemy 모델 객체 처리
+        if hasattr(obj, '__dict__') and hasattr(obj, '__tablename__'):
+            return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+        
+        # 기타 객체 처리
+        try:
+            return super().default(obj)
+        except TypeError:
+            # 직렬화할 수 없는 객체는 문자열로 변환
+            return str(obj)
+
 def custom_tojson(value):
     """안전한 JSON 변환 필터"""
     try:
-        # 기본 필터 대신 직접 jsonify
-        result = json.dumps(value, ensure_ascii=False)
+        # 커스텀 인코더 사용하여 변환
+        result = json.dumps(value, cls=TemplateJSONEncoder, ensure_ascii=False)
         return result
     except Exception as e:
-        print(f"[Templating] JSON 변환 오류: {str(e)}")
-        return "{}"  # 오류 시 빈 객체 반환
+        import logging
+        logging.error(f"[Templating] JSON 변환 오류: {str(e)}")
+        
+        # 오류 상세 로깅
+        if isinstance(value, dict):
+            logging.debug(f"JSON 직렬화 실패한 객체 키: {list(value.keys())}")
+            
+            # 문제의 키 식별
+            for k, v in value.items():
+                try:
+                    json.dumps({k: v}, cls=TemplateJSONEncoder)
+                except Exception as e2:
+                    logging.error(f"JSON 직렬화 문제 필드: {k}, 값 타입: {type(v).__name__}, 오류: {str(e2)}")
+        
+        # 마지막 시도 - 문자열 변환
+        try:
+            return json.dumps(str(value))
+        except:
+            return "{}"  # 모든 시도 실패 시 빈 객체 반환
 
 # 템플릿에 필터 등록
 templates.env.filters["datetime"] = datetime_format
 templates.env.filters["safe_json"] = custom_tojson
+templates.env.filters["tojson"] = custom_tojson  # 기본 tojson 필터 덮어쓰기
 
 # 템플릿에 전역 함수 및 변수 추가
 templates.env.globals["get_user"] = lambda request: getattr(request.state, "user", {"user_role": "USER"})

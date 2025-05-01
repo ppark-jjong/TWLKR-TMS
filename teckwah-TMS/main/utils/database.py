@@ -6,10 +6,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
+import logging
 
 from main.utils.config import get_settings
 
 settings = get_settings()
+
+logger = logging.getLogger(__name__)
 
 # SQLAlchemy 엔진 생성
 engine = create_engine(
@@ -33,7 +36,6 @@ def test_db_connection():
     데이터베이스 연결을 간단히 테스트하고 결과 로그를 남깁니다.
     프로젝트 규칙에 따라 최초 한 번만 시도합니다.
     """
-    from main.utils.logger import logger
     from sqlalchemy import text
 
     try:
@@ -69,7 +71,6 @@ def get_db() -> Generator[Session, None, None]:
     데이터베이스 세션 의존성 함수
     세션을 자동으로 닫고 예외 발생 시 롤백 처리
     """
-    from main.utils.logger import logger
     import uuid
 
     # 각 세션 요청에 고유 ID 부여하여 추적

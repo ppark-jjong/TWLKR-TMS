@@ -5,10 +5,10 @@
 from typing import Dict, Optional, Tuple, Any
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+import logging
 
 from main.models.user_model import User
 from main.utils.security import verify_password, create_session
-from main.utils.logger import logger
 
 
 def authenticate_user(
@@ -26,31 +26,31 @@ def authenticate_user(
         Tuple[bool, Optional[Dict]]: 인증 성공 여부와 사용자 정보
     """
     # 함수 진입 로깅
-    logger.info(f"인증 프로세스 시작: 사용자 ID '{user_id}'")
+    logging.info(f"인증 프로세스 시작: 사용자 ID '{user_id}'")
     
     try:
         # 쿼리 실행 전 로깅
-        logger.debug(f"DB 쿼리 시작: User.user_id='{user_id}' 검색")
+        logging.debug(f"DB 쿼리 시작: User.user_id='{user_id}' 검색")
         
         # 사용자 ID로 사용자 검색
         user = db.query(User).filter(User.user_id == user_id).first()
         
         # 쿼리 결과 로깅
         if user:
-            logger.debug(f"DB 쿼리 성공: 사용자 '{user_id}' 정보 로드 완료")
+            logging.debug(f"DB 쿼리 성공: 사용자 '{user_id}' 정보 로드 완료")
         else:
-            logger.warning(f"로그인 실패: 사용자 ID '{user_id}'를 찾을 수 없음")
+            logging.warning(f"로그인 실패: 사용자 ID '{user_id}'를 찾을 수 없음")
             return False, None
             
         # 비밀번호 검증 시작 로깅
-        logger.debug(f"비밀번호 검증 시작: 사용자 '{user_id}'")
+        logging.debug(f"비밀번호 검증 시작: 사용자 '{user_id}'")
         
         # 비밀번호 검증
         is_valid_password = verify_password(user_password, user.user_password)
         
         # 비밀번호 검증 결과 로깅
         if not is_valid_password:
-            logger.warning(f"로그인 실패: 사용자 '{user_id}'의 비밀번호가 일치하지 않음")
+            logging.warning(f"로그인 실패: 사용자 '{user_id}'의 비밀번호가 일치하지 않음")
             return False, None
             
         # 인증 성공 시 사용자 정보 구성
@@ -61,12 +61,12 @@ def authenticate_user(
         }
         
         # 성공 로깅
-        logger.info(f"로그인 성공: 사용자 '{user_id}', 권한='{user.user_role}', 부서='{user.user_department}'")
+        logging.info(f"로그인 성공: 사용자 '{user_id}', 권한='{user.user_role}', 부서='{user.user_department}'")
         return True, user_data
         
     except Exception as e:
         # 예외 발생 시 상세 로깅
-        logger.error(f"인증 프로세스 중 오류 발생: {str(e)}", exc_info=True)
+        logging.error(f"인증 프로세스 중 오류 발생: {str(e)}", exc_info=True)
         return False, None
 
 
@@ -83,11 +83,11 @@ def create_user_session(user_data: Dict[str, Any]) -> str:
     try:
         # 세션 생성 (security.py의 create_session 함수 사용)
         session_id = create_session(user_data)
-        logger.info(f"세션 생성 성공: 사용자 '{user_data.get('user_id')}'")
+        logging.info(f"세션 생성 성공: 사용자 '{user_data.get('user_id')}'")
         return session_id
     except Exception as e:
         # 세션 생성 실패
-        logger.error(f"세션 생성 실패: {str(e)}")
+        logging.error(f"세션 생성 실패: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="세션 생성 중 오류가 발생했습니다",

@@ -4,6 +4,40 @@
 
 {% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', path='css/handover.css') }}">
+<style>
+  /* 간단한 폼 스타일 보강 */
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+  }
+  .input-field, .select-field, .text-area {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-md);
+  }
+  .text-area {
+      resize: vertical;
+  }
+  .required { color: var(--danger-color); margin-left: 2px; }
+  .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--spacing-sm);
+      padding-top: var(--spacing-lg);
+      border-top: 1px solid var(--border-color);
+      margin-top: var(--spacing-lg);
+  }
+  .checkbox-group label {
+      margin-left: 8px;
+      font-weight: normal;
+      color: var(--text-color);
+  }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -29,37 +63,28 @@
             {% endif %}
             
             <div class="form-section">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="title">제목 <span class="required">*</span></label>
-                        <input type="text" id="title" name="title" class="input-field" placeholder="제목을 입력하세요" required value="{% if handover %}{{ handover.title }}{% endif %}">
-                    </div>
+                <div class="form-group">
+                    <label for="title">제목 <span class="required">*</span></label>
+                    <input type="text" id="title" name="title" class="input-field" placeholder="제목을 입력하세요" required value="{{ handover.title if handover else '' }}">
                 </div>
                 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="type">유형 <span class="required">*</span></label>
-                        <select id="type" name="type" class="select-field" required>
-                            <option value="NOTICE" {% if handover and handover.type == 'NOTICE' %}selected{% endif %} {% if user.user_role != 'ADMIN' %}disabled{% endif %}>공지사항</option>
-                            <option value="HANDOVER" {% if not handover or handover.type == 'HANDOVER' %}selected{% endif %}>인수인계</option>
-                        </select>
-                        {% if user.user_role != 'ADMIN' %}
-                        <small class="help-text">공지사항은 관리자만 작성할 수 있습니다.</small>
-                        {% endif %}
-                    </div>
-                    <div class="form-group">
-                        <label for="priority">우선순위 <span class="required">*</span></label>
-                        <select id="priority" name="priority" class="select-field" required>
-                            <option value="LOW" {% if handover and handover.priority == 'LOW' %}selected{% endif %}>낮음</option>
-                            <option value="MEDIUM" {% if not handover or handover.priority == 'MEDIUM' %}selected{% endif %}>중간</option>
-                            <option value="HIGH" {% if handover and handover.priority == 'HIGH' %}selected{% endif %}>높음</option>
-                        </select>
-                    </div>
+                {# --- 공지사항 체크박스 (ADMIN 전용) --- #}
+                {% if current_user and current_user.role == 'ADMIN' %}
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="is_notice" name="is_notice" value="true" 
+                           {% if handover and handover.is_notice %}checked{% endif %}>
+                    <label for="is_notice">공지사항으로 등록</label>
+                     {# is_notice 값 미전송 시 False 처리를 위한 hidden input #}
+                     <input type="hidden" name="is_notice" value="false" />
                 </div>
+                {% else %}
+                 {# ADMIN이 아닐 경우, 현재 상태가 공지면 hidden으로 전달, 아니면 false 전달 #}
+                 <input type="hidden" name="is_notice" value="{{ 'true' if handover and handover.is_notice else 'false' }}" />
+                {% endif %}
                 
                 <div class="form-group">
                     <label for="content">내용 <span class="required">*</span></label>
-                    <textarea id="content" name="content" class="text-area" rows="12" required placeholder="내용을 입력하세요">{% if handover %}{{ handover.content }}{% endif %}</textarea>
+                    <textarea id="content" name="content" class="text-area" rows="12" required placeholder="내용을 입력하세요">{{ handover.content if handover else '' }}</textarea>
                 </div>
             </div>
             
@@ -76,5 +101,6 @@
 {% endblock %}
 
 {% block page_js %}
-<script src="{{ url_for('static', path='js/handover_form.js') }}"></script>
+{# 별도 JS 로직 불필요 시 제거 #}
+{# <script src="{{ url_for('static', path='js/handover_form.js') }}"></script> #}
 {% endblock %}

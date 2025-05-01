@@ -41,19 +41,17 @@
       <div class="main-layout">
         <!-- 사이드바 -->
         <aside class="sidebar">
-          <!-- 사이드바 토글 버튼 추가 -->
-          <button
-            class="sidebar-toggle"
-            id="sidebarToggleBtn"
-            aria-label="사이드바 토글"
-            title="사이드바 접기/펼치기"
-          >
-            <i class="fa-solid fa-chevron-left"></i>
-          </button>
-
           <div class="logo-container">
+            <!-- 사이드바 토글 버튼 - 로고명 왼쪽으로 이동 -->
+            <button
+              class="sidebar-toggle"
+              id="sidebarToggleBtn"
+              aria-label="사이드바 토글"
+              title="사이드바 접기/펼치기"
+            >
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
             <h1 class="system-title">TWLKR-TMS</h1>
-            <div class="system-version">v1.0.2</div>
           </div>
 
           <!-- 숨겨진 사용자 정보 컨테이너 (JavaScript에서 사용) -->
@@ -69,11 +67,12 @@
           <div class="user-info">
             <div class="user-details">
               <p class="user-id" id="userDisplayId">
-                <strong>ID:</strong> {{ user.user_id if user else '로그인 필요' }}
-              </p>
-              <p class="user-role" id="userDisplayRole">
-                <strong>권한:</strong> {{ user.user_role if user else '-' }} 
-                {% if user and user.department %} / {{ user.department }}{% endif %}
+                <span class="user-id-label">ID:</span> {{ user.user_id if user else '로그인 필요' }}
+                {% if user and user.user_role %}
+                <span class="user-role-badge {{ 'admin' if user.user_role == 'ADMIN' else 'user' }}">
+                  {{ user.user_role }}
+                </span>
+                {% endif %}
               </p>
             </div>
           </div>
@@ -102,7 +101,7 @@
               >
                 <a href="/users">
                   <i class="fa-solid fa-users"></i>
-                  <span>사용자 관리</span>
+                  <span>User Management</span>
                 </a>
               </li>
               {% endif %}

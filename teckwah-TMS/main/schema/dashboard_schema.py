@@ -40,7 +40,7 @@ class DashboardCreate(BaseModel):
 
 
 class DashboardUpdate(BaseModel):
-    """주문 업데이트 요청 스키마"""
+    """주문 수정 요청 스키마 (모든 필드 선택적)"""
 
     order_no: Optional[str] = Field(None, description="주문번호", alias="orderNo")
     type: Optional[str] = Field(None, description="유형(DELIVERY/RETURN)")
@@ -55,20 +55,15 @@ class DashboardUpdate(BaseModel):
     customer: Optional[str] = Field(None, description="고객명")
     contact: Optional[str] = Field(None, description="연락처")
     remark: Optional[str] = Field(None, description="비고")
-    driver_name: Optional[str] = Field(
-        None, description="기사 이름", alias="driverName"
-    )
-    driver_contact: Optional[str] = Field(
-        None, description="기사 연락처", alias="driverContact"
-    )
 
     @validator("postal_code")
     def validate_postal_code(cls, v):
-        """우편번호 검증 및 자동 보완 (4자리 → 5자리)"""
-        if v and len(v) == 4:
-            v = "0" + v
-        if v and len(v) != 5:
-            raise ValueError("우편번호는 5자리여야 합니다.")
+        """우편번호 검증 (수정 시에도 동일 적용)"""
+        if v:
+            if len(v) == 4:
+                v = "0" + v
+            if len(v) != 5:
+                raise ValueError("우편번호는 5자리여야 합니다.")
         return v
 
     class Config:
@@ -76,7 +71,9 @@ class DashboardUpdate(BaseModel):
 
         by_alias = True
         populate_by_name = True
-        json_encoders = {datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S")}
+        json_encoders = {
+            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
+        }
 
 
 class DashboardResponse(BaseModel):
@@ -138,6 +135,7 @@ class DashboardResponse(BaseModel):
 class DashboardListItem(BaseModel):
     """주문 목록 항목 스키마"""
 
+    dashboard_id: int = Field(..., description="대시보드 ID", alias="dashboardId")
     order_no: str = Field(..., description="주문번호", alias="orderNo")
     type: str = Field(..., description="유형(DELIVERY/RETURN)")
     department: str = Field(..., description="부서(CS/HES/LENOVO)")
@@ -145,7 +143,6 @@ class DashboardListItem(BaseModel):
     sla: str = Field(..., description="SLA")
     region: Optional[str] = Field(None, description="지역(시 구 동)")
     eta: datetime = Field(..., description="ETA(도착 예정 시간)")
-    postal_code: str = Field(..., description="우편번호", alias="postalCode")
     customer: str = Field(..., description="고객명")
     status: str = Field(
         ..., description="상태(WAITING/IN_PROGRESS/COMPLETE/ISSUE/CANCEL)"
@@ -171,8 +168,6 @@ class DashboardListResponse(BaseModel):
     success: bool = Field(..., description="성공 여부")
     message: str = Field(..., description="메시지")
     data: List[DashboardListItem] = Field(..., description="주문 목록")
-    pagination: Dict[str, Any] = Field(..., description="페이지네이션 정보")
-    stats: Dict[str, int] = Field(..., description="통계 정보")
 
     class Config:
         """스키마 설정"""
