@@ -1,5 +1,7 @@
 /* 대시보드 페이지 스타일 */
 
+
+
 /* 테이블 행 상태별 배경색 */
 .data-table tr.status-waiting {
   background-color: rgb(255, 246, 203);

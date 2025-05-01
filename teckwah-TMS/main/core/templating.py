@@ -42,8 +42,21 @@ def datetime_format(value, format="%Y-%m-%d %H:%M"):
             return value
     return value.strftime(format)
 
+# JSON 변환을 위한 커스텀 필터 추가 
+import json
+def custom_tojson(value):
+    """안전한 JSON 변환 필터"""
+    try:
+        # 기본 필터 대신 직접 jsonify
+        result = json.dumps(value, ensure_ascii=False)
+        return result
+    except Exception as e:
+        print(f"[Templating] JSON 변환 오류: {str(e)}")
+        return "{}"  # 오류 시 빈 객체 반환
+
 # 템플릿에 필터 등록
 templates.env.filters["datetime"] = datetime_format
+templates.env.filters["safe_json"] = custom_tojson
 
 # 템플릿에 전역 함수 및 변수 추가
 templates.env.globals["get_user"] = lambda request: getattr(request.state, "user", {"user_role": "USER"})

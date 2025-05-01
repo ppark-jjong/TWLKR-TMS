@@ -48,29 +48,23 @@ document.addEventListener('DOMContentLoaded', function () {
      */
     init() {
       console.log('대시보드 초기화 시작...');
-      console.log('로거: INFO 대시보드 초기화 시작');
 
       // 로딩 오버레이 표시
       this.showLoading();
 
       // DOM 요소 참조 설정
       this.initDomRefs();
-      console.log('로거: DEBUG DOM 요소 참조 설정 완료');
 
       // 초기 데이터 로드
       this.loadInitialData();
-      console.log('로거: DEBUG 초기 데이터 로드 시도 완료');
 
       // 저장된 컬럼 설정 로드
       this.loadColumnSettings();
-      console.log('로거: DEBUG 컬럼 설정 로드 완료');
 
       // 이벤트 리스너 설정
       this.initEventListeners();
-      console.log('로거: DEBUG 이벤트 리스너 등록 완료');
 
       console.log('대시보드 초기화 완료');
-      console.log('로거: INFO 대시보드 초기화 완료');
     },
 
     /**
@@ -111,8 +105,6 @@ document.addEventListener('DOMContentLoaded', function () {
      * 초기 데이터 로드
      */
     loadInitialData() {
-      console.log('로거: INFO 대시보드 데이터 로드 시작');
-      
       // 데이터 컨테이너에서 초기 데이터 로드
       const dataContainer = document.querySelector(
         this.CONFIG.SELECTOR.DATA_CONTAINER
@@ -120,47 +112,39 @@ document.addEventListener('DOMContentLoaded', function () {
       let initialData = {};
 
       if (dataContainer && dataContainer.dataset.initial) {
-        console.log('로거: DEBUG 데이터 컨테이너 발견, 데이터 길이:', dataContainer.dataset.initial.length);
-        
         try {
-          // dataset.initial 값 디버깅
-          const rawData = dataContainer.dataset.initial;
-          
-          // 문자열 처리 - 따옴표 이슈 해결
-          const cleanData = rawData.replace(/\\"/g, '"').replace(/^"|"$/g, '');
-          console.log('로거: DEBUG 데이터 전처리 완료, 데이터 길이:', cleanData.length);
-          
-          // 파싱 시도
-          initialData = JSON.parse(cleanData);
-          console.log('로거: INFO 초기 데이터 파싱 성공, 키:', Object.keys(initialData).join(', '));
-          console.log('로거: DEBUG 주문 데이터 건수:', (initialData.orders || []).length);
+          // 간단하게 JSON 파싱
+          initialData = JSON.parse(dataContainer.dataset.initial);
+          console.log('초기 데이터 로드 완료');
+
+          // 데이터 유효성 검사
+          if (!initialData.orders || !Array.isArray(initialData.orders)) {
+            console.warn('유효한 주문 데이터가 없습니다');
+            initialData.orders = [];
+          }
 
           // 상태에 초기 데이터 설정
-          this.state.allOrders = initialData.orders || [];
-          this.state.orders = initialData.orders || [];
-          console.log('로거: INFO 데이터 상태 업데이트 완료');
+          this.state.allOrders = initialData.orders;
+          this.state.orders = initialData.orders;
 
           // 데이터 렌더링
           this.renderData();
-          console.log('로거: INFO 데이터 렌더링 완료');
         } catch (e) {
           console.error('초기 데이터 파싱 오류:', e);
-          console.error('로거: ERROR 데이터 파싱 실패:', e.message);
-          console.error('로거: ERROR 파싱 시도한 데이터 일부:', 
-                      dataContainer.dataset.initial.substring(0, 100) + '...');
-          this.renderEmptyTable('데이터 로드 중 오류가 발생했습니다');
-          console.log('로거: ERROR 빈 테이블 렌더링 (오류 상태)');
+          
+          // 오류 발생 시 디버깅 정보
+          console.error('오류 내용:', e.message);
+          console.error('데이터 샘플:', dataContainer.dataset.initial.substring(0, 100));
+          
+          this.renderEmptyTable('데이터 로드 중 오류가 발생했습니다.');
         }
       } else {
         console.log('초기 데이터가 없습니다');
-        console.log('로거: WARN 초기 데이터 없음, 데이터 컨테이너 존재:', !!dataContainer);
         this.renderEmptyTable('데이터가 없습니다');
-        console.log('로거: INFO 빈 테이블 렌더링 (데이터 없음)');
       }
 
       // 로딩 화면 숨기기
       this.hideLoading();
-      console.log('로거: INFO 로딩 화면 숨김 처리');
     },
 
     /**
@@ -186,6 +170,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // 데이터로 행 생성
       data.forEach((order) => {
+        if (!order.dashboardId || !order.status) {
+          console.warn('데이터 무결성 문제: 필수 필드 누락', order);
+          return;
+        }
+
         const row = document.createElement('tr');
         row.className = `status-${order.status.toLowerCase()}`;
         row.dataset.id = order.dashboardId;
@@ -194,14 +183,14 @@ document.addEventListener('DOMContentLoaded', function () {
         row.innerHTML = `
           <td>
             <a href="/orders/${order.dashboardId}" class="order-number">${
-          order.orderNo
+          order.orderNo || '번호 없음'
         }</a>
           </td>
           <td>${order.customer || ''}</td>
           <td>${order.typeLabel || ''}</td>
           <td>
             <span class="status-badge status-${order.status.toLowerCase()}">${
-          order.statusLabel || ''
+          order.statusLabel || order.status
         }</span>
           </td>
           <td>${order.department || ''}</td>
@@ -241,14 +230,16 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="empty-placeholder">
             <i class="fa-solid fa-inbox"></i>
             <p>${displayMessage}</p>
-            <a href="/orders/create" class="btn primary-btn empty-table-action">
-              <i class="fa-solid fa-plus"></i> 새 주문 등록
-            </a>
           </div>
         </td>
       `;
 
       this.els.tableBody.appendChild(emptyRow);
+      
+      // 디버깅 정보 표시 (개발 환경에서만 표시)
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('docker')) {
+        console.log('디버그 정보: 빈 테이블 렌더링됨', { message: displayMessage });
+      }
     },
 
     /**
@@ -353,15 +344,31 @@ document.addEventListener('DOMContentLoaded', function () {
         if (savedColumns) {
           // 저장된 설정 파싱
           const columns = JSON.parse(savedColumns);
-          this.state.columns = columns;
-
+          
+          // 유효성 검사
+          if (!Array.isArray(columns)) {
+            throw new Error('저장된 컬럼 설정이 배열이 아님');
+          }
+          
           // 체크박스 상태 업데이트
+          let validColumnCount = 0;
           columns.forEach((column) => {
             const checkbox = document.getElementById(`col_${column}`);
-            if (checkbox) checkbox.checked = true;
+            if (checkbox) {
+              checkbox.checked = true;
+              validColumnCount++;
+            } else {
+              console.warn(`컬럼 체크박스를 찾을 수 없음: ${column}`);
+            }
           });
-
-          console.log('저장된 컬럼 설정 로드됨:', columns);
+          
+          // 최소 1개 이상의 유효한 컬럼이 있는지 확인
+          if (validColumnCount > 0) {
+            this.state.columns = columns;
+            console.log('저장된 컬럼 설정 로드됨:', columns);
+          } else {
+            throw new Error('유효한 컬럼 설정 없음');
+          }
         } else {
           // 기본 컬럼 설정 사용
           this.state.columns = this.CONFIG.DEFAULT_COLUMNS;
@@ -467,6 +474,12 @@ document.addEventListener('DOMContentLoaded', function () {
       // 모든 필터가 비어있으면 전체 데이터 표시
       if (!status && !department && !warehouse) {
         this.resetFilters();
+        return;
+      }
+
+      // 원본 데이터 확인
+      if (!this.state.allOrders || !Array.isArray(this.state.allOrders)) {
+        console.error('원본 데이터가 유효하지 않음:', typeof this.state.allOrders);
         return;
       }
 
@@ -611,7 +624,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!previewOnly) {
           // 각 행의 해당 셀 표시/숨김 처리
           tableRows.forEach((row) => {
-            if (row.cells[col.index]) {
+            if (row.cells && row.cells[col.index]) {
               row.cells[col.index].style.display = visible ? '' : 'none';
             }
           });

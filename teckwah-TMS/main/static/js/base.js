@@ -37,14 +37,10 @@ document.addEventListener('DOMContentLoaded', function () {
      * 사용자 정보 초기화
      */
     initUserInfo() {
-      console.log('로거: INFO 사용자 정보 초기화 시작');
-      
       // 전역 사용자 객체 - base 템플릿에서 data-user-* 속성으로 전달받음
       const userInfoContainer = document.getElementById('userInfo');
 
       if (userInfoContainer && Utils && Utils.auth) {
-        console.log('로거: DEBUG 사용자 정보 컨테이너 및 Utils 모듈 존재 확인');
-        
         const userData = {
           user_id: userInfoContainer.dataset.userId || '',
           user_role: userInfoContainer.dataset.userRole || '',
@@ -55,7 +51,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (userData.user_id) {
           Utils.auth.setCurrentUser(userData);
           console.log('사용자 정보 초기화됨:', userData.user_id);
-          console.log(`로거: INFO 사용자(${userData.user_id}) 초기화 완료, 권한: ${userData.user_role}, 부서: ${userData.department}`);
           
           // UI 요소 업데이트
           const userIdDisplay = document.getElementById('userDisplayId');
@@ -63,7 +58,6 @@ document.addEventListener('DOMContentLoaded', function () {
           
           if (userIdDisplay) {
             userIdDisplay.innerHTML = `<strong>ID:</strong> ${userData.user_id}`;
-            console.log('로거: DEBUG 사용자 ID 표시 업데이트');
           }
           
           if (userRoleDisplay) {
@@ -72,13 +66,8 @@ document.addEventListener('DOMContentLoaded', function () {
               roleText += ` / ${userData.department}`;
             }
             userRoleDisplay.innerHTML = roleText;
-            console.log('로거: DEBUG 사용자 권한 표시 업데이트');
           }
-        } else {
-          console.log('로거: WARN 유효한 사용자 ID 없음');
         }
-      } else {
-        console.log('로거: ERROR 사용자 정보 컨테이너 또는 Utils 모듈 누락');
       }
     },
 

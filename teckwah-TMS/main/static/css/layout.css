@@ -114,6 +114,18 @@
   width: 100%;
 }
 
+.system-version {
+  font-size: 0.7rem;
+  color: var(--text-color-secondary);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* 접힌 사이드바에서 버전 정보 숨기기 */
+.sidebar.collapsed .system-version {
+  display: none;
+}
+
 .logo-image {
   position: absolute;
   top: 10px;
