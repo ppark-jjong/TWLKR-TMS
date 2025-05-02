@@ -307,3 +307,51 @@ def delete_handover(db: Session, handover_id: int, user_id: str) -> bool:
 
         logger.error(f"인수인계 삭제 중 오류 발생: {str(e)}", exc_info=True)
         raise e
+
+
+def check_handover_lock_status(
+    db: Session, handover_id: int, user_id: str
+) -> Dict[str, Any]:
+    """
+    인수인계 항목의 락 상태를 확인합니다.
+
+    Args:
+        db: 데이터베이스 세션
+        handover_id: 확인할 인수인계 ID
+        user_id: 현재 사용자 ID
+
+    Returns:
+        Dict[str, Any]: 락 상태 정보 (editable, message, locked_by, locked_at 등)
+    """
+    from main.utils.lock import check_lock_status
+
+    logger.info(f"인수인계 락 상태 확인: id={handover_id}, user={user_id}")
+    try:
+        # 공통 락 상태 확인 함수 호출
+        lock_status = check_lock_status(db, "handover", handover_id, user_id)
+        logger.debug(f"인수인계 락 상태: editable={lock_status.get('editable')}")
+        return lock_status
+    except Exception as e:
+        logger.error(f"인수인계 락 상태 확인 중 오류: {str(e)}", exc_info=True)
+        return {
+            "editable": False,
+            "message": "락 상태 확인 중 오류가 발생했습니다",
+            "locked_by": None,
+            "locked_at": None,
+        }
+
+
+def check_lock_status(db: Session, handover_id: int, user_id: str) -> Dict[str, Any]:
+    """
+    인수인계 항목의 락 상태를 확인합니다.
+    route에서 check_lock_status as check_handover_lock_status로 임포트 호환성을 위한 함수
+
+    Args:
+        db: 데이터베이스 세션
+        handover_id: 확인할 인수인계 ID
+        user_id: 현재 사용자 ID
+
+    Returns:
+        Dict[str, Any]: 락 상태 정보 (editable, message, locked_by, locked_at 등)
+    """
+    return check_handover_lock_status(db, handover_id, user_id)
