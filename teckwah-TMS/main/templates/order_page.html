@@ -226,36 +226,10 @@
     </div>
   </div>
 </div>
-{% endblock %} {% block page_js %} {# 페이지 데이터를 JSON으로 전달하는 스크립트
-태그 #}
-<script id="page-data-script" type="application/json">
-  {{ page_data_json|safe }}
-</script>
-
+{% endblock %} {% block page_js %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    let pageData = {};
-    try {
-      const jsonDataElement = document.getElementById('page-data-script');
-      pageData = JSON.parse(jsonDataElement.textContent || '{}');
-    } catch (e) {
-      console.error('Failed to parse page data JSON:', e);
-      Utils.alerts.showError('페이지 데이터 로딩 오류');
-      return;
-    }
-
-    const order = pageData.order;
-    const lockStatus = pageData.lock_status;
-    const currentUserRole = pageData.current_user_role;
-    const orderId = order?.dashboardId; // Optional chaining
-    const isEditable = lockStatus?.editable; // Optional chaining
-
-    if (!orderId) {
-      console.error('Order ID not found in page data');
-      return;
-    }
-
-    // --- 주문번호 복사 로직 (유지) ---
+    // 주문번호 복사 버튼 기능
     const copyOrderNoBtn = document.getElementById('copyOrderNo');
     if (copyOrderNoBtn) {
       copyOrderNoBtn.addEventListener('click', function () {
@@ -264,13 +238,49 @@
       });
     }
 
-    // 락 상태 확인 함수 (유지)
-    async function checkLock() {
-      // ...
+    // 락 상태 확인 및 UI 업데이트 (필요시 API 호출)
+    const lockNotificationArea = document.getElementById(
+      'lockNotificationArea'
+    );
+    const orderId = '{{ order.dashboard_id }}';
+
+    async function checkLockStatus() {
+      try {
+        const response = await fetch(`/api/orders/lock/${orderId}`);
+        if (response.ok) {
+          const lockData = await response.json();
+          updateLockNotification(lockData);
+        }
+      } catch (error) {
+        console.error('Lock check failed:', error);
+      }
     }
+
+    function updateLockNotification(lockData) {
+      if (lockData && lockData.locked && lockData.locked_by) {
+        lockNotificationArea.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="fa-solid fa-lock"></i>
+            ${lockData.locked_by}님이 현재 수정 중입니다.
+          </div>
+        `;
+      } else {
+        lockNotificationArea.innerHTML = '';
+      }
+    }
+
+    // 주기적으로 락 상태 확인 (10초 간격)
+    const checkInterval = setInterval(checkLockStatus, 10000);
+
+    // 초기 락 상태 확인
+    checkLockStatus();
+
+    // 페이지 떠날 때 인터벌 정리
+    window.addEventListener('beforeunload', function () {
+      clearInterval(checkInterval);
+    });
   });
 </script>
 
-{# order_detail.js 로드 유지 #}
 <script src="{{ url_for('static', path='js/order_detail.js') }}"></script>
 {% endblock %}

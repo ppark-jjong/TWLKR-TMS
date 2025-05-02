@@ -301,23 +301,14 @@ async def order_create_page(
 ):
     logger.info(f"주문 생성 페이지 로드 요청: user={current_user.get('user_id')}")
     try:
-        user_data = {
-            "user_id": current_user.get("user_id"),
-            "user_role": current_user.get("user_role"),
-            "department": current_user.get("department"),
-        }
-        # 초기 데이터는 최소화, 필요시 JS에서 API 호출
-        initial_data = {
-            "is_edit": False,
-            "order": None,
-            "current_user": user_data,
-        }
+        # 설명서에 따라 Form(PRG) 방식 적용 - 템플릿에 직접 객체 전달
         context = {
             "request": request,
-            "current_user": user_data,
-            "initial_data": initial_data,  # initial_data_json 대신 직접 딕셔너리 전달
+            "current_user": current_user,
             "is_edit": False,
             "order": None,
+            "error_message": request.query_params.get("error"),
+            "success_message": request.query_params.get("success"),
         }
         return templates.TemplateResponse("order_form.html", context)
     except Exception as e:
@@ -350,24 +341,14 @@ async def order_detail_page(
         is_editable = lock_status.get("editable", False)
         order_data = get_dashboard_response_data(order, is_editable)
 
-        user_data = {
-            "user_id": current_user.get("user_id"),
-            "user_role": current_user.get("user_role"),
-            "department": current_user.get("department"),
-        }
-
-        # 필요한 데이터만 컨텍스트에 전달
-        page_data = {
-            "order": order_data,
-            "lock_status": lock_status,
-            "current_user": user_data,
-        }
+        # 설명서에 따라 Form(PRG) 방식 적용 - 템플릿에 직접 객체 전달
         context = {
             "request": request,
-            "current_user": user_data,
-            "order": order_data,  # 서비스에서 변환된 Dict 전달
+            "current_user": current_user,
+            "order": order_data,
             "lock_status": lock_status,
-            "page_data": page_data,  # JSON 문자열 대신 직접 딕셔너리 전달
+            "error_message": request.query_params.get("error"),
+            "success_message": request.query_params.get("success"),
         }
         return templates.TemplateResponse("order_page.html", context)
 
@@ -423,23 +404,16 @@ async def order_edit_page(
 
         # 락이 있거나 내가 소유 -> 수정 페이지 렌더링
         order_data = get_dashboard_response_data(order, True)
-        user_data = {
-            "user_id": user_id,
-            "user_role": current_user.get("user_role"),
-            "department": current_user.get("department"),
-        }
 
-        initial_data_obj = {
-            "is_edit": True,
-            "order": order_data,
-            "current_user": user_data,
-        }
+        # 설명서에 따라 Form(PRG) 방식 적용 - 템플릿에 직접 객체 전달
         context = {
             "request": request,
-            "current_user": user_data,
-            "initial_data": initial_data_obj,  # JSON 문자열 대신 직접 딕셔너리 전달
-            "is_edit": True,
+            "current_user": current_user,
             "order": order_data,
+            "is_edit": True,
+            "lock_info": lock_info,
+            "error_message": request.query_params.get("error"),
+            "success_message": request.query_params.get("success"),
         }
         return templates.TemplateResponse("order_form.html", context)
 

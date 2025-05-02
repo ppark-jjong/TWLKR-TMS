@@ -2,28 +2,18 @@
 %}신규 주문 등록{% endif %} - Teckwah TMS{% endblock %} {% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', path='css/orders.css') }}" />
 {% endblock %} {% block content %}
-<!-- 초기 데이터를 JavaScript 변수로 직접 정의 -->
-<script>
-  // 서버에서 제공된 초기 데이터를 안전하게 JavaScript 변수로 설정
-  var initialData = {{ initial_data|tojson|safe }};
-</script>
 
 <div class="order-form-page">
   <div class="page-header">
     <h1 class="page-title">
-      {# JS에서 제목 동적 설정 #}
-      <i class="fa-solid" id="pageIcon"></i>
-      <span id="pageTitle"
-        >{% if is_edit %}주문 정보 수정{% else %}신규 배송 등록{% endif %}</span
-      >
+      <i class="fa-solid {% if is_edit %}fa-edit{% else %}fa-plus{% endif %}"></i>
+      <span>{% if is_edit %}주문 정보 수정{% else %}신규 배송 등록{% endif %}</span>
     </h1>
     <div class="header-actions">
-      {# JS에서 취소 버튼 링크 동적 설정 #}
-      <a href="#" class="btn secondary-btn" id="cancelBtn">
+      <a href="{% if is_edit %}/orders/{{ order.dashboard_id }}{% else %}/dashboard{% endif %}" class="btn secondary-btn">
         <i class="fa-solid fa-times"></i>
         취소
       </a>
-      {# JS에서 저장 버튼 텍스트/상태 동적 설정 #}
       <button
         type="submit"
         form="orderForm"
@@ -31,23 +21,28 @@
         id="submitBtn"
       >
         <i class="fa-solid fa-check"></i>
-        <span id="submitBtnText"
-          >{% if is_edit %}저장{% else %}등록하기{% endif %}</span
-        >
+        <span>{% if is_edit %}저장{% else %}등록하기{% endif %}</span>
       </button>
     </div>
   </div>
 
-  {# ... 경고/오류 메시지 표시 ... #}
-  <div id="alert-placeholder"></div>
-  {# JS에서 동적 추가 #}
+  {% if error_message %}
+  <div class="alert alert-danger">
+    <i class="fa-solid fa-circle-exclamation"></i>
+    {{ error_message }}
+  </div>
+  {% endif %}
+  
+  {% if success_message %}
+  <div class="alert alert-success">
+    <i class="fa-solid fa-circle-check"></i>
+    {{ success_message }}
+  </div>
+  {% endif %}
 
   <div class="main-card">
-    {# form id 및 action은 JS에서 설정 또는 기본값 사용 후 JS 수정 #}
     <form id="orderForm" method="POST" class="order-form two-column-form" 
           action="{% if is_edit %}/api/orders/{{ order.dashboard_id }}{% else %}/api/orders{% endif %}">
-      {# hidden input은 JS에서 필요시 추가 #}
-
       <div class="form-section">
         <h3 class="section-title">기본 정보</h3>
         <div class="form-grid">
@@ -186,7 +181,6 @@
         </div>
       </div>
 
-      {# Driver section hidden #}
       <div class="form-section">
         <h3 class="section-title">기사 정보</h3>
         <div class="form-grid">
@@ -229,162 +223,16 @@
         </div>
       </div>
 
-      {# 업데이트 정보 영역 (수정 시에만 JS로 추가) #}
       <div id="update-info-section-placeholder"></div>
     </form>
   </div>
 </div>
-{% endblock %} {% block page_js %}
+{% endblock %}
+
+{% block page_js %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    let initialData = window.initialData || {};
-    
-    // 오류 처리는 유지하지만 JSON 파싱 단계는 제거
-    if (!initialData) {
-      console.error('Initial data is missing');
-      Utils.alerts.showError('페이지 데이터 로딩 오류');
-      return; // 초기화 중단
-    }
-
-    const isEditMode = initialData.is_edit;
-    const order = initialData.order;
-    const currentUserRole = initialData.current_user?.user_role;
-    const lockStatus = initialData.lock_status; // 수정 모드일 때만 유효
-    const statusOptions = initialData.status_options; // 수정 모드일 때만 유효
-
-    const form = document.getElementById('orderForm');
-    const pageIcon = document.getElementById('pageIcon');
-    const pageTitle = document.getElementById('pageTitle');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const submitBtn = document.getElementById('submitBtn');
-    const submitBtnText = document.getElementById('submitBtnText');
-    const alertPlaceholder = document.getElementById('alert-placeholder');
-    const updateInfoPlaceholder = document.getElementById(
-      'update-info-section-placeholder'
-    );
-
-    // --- UI 및 폼 초기 설정 ---
-    function initializeForm() {
-      // 1. 제목, 아이콘, 액션 URL, 버튼 텍스트 설정
-      pageIcon.className = `fa-solid ${isEditMode ? 'fa-edit' : 'fa-plus'}`;
-      pageTitle.textContent = isEditMode ? '주문 정보 수정' : '신규 배송 등록';
-      form.action = isEditMode ? `/api/orders/${order.dashboardId}` : '/api/orders';
-      submitBtnText.textContent = isEditMode ? '저장' : '등록하기';
-      cancelBtn.href = isEditMode ? `/orders/${order.dashboardId}` : '/dashboard';
-
-      // 2. 필드 값 채우기 및 상태 설정 (수정 모드)
-      if (isEditMode && order) {
-        // 기본 정보
-        form.order_no.value = order.orderNo || '';
-        form.order_no.readOnly = true;
-        form.type.value = order.type || 'DELIVERY';
-        form.department.value = order.department || 'CS';
-        form.warehouse.value = order.warehouse || 'SEOUL';
-        form.sla.value = order.sla || '';
-        form.eta.value = order.eta ? order.eta.substring(0, 16) : ''; // YYYY-MM-DDTHH:MM
-
-        // 배송 정보
-        form.postal_code.value = order.postalCode || '';
-        form.customer.value = order.customer || '';
-        form.address.value = order.address || '';
-        form.contact.value = order.contact || '';
-
-        // 상태 (Select 값 설정)
-        const statusSelect = document.getElementById('status');
-        if (statusSelect) statusSelect.value = order.status || 'WAITING';
-
-        // 기사 정보 (Input 값 설정)
-        const driverNameInput = document.getElementById('driver_name');
-        const driverContactInput = document.getElementById('driver_contact');
-        if (driverNameInput) driverNameInput.value = order.driverName || '';
-        if (driverContactInput) driverContactInput.value = order.driverContact || '';
-
-        // 메모
-        form.remark.value = order.remark || '';
-
-        // 수정 불가능 상태 처리 (락 걸렸을 때)
-        if (!order.editable) {
-          disableFormFields(true);
-          submitBtn.disabled = true;
-          showAlert(
-            'warning',
-            `주의: 이 주문은 현재 다른 사용자(${order.lockedBy || '알 수 없음'})가 수정 중입니다.`
-          );
-        }
-
-        // 업데이트 정보 표시
-        renderUpdateInfo();
-      } else {
-        // 생성 모드: ETA 기본값 설정 등
-        const etaInput = document.getElementById('eta');
-        if (etaInput && !etaInput.value) {
-          const now = new Date();
-          const timezoneOffset = now.getTimezoneOffset() * 60000; // offset in milliseconds
-          const localISOTime = new Date(now - timezoneOffset).toISOString().slice(0, 16);
-          etaInput.value = localISOTime;
-        }
-        // 상태, 기사 필드 readonly 적용
-        document.getElementById('status_display').readOnly = true;
-        document.getElementById('driver_name').readOnly = true;
-        document.getElementById('driver_contact').readOnly = true;
-      }
-
-      // 우편번호 자동 보완 리스너
-      const postalCodeInput = document.getElementById('postal_code');
-      if (postalCodeInput) {
-        postalCodeInput.addEventListener('blur', formatPostalCodeOnBlur);
-      }
-    }
-
-    // 폼 필드 비활성화/활성화
-    function disableFormFields(disabled) {
-      const fields = form.querySelectorAll('input:not([type="hidden"]), select, textarea');
-      fields.forEach((field) => {
-        // 주문번호는 수정 모드에서 항상 readonly
-        if (!(field.id === 'order_no' && isEditMode)) {
-          field.disabled = disabled;
-        }
-      });
-    }
-
-    // 경고/오류 메시지 표시
-    function showAlert(type, message) {
-      alertPlaceholder.innerHTML = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-          ${message}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>`;
-    }
-
-    // 업데이트 정보 렌더링
-    function renderUpdateInfo() {
-      if (updateInfoPlaceholder && order && order.updateAt) {
-        updateInfoPlaceholder.innerHTML = `
-          <div class="form-section update-info-section">
-            <h3 class="section-title">업데이트 정보</h3>
-            <div class="form-grid">
-              <div class="form-group">
-                <label>최근 업데이트</label>
-                <p class="form-control-static">${Utils.formatDate(order.updateAt)}</p>
-              </div>
-              <div class="form-group">
-                <label>수정자</label>
-                <p class="form-control-static">${order.updatedBy || '-'}</p>
-              </div>
-            </div>
-          </div>`;
-      }
-    }
-
-    // 우편번호 자동 보완 핸들러
-    function formatPostalCodeOnBlur() {
-      const value = this.value.trim();
-      if (value.length === 4 && /^\d{4}$/.test(value)) {
-        this.value = '0' + value;
-      }
-    }
-
-    // 우편번호 유효성 검사 및 형식화
+    // 우편번호 자동 포맷팅 및 유효성 검사
     const postalCodeInput = document.getElementById('postal_code');
     if (postalCodeInput) {
       // 입력 제한: 숫자만 입력 가능, 최대 5자리
@@ -396,21 +244,13 @@
         if (this.value.length > 5) {
           this.value = this.value.slice(0, 5);
         }
-        
-        // 유효성 검사 결과에 따른 스타일 변경
-        if (this.value.length === 5) {
-          this.classList.remove('input-error');
-          const errorMsg = this.parentNode.querySelector('.error-message');
-          if (errorMsg) errorMsg.remove();
-        } else if (this.value.length > 0) {
-          this.classList.add('input-error');
-          let errorMsg = this.parentNode.querySelector('.error-message');
-          if (!errorMsg) {
-            errorMsg = document.createElement('span');
-            errorMsg.className = 'error-message';
-            this.parentNode.appendChild(errorMsg);
-          }
-          errorMsg.textContent = '우편번호는 5자리 숫자여야 합니다.';
+      });
+
+      // 자동 포맷팅: 4자리만 입력한 경우 앞에 0 붙이기
+      postalCodeInput.addEventListener('blur', function() {
+        const value = this.value.trim();
+        if (value.length === 4 && /^\d{4}$/.test(value)) {
+          this.value = '0' + value;
         }
       });
     }
@@ -437,40 +277,30 @@
       });
     }
 
-    // --- 폼 제출 처리 ---
+    // 폼 제출 처리
+    const form = document.getElementById('orderForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
     if (form) {
       form.addEventListener('submit', function (e) {
         // 우편번호 유효성 검사
-        if (postalCodeInput && !Utils.validatePostalCode(postalCodeInput.value)) {
+        if (postalCodeInput && postalCodeInput.value.length !== 5) {
           e.preventDefault();
-          postalCodeInput.classList.add('input-error');
-          postalCodeInput.focus();
-          
-          let errorMsg = postalCodeInput.parentNode.querySelector('.error-message');
-          if (!errorMsg) {
-            errorMsg = document.createElement('span');
-            errorMsg.className = 'error-message';
-            postalCodeInput.parentNode.appendChild(errorMsg);
-          }
-          errorMsg.textContent = '우편번호는 5자리 숫자여야 합니다.';
-          
           Utils.alerts.showWarning('우편번호는 5자리 숫자로 입력해주세요.');
+          postalCodeInput.focus();
           return false;
         }
       
         // 로딩 상태 표시
         if (submitBtn) {
           submitBtn.disabled = true;
+          const isEdit = "{{ is_edit }}" === "True";
           submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${
-            isEditMode ? '저장 중...' : '등록 중...'
+            isEdit ? '저장 중...' : '등록 중...'
           }`;
         }
-        // 기본 Form 제출 사용 (JS fetch 제거됨)
       });
     }
-
-    // --- 초기화 실행 ---
-    initializeForm();
   });
 </script>
 {% endblock %}

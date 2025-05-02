@@ -275,48 +275,49 @@ async def create_handover_action(
     # Form 필드 snake_case
     title: str = Form(...),
     content: str = Form(...),
-    is_notice: Optional[bool] = Form(False),  # 체크박스는 값 없을 때 False
+    is_notice: str = Form("false"),  # 폼에서 체크박스 값을 "true"/"false" 문자열로 처리
 ):
     user_id = current_user.get("user_id")
     logger.info(f"인수인계 생성 API 요청: user={user_id}, title='{title}'")
 
-    create_url = request.url_for("handover_create_page")
-    list_url = request.url_for("handover_list_page")
-
     try:
-        if is_notice and current_user.get("user_role") != "ADMIN":
+        # 문자열 "true"/"false"를 불리언으로 변환
+        is_notice_bool = is_notice.lower() == "true"
+
+        # 관리자가 아니면 공지사항 생성 불가
+        if is_notice_bool and current_user.get("user_role") != "ADMIN":
             raise HTTPException(
-                status_code=403, detail="공지사항 생성 권한이 없습니다."
+                status_code=403, detail="관리자만 공지사항을 생성할 수 있습니다."
             )
 
-        # HandoverCreate 스키마 사용은 선택적 (여기서는 직접 전달)
-        new_handover = create_handover(
-            db=db,
+        handover_data = HandoverCreate(
             title=title,
             content=content,
-            is_notice=is_notice,
-            writer_id=user_id,
+            is_notice=is_notice_bool,
+            created_by=user_id,
         )
+
+        new_handover = create_handover(db=db, data=handover_data)
         success_message = quote("인수인계가 성공적으로 생성되었습니다.")
-        detail_url = request.url_for(
-            "handover_detail_page", handover_id=new_handover.handover_id
-        )
         return RedirectResponse(
-            f"{detail_url}?success={success_message}",
+            f"/handover/{new_handover.handover_id}?success={success_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
     except HTTPException as http_exc:
-        logger.warning(f"인수인계 생성 실패 (HTTPException): {http_exc.detail}")
+        # 권한 오류 등 예상된 오류 처리
+        logger.warning(f"인수인계 생성 API 오류: {http_exc.detail}")
         error_message = quote(http_exc.detail)
         return RedirectResponse(
-            f"{create_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
+            f"/handover/new?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )
     except Exception as e:
-        logger.error(f"인수인계 생성 API 오류: {e}", exc_info=True)
-        error_message = quote("인수인계 생성 중 서버 오류 발생")
+        logger.error(f"인수인계 생성 중 예외 발생: {e}", exc_info=True)
+        error_message = quote("인수인계 생성 중 오류가 발생했습니다.")
         return RedirectResponse(
-            f"{create_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
+            f"/handover/new?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )
 
 
@@ -330,73 +331,82 @@ async def update_handover_action(
     # Form 필드 snake_case
     title: str = Form(...),
     content: str = Form(...),
-    is_notice: Optional[bool] = Form(False),
+    is_notice: str = Form("false"),  # 폼에서 체크박스 값을 "true"/"false" 문자열로 처리
 ):
     user_id = current_user.get("user_id")
     user_role = current_user.get("user_role")
     logger.info(f"인수인계 수정 API 요청: id={handover_id}, user={user_id}")
 
-    detail_url = request.url_for("handover_detail_page", handover_id=handover_id)
-    edit_url = request.url_for("handover_edit_page", handover_id=handover_id)
-
-    # 락 획득 (서비스에서 분리)
-    lock_acquired = False
     try:
-        lock_success, lock_info = acquire_lock(db, "handover", handover_id, user_id)
-        if not lock_success:
-            raise HTTPException(
-                status_code=423,
-                detail=lock_info.get("message", "다른 사용자가 편집 중"),
-            )
-        lock_acquired = True
-
-        # 권한 확인 (공지사항 변경)
+        # 인수인계 존재 확인
         original_handover = get_handover_by_id(db, handover_id)
         if not original_handover:
-            raise HTTPException(status_code=404, detail="인수인계를 찾을 수 없습니다.")
-        if is_notice and not original_handover.is_notice and user_role != "ADMIN":
             raise HTTPException(
-                status_code=403, detail="공지사항 설정 권한이 없습니다."
+                status_code=404, detail="수정할 인수인계를 찾을 수 없습니다."
             )
 
-        # 서비스 호출 (HandoverUpdate 스키마 사용은 선택적)
-        updated_handover = update_handover(
-            db=db,
-            handover_id=handover_id,
-            title=title,
-            content=content,
-            is_notice=is_notice,
-            updated_by=user_id,
+        # 권한 확인 (작성자 또는 ADMIN만 수정 가능)
+        if user_id != original_handover.created_by and user_role != "ADMIN":
+            raise HTTPException(
+                status_code=403, detail="인수인계를 수정할 권한이 없습니다."
+            )
+
+        # 문자열 "true"/"false"를 불리언으로 변환
+        is_notice_bool = is_notice.lower() == "true"
+
+        # 일반 사용자가 공지사항으로 변경 시도하는 경우 방지
+        if is_notice_bool and not original_handover.is_notice and user_role != "ADMIN":
+            raise HTTPException(
+                status_code=403, detail="관리자만 공지사항으로 변경할 수 있습니다."
+            )
+
+        # 락 획득
+        lock_result = acquire_lock(
+            db, "handover", handover_id, user_id, timeout_mins=10
         )
+
+        if not lock_result.get("success"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"{lock_result.get('locked_by', '다른 사용자')}님이 이미 수정 중입니다.",
+            )
+
+        # 서비스 호출
+        update_data = {
+            "title": title,
+            "content": content,
+            "is_notice": is_notice_bool,
+        }
+
+        # 서비스 레이어 호출 (업데이트 수행)
+        update_handover(db, handover_id, update_data)
+        logger.info(f"인수인계 수정 완료 (커밋 전): ID {handover_id}")
+
+        # 락 해제 시도
+        release_lock(db, "handover", handover_id, user_id)
+
         success_message = quote("인수인계 정보가 성공적으로 수정되었습니다.")
         return RedirectResponse(
-            f"{detail_url}?success={success_message}",
+            f"/handover/{handover_id}?success={success_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
     except HTTPException as http_exc:
-        logger.warning(
-            f"인수인계 수정 실패 (HTTPException): id={handover_id}, {http_exc.detail}"
-        )
+        # HTTP 예외는 그대로 반환
+        logger.warning(f"인수인계 수정 API 오류: {http_exc.detail}")
         error_message = quote(http_exc.detail)
-        # 423 (Locked) 등 특정 오류는 상세 페이지로, 나머지는 수정 페이지로
-        redirect_url = detail_url if http_exc.status_code == 423 else edit_url
         return RedirectResponse(
-            f"{redirect_url}?error={error_message}",
+            f"/handover/{handover_id}?error={error_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
     except Exception as e:
-        logger.error(f"인수인계 수정 API 오류: {e}", exc_info=True)
-        error_message = quote("인수인계 수정 중 서버 오류 발생")
+        # 예상치 못한 오류 처리
+        logger.error(f"인수인계 수정 중 예외 발생: {str(e)}", exc_info=True)
+        error_message = quote("인수인계 수정 중 오류가 발생했습니다.")
         return RedirectResponse(
-            f"{edit_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
+            f"/handover/{handover_id}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )
-    finally:
-        if lock_acquired:
-            try:
-                release_lock(db, "handover", handover_id, user_id)
-            except Exception as lock_err:
-                logger.error(f"인수인계 수정 락 해제 실패: {lock_err}")
 
 
 @api_router.post("/{handover_id}/delete", status_code=status.HTTP_302_FOUND)

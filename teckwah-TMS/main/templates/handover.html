@@ -115,10 +115,10 @@
   </div>
 </div>
 {% endblock %} {% block page_js %} {# 초기 데이터를 script 태그 내 변수로 전달
-(JSON 문자열) #}
+(객체에서 tojson 필터로 변환) #}
 <script>
-  // JSON 문자열을 JavaScript 문자열 리터럴로 감싸서 할당
-  const initialHandoverDataJson = '{{ initial_data_json|safe }}';
+  // 안전한 JSON 변환을 위해 tojson 필터 사용
+  const initialData = {{ initial_data|tojson }};
 </script>
 
 <!-- 인수인계 스크립트 -->
@@ -156,30 +156,17 @@
       // URL 파라미터에서 알림 확인
       checkUrlParamsForNotifications();
 
-      let initialData = {};
-      try {
-        // 전역 변수 initialHandoverDataJson (문자열)을 파싱
-        initialData = JSON.parse(initialHandoverDataJson || '{}');
-      } catch (e) {
-        console.error('Failed to parse initial handover data JSON:', e);
-        console.error('Raw JSON string:', initialHandoverDataJson); // 원본 JSON 문자열 로깅
-        showError(
-          '페이지 초기 데이터 로딩 중 오류가 발생했습니다. 콘솔을 확인하세요.'
-        );
-        initialData = {}; // 오류 시 빈 객체로 초기화
-      }
-
-      // SSR 데이터로 첫 화면 렌더링 (인수인계 목록만)
+      // 객체에서 직접 초기 데이터 로드
       if (initialData && initialData.handovers && initialData.pagination) {
         allItems = initialData.handovers; // 초기 데이터는 인수인계만 있음 (is_notice=false)
-        totalItems = initialData.pagination.totalCount || 0; // 전체 개수 (인수인계 + 공지)
-        currentPage = initialData.pagination.page || 1;
+        totalItems = initialData.pagination.total_items || 0; // 전체 개수 (인수인계 + 공지)
+        currentPage = initialData.pagination.current_page || 1;
         console.log(
-          `Initial SSR data loaded: ${allItems.length} handovers, total(all): ${totalItems}`
+          `Initial data loaded: ${allItems.length} handovers, total(all): ${totalItems}`
         );
         applyFiltersAndRender(); // 초기 렌더링 (all 탭 기준, 페이지 1)
       } else {
-        console.warn('No initial SSR data found.');
+        console.warn('No initial data found.');
         handoverTableBody.innerHTML =
           renderEmptyRow('표시할 데이터가 없습니다.');
         updatePaginationUI();
