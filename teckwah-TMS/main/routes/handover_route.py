@@ -4,6 +4,7 @@
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from urllib.parse import quote
 from fastapi import (
     APIRouter,
     Depends,
@@ -231,8 +232,6 @@ async def handover_edit_page(
                 "get_handover_detail_page", handover_id=handover_id
             )
             # 쿼리 파라미터로 오류 메시지 전달 (URL 인코딩 필요)
-            from urllib.parse import quote
-
             redirect_url = f"{detail_page_url}?error={quote(error_message)}"
             return RedirectResponse(
                 url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
@@ -298,23 +297,21 @@ async def get_handover_list_api(
 
 @api_router.post("", status_code=status.HTTP_302_FOUND)  # 경로: /api/handover
 async def create_handover_form(
-    # request: Request, # Form 데이터 직접 받기
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),  # 사용자 정보 주입
+    current_user: Dict[str, Any] = Depends(get_current_user),
     title: str = Form(...),
     content: str = Form(...),
-    is_notice: bool = Form(False),
+    is_notice_str: Optional[str] = Form(None, alias="is_notice"),
 ):
     """설명서 3.4 (처리): 인수인계 생성 처리"""
-    # current_user = request.session.get("user") # Depends 사용
+    is_notice = is_notice_str == "on"
+
     logger.info(
         f"인수인계 생성 요청(Form): title='{title}', notice={is_notice}, user={current_user.get('user_id')}"
     )
     try:
-        if is_notice and current_user.get("role") != "ADMIN":
-            logger.warning(
-                f"권한 없는 공지사항 생성 시도: user={current_user.get('user_id')}"
-            )
+        if is_notice and current_user.get("user_role") != "ADMIN":
             raise HTTPException(
                 status_code=403, detail="공지사항 생성 권한이 없습니다."
             )
@@ -327,16 +324,30 @@ async def create_handover_form(
             writer_id=current_user.get("user_id"),
         )
         logger.info(f"인수인계 생성 성공(Form): id={new_handover.handover_id}")
-        # 성공 시 상세 페이지로 리다이렉트 (/handover/{id} 경로 사용)
+
+        success_message = quote("인수인계가 성공적으로 생성되었습니다.")
+        detail_url = request.url_for(
+            "get_handover_detail_page", handover_id=new_handover.handover_id
+        )
         return RedirectResponse(
-            url=f"/handover/{new_handover.handover_id}",
-            status_code=status.HTTP_302_FOUND,
+            url=f"{detail_url}?success={success_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )
     except HTTPException as http_exc:
-        raise http_exc
+        error_message = quote(http_exc.detail or "인수인계 생성 중 오류 발생")
+        create_url = request.url_for("handover_create_page")
+        return RedirectResponse(
+            url=f"{create_url}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
     except Exception as e:
         logger.error(f"인수인계 생성(Form) 오류: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="인수인계 생성 중 오류 발생")
+        error_message = quote("인수인계 생성 중 서버 오류 발생")
+        create_url = request.url_for("handover_create_page")
+        return RedirectResponse(
+            url=f"{create_url}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
 
 @api_router.post("/{handover_id}", status_code=status.HTTP_302_FOUND)
@@ -347,10 +358,14 @@ async def update_handover_form(
     current_user: Dict[str, Any] = Depends(get_current_user),
     title: str = Form(...),
     content: str = Form(...),
-    is_notice: bool = Form(False),
+    is_notice_str: Optional[str] = Form(
+        None, alias="is_notice"
+    ),  # str로 받고 None 허용
 ):
     """설명서 3.5: 인수인계 수정 처리"""
     from main.utils.lock import acquire_lock, release_lock
+
+    is_notice = is_notice_str == "on"  # 체크 시 'on' 값 확인
 
     user_id = current_user.get("user_id")
     user_role = current_user.get("user_role")

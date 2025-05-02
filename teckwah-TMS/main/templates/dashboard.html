@@ -245,6 +245,7 @@
       { key: 'customer', label: '고객', width: '10%', visible: true },
       { key: 'statusLabel', label: '상태', width: '10%', visible: true },
       { key: 'driverName', label: '배송기사', width: '12%', visible: true },
+      // { key: 'postalCode', label: '우편번호', width: '10%', visible: false }, // 우편번호 제거
     ];
     let visibleColumns = loadVisibleColumns();
 
@@ -507,6 +508,8 @@
       if (!dashboardTableHead) return;
       let headerHTML = '<tr>';
       columnDefinitions.forEach((col) => {
+        // 제거된 컬럼은 렌더링하지 않음
+        if (col.key === 'postalCode') return;
         if (visibleColumns[col.key]) {
           headerHTML += `<th width="${col.width}">${col.label}</th>`;
         }

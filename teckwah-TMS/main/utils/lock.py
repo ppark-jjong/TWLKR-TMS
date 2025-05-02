@@ -419,12 +419,17 @@ def _update_lock(
                 f"""
                 UPDATE {table_name}
                 SET is_locked = :is_locked, 
-                    update_by = NULL, 
-                    update_at = NULL
+                    update_by = :update_by, 
+                    update_at = :update_at
                 WHERE {table_name}_id = :row_id
             """
             )
-            params = {"is_locked": False, "row_id": row_id}
+            params = {
+                "is_locked": False,
+                "update_by": user_id,
+                "update_at": datetime.now(),
+                "row_id": row_id,
+            }
 
         # 쿼리 실행
         db.execute(query, params)

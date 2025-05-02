@@ -130,6 +130,20 @@
                   }}{% else %}-{% endif %}</span
                 >
               </div>
+              <div class="detail-item">
+                <span class="detail-label">거리</span>
+                <span class="detail-value"
+                  >{% if order.distance is not none %}{{ order.distance }} km{%
+                  else %}데이터 없음{% endif %}</span
+                >
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">예상 소요시간</span>
+                <span class="detail-value"
+                  >{% if order.durationTime is not none %}{{ order.durationTime
+                  }} 분{% else %}데이터 없음{% endif %}</span
+                >
+              </div>
             </div>
           </div>
         </div>
@@ -155,6 +169,13 @@
                 <span id="driverContactDisplay"
                   >{% if order.driverContact %}{{ order.driverContact }}{% else
                   %}-{% endif %}</span
+                >
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">지역</span>
+                <span class="detail-value"
+                  >{% if order.region %}{{ order.region }}{% else %}데이터
+                  없음{% endif %}</span
                 >
               </div>
               <div class="detail-item full-width">

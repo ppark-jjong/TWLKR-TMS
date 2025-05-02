@@ -7,6 +7,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import Any
 import logging
+from sqlalchemy import Column
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,10 @@ class CustomJSONEncoder(json.JSONEncoder):
     """
 
     def default(self, obj: Any) -> Any:
+        # SQLAlchemy Column 타입 처리
+        if isinstance(obj, Column):
+            return str(obj)
+
         # Decimal 타입 처리
         if isinstance(obj, Decimal):
             return float(obj)

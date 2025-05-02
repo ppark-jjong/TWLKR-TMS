@@ -24,6 +24,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import Column
 
 from main.core.templating import templates
 from main.utils.database import get_db
@@ -49,7 +50,9 @@ from main.service.dashboard_service import (
     get_lock_status,
     get_dashboard_list_paginated,
     get_dashboard_response_data,
+    get_dashboard_list_item_data,
 )
+from main.utils.json_util import CustomJSONEncoder
 
 # 로깅 설정
 logging.basicConfig(
@@ -68,6 +71,83 @@ api_router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 page_router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
+# 안전한 JSON 직렬화 함수
+def safe_json_dumps(obj: Any) -> str:
+    """
+    안전한 JSON 직렬화를 수행하는 함수.
+    어떤 객체든 직렬화에 실패하면 문자열로 변환하여 에러를 방지함.
+    """
+    try:
+        return json.dumps(obj, cls=CustomJSONEncoder)
+    except TypeError as e:
+        logger.warning(f"기본 JSON 직렬화 실패: {str(e)}")
+
+        # 딕셔너리인 경우 각 필드를 안전하게 변환
+        if isinstance(obj, dict):
+            safe_dict = {}
+            for key, value in obj.items():
+                # SQLAlchemy Column 객체는 문자열로 변환
+                if isinstance(value, Column):
+                    safe_dict[key] = str(value)
+                # 리스트는 각 요소를 재귀적으로 처리
+                elif isinstance(value, list):
+                    safe_dict[key] = [safe_json_object(item) for item in value]
+                # 딕셔너리도 재귀적으로 처리
+                elif isinstance(value, dict):
+                    safe_dict[key] = safe_json_object(value)
+                # 일반 객체는 __dict__ 처리 시도
+                elif hasattr(value, "__dict__"):
+                    try:
+                        safe_dict[key] = value.__dict__
+                    except:
+                        safe_dict[key] = str(value)
+                # 그 외 문자열로 변환
+                else:
+                    safe_dict[key] = str(value)
+
+            # 안전하게 변환된 딕셔너리로 다시 시도
+            try:
+                return json.dumps(safe_dict, cls=CustomJSONEncoder)
+            except:
+                return json.dumps(str(obj))
+
+        # 리스트인 경우 각 요소를 안전하게 변환
+        elif isinstance(obj, list):
+            try:
+                safe_list = [safe_json_object(item) for item in obj]
+                return json.dumps(safe_list, cls=CustomJSONEncoder)
+            except:
+                return json.dumps(str(obj))
+
+        # 그 외 문자열로 변환
+        return json.dumps(str(obj))
+
+
+def safe_json_object(obj: Any) -> Any:
+    """객체를 JSON 직렬화 가능한 형태로 변환"""
+    if isinstance(obj, dict):
+        return {k: safe_json_object(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [safe_json_object(item) for item in obj]
+    elif isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, Column):
+        return str(obj)
+    elif hasattr(obj, "__dict__") and not isinstance(obj, type):
+        try:
+            return {
+                k: safe_json_object(v)
+                for k, v in obj.__dict__.items()
+                if not k.startswith("_")
+            }
+        except:
+            return str(obj)
+    else:
+        return obj
+
+
 # 공통 응답 생성 유틸리티
 def create_response(
     success: bool, message: str, data: Any = None, status_code: int = 200
@@ -79,39 +159,6 @@ def create_response(
     if data is not None:
         response["data"] = data
     return response
-
-
-# 데이터 변환 및 직렬화 유틸리티
-class EnhancedJSONEncoder(json.JSONEncoder):
-    """
-    개선된 JSON 직렬화 핸들러
-    """
-
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        if hasattr(obj, "__dict__"):
-            # 순환 참조 방지를 위해 postal_code_obj 제외
-            obj_dict = obj.__dict__.copy()
-            if "_sa_instance_state" in obj_dict:
-                del obj_dict["_sa_instance_state"]
-            if "postal_code_obj" in obj_dict:
-                del obj_dict["postal_code_obj"]
-            return obj_dict
-        return super().default(obj)
-
-
-def safe_serialize(data: Any) -> Any:
-    """
-    안전한 데이터 직렬화
-    """
-    try:
-        return json.loads(json.dumps(data, cls=EnhancedJSONEncoder))
-    except Exception as e:
-        logger.error(f"직렬화 오류: {e}")
-        return None
 
 
 # 공통 에러 핸들러
@@ -160,68 +207,89 @@ async def get_dashboard_page(
         logger.debug(
             f"get_dashboard_list_paginated 호출: start={initial_start_date}, end={initial_end_date}, page={initial_page}, size={initial_page_size}"
         )
-        orders, pagination_info = get_dashboard_list_paginated(
-            db=db,
-            start_date=initial_start_date,
-            end_date=initial_end_date,
-            page=initial_page,
-            page_size=initial_page_size,
-        )
-        logger.info(
-            f"초기 데이터 로드 완료: {len(orders)}건 (페이지 {initial_page}/{pagination_info.get('totalPages', 0)})"
-        )
 
-        # JSON 직렬화 전에 current_user에서 필요한 정보만 추출
+        # 서비스에서 페이지네이션된 결과 가져오기
+        try:
+            orders, pagination_info = get_dashboard_list_paginated(
+                db=db,
+                start_date=initial_start_date,
+                end_date=initial_end_date,
+                page=initial_page,
+                page_size=initial_page_size,
+            )
+
+            # 키 이름 통일 (클라이언트에서 사용하는 camelCase로)
+            standardized_pagination = {
+                "totalItems": pagination_info.get("total", 0),
+                "totalPages": pagination_info.get("total_pages", 0),
+                "currentPage": pagination_info.get("current", 1),
+                "pageSize": pagination_info.get("page_size", initial_page_size),
+            }
+
+            logger.info(
+                f"초기 데이터 로드 완료: {len(orders)}건 (페이지 {standardized_pagination['currentPage']}/{standardized_pagination['totalPages']})"
+            )
+        except Exception as fetch_err:
+            logger.error(f"주문 데이터 로드 실패: {str(fetch_err)}", exc_info=True)
+            orders = []
+            standardized_pagination = {
+                "totalItems": 0,
+                "totalPages": 0,
+                "currentPage": 1,
+                "pageSize": initial_page_size,
+            }
+            error_message = "주문 데이터를 로드하는 중 오류가 발생했습니다."
+
+        # 현재 사용자 정보 추출 (템플릿에서 사용)
         user_data = {
             "user_id": current_user.get("user_id"),
             "user_role": current_user.get("user_role"),
             "department": current_user.get("department"),
         }
 
-        # 주문 객체 안전하게 직렬화
-        try:
-            orders_for_template = []
-            for order in orders:
-                order_data = get_dashboard_response_data(order, False)
+        # 주문 목록 안전하게 변환
+        orders_for_template = []
+        for order in orders:
+            try:
+                # 서비스 함수로 변환 (SQLAlchemy 객체 -> 딕셔너리)
+                order_data = get_dashboard_list_item_data(order)
                 orders_for_template.append(order_data)
-        except Exception as e:
-            logger.error(f"주문 데이터 변환 중 오류: {e}", exc_info=True)
-            orders_for_template = []
+            except Exception as e:
+                logger.error(
+                    f"주문 데이터(ID: {getattr(order, 'dashboard_id', 'N/A')}) 변환 중 오류: {e}",
+                    exc_info=True,
+                )
+                # 오류 발생 시 기본 정보만 추가
+                try:
+                    minimal_data = {
+                        "dashboardId": getattr(order, "dashboard_id", "오류"),
+                        "orderNo": getattr(order, "order_no", "변환 오류"),
+                        "error": True,
+                    }
+                    orders_for_template.append(minimal_data)
+                except:
+                    logger.error("최소 주문 정보 추출 실패", exc_info=True)
+                continue
 
+        # 클라이언트 초기 데이터 객체 생성
         initial_data_object = {
             "orders": orders_for_template,
-            "pagination": pagination_info,
+            "pagination": standardized_pagination,
             "start_date": initial_start_date.isoformat(),
             "end_date": initial_end_date.isoformat(),
             "error_message": error_message,
-            "current_user": user_data,  # 단순화된 유저 데이터
+            "current_user": user_data,
         }
 
-        try:
-            # 안전하게 직렬화 시도
-            initial_data_json_str = json.dumps(
-                initial_data_object, cls=EnhancedJSONEncoder
-            )
-        except ValueError as ve:
-            if "Circular reference detected" in str(ve):
-                logger.warning("직렬화 중 순환 참조 감지, fallback 방식으로 시도")
-                # 직접 안전한 방식으로 직렬화
-                sanitized_data = {
-                    "orders": orders_for_template,
-                    "pagination": pagination_info,
-                    "start_date": initial_start_date.isoformat(),
-                    "end_date": initial_end_date.isoformat(),
-                    "error_message": error_message,
-                    "current_user": user_data,
-                }
-                initial_data_json_str = json.dumps(sanitized_data)
-            else:
-                raise
+        # 안전한 JSON 변환 사용
+        initial_data_json_str = safe_json_dumps(initial_data_object)
 
+        # 템플릿 컨텍스트 구성
         context = {
             "request": request,
             "initial_data_object": initial_data_object,
-            "current_user": current_user,
+            "initial_data_json": initial_data_json_str,
+            "current_user": user_data,
         }
 
         return templates.TemplateResponse("dashboard.html", context)
@@ -247,11 +315,10 @@ async def get_dashboard_list_api(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    대시보드 목록 조회 API (JSON) - 날짜 범위 전체 조회
-    최적화된 데이터 로드 및 변환. 페이지네이션 없음.
+    대시보드 목록 조회 API (JSON) - 날짜 범위 전체 조회 (목록 최적화)
     """
     logger.info(
-        f"대시보드 목록 조회 API 호출: startDate={start_date}, endDate={end_date}, user={current_user.get('user_id')}"
+        f"대시보드 목록 API 호출: startDate={start_date}, endDate={end_date}, user={current_user.get('user_id')}"
     )
     try:
         if start_date is None or end_date is None:
@@ -264,6 +331,7 @@ async def get_dashboard_list_api(
             logger.warning(
                 f"잘못된 날짜 범위: 시작일({start_date}) > 종료일({end_date})"
             )
+            # 빈 데이터 반환 (DashboardListResponse 스키마 준수)
             return DashboardListResponse(
                 success=True,
                 message="잘못된 날짜 범위입니다. 시작일은 종료일보다 빠르거나 같아야 합니다.",
@@ -275,9 +343,8 @@ async def get_dashboard_list_api(
             f"{start_date} ~ {end_date} 범위 데이터 {len(all_orders)}건 조회 완료"
         )
 
-        orders_data = [
-            get_dashboard_response_data(order, False) for order in all_orders
-        ]
+        # 목록용 데이터로 변환 (get_dashboard_list_item_data 사용)
+        orders_data = [get_dashboard_list_item_data(order) for order in all_orders]
 
         return DashboardListResponse(
             success=True, message="주문 목록 조회 성공", data=orders_data
@@ -390,21 +457,30 @@ async def order_create_page(
     logger.info(f"order_create_page 시작: 사용자={current_user.get('user_id')}")
     try:
         logger.debug("템플릿 렌더링 시작: order_form.html")
+
+        user_data = {
+            "user_id": current_user.get("user_id"),
+            "user_role": current_user.get("user_role"),
+            "department": current_user.get("department"),
+        }
+
         initial_data_obj = {
             "is_edit": False,
             "order": None,
-            "current_user": current_user,  # JS에서도 사용 가능하도록 추가
+            "current_user": user_data,
         }
-        initial_data_json_str = json.dumps(initial_data_obj, cls=EnhancedJSONEncoder)
+
+        initial_data_json_str = json.dumps(initial_data_obj)
+
         logger.info("order_create_page 완료: 결과=성공")
         return templates.TemplateResponse(
             "order_form.html",
             {
                 "request": request,
-                "current_user": current_user,
+                "current_user": user_data,
                 "initial_data_json": initial_data_json_str,
-                "is_edit": False,  # 템플릿에서 직접 사용
-                "order": None,  # 템플릿에서 직접 사용
+                "is_edit": False,
+                "order": None,
             },
         )
     except Exception as e:
@@ -446,16 +522,20 @@ async def order_detail_page(
         lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
         is_editable = lock_status.get("editable", False)
 
-        # 응답 데이터 가공 (get_dashboard_response_data 사용)
         order_data = get_dashboard_response_data(order, is_editable)
+        user_data = {
+            "user_id": current_user.get("user_id"),
+            "user_role": current_user.get("user_role"),
+            "department": current_user.get("department"),
+        }
 
-        # JS에서 사용할 데이터 객체
         page_data_obj = {
             "order": order_data,
-            "lock_status": lock_status,  # editable 정보 외 추가 정보 포함 가능성
-            "current_user": current_user,
+            "lock_status": lock_status,
+            "current_user": user_data,
         }
-        page_data_json_str = json.dumps(page_data_obj, cls=EnhancedJSONEncoder)
+
+        page_data_json_str = json.dumps(page_data_obj)
 
         logger.debug(f"템플릿 렌더링 시작: order_page.html, 주문={order.order_no}")
         logger.info(f"order_detail_page 완료: 결과=성공, 주문={order.order_no}")
@@ -463,7 +543,7 @@ async def order_detail_page(
             "order_page.html",
             {
                 "request": request,
-                "current_user": current_user,
+                "current_user": user_data,
                 "order": order_data,
                 "page_data_json": page_data_json_str,
             },
@@ -522,22 +602,29 @@ async def order_edit_page(
         # 락이 없거나 내가 소유 -> 수정 페이지 렌더링
         order_data = get_dashboard_response_data(order, True)
 
+        # JSON 직렬화 전에 current_user에서 필요한 정보만 추출
+        user_data = {
+            "user_id": current_user.get("user_id"),
+            "user_role": current_user.get("user_role"),
+            "department": current_user.get("department"),
+        }
+
         initial_data_obj = {
             "is_edit": True,
             "order": order_data,
-            "current_user": current_user,
+            "current_user": user_data,
         }
-        initial_data_json_str = json.dumps(initial_data_obj, cls=EnhancedJSONEncoder)
+
+        initial_data_json_str = json.dumps(initial_data_obj)
 
         context = {
             "request": request,
-            "current_user": current_user,
+            "current_user": user_data,
             "initial_data_json": initial_data_json_str,
             "is_edit": True,
             "order": order_data,
         }
         return templates.TemplateResponse("order_form.html", context)
-
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
@@ -810,8 +897,3 @@ async def delete_order_action(
             url=f"{detail_url}?error={error_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
-
-
-# === 불필요 라우터 제거 확인 ===
-# - 상태 변경 API (/api/orders/{id}/status) -> update_order_action 에 통합됨
-# - 기사 배정 API (/api/orders/{id}/driver) -> update_order_action 에 통합됨

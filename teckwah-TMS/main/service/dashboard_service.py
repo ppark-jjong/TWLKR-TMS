@@ -19,6 +19,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# 전역 변수로 status_labels, type_labels 정의 (get_dashboard_response_data 와 공유)
+status_labels = {
+    "WAITING": "대기",
+    "IN_PROGRESS": "진행",
+    "COMPLETE": "완료",
+    "ISSUE": "이슈",
+    "CANCEL": "취소",
+}
+type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
+
 
 def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
     """ID로 주문 조회"""
@@ -40,90 +50,71 @@ def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
 def get_dashboard_response_data(
     order: Dashboard, is_editable: bool = False
 ) -> Dict[str, Any]:
-    """주문 정보를 응답 형식으로 변환"""
-    logger.info(f"응답 데이터 변환: order_id={order.dashboard_id}")
+    """주문 정보를 응답 형식(딕셔너리)으로 안전하게 변환"""
+    logger.info(f"응답 데이터 변환 시작: order_id={order.dashboard_id}")
 
-    status_labels = {
-        "WAITING": "대기",
-        "IN_PROGRESS": "진행",
-        "COMPLETE": "완료",
-        "ISSUE": "이슈",
-        "CANCEL": "취소",
+    # 필요한 필드만 명시적으로 추출하여 새 딕셔너리 생성
+    # 순환 참조 유발 가능성 있는 SQLAlchemy 내부 상태나 관계 객체 제외
+    response_data = {
+        "dashboardId": order.dashboard_id,
+        "orderNo": order.order_no,
+        "type": order.type,
+        "status": order.status,
+        "department": order.department,
+        "warehouse": order.warehouse,
+        "sla": order.sla,
+        "eta": order.eta.isoformat() if order.eta else None,  # datetime -> ISO 문자열
+        "createTime": order.create_time.isoformat() if order.create_time else None,
+        "departTime": order.depart_time.isoformat() if order.depart_time else None,
+        "completeTime": (
+            order.complete_time.isoformat() if order.complete_time else None
+        ),
+        "postalCode": order.postal_code,
+        "address": order.address,
+        "customer": order.customer,
+        "contact": order.contact,
+        "driverName": order.driver_name,
+        "driverContact": order.driver_contact,
+        "updatedBy": order.update_by,
+        "remark": order.remark,
+        "updateAt": order.update_at.isoformat() if order.update_at else None,
+        "isLocked": order.is_locked,
+        # 추가 필드
+        "city": getattr(order, "city", ""),
+        "county": getattr(order, "county", ""),
+        "district": getattr(order, "district", ""),
+        "region": getattr(order, "region", ""),
+        "distance": getattr(order, "distance", None),
+        "durationTime": getattr(order, "duration_time", None),  # DB 컬럼명 사용
+        # 라벨 정보 추가
+        "statusLabel": status_labels.get(order.status, order.status),
+        "typeLabel": type_labels.get(order.type, order.type),
+        # 편집 가능 여부
+        "editable": is_editable,
     }
-    type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
-    try:
-        # 순환 참조 방지를 위해 postal_code_obj 속성 제외
-        order_dict = order.__dict__.copy()
-        if "postal_code_obj" in order_dict:
-            del order_dict["postal_code_obj"]
+    logger.info(f"응답 데이터 변환 완료: order_id={order.dashboard_id}")
+    return response_data
 
-        # 기본 필수 필드
-        response_data = {
-            "dashboardId": order.dashboard_id,
-            "orderNo": order.order_no,
-            "type": order.type,
-            "status": order.status,
-            "department": order.department,
-            "warehouse": order.warehouse,
-            "sla": order.sla,
-            "eta": order.eta,
-            "createTime": order.create_time,
-            "departTime": order.depart_time,
-            "completeTime": order.complete_time,
-            "postalCode": order.postal_code,
-            "address": order.address,
-            "customer": order.customer,
-            "contact": order.contact,
-            "driverName": order.driver_name,
-            "driverContact": order.driver_contact,
-            "updatedBy": order.update_by,
-            "remark": order.remark,
-            "updateAt": order.update_at,
-            "isLocked": order.is_locked,
-            "statusLabel": status_labels.get(order.status, order.status),
-            "typeLabel": type_labels.get(order.type, order.type),
-            "editable": is_editable,
-        }
 
-        # 선택적 필드들은 getattr로 안전하게 접근
-        optional_fields = [
-            "city",
-            "county",
-            "district",
-            "region",
-            "distance",
-            "durationTime",
-        ]
-
-        for field in optional_fields:
-            # 스네이크 케이스에서 카멜 케이스로 변환 (duration_time -> durationTime)
-            db_field = "duration_time" if field == "durationTime" else field
-            value = getattr(order, db_field, None)
-            if field in ["city", "county", "district", "region"] and (
-                value is None or value == ""
-            ):
-                response_data[field] = ""
-            else:
-                response_data[field] = value
-
-        return response_data
-
-    except Exception as e:
-        logger.error(f"응답 데이터 생성 중 오류: {str(e)}", exc_info=True)
-        # 최소한의 필수 필드만 포함
-        return {
-            "dashboardId": order.dashboard_id,
-            "orderNo": order.order_no,
-            "type": order.type,
-            "status": order.status,
-            "department": order.department,
-            "warehouse": order.warehouse,
-            "region": "",
-            "statusLabel": status_labels.get(order.status, order.status),
-            "typeLabel": type_labels.get(order.type, order.type),
-            "editable": is_editable,
-        }
+def get_dashboard_list_item_data(order: Dashboard) -> Dict[str, Any]:
+    """주문 목록 아이템에 필요한 최소 정보만 반환"""
+    return {
+        "dashboardId": order.dashboard_id,
+        "orderNo": order.order_no,
+        "type": order.type,
+        "department": order.department,
+        "warehouse": order.warehouse,
+        "sla": order.sla,
+        "region": getattr(order, "region", ""),
+        "eta": order.eta.isoformat() if order.eta else None,
+        "customer": order.customer,
+        "status": order.status,
+        "driverName": order.driver_name,
+        # 라벨 추가 (목록에서도 필요할 수 있음)
+        "statusLabel": status_labels.get(order.status, order.status),
+        "typeLabel": type_labels.get(order.type, order.type),
+    }
 
 
 def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]:
@@ -199,11 +190,20 @@ def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashbo
             db.query(PostalCode).filter(PostalCode.postal_code == postal_code).first()
         )
         if not postal_exists:
-            new_postal = PostalCode(
-                postal_code=postal_code, city=None, county=None, district=None
-            )
-            db.add(new_postal)
-            db.flush()
+            # 존재하지 않는 우편번호인 경우 기본 데이터 생성 - city, county, district는 None으로 설정
+            try:
+                new_postal = PostalCode(
+                    postal_code=postal_code, city=None, county=None, district=None
+                )
+                db.add(new_postal)
+                db.flush()
+                logger.info(
+                    f"존재하지 않는 우편번호 {postal_code}에 대해 새 레코드 생성"
+                )
+            except Exception as e:
+                logger.warning(f"우편번호 {postal_code} 레코드 생성 실패: {str(e)}")
+                # 실패해도 주문 생성은 계속 진행
+                pass
 
         # 주문 모델 생성 - region 필드 제외 (데이터베이스에서 자동 생성됨)
         order_data = {
@@ -233,11 +233,27 @@ def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashbo
         if hasattr(order, "region"):
             order.region = None
 
-        db.add(order)
-        db.flush()
+        try:
+            db.add(order)
+            db.flush()
 
-        logger.info(f"주문 생성 완료: ID {order.dashboard_id}")
-        return order
+            logger.info(f"주문 생성 완료: ID {order.dashboard_id}")
+            return order
+        except SQLAlchemyError as db_err:
+            # 'region' 컬럼 관련 오류일 경우 무시하고 진행
+            if "region" in str(db_err):
+                logger.warning(f"region 컬럼 오류 무시 - {str(db_err)}")
+                db.rollback()
+                # region 필드를 제외하고 다시 시도
+                if "region" in order_data:
+                    del order_data["region"]
+                order = Dashboard(**order_data)
+                db.add(order)
+                db.flush()
+                return order
+            else:
+                # 다른 DB 오류는 재발생
+                raise
 
     except SQLAlchemyError as e:
         db.rollback()
@@ -303,10 +319,24 @@ def update_dashboard(
                     .first()
                 )
                 if not postal_exists:
-                    new_postal = PostalCode(
-                        postal_code=postal_code, city=None, county=None, district=None
-                    )
-                    db.add(new_postal)
+                    try:
+                        new_postal = PostalCode(
+                            postal_code=postal_code,
+                            city=None,
+                            county=None,
+                            district=None,
+                        )
+                        db.add(new_postal)
+                        db.flush()
+                        logger.info(
+                            f"존재하지 않는 우편번호 {postal_code}에 대해 새 레코드 생성"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"우편번호 {postal_code} 레코드 생성 실패: {str(e)}"
+                        )
+                        # 실패해도 주문 수정은 계속 진행
+                        pass
 
         # 모델 필드 업데이트
         for key, value in update_data.items():
@@ -321,10 +351,27 @@ def update_dashboard(
                 f"주문 정보 업데이트: ID={dashboard_id}, 필드={list(update_data.keys())}"
             )
 
-        db.commit()
-        db.refresh(order)
-        logger.info(f"주문 업데이트 완료: ID {dashboard_id}")
-        return order
+        try:
+            db.commit()
+            db.refresh(order)
+            logger.info(f"주문 업데이트 완료: ID {dashboard_id}")
+            return order
+        except SQLAlchemyError as db_err:
+            # 'region' 컬럼 관련 오류일 경우 무시하고 진행
+            if "region" in str(db_err):
+                logger.warning(f"region 컬럼 오류 무시 - {str(db_err)}")
+                db.rollback()
+
+                # 첫번째 시도 실패 후에는 region 필드를 제외
+                if hasattr(order, "region"):
+                    order.region = None
+
+                db.commit()
+                db.refresh(order)
+                return order
+            else:
+                # 다른 DB 오류는 재발생
+                raise
 
     except HTTPException as http_exc:
         db.rollback()
@@ -365,13 +412,6 @@ def change_status(
         List[Dict[str, Any]]: 상태 변경 결과 목록
     """
     results = []
-    status_mapping = {
-        "WAITING": "대기",
-        "IN_PROGRESS": "진행",
-        "COMPLETE": "완료",
-        "ISSUE": "이슈",
-        "CANCEL": "취소",
-    }
 
     for dashboard_id in dashboard_ids:
         try:
@@ -509,9 +549,9 @@ def change_status(
 
             # 결과 추가
             if is_rollback:
-                message = f"상태 롤백 완료: {status_mapping.get(old_status)} → {status_mapping.get(new_status)}"
+                message = f"상태 롤백 완료: {status_labels.get(old_status)} → {status_labels.get(new_status)}"
             else:
-                message = f"상태 변경 완료: {status_mapping.get(old_status)} → {status_mapping.get(new_status)}"
+                message = f"상태 변경 완료: {status_labels.get(old_status)} → {status_labels.get(new_status)}"
 
             results.append(
                 {

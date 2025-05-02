@@ -147,10 +147,14 @@
     let totalItems = 0;
     let totalPages = 1;
     let initialLoadComplete = false;
+    let currentFilter = 'all'; // 필터 변수 추가
 
     // --- 초기화 함수 ---
     function initHandover() {
       showLoading();
+
+      // URL 파라미터에서 알림 확인
+      checkUrlParamsForNotifications();
 
       let initialData = {};
       try {
@@ -250,13 +254,11 @@
     // 현재 필터 및 페이지 상태에 따라 테이블 렌더링
     function applyFiltersAndRender() {
       const selectedType = typeFilter.value;
+      currentFilter = selectedType; // typeFilter 값으로 currentFilter 업데이트
       console.log(
         `Applying filter '${selectedType}' and rendering page ${currentPage}`
       );
 
-      console.log(
-        `Applying filter '${currentFilter}' and rendering page ${currentPage}`
-      );
       // 1. 필터 적용 (탭 기준)
       filteredItems = allItems.filter((item) => {
         if (currentFilter === 'all') return true;
@@ -366,16 +368,11 @@
 
     // --- 이벤트 리스너 설정 ---
     function setupEventListeners() {
-      // 탭 클릭 (필터 변경)
-      handoverTabs?.addEventListener('click', (e) => {
-        const tabButton = e.target.closest('.tab');
-        if (tabButton) {
-          handoverTabs.querySelector('.active')?.classList.remove('active');
-          tabButton.classList.add('active');
-          currentFilter = tabButton.dataset.filter;
-          currentPage = 1; // 필터 변경 시 첫 페이지로
-          applyFiltersAndRender();
-        }
+      // 필터 변경 이벤트
+      typeFilter?.addEventListener('change', () => {
+        currentFilter = typeFilter.value;
+        currentPage = 1; // 필터 변경 시 첫 페이지로
+        applyFiltersAndRender();
       });
 
       // 페이지네이션 버튼
@@ -407,6 +404,54 @@
           }
         }
       });
+    }
+
+    // URL 파라미터에서 알림 확인
+    function checkUrlParamsForNotifications() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let shouldReload = false; // 새로고침 플래그
+
+      // 성공, 에러, 경고 메시지 처리
+      if (urlParams.has('success')) {
+        const message = decodeURIComponent(urlParams.get('success'));
+        if (Utils && Utils.alerts) {
+          Utils.alerts.showSuccess(message);
+          shouldReload = true; // 성공 시 새로고침 플래그 설정
+        } else {
+          alert('성공: ' + message);
+        }
+      }
+
+      if (urlParams.has('error')) {
+        const message = decodeURIComponent(urlParams.get('error'));
+        if (Utils && Utils.alerts) {
+          Utils.alerts.showError(message);
+        } else {
+          alert('오류: ' + message);
+        }
+      }
+
+      if (urlParams.has('warning')) {
+        const message = decodeURIComponent(urlParams.get('warning'));
+        if (Utils && Utils.alerts) {
+          Utils.alerts.showWarning(message);
+        } else {
+          alert('경고: ' + message);
+        }
+      }
+
+      // 처리 후 URL에서 파라미터 제거
+      if (shouldReload || urlParams.has('error') || urlParams.has('warning')) {
+        const cleanUrl = window.location.pathname;
+        history.replaceState({}, document.title, cleanUrl);
+
+        // 성공 메시지가 있었으면 잠시 후 페이지 새로고침
+        if (shouldReload) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 500); // 0.5초 후 새로고침 (알림 표시 시간 고려)
+        }
+      }
     }
 
     // --- 초기화 실행 ---

@@ -74,23 +74,24 @@
   /* border-top 제거 (상단 행에서 이미 구분선 있음) */
 }
 
-.left-actions, .right-actions {
+.left-actions,
+.right-actions {
   display: flex;
   gap: var(--spacing-sm);
 }
 
 /* 행 개수 선택 (대시보드와 동일 스타일 재사용 고려) */
 .filter-item.rows-per-page label {
-    margin-right: 5px;
+  margin-right: 5px;
 }
 .filter-item.rows-per-page select {
-    min-width: 80px;
-    padding: 6px 10px;
-    border: 1px solid var(--border-color-dark);
-    border-radius: var(--border-radius-sm);
-    font-size: var(--font-size-sm);
-    color: var(--text-color);
-    background-color: white;
+  min-width: 80px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color-dark);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
+  background-color: white;
 }
 
 /* 테이블 영역 - 스크롤 적용 */
@@ -199,17 +200,19 @@
 }
 
 /* 인수인계 목록 테이블 스타일 */
-.handover-row, .notice-row {
+.handover-row,
+.notice-row {
   transition: background-color var(--transition-fast);
 }
 
-.handover-row:hover, .notice-row:hover {
+.handover-row:hover,
+.notice-row:hover {
   background-color: var(--background-color-hover);
 }
 
 /* 공지사항 행 강조 (선택적) */
 .notice-row {
-  /* background-color: rgba(215, 37, 25, 0.05); */ 
+  /* background-color: rgba(215, 37, 25, 0.05); */
   font-weight: 500; /* 약간 굵게 */
 }
 
@@ -339,4 +342,27 @@
 
 .handover-form {
   padding: var(--spacing-lg);
+}
+
+/* 체크박스 컨테이너 */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--spacing-md);
+}
+
+.checkbox-container input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-color, #d72519); /* 기본 테마 색상 적용 */
+  margin: 0; /* 기본 마진 제거 */
+}
+
+.checkbox-container label {
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
+  margin: 0; /* 기본 마진 제거 */
+  cursor: pointer;
 }
