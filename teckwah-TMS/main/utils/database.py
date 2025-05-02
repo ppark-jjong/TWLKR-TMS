@@ -7,6 +7,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 import logging
+from functools import wraps
+from fastapi import Depends
 
 from main.utils.config import get_settings
 
@@ -96,3 +98,39 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
         logger.info(f"DB 세션 종료 [세션ID: {session_id}]")
+
+
+# 트랜잭션 관리 데코레이터
+def db_transaction(func):
+    """
+    API 엔드포인트 함수에 적용하여 DB 트랜잭션을 자동으로 관리하는 데코레이터.
+    함수 실행 성공 시 커밋, 예외 발생 시 롤백.
+    `db: Session = Depends(get_db)` 파라미터를 함수 시그니처에 포함해야 함.
+    """
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        # 함수 인자에서 db 세션 찾기
+        db = kwargs.get("db")
+        if not db:
+            # Depends로 주입되지 않은 경우 예외 발생
+            raise ValueError(
+                "db_transaction 데코레이터는 'db: Session = Depends(get_db)' 인자가 필요합니다."
+            )
+
+        try:
+            result = await func(*args, **kwargs)
+            db.commit()  # 명시적 커밋
+            logger.debug(f"DB 트랜잭션 커밋 (데코레이터): 함수 {func.__name__}")
+            return result
+        except Exception as e:
+            db.rollback()  # 명시적 롤백
+            logger.error(
+                f"DB 트랜잭션 롤백 (데코레이터): 함수 {func.__name__}, 오류: {str(e)}",
+                exc_info=True,
+            )
+            # 원래 예외를 다시 발생시켜 FastAPI 에러 핸들러가 처리하도록 함
+            raise e
+        # finally 블록은 get_db() 에서 세션 close를 처리하므로 여기서는 불필요
+
+    return wrapper

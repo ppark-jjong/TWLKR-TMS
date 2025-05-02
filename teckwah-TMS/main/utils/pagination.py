@@ -42,14 +42,14 @@ def paginate_query(
         # 쿼리에 페이지네이션 적용하여 결과 가져오기
         items = query.offset(offset).limit(page_size).all() if total_items > 0 else []
 
-        # 페이지네이션 메타데이터 구성
+        # 페이지네이션 메타데이터 구성 (라우터와 키 이름 통일)
         pagination = {
-            "total": total_items,
+            "total_items": total_items,
             "page_size": page_size,
-            "current": page,
+            "current_page": page,
             "total_pages": total_pages,
-            "start": offset + 1 if total_items > 0 else 0,
-            "end": min(offset + page_size, total_items) if total_items > 0 else 0,
+            "start_index": offset + 1 if total_items > 0 else 0,
+            "end_index": min(offset + page_size, total_items) if total_items > 0 else 0,
         }
 
         return items, pagination
@@ -60,14 +60,14 @@ def paginate_query(
             f"페이지네이션 처리 중 오류 발생: {str(e)}"
         )
 
-        # 오류 발생 시 안전한 기본값 반환
+        # 오류 발생 시 안전한 기본값 반환 (키 이름 통일)
         fallback_pagination = {
-            "total": 0,
+            "total_items": 0,
             "page_size": page_size,
-            "current": 1,
+            "current_page": 1,
             "total_pages": 1,
-            "start": 0,
-            "end": 0,
+            "start_index": 0,
+            "end_index": 0,
         }
         return [], fallback_pagination
 

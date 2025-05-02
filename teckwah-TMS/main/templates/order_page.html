@@ -113,7 +113,7 @@
               <div class="detail-item">
                 <span class="detail-label">생성 시간</span>
                 <span class="detail-value"
-                  >{{ order.createTime|datetime }}</span
+                  >{{ order.create_time|datetime }}</span
                 >
               </div>
               <div class="detail-item">
@@ -214,12 +214,12 @@
           <div class="update-item">
             <i class="fa-solid fa-clock-rotate-left"></i>
             <span class="update-label">업데이트:</span>
-            <span class="update-value">{{ order.updateAt|datetime }}</span>
+            <span class="update-value">{{ order.update_time|datetime }}</span>
           </div>
           <div class="update-item">
             <i class="fa-solid fa-user-edit"></i>
             <span class="update-label">수정자:</span>
-            <span class="update-value">{{ order.updatedBy }}</span>
+            <span class="update-value">{{ order.update_by }}</span>
           </div>
         </div>
       </div>

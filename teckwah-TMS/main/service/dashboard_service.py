@@ -33,14 +33,13 @@ type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
     """ID로 주문 조회"""
     try:
-        order = (
+        return (
             db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
         )
-        if not order:
-            logger.warning(f"주문을 찾을 수 없음: ID {dashboard_id}")
-        return order
     except SQLAlchemyError as e:
-        logger.error(f"주문 조회 중 오류 발생: {str(e)}")
+        logger.error(
+            f"주문 조회 중 오류 발생 (ID: {dashboard_id}): {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="데이터베이스 오류가 발생했습니다.",
@@ -50,82 +49,92 @@ def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
 def get_dashboard_response_data(
     order: Dashboard, is_editable: bool = False
 ) -> Dict[str, Any]:
-    """주문 정보를 응답 형식(딕셔너리)으로 안전하게 변환"""
-    logger.info(f"응답 데이터 변환 시작: order_id={order.dashboard_id}")
-
-    # 필요한 필드만 명시적으로 추출하여 새 딕셔너리 생성
-    # 순환 참조 유발 가능성 있는 SQLAlchemy 내부 상태나 관계 객체 제외
-    response_data = {
-        "dashboardId": order.dashboard_id,
-        "orderNo": order.order_no,
-        "type": order.type,
-        "status": order.status,
-        "department": order.department,
-        "warehouse": order.warehouse,
-        "sla": order.sla,
-        "eta": order.eta.isoformat() if order.eta else None,  # datetime -> ISO 문자열
-        "createTime": order.create_time.isoformat() if order.create_time else None,
-        "departTime": order.depart_time.isoformat() if order.depart_time else None,
-        "completeTime": (
-            order.complete_time.isoformat() if order.complete_time else None
-        ),
-        "postalCode": order.postal_code,
-        "address": order.address,
-        "customer": order.customer,
-        "contact": order.contact,
-        "driverName": order.driver_name,
-        "driverContact": order.driver_contact,
-        "updatedBy": order.update_by,
-        "remark": order.remark,
-        "updateAt": order.update_at.isoformat() if order.update_at else None,
-        "isLocked": order.is_locked,
-        # 추가 필드
-        "city": getattr(order, "city", ""),
-        "county": getattr(order, "county", ""),
-        "district": getattr(order, "district", ""),
-        "region": getattr(order, "region", ""),
-        "distance": getattr(order, "distance", None),
-        "durationTime": getattr(order, "duration_time", None),  # DB 컬럼명 사용
-        # 라벨 정보 추가
-        "statusLabel": status_labels.get(order.status, order.status),
-        "typeLabel": type_labels.get(order.type, order.type),
-        # 편집 가능 여부
-        "editable": is_editable,
-    }
-
-    logger.info(f"응답 데이터 변환 완료: order_id={order.dashboard_id}")
-    return response_data
+    """주문 상세 정보를 위한 딕셔너리 변환 (snake_case 유지)"""
+    try:
+        return {
+            "dashboard_id": order.dashboard_id,
+            "order_no": order.order_no,
+            "type": order.type,
+            "status": order.status,
+            "department": order.department,
+            "warehouse": order.warehouse,
+            "sla": order.sla,
+            "eta": order.eta,
+            "create_time": order.create_time,
+            "depart_time": order.depart_time,
+            "complete_time": order.complete_time,
+            "postal_code": order.postal_code,
+            "address": order.address,
+            "customer": order.customer,
+            "contact": order.contact,
+            "driver_name": order.driver_name,
+            "driver_contact": order.driver_contact,
+            "update_by": order.update_by,
+            "remark": order.remark,
+            "update_at": order.update_at,
+            "is_locked": order.is_locked,
+            "city": order.city,
+            "county": order.county,
+            "district": order.district,
+            "region": order.region,  # DB에서 생성된 값
+            "distance": order.distance,
+            "duration_time": order.duration_time,
+            "status_label": status_labels.get(order.status, order.status),
+            "type_label": type_labels.get(order.type, order.type),
+            "editable": is_editable,
+        }
+    except AttributeError as e:
+        logger.error(
+            f"주문 데이터 변환 중 속성 오류 (ID: {getattr(order, 'dashboard_id', 'N/A')}): {e}",
+            exc_info=True,
+        )
+        # 오류 시 일부 필수 정보만 반환하거나 예외 발생 고려
+        return {"dashboard_id": getattr(order, "dashboard_id", "오류"), "error": str(e)}
 
 
 def get_dashboard_list_item_data(order: Dashboard) -> Dict[str, Any]:
-    """주문 목록 아이템에 필요한 최소 정보만 반환"""
-    return {
-        "dashboardId": order.dashboard_id,
-        "orderNo": order.order_no,
-        "type": order.type,
-        "department": order.department,
-        "warehouse": order.warehouse,
-        "sla": order.sla,
-        "region": getattr(order, "region", ""),
-        "eta": order.eta.isoformat() if order.eta else None,
-        "customer": order.customer,
-        "status": order.status,
-        "driverName": order.driver_name,
-        # 라벨 추가 (목록에서도 필요할 수 있음)
-        "statusLabel": status_labels.get(order.status, order.status),
-        "typeLabel": type_labels.get(order.type, order.type),
-    }
+    """주문 목록 아이템을 위한 딕셔너리 변환 (snake_case 유지)"""
+    try:
+        # region 생성 로직 추가 (DB 생성 값이 None인 경우)
+        region_value = order.region
+        if region_value is None:
+            # city, county, district가 모두 있는 경우 수동으로 생성
+            if order.city and order.county and order.district:
+                region_value = f"{order.city} {order.county} {order.district}".strip()
+            elif order.city:  # 최소한 도시라도 있으면 표시
+                region_value = order.city
+
+        return {
+            "dashboard_id": order.dashboard_id,
+            "order_no": order.order_no,
+            "type": order.type,
+            "department": order.department,
+            "warehouse": order.warehouse,
+            "sla": order.sla,
+            "region": region_value,  # 수정된 region 값 사용
+            "eta": order.eta,
+            "customer": order.customer,
+            "status": order.status,
+            "driver_name": order.driver_name,
+            "status_label": status_labels.get(order.status, order.status),
+            "type_label": type_labels.get(order.type, order.type),
+        }
+    except AttributeError as e:
+        logger.error(
+            f"주문 목록 데이터 변환 중 속성 오류 (ID: {getattr(order, 'dashboard_id', 'N/A')}): {e}",
+            exc_info=True,
+        )
+        return {"dashboard_id": getattr(order, "dashboard_id", "오류"), "error": str(e)}
 
 
 def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]:
     """주문번호로 주문 조회"""
     try:
-        order = db.query(Dashboard).filter(Dashboard.order_no == order_no).first()
-        if not order:
-            logger.warning(f"주문을 찾을 수 없음: 주문번호 {order_no}")
-        return order
+        return db.query(Dashboard).filter(Dashboard.order_no == order_no).first()
     except SQLAlchemyError as e:
-        logger.error(f"주문 조회 중 오류 발생: {str(e)}")
+        logger.error(
+            f"주문번호로 조회 중 오류 발생 ({order_no}): {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="데이터베이스 오류가 발생했습니다.",
@@ -138,132 +147,78 @@ def get_dashboard_list(
     end_date: Optional[date] = None,
 ) -> List[Dashboard]:
     """조건에 맞는 주문 목록 조회 (페이지네이션 없음)"""
-    logger.info(f"전체 주문 목록 조회: {start_date} ~ {end_date}")
     try:
         query = db.query(Dashboard)
-
         if start_date:
             start_datetime = datetime.combine(start_date, datetime.min.time())
             query = query.filter(Dashboard.eta >= start_datetime)
-
         if end_date:
             end_datetime = datetime.combine(end_date, datetime.max.time())
             query = query.filter(Dashboard.eta <= end_datetime)
-
-        query = query.order_by(desc(Dashboard.eta))
-        all_orders = query.all()
-        logger.info(f"조회 결과: {len(all_orders)}건")
-
-        return all_orders
-
+        return query.order_by(desc(Dashboard.eta)).all()
     except SQLAlchemyError as e:
         logger.error(f"주문 목록 조회 중 DB 오류: {str(e)}", exc_info=True)
-        return []
-    except Exception as e:
-        logger.error(f"주문 목록 조회 중 일반 오류: {str(e)}", exc_info=True)
-        return []
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="데이터베이스 오류가 발생했습니다.",
+        )
 
 
 def search_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]:
     """주문번호로 정확히 일치하는 단일 주문 검색"""
-    logger.info(f"주문번호 검색: {order_no}")
-    try:
-        order = db.query(Dashboard).filter(Dashboard.order_no == order_no).first()
-        return order
-    except Exception as e:
-        logger.error(f"주문번호 검색 오류: {str(e)}", exc_info=True)
-        return None
+    # get_dashboard_by_order_no 와 동일하므로 하나로 통일 가능 (여기서는 유지)
+    return get_dashboard_by_order_no(db, order_no)
+
+
+def _ensure_postal_code_exists(db: Session, postal_code: str):
+    """PostalCode 테이블에 해당 우편번호가 없으면 생성"""
+    postal_exists = (
+        db.query(PostalCode).filter(PostalCode.postal_code == postal_code).first()
+    )
+    if not postal_exists:
+        try:
+            new_postal = PostalCode(
+                postal_code=postal_code, city=None, county=None, district=None
+            )
+            db.add(new_postal)
+            db.flush()  # ID 등 필요 시
+            logger.info(f"존재하지 않는 우편번호 {postal_code} 레코드 생성")
+        except SQLAlchemyError as e:
+            db.rollback()  # 생성 실패 시 롤백
+            logger.warning(f"우편번호 {postal_code} 레코드 생성 실패: {str(e)}")
+            # 주문 생성/수정은 계속 진행될 수 있으나, 관련 정보는 누락될 수 있음
 
 
 def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashboard:
     """주문 생성"""
-    try:
-        # 우편번호 4자리인 경우 앞에 '0' 추가
-        postal_code = data.postal_code
-        if len(postal_code) == 4:
-            postal_code = "0" + postal_code
+    postal_code = data.postal_code  # 검증은 스키마에서 완료
+    _ensure_postal_code_exists(db, postal_code)
 
-        logger.info(f"주문 생성: {data.order_no}, 우편번호={postal_code}")
-
-        # 우편번호 존재 확인
-        postal_exists = (
-            db.query(PostalCode).filter(PostalCode.postal_code == postal_code).first()
-        )
-        if not postal_exists:
-            # 존재하지 않는 우편번호인 경우 기본 데이터 생성 - city, county, district는 None으로 설정
-            try:
-                new_postal = PostalCode(
-                    postal_code=postal_code, city=None, county=None, district=None
-                )
-                db.add(new_postal)
-                db.flush()
-                logger.info(
-                    f"존재하지 않는 우편번호 {postal_code}에 대해 새 레코드 생성"
-                )
-            except Exception as e:
-                logger.warning(f"우편번호 {postal_code} 레코드 생성 실패: {str(e)}")
-                # 실패해도 주문 생성은 계속 진행
-                pass
-
-        # 주문 모델 생성 - region 필드 제외 (데이터베이스에서 자동 생성됨)
-        order_data = {
-            "order_no": data.order_no,
-            "type": data.type,
+    # region은 DB에서 생성되므로 모델 데이터에서 제외
+    order_data = data.model_dump(exclude={"region"})
+    order_data.update(
+        {
             "status": "WAITING",
-            "department": data.department,
-            "warehouse": data.warehouse,
-            "sla": data.sla,
-            "eta": data.eta,
             "create_time": datetime.now(),
-            "postal_code": postal_code,
-            "address": data.address,
-            "customer": data.customer,
-            "contact": data.contact if hasattr(data, "contact") else None,
-            "driver_name": None,
-            "driver_contact": None,
             "update_by": user_id,
             "update_at": datetime.now(),
-            "remark": data.remark if hasattr(data, "remark") and data.remark else None,
             "is_locked": False,
+            # 모델에 없는 필드는 제외됨 (예: DashboardCreate에만 있는 필드)
         }
+    )
 
+    try:
         order = Dashboard(**order_data)
-
-        # 명시적으로 region 필드 None으로 설정
-        if hasattr(order, "region"):
-            order.region = None
-
-        try:
-            db.add(order)
-            db.flush()
-
-            logger.info(f"주문 생성 완료: ID {order.dashboard_id}")
-            return order
-        except SQLAlchemyError as db_err:
-            # 'region' 컬럼 관련 오류일 경우 무시하고 진행
-            if "region" in str(db_err):
-                logger.warning(f"region 컬럼 오류 무시 - {str(db_err)}")
-                db.rollback()
-                # region 필드를 제외하고 다시 시도
-                if "region" in order_data:
-                    del order_data["region"]
-                order = Dashboard(**order_data)
-                db.add(order)
-                db.flush()
-                return order
-            else:
-                # 다른 DB 오류는 재발생
-                raise
-
+        db.add(order)
+        db.flush()  # ID 등 생성 값 확인
+        logger.info(f"주문 생성 완료: ID {order.dashboard_id}")
+        return order
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(f"주문 생성 오류: {str(e)}")
-        if hasattr(e, "orig") and e.orig:
-            logger.error(f"원본 오류: {type(e.orig).__name__}: {str(e.orig)}")
-
+        logger.error(f"주문 생성 DB 오류: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류가 발생했습니다.",
+            detail="주문 생성 중 데이터베이스 오류가 발생했습니다.",
         )
 
 
@@ -271,157 +226,93 @@ def update_dashboard(
     db: Session, dashboard_id: int, data: DashboardUpdate, user_id: str
 ) -> Dashboard:
     """주문 업데이트 및 락 관리"""
-    logger.info(f"주문 업데이트: id={dashboard_id}, user={user_id}")
-
-    # 락 획득 시도
     lock_success, lock_info = acquire_lock(db, "dashboard", dashboard_id, user_id)
-
     if not lock_success:
-        logger.warning(f"주문 업데이트 실패 (락 획득 불가): ID {dashboard_id}")
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail=lock_info.get(
-                "message", "현재 다른 사용자가 이 주문을 편집 중입니다."
-            ),
+            detail=lock_info.get("message", "현재 다른 사용자가 편집 중입니다."),
         )
 
     try:
-        # 주문 조회
         order = (
             db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
         )
-
         if not order:
-            release_lock(db, "dashboard", dashboard_id, user_id)
-            logger.warning(f"주문 업데이트 실패 (주문 없음): ID {dashboard_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="수정할 주문을 찾을 수 없습니다.",
             )
 
-        # 변경된 데이터만 업데이트
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = data.model_dump(exclude_unset=True, exclude={"region"})
 
-        # 우편번호 처리
-        if "postal_code" in update_data:
-            postal_code = update_data["postal_code"]
-            if postal_code and len(postal_code) != 5:
-                release_lock(db, "dashboard", dashboard_id, user_id)
-                raise HTTPException(
-                    status_code=400, detail="우편번호는 5자리여야 합니다."
-                )
+        if not update_data:
+            logger.info(f"주문 업데이트 내용 없음: ID {dashboard_id}")
+            return order  # 변경 내용 없으면 그대로 반환
 
-            # 우편번호 테이블 확인/추가
-            if postal_code and order.postal_code != postal_code:
-                postal_exists = (
-                    db.query(PostalCode)
-                    .filter(PostalCode.postal_code == postal_code)
-                    .first()
-                )
-                if not postal_exists:
-                    try:
-                        new_postal = PostalCode(
-                            postal_code=postal_code,
-                            city=None,
-                            county=None,
-                            district=None,
-                        )
-                        db.add(new_postal)
-                        db.flush()
-                        logger.info(
-                            f"존재하지 않는 우편번호 {postal_code}에 대해 새 레코드 생성"
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            f"우편번호 {postal_code} 레코드 생성 실패: {str(e)}"
-                        )
-                        # 실패해도 주문 수정은 계속 진행
-                        pass
+        # 우편번호 변경 시 처리
+        if (
+            "postal_code" in update_data
+            and order.postal_code != update_data["postal_code"]
+        ):
+            _ensure_postal_code_exists(db, update_data["postal_code"])
 
-        # 모델 필드 업데이트
         for key, value in update_data.items():
-            if hasattr(order, key):
-                setattr(order, key, value)
+            setattr(order, key, value)
 
-        # 업데이트 정보 갱신
-        if update_data:
-            order.update_by = user_id
-            order.update_at = datetime.now()
-            logger.info(
-                f"주문 정보 업데이트: ID={dashboard_id}, 필드={list(update_data.keys())}"
-            )
+        order.update_by = user_id
+        order.update_at = datetime.now()
+        logger.info(
+            f"주문 정보 업데이트: ID={dashboard_id}, 필드={list(update_data.keys())}"
+        )
 
-        try:
-            db.commit()
-            db.refresh(order)
-            logger.info(f"주문 업데이트 완료: ID {dashboard_id}")
-            return order
-        except SQLAlchemyError as db_err:
-            # 'region' 컬럼 관련 오류일 경우 무시하고 진행
-            if "region" in str(db_err):
-                logger.warning(f"region 컬럼 오류 무시 - {str(db_err)}")
-                db.rollback()
-
-                # 첫번째 시도 실패 후에는 region 필드를 제외
-                if hasattr(order, "region"):
-                    order.region = None
-
-                db.commit()
-                db.refresh(order)
-                return order
-            else:
-                # 다른 DB 오류는 재발생
-                raise
+        db.flush()  # 변경사항 반영
+        logger.info(f"주문 업데이트 완료 (커밋 전): ID {dashboard_id}")
+        return (
+            order  # 커밋은 라우터의 @db_transaction 데코레이터 또는 명시적 호출에 위임
+        )
 
     except HTTPException as http_exc:
-        db.rollback()
+        db.rollback()  # 명시적 롤백
         raise http_exc
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(f"주문 업데이트 DB 오류: {str(e)}")
+        logger.error(f"주문 업데이트 DB 오류: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="데이터베이스 오류 발생",
+            detail="주문 업데이트 중 데이터베이스 오류 발생",
         )
-    except Exception as e:
-        db.rollback()
-        logger.error(f"주문 업데이트 오류: {str(e)}")
-        raise HTTPException(status_code=500, detail="주문 업데이트 중 오류 발생")
     finally:
-        # 락 해제 (성공/실패 무관)
+        # 락 해제 (성공/실패 무관). commit/rollback 후에 실행되도록 보장 필요.
+        # 트랜잭션 관리 방식에 따라 위치 조정 필요 (예: 별도 미들웨어)
         try:
             release_lock(db, "dashboard", dashboard_id, user_id)
-        except Exception as e:
-            logger.error(f"주문 락 해제 실패: ID {dashboard_id}, 오류: {str(e)}")
+        except Exception as lock_release_err:
+            logger.error(
+                f"주문 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+            )
 
 
 def change_status(
     db: Session, dashboard_ids: List[int], new_status: str, user_id: str, user_role: str
 ) -> List[Dict[str, Any]]:
-    """
-    주문 상태 변경
-
-    Args:
-        db: 데이터베이스 세션
-        dashboard_ids: 상태 변경할 주문 ID 목록
-        new_status: 변경할 상태
-        user_id: 변경 사용자 ID
-        user_role: 사용자 역할(ADMIN/USER)
-
-    Returns:
-        List[Dict[str, Any]]: 상태 변경 결과 목록
-    """
+    """주문 상태 변경"""
     results = []
+    status_order = {
+        "WAITING": 0,
+        "IN_PROGRESS": 1,
+        "COMPLETE": 2,
+        "ISSUE": 3,
+        "CANCEL": 4,
+    }
 
     for dashboard_id in dashboard_ids:
+        lock_acquired = False
         try:
-            # 주문 조회
             order = (
                 db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
                 .first()
             )
-
             if not order:
                 results.append(
                     {
@@ -432,7 +323,6 @@ def change_status(
                 )
                 continue
 
-            # 현재 상태와 동일한 경우
             if order.status == new_status:
                 results.append(
                     {
@@ -443,121 +333,79 @@ def change_status(
                 )
                 continue
 
-            # 일반 사용자의 상태 변경 제약 검증
+            old_status = order.status
+            is_rollback = status_order.get(new_status, -1) < status_order.get(
+                old_status, -1
+            )
+
+            # 권한 검사
             if user_role != "ADMIN":
-                if order.status == "WAITING" and new_status != "IN_PROGRESS":
+                valid_transitions = {
+                    "WAITING": ["IN_PROGRESS"],
+                    "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
+                }
+                allowed_new_statuses = valid_transitions.get(old_status, [])
+                if new_status not in allowed_new_statuses:
                     results.append(
                         {
                             "id": dashboard_id,
                             "success": False,
-                            "message": f"대기 상태에서는 진행 상태로만 변경 가능합니다.",
+                            "message": f"{status_labels.get(old_status)} 상태에서 {status_labels.get(new_status)} 상태로 변경할 수 없습니다.",
                         }
                     )
                     continue
-
-                if order.status == "IN_PROGRESS" and new_status not in [
-                    "COMPLETE",
-                    "ISSUE",
-                    "CANCEL",
-                ]:
+                if is_rollback:
                     results.append(
                         {
                             "id": dashboard_id,
                             "success": False,
-                            "message": f"진행 상태에서는 완료/이슈/취소 상태로만 변경 가능합니다.",
+                            "message": "롤백은 관리자만 가능합니다.",
                         }
                     )
                     continue
 
-                if order.status in ["COMPLETE", "ISSUE", "CANCEL"]:
-                    results.append(
-                        {
-                            "id": dashboard_id,
-                            "success": False,
-                            "message": f"완료/이슈/취소 상태에서는 상태 변경이 불가능합니다.",
-                        }
-                    )
-                    continue
-
-            # 락 획득 시도
+            # 락 획득
             lock_success, lock_info = acquire_lock(
                 db, "dashboard", dashboard_id, user_id
             )
-
             if not lock_success:
                 results.append(
                     {
                         "id": dashboard_id,
                         "success": False,
-                        "message": f"현재 다른 사용자가 이 주문을 편집 중입니다.",
+                        "message": lock_info.get("message", "다른 사용자가 편집 중"),
                     }
                 )
                 continue
+            lock_acquired = True
 
-            # 상태 변경
-            old_status = order.status
+            # 상태 변경 및 시간 기록
             order.status = new_status
-
-            # 상태 진행 및 롤백 시간 처리
-            status_order = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-            old_idx = status_order.index(old_status)
-            new_idx = status_order.index(new_status)
-            is_rollback = new_idx < old_idx
-
-            # 대기 → 진행 시 depart_time 기록
+            now = datetime.now()
             if old_status == "WAITING" and new_status == "IN_PROGRESS":
-                order.depart_time = datetime.now()
-                logger.info(
-                    f"주문 ID {dashboard_id}: 대기→진행 상태 변경, 출발 시간 기록: {order.depart_time}"
-                )
-
-            # 진행 → 완료/이슈/취소 시 complete_time 기록
+                order.depart_time = now
             elif old_status == "IN_PROGRESS" and new_status in [
                 "COMPLETE",
                 "ISSUE",
                 "CANCEL",
             ]:
-                order.complete_time = datetime.now()
-                logger.info(
-                    f"주문 ID {dashboard_id}: 진행→{new_status} 상태 변경, 완료 시간 기록: {order.complete_time}"
-                )
-
-            # 관리자 권한으로 상태 롤백 처리 추가
+                order.complete_time = now
             elif is_rollback and user_role == "ADMIN":
-                # 완료/이슈/취소 → 진행 또는 대기로 롤백 시 complete_time 초기화
                 if old_status in ["COMPLETE", "ISSUE", "CANCEL"]:
                     order.complete_time = None
-                    logger.info(
-                        f"주문 ID {dashboard_id}: 완료/이슈/취소→{new_status} 상태 롤백, 완료 시간 초기화"
-                    )
-
-                # 진행 → 대기로 롤백 시 depart_time 초기화
                 if old_status == "IN_PROGRESS" and new_status == "WAITING":
                     order.depart_time = None
-                    logger.info(
-                        f"주문 ID {dashboard_id}: 진행→대기 상태 롤백, 출발 시간 초기화"
-                    )
 
-            # 업데이트 정보 갱신
             order.update_by = user_id
-            order.update_at = datetime.now()
-
-            # 락 해제
-            order.is_locked = False
+            order.update_at = now
+            order.is_locked = False  # 상태 변경 시 락 해제
 
             db.flush()
-
-            # 결과 추가
-            if is_rollback:
-                message = f"상태 롤백 완료: {status_labels.get(old_status)} → {status_labels.get(new_status)}"
-            else:
-                message = f"상태 변경 완료: {status_labels.get(old_status)} → {status_labels.get(new_status)}"
-
             results.append(
                 {
                     "id": dashboard_id,
                     "success": True,
-                    "message": message,
+                    "message": f"상태 변경: {status_labels.get(old_status)} → {status_labels.get(new_status)}",
                     "rollback": is_rollback,
                     "old_status": old_status,
                     "new_status": new_status,
@@ -566,19 +414,23 @@ def change_status(
 
         except SQLAlchemyError as e:
             db.rollback()
-            logger.error(f"주문 상태 변경 중 오류 발생: ID {dashboard_id}, {str(e)}")
-            results.append(
-                {
-                    "id": dashboard_id,
-                    "success": False,
-                    "message": "데이터베이스 오류가 발생했습니다.",
-                }
+            logger.error(
+                f"주문 상태 변경 중 DB 오류: ID {dashboard_id}, {str(e)}", exc_info=True
             )
+            results.append(
+                {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
+            )
+        finally:
+            if lock_acquired:
+                try:
+                    release_lock(db, "dashboard", dashboard_id, user_id)
+                except Exception as lock_release_err:
+                    logger.error(
+                        f"상태 변경 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+                    )
 
-    # 모든 변경 사항 커밋
-    db.commit()
-
-    logger.info(f"상태 변경 처리 완료: {len(results)}건, 사용자 {user_id}")
+    # 모든 변경 사항 커밋 (라우터 레벨에서 처리하는 것이 더 안전할 수 있음)
+    # db.commit()
     return results
 
 
@@ -589,30 +441,16 @@ def assign_driver(
     driver_contact: Optional[str],
     user_id: str,
 ) -> List[Dict[str, Any]]:
-    """
-    주문에 기사 배정
-
-    Args:
-        db: 데이터베이스 세션
-        dashboard_ids: 기사 배정할 주문 ID 목록
-        driver_name: 기사 이름
-        driver_contact: 기사 연락처(선택)
-        user_id: 변경 사용자 ID
-
-    Returns:
-        List[Dict[str, Any]]: 기사 배정 결과 목록
-    """
+    """주문에 기사 배정"""
     results = []
-
     for dashboard_id in dashboard_ids:
+        lock_acquired = False
         try:
-            # 주문 조회
             order = (
                 db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
                 .first()
             )
-
             if not order:
                 results.append(
                     {
@@ -623,35 +461,27 @@ def assign_driver(
                 )
                 continue
 
-            # 락 획득 시도
             lock_success, lock_info = acquire_lock(
                 db, "dashboard", dashboard_id, user_id
             )
-
             if not lock_success:
                 results.append(
                     {
                         "id": dashboard_id,
                         "success": False,
-                        "message": f"현재 다른 사용자가 이 주문을 편집 중입니다.",
+                        "message": lock_info.get("message", "다른 사용자가 편집 중"),
                     }
                 )
                 continue
+            lock_acquired = True
 
-            # 기사 정보 업데이트
             order.driver_name = driver_name
             order.driver_contact = driver_contact
-
-            # 업데이트 정보 갱신
             order.update_by = user_id
             order.update_at = datetime.now()
-
-            # 락 해제
-            order.is_locked = False
+            order.is_locked = False  # 기사 배정 시 락 해제
 
             db.flush()
-
-            # 결과 추가
             results.append(
                 {
                     "id": dashboard_id,
@@ -662,58 +492,43 @@ def assign_driver(
 
         except SQLAlchemyError as e:
             db.rollback()
-            logger.error(f"기사 배정 중 오류 발생: ID {dashboard_id}, {str(e)}")
-            results.append(
-                {
-                    "id": dashboard_id,
-                    "success": False,
-                    "message": "데이터베이스 오류가 발생했습니다.",
-                }
+            logger.error(
+                f"기사 배정 중 DB 오류: ID {dashboard_id}, {str(e)}", exc_info=True
             )
+            results.append(
+                {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
+            )
+        finally:
+            if lock_acquired:
+                try:
+                    release_lock(db, "dashboard", dashboard_id, user_id)
+                except Exception as lock_release_err:
+                    logger.error(
+                        f"기사 배정 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+                    )
 
-    # 모든 변경 사항 커밋
-    db.commit()
-
-    logger.info(f"기사 배정 처리 완료: {len(results)}건, 사용자 {user_id}")
+    # db.commit()
     return results
 
 
 def delete_dashboard(
     db: Session, dashboard_ids: List[int], user_id: str, user_role: str
 ) -> List[Dict[str, Any]]:
-    """
-    주문 삭제
-
-    Args:
-        db: 데이터베이스 세션
-        dashboard_ids: 삭제할 주문 ID 목록
-        user_id: 변경 사용자 ID
-        user_role: 사용자 역할(ADMIN/USER)
-
-    Returns:
-        List[Dict[str, Any]]: 삭제 결과 목록
-    """
+    """주문 삭제 (ADMIN 전용)"""
     results = []
-
-    # 관리자 권한 확인
     if user_role != "ADMIN":
         logger.warning(f"주문 삭제 권한 없음: 사용자 {user_id}")
-        return [
-            {
-                "success": False,
-                "message": "삭제 권한이 없습니다. 관리자에게 문의하세요.",
-            }
-        ]
+        # 단일 결과만 반환하거나, 각 ID별 실패 메시지 반환 고려
+        return [{"success": False, "message": "삭제 권한이 없습니다."}]
 
     for dashboard_id in dashboard_ids:
+        lock_acquired = False
         try:
-            # 주문 조회
             order = (
                 db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
                 .first()
             )
-
             if not order:
                 results.append(
                     {
@@ -724,64 +539,54 @@ def delete_dashboard(
                 )
                 continue
 
-            # 락 획득 시도
             lock_success, lock_info = acquire_lock(
                 db, "dashboard", dashboard_id, user_id
             )
-
             if not lock_success:
                 results.append(
                     {
                         "id": dashboard_id,
                         "success": False,
-                        "message": f"현재 다른 사용자가 이 주문을 편집 중입니다.",
+                        "message": lock_info.get("message", "다른 사용자가 편집 중"),
                     }
                 )
                 continue
+            lock_acquired = True
 
-            # 주문 삭제
+            order_no = order.order_no  # 삭제 전 정보 저장
             db.delete(order)
             db.flush()
-
-            # 결과 추가
             results.append(
                 {
                     "id": dashboard_id,
                     "success": True,
-                    "message": f"주문 삭제 완료: {order.order_no}",
+                    "message": f"주문 삭제 완료: {order_no}",
                 }
             )
 
         except SQLAlchemyError as e:
             db.rollback()
-            logger.error(f"주문 삭제 중 오류 발생: ID {dashboard_id}, {str(e)}")
-            results.append(
-                {
-                    "id": dashboard_id,
-                    "success": False,
-                    "message": "데이터베이스 오류가 발생했습니다.",
-                }
+            logger.error(
+                f"주문 삭제 중 DB 오류: ID {dashboard_id}, {str(e)}", exc_info=True
             )
+            results.append(
+                {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
+            )
+        finally:
+            if lock_acquired:
+                try:
+                    release_lock(db, "dashboard", dashboard_id, user_id)
+                except Exception as lock_release_err:
+                    logger.error(
+                        f"삭제 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+                    )
 
-    # 모든 변경 사항 커밋
-    db.commit()
-
-    logger.info(f"주문 삭제 처리 완료: {len(results)}건, 사용자 {user_id}")
+    # db.commit()
     return results
 
 
 def get_lock_status(db: Session, dashboard_id: int, user_id: str) -> Dict[str, Any]:
-    """
-    주문 락 상태 확인
-
-    Args:
-        db: 데이터베이스 세션
-        dashboard_id: 확인할 주문 ID
-        user_id: 확인 사용자 ID
-
-    Returns:
-        Dict[str, Any]: 락 상태 정보
-    """
+    """주문 락 상태 확인"""
     return check_lock_status(db, "dashboard", dashboard_id, user_id)
 
 
@@ -792,28 +597,9 @@ def get_dashboard_list_paginated(
     page: int = 1,
     page_size: int = 30,
 ) -> Tuple[List[Dashboard], Dict[str, Any]]:
-    """
-    조건에 맞는 주문 목록 조회 (페이지네이션 적용)
-    대시보드 초기 페이지 로드(/dashboard SSR)에서 사용됩니다.
-
-    Args:
-        db: 데이터베이스 세션
-        start_date: 시작 날짜
-        end_date: 종료 날짜
-        page: 페이지 번호
-        page_size: 페이지 크기
-
-    Returns:
-        Tuple[List[Dashboard], Dict[str, Any]]: (해당 페이지 주문 목록, 페이지네이션 정보)
-    """
-    logger.info(
-        f"get_dashboard_list_paginated 시작: page={page}, size={page_size}, ..."
-    )
+    """조건에 맞는 주문 목록 조회 (페이지네이션 적용)"""
     try:
-        logger.debug("대시보드 기본 쿼리 생성 (페이지네이션용)")
         query = db.query(Dashboard)
-
-        # 날짜 필터 적용 (기본값은 라우터에서 처리됨)
         if start_date:
             start_datetime = datetime.combine(start_date, datetime.min.time())
             query = query.filter(Dashboard.eta >= start_datetime)
@@ -821,41 +607,21 @@ def get_dashboard_list_paginated(
             end_datetime = datetime.combine(end_date, datetime.max.time())
             query = query.filter(Dashboard.eta <= end_datetime)
 
-        # 정렬 적용
         query = query.order_by(desc(Dashboard.eta))
-        logger.debug("정렬 조건 적용: eta 내림차순")
-
-        # 페이지네이션 적용
-        logger.debug(f"페이지네이션 적용 시작 (페이지 {page}, 크기 {page_size})")
         orders, pagination_info = paginate_query(query, page, page_size)
-        logger.info(f"페이지네이션 결과: {len(orders)}건 조회됨")
-
-        logger.info(
-            f"대시보드 페이지네이션 조회 결과: {len(orders)}건 (페이지 {page}/{pagination_info['total_pages']})"
-        )
-
         return orders, pagination_info
 
     except SQLAlchemyError as e:
         logger.error(f"페이지네이션 주문 목록 조회 중 DB 오류: {str(e)}", exc_info=True)
-        # 오류 시 빈 목록과 기본 페이지네이션 정보 반환
-        empty_pagination = {
-            "totalCount": 0,
-            "page": page,
-            "pageSize": page_size,
-            "totalPages": 0,
-        }
-        logger.info(f"페이지네이션 주문 목록 조회 실패: {str(e)}")
-        return [], empty_pagination
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="주문 목록 조회 중 데이터베이스 오류가 발생했습니다.",
+        )
     except Exception as e:
         logger.error(
             f"페이지네이션 주문 목록 조회 중 일반 오류: {str(e)}", exc_info=True
         )
-        empty_pagination = {
-            "totalCount": 0,
-            "page": page,
-            "pageSize": page_size,
-            "totalPages": 0,
-        }
-        logger.info(f"페이지네이션 주문 목록 조회 실패: {str(e)}")
-        return [], empty_pagination
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="주문 목록 조회 중 오류가 발생했습니다.",
+        )

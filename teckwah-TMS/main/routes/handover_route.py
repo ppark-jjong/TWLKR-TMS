@@ -1,5 +1,5 @@
 """
-인수인계 관련 라우터 - 명세 기반 수정 (v5)
+인수인계 관련 라우터 - 리팩토링 버전
 """
 
 from typing import Dict, Any, List, Optional
@@ -10,7 +10,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
-    Response,
     Query,
     Path,
     status,
@@ -22,10 +21,11 @@ import logging
 import json
 
 from main.core.templating import templates
-from main.utils.database import get_db
+from main.utils.database import get_db, db_transaction
 from main.utils.security import get_current_user, get_admin_user
-from main.utils.lock import check_lock_status
-from main.schema.handover_schema import HandoverCreate, HandoverUpdate
+from main.utils.lock import acquire_lock, release_lock, check_lock_status
+
+# 서비스 함수 이름 변경에 따른 임포트 조정
 from main.service.handover_service import (
     get_handover_list_paginated,
     get_handover_list_all,
@@ -34,8 +34,13 @@ from main.service.handover_service import (
     create_handover,
     update_handover,
     delete_handover,
-    check_lock_status as check_handover_lock_status,
+    check_handover_lock_status,  # 이름 변경됨
+    _handover_to_dict,  # 내부 변환 함수 임포트
 )
+from main.utils.json_util import CustomJSONEncoder
+
+# 스키마 임포트 추가
+from main.schema.handover_schema import HandoverListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -43,90 +48,76 @@ logger = logging.getLogger(__name__)
 page_router = APIRouter(prefix="/handover", dependencies=[Depends(get_current_user)])
 api_router = APIRouter(prefix="/api/handover", dependencies=[Depends(get_current_user)])
 
-
 # === 페이지 렌더링 라우트 ===
-@page_router.get("/new", include_in_schema=False)
-async def handover_create_page(request: Request):
-    """설명서 3.4 (페이지): 인수인계 생성 페이지"""
-    current_user = request.session.get("user")
-    logger.info(f"인수인계 생성 페이지 로드 시작: user={current_user.get('user_id')}")
-    # ADMIN만 공지사항 작성 가능함을 프론트에서 처리하거나, 여기서 플래그 전달
+
+
+@page_router.get("/new", name="handover_create_page")
+async def handover_create_page(
+    request: Request, current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    logger.info(f"인수인계 생성 페이지 로드: user={current_user.get('user_id')}")
     can_create_notice = current_user.get("user_role") == "ADMIN"
-    return templates.TemplateResponse(
-        "handover_form.html",
-        {
-            "request": request,
-            "current_user": current_user,
-            "can_create_notice": can_create_notice,
-            "handover": None,
-            "is_edit": False,
-        },
-    )
+    context = {
+        "request": request,
+        "current_user": current_user,
+        "can_create_notice": can_create_notice,
+        "handover": None,
+        "is_edit": False,
+    }
+    return templates.TemplateResponse("handover_form.html", context)
 
 
-@page_router.get("/", include_in_schema=False)  # 경로: /handover/
+@page_router.get("/", name="handover_list_page")
 async def handover_page(
     request: Request,
     db: Session = Depends(get_db),
-    page: int = Query(1, ge=1, description="페이지 번호"),
-    page_size: int = Query(30, ge=1, le=100, description="페이지 크기"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """설명서 3.1: 인수인계 목록 페이지 (SSR)"""
-    current_user = request.session.get("user")
-    logger.info(
-        f"인수인계 페이지 로드 시작: user={current_user.get('user_id')}, page={page}, size={page_size}"
-    )
+    logger.info(f"인수인계 목록 페이지 로드: user={current_user.get('user_id')}")
+    error_message = request.query_params.get("error")
+    success_message = request.query_params.get("success")
 
     try:
-        # 공지사항 조회 (예: 상단 5개)
-        notices = get_notice_list(db=db, page=1, page_size=5)
-        logger.info(f"공지사항 조회 완료: {len(notices)}건")
-
-        # 인수인계 목록 첫 페이지 조회 (is_notice=False)
+        notices, _ = get_handover_list_paginated(
+            db=db, page=1, page_size=5, is_notice=True
+        )
         handovers, pagination_info = get_handover_list_paginated(
             db=db, page=page, page_size=page_size, is_notice=False
         )
-        logger.info(f"인수인계 첫 페이지 조회 완료: {len(handovers)}건")
 
-        # 전달할 파이썬 객체 생성
-        initial_data_obj = {
-            "handovers": handovers,
-            "pagination": pagination_info,
-            "notices": notices,
+        # 페이지네이션 정보 키 표준화
+        pagination_data = {
+            "total_items": pagination_info.get("total_items", 0),
+            "total_pages": pagination_info.get("total_pages", 0),
+            "current_page": pagination_info.get("current_page", 1),
+            "page_size": pagination_info.get("page_size", page_size),
         }
 
-        # JSON 문자열로 미리 변환
-        initial_data_json_str = "{}"  # 기본값
-        try:
-            # EnhancedJSONEncoder가 정의되어 있다고 가정 (dashboard_route.py 와 유사하게)
-            # 만약 없다면 여기 추가 필요
-            from .dashboard_route import (
-                EnhancedJSONEncoder,
-            )  # dashboard_route에서 가져오기 시도
-
-            initial_data_json_str = json.dumps(
-                initial_data_obj, cls=EnhancedJSONEncoder
-            )
-        except ImportError:
-            # EnhancedJSONEncoder가 없거나 가져올 수 없을 때 기본 인코더 사용
-            logger.warning(
-                "EnhancedJSONEncoder를 찾을 수 없어 기본 JSON 인코더를 사용합니다."
-            )
-            initial_data_json_str = json.dumps(initial_data_obj)
-        except Exception as json_err:
-            logger.error(
-                f"인수인계 초기 데이터 JSON 직렬화 오류: {json_err}", exc_info=True
-            )
+        initial_data_obj = {
+            "handovers": handovers,
+            "pagination": pagination_data,
+            "notices": notices,
+            "current_user": current_user,
+            "error_message": error_message,
+            "success_message": success_message,
+        }
 
         context = {
             "request": request,
-            "initial_data_json": initial_data_json_str,  # JSON 문자열 전달
+            "initial_data_json": json.dumps(initial_data_obj, cls=CustomJSONEncoder),
             "current_user": current_user,
+            "notices": notices,
+            "handovers": handovers,
+            "pagination": pagination_data,
+            "error_message": error_message,
+            "success_message": success_message,
         }
         return templates.TemplateResponse("handover.html", context)
 
     except Exception as e:
-        logger.error(f"인수인계 페이지 렌더링 중 오류: {str(e)}", exc_info=True)
+        logger.error(f"인수인계 페이지 로드 오류: {e}", exc_info=True)
         context = {
             "request": request,
             "error_message": "페이지 로드 중 오류 발생",
@@ -135,268 +126,242 @@ async def handover_page(
         return templates.TemplateResponse("error.html", context, status_code=500)
 
 
-@page_router.get("/{handover_id}", include_in_schema=False)  # 경로: /handover/{id}
+@page_router.get("/{handover_id}", name="handover_detail_page")
 async def get_handover_detail_page(
     request: Request,
     handover_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """설명서 3.3: 인수인계 상세 페이지"""
-    current_user = request.session.get("user")
     logger.info(
-        f"인수인계 상세 페이지 로드 시작: id={handover_id}, user={current_user.get('user_id')}"
+        f"인수인계 상세 페이지 로드: id={handover_id}, user={current_user.get('user_id')}"
     )
+    error_message = request.query_params.get("error")
+    success_message = request.query_params.get("success")
+
     try:
-        handover = get_handover_by_id(db, handover_id)
-        if not handover:
-            logger.warning(f"상세 조회 실패 (없음): id={handover_id}")
+        handover_model = get_handover_by_id(db, handover_id)
+        if not handover_model:
             raise HTTPException(status_code=404, detail="인수인계를 찾을 수 없습니다.")
 
-        # 락 상태 확인
+        handover_data = _handover_to_dict(handover_model)  # 모델 -> 딕셔너리 변환
         lock_info = check_handover_lock_status(
             db, handover_id, current_user.get("user_id")
         )
-        logger.debug(f"락 상태 확인 완료: editable={lock_info.get('editable')}")
 
-        # 라벨 정보 추가 (is_notice 사용, priority 제거 또는 수정)
+        # 라벨 정보 추가
         type_labels = {"NOTICE": "공지", "HANDOVER": "인수인계"}
-        # is_notice 값 (True/False)에 따라 라벨 설정
-        handover.type_label = (
-            type_labels["NOTICE"] if handover.is_notice else type_labels["HANDOVER"]
+        handover_data["type_label"] = type_labels.get(
+            "NOTICE" if handover_data["is_notice"] else "HANDOVER"
         )
 
-        # priority 관련 속성이 모델에 있는지 확인 후 처리
-        # 예: priority_labels = {"HIGH": "높음", ...}
-        # if hasattr(handover, 'priority'):
-        #     handover.priority_label = priority_labels.get(handover.priority, handover.priority)
-        # else:
-        #     handover.priority_label = "-" # 모델에 priority 없으면 기본값
-
-        # 컨텍스트에 모델 객체 직접 전달
         context = {
             "request": request,
-            "handover": handover,  # 모델 객체 전달
+            "handover": handover_data,
             "lock_info": lock_info,
             "current_user": current_user,
-            # is_confirmed, user_confirmed_at 등 필요한 다른 변수 추가
+            "error_message": error_message,
+            "success_message": success_message,
         }
         return templates.TemplateResponse("handover_detail.html", context)
+
     except HTTPException as http_exc:
-        raise http_exc
+        logger.warning(
+            f"인수인계 상세 로드 오류 (HTTP): {http_exc.status_code}, {http_exc.detail}"
+        )
+        error_message_redirect = quote(http_exc.detail)
+        return RedirectResponse(
+            f"/handover?error={error_message_redirect}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
     except Exception as e:
-        logger.error(f"인수인계 상세 페이지 로드 오류: {str(e)}", exc_info=True)
-        # 오류 컨텍스트에 current_user 추가
-        context = {
-            "request": request,
-            "error_message": "상세 정보 로드 중 오류 발생",
-            "current_user": current_user,
-        }
-        return templates.TemplateResponse("error.html", context, status_code=500)
+        logger.error(f"인수인계 상세 페이지 로드 오류: {e}", exc_info=True)
+        error_message_redirect = quote("상세 정보 로드 중 오류 발생")
+        return RedirectResponse(
+            f"/handover?error={error_message_redirect}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
 
-@page_router.get("/{handover_id}/edit", include_in_schema=False)
+@page_router.get("/{handover_id}/edit", name="handover_edit_page")
 async def handover_edit_page(
     request: Request,
     handover_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """설명서 3.6: 인수인계 수정 페이지 로드 및 락 확인"""
     logger.info(
-        f"인수인계 수정 페이지 로드 시작: id={handover_id}, user={current_user.get('user_id')}"
+        f"인수인계 수정 페이지 로드: id={handover_id}, user={current_user.get('user_id')}"
     )
-
     try:
-        # 인수인계 정보 조회
-        handover = get_handover_by_id(db, handover_id)
-        if not handover:
-            logger.warning(f"수정 대상 인수인계 없음: id={handover_id}")
+        handover_model = get_handover_by_id(db, handover_id)
+        if not handover_model:
             raise HTTPException(
                 status_code=404, detail="수정할 인수인계를 찾을 수 없습니다."
             )
 
-        # 락 상태 확인
         lock_info = check_handover_lock_status(
             db, handover_id, current_user.get("user_id")
         )
-
-        # 락 걸려 있으면 상세 페이지로 리다이렉트 (메시지 포함)
         if not lock_info.get("editable", False):
-            locked_by_user = lock_info.get("locked_by", "다른 사용자")
-            error_message = f"{locked_by_user}님이 현재 수정 중입니다."
-            logger.warning(
-                f"락으로 인해 수정 페이지 접근 불가: id={handover_id}, locked_by={locked_by_user}"
+            locked_by = lock_info.get("locked_by", "다른 사용자")
+            error_message = f"{locked_by}님이 현재 수정 중입니다."
+            detail_url = request.url_for(
+                "handover_detail_page", handover_id=handover_id
             )
-            # 상세 페이지 URL 생성 (주의: RedirectResponse는 request.url_for 직접 사용 불가)
-            detail_page_url = request.url_for(
-                "get_handover_detail_page", handover_id=handover_id
-            )
-            # 쿼리 파라미터로 오류 메시지 전달 (URL 인코딩 필요)
-            redirect_url = f"{detail_page_url}?error={quote(error_message)}"
             return RedirectResponse(
-                url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
+                f"{detail_url}?error={quote(error_message)}",
+                status_code=status.HTTP_303_SEE_OTHER,
             )
 
-        # 템플릿 렌더링 (handover_form.html 사용)
+        handover_data = _handover_to_dict(handover_model)
+        can_create_notice = current_user.get("user_role") == "ADMIN"
         context = {
             "request": request,
-            "handover": handover,  # 수정할 데이터 전달
+            "handover": handover_data,
             "current_user": current_user,
-            "is_edit": True,  # 수정 모드임을 명시
-            "can_create_notice": current_user.get("user_role")
-            == "ADMIN",  # 공지사항 수정 권한
-            # lock_info는 필요시 전달
+            "is_edit": True,
+            "can_create_notice": can_create_notice,
         }
         return templates.TemplateResponse("handover_form.html", context)
 
     except HTTPException as http_exc:
-        raise http_exc
+        logger.warning(
+            f"인수인계 수정 페이지 로드 오류 (HTTP): {http_exc.status_code}, {http_exc.detail}"
+        )
+        error_message_redirect = quote(http_exc.detail)
+        return RedirectResponse(
+            f"/handover?error={error_message_redirect}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
     except Exception as e:
-        logger.error(f"인수인계 수정 페이지 로드 오류: {str(e)}", exc_info=True)
-        context = {
-            "request": request,
-            "error_message": "페이지 로드 중 오류 발생",
-            "current_user": current_user,
-        }
-        return templates.TemplateResponse("error.html", context, status_code=500)
+        logger.error(f"인수인계 수정 페이지 로드 오류: {e}", exc_info=True)
+        error_message_redirect = quote("페이지 로드 중 오류 발생")
+        return RedirectResponse(
+            f"/handover?error={error_message_redirect}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
 
 # === API 엔드포인트 라우트 ===
 
 
-@api_router.get("/list")  # 경로: /api/handover/list
+@api_router.get("/list", response_model=HandoverListResponse)  # 응답 모델 사용
 async def get_handover_list_api(
-    # request: Request, # Depends에서 처리
     db: Session = Depends(get_db),
     is_notice: Optional[bool] = Query(False, description="True: 공지, False: 인수인계"),
-    current_user: Dict[str, Any] = Depends(
-        get_current_user
-    ),  # 의존성 주입 파라미터 추가
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """설명서 3.2: 인수인계 목록 조회 API (JSON)"""
-    # current_user = request.session.get("user") # Depends 사용으로 변경
-    # if not current_user: ... (Depends가 처리)
-    # logger에서 사용자 ID 접근 방식 변경 필요
-    # logger.info(f"전체 인수인계/공지 목록 API 호출: notice={is_notice}, user={current_user.get('user_id')}") -> Depends 주입 변수 사용
-    # current_user: Dict[str, Any] = Depends(get_current_user) # 파라미터로 이동
     logger.info(
-        f"전체 인수인계/공지 목록 API 호출: notice={is_notice}, user={current_user.get('user_id')}"
-    )  # 이제 정상 동작
-
+        f"인수인계 목록 API 호출: notice={is_notice}, user={current_user.get('user_id')}"
+    )
     try:
         all_items = get_handover_list_all(db=db, is_notice=is_notice)
-        logger.info(f"전체 목록 조회 완료: {len(all_items)}건")
-        return {"success": True, "message": "목록 조회 성공", "data": all_items}
-    except Exception as e:
-        logger.error(f"전체 인수인계/공지 목록 API 오류: {str(e)}", exc_info=True)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "목록 조회 중 오류 발생"},
+        # HandoverListResponse 스키마에 맞게 반환
+        return HandoverListResponse(
+            success=True, message="목록 조회 성공", data=all_items
         )
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.error(f"인수인계 목록 API 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="목록 조회 중 오류 발생")
 
 
-@api_router.post("", status_code=status.HTTP_302_FOUND)  # 경로: /api/handover
-async def create_handover_form(
+@api_router.post("", status_code=status.HTTP_302_FOUND)
+@db_transaction  # 트랜잭션 관리
+async def create_handover_action(
     request: Request,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
+    # Form 필드 snake_case
     title: str = Form(...),
     content: str = Form(...),
-    is_notice_str: Optional[str] = Form(None, alias="is_notice"),
+    is_notice: Optional[bool] = Form(False),  # 체크박스는 값 없을 때 False
 ):
-    """설명서 3.4 (처리): 인수인계 생성 처리"""
-    is_notice = is_notice_str == "on"
+    user_id = current_user.get("user_id")
+    logger.info(f"인수인계 생성 API 요청: user={user_id}, title='{title}'")
 
-    logger.info(
-        f"인수인계 생성 요청(Form): title='{title}', notice={is_notice}, user={current_user.get('user_id')}"
-    )
+    create_url = request.url_for("handover_create_page")
+    list_url = request.url_for("handover_list_page")
+
     try:
         if is_notice and current_user.get("user_role") != "ADMIN":
             raise HTTPException(
                 status_code=403, detail="공지사항 생성 권한이 없습니다."
             )
 
+        # HandoverCreate 스키마 사용은 선택적 (여기서는 직접 전달)
         new_handover = create_handover(
             db=db,
             title=title,
             content=content,
             is_notice=is_notice,
-            writer_id=current_user.get("user_id"),
+            writer_id=user_id,
         )
-        logger.info(f"인수인계 생성 성공(Form): id={new_handover.handover_id}")
-
         success_message = quote("인수인계가 성공적으로 생성되었습니다.")
         detail_url = request.url_for(
-            "get_handover_detail_page", handover_id=new_handover.handover_id
+            "handover_detail_page", handover_id=new_handover.handover_id
         )
         return RedirectResponse(
-            url=f"{detail_url}?success={success_message}",
+            f"{detail_url}?success={success_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
+
     except HTTPException as http_exc:
-        error_message = quote(http_exc.detail or "인수인계 생성 중 오류 발생")
-        create_url = request.url_for("handover_create_page")
+        logger.warning(f"인수인계 생성 실패 (HTTPException): {http_exc.detail}")
+        error_message = quote(http_exc.detail)
         return RedirectResponse(
-            url=f"{create_url}?error={error_message}",
-            status_code=status.HTTP_303_SEE_OTHER,
+            f"{create_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
     except Exception as e:
-        logger.error(f"인수인계 생성(Form) 오류: {str(e)}", exc_info=True)
+        logger.error(f"인수인계 생성 API 오류: {e}", exc_info=True)
         error_message = quote("인수인계 생성 중 서버 오류 발생")
-        create_url = request.url_for("handover_create_page")
         return RedirectResponse(
-            url=f"{create_url}?error={error_message}",
-            status_code=status.HTTP_303_SEE_OTHER,
+            f"{create_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
 
 
 @api_router.post("/{handover_id}", status_code=status.HTTP_302_FOUND)
-async def update_handover_form(
+@db_transaction
+async def update_handover_action(
     request: Request,
     handover_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
+    # Form 필드 snake_case
     title: str = Form(...),
     content: str = Form(...),
-    is_notice_str: Optional[str] = Form(
-        None, alias="is_notice"
-    ),  # str로 받고 None 허용
+    is_notice: Optional[bool] = Form(False),
 ):
-    """설명서 3.5: 인수인계 수정 처리"""
-    from main.utils.lock import acquire_lock, release_lock
-
-    is_notice = is_notice_str == "on"  # 체크 시 'on' 값 확인
-
     user_id = current_user.get("user_id")
     user_role = current_user.get("user_role")
-    logger.info(f"인수인계 수정 요청(Form): id={handover_id}, user={user_id}")
+    logger.info(f"인수인계 수정 API 요청: id={handover_id}, user={user_id}")
 
-    # 락 획득 시도
-    lock_success, lock_info = acquire_lock(db, "handover", handover_id, user_id)
-    if not lock_success:
-        logger.warning(f"인수인계 수정 실패 (락 획득 불가): ID {handover_id}")
-        error_message = lock_info.get("message", "현재 다른 사용자가 편집 중입니다.")
-        edit_url = request.url_for("handover_edit_page", handover_id=handover_id)
-        return RedirectResponse(
-            url=f"{edit_url}?error={quote(error_message)}",
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
+    detail_url = request.url_for("handover_detail_page", handover_id=handover_id)
+    edit_url = request.url_for("handover_edit_page", handover_id=handover_id)
 
+    # 락 획득 (서비스에서 분리)
+    lock_acquired = False
     try:
-        # 공지사항 변경 권한 확인 (수정 전 데이터 필요)
+        lock_success, lock_info = acquire_lock(db, "handover", handover_id, user_id)
+        if not lock_success:
+            raise HTTPException(
+                status_code=423,
+                detail=lock_info.get("message", "다른 사용자가 편집 중"),
+            )
+        lock_acquired = True
+
+        # 권한 확인 (공지사항 변경)
         original_handover = get_handover_by_id(db, handover_id)
         if not original_handover:
             raise HTTPException(status_code=404, detail="인수인계를 찾을 수 없습니다.")
-
         if is_notice and not original_handover.is_notice and user_role != "ADMIN":
-            logger.warning(
-                f"권한 없는 공지사항 변경 시도: id={handover_id}, user={user_id}"
-            )
             raise HTTPException(
                 status_code=403, detail="공지사항 설정 권한이 없습니다."
             )
 
-        # 서비스 호출 (update_handover에는 락 처리 없다고 가정)
+        # 서비스 호출 (HandoverUpdate 스키마 사용은 선택적)
         updated_handover = update_handover(
             db=db,
             handover_id=handover_id,
@@ -405,131 +370,109 @@ async def update_handover_form(
             is_notice=is_notice,
             updated_by=user_id,
         )
-        logger.info(f"인수인계 수정 성공(Form): id={updated_handover.handover_id}")
-
-        # 성공 시 상세 페이지로 리다이렉트
         success_message = quote("인수인계 정보가 성공적으로 수정되었습니다.")
-        detail_url = request.url_for(
-            "get_handover_detail_page", handover_id=handover_id
-        )
         return RedirectResponse(
-            url=f"{detail_url}?success={success_message}",
+            f"{detail_url}?success={success_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
     except HTTPException as http_exc:
-        # 롤백은 DB 에러 시 자동으로 처리되거나 서비스 레벨에서 명시적으로 처리
         logger.warning(
-            f"인수인계 수정 실패 (HTTPException): id={handover_id}, status={http_exc.status_code}, detail={http_exc.detail}"
+            f"인수인계 수정 실패 (HTTPException): id={handover_id}, {http_exc.detail}"
         )
-        # 실패 시 오류 메시지와 함께 수정 페이지로 리다이렉트
-        error_message = quote(http_exc.detail or "인수인계 수정 중 오류 발생")
-        edit_url = request.url_for("handover_edit_page", handover_id=handover_id)
+        error_message = quote(http_exc.detail)
+        # 423 (Locked) 등 특정 오류는 상세 페이지로, 나머지는 수정 페이지로
+        redirect_url = detail_url if http_exc.status_code == 423 else edit_url
         return RedirectResponse(
-            url=f"{edit_url}?error={error_message}",
+            f"{redirect_url}?error={error_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
     except Exception as e:
-        logger.error(f"인수인계 수정(Form) 오류: {str(e)}", exc_info=True)
+        logger.error(f"인수인계 수정 API 오류: {e}", exc_info=True)
         error_message = quote("인수인계 수정 중 서버 오류 발생")
-        edit_url = request.url_for("handover_edit_page", handover_id=handover_id)
         return RedirectResponse(
-            url=f"{edit_url}?error={error_message}",
-            status_code=status.HTTP_303_SEE_OTHER,
+            f"{edit_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
     finally:
-        # 락 해제
-        release_lock(db, "handover", handover_id, user_id)
+        if lock_acquired:
+            try:
+                release_lock(db, "handover", handover_id, user_id)
+            except Exception as lock_err:
+                logger.error(f"인수인계 수정 락 해제 실패: {lock_err}")
 
 
 @api_router.post("/{handover_id}/delete", status_code=status.HTTP_302_FOUND)
-async def delete_handover_form(
+@db_transaction
+async def delete_handover_action(
     request: Request,
     handover_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """설명서 3.6: 인수인계 삭제 처리"""
-    from main.utils.lock import acquire_lock, release_lock
-
     user_id = current_user.get("user_id")
     user_role = current_user.get("user_role")
-    logger.info(f"인수인계 삭제 요청(Form): id={handover_id}, user={user_id}")
+    logger.info(f"인수인계 삭제 API 요청: id={handover_id}, user={user_id}")
 
-    # 락 획득 시도
-    lock_success, lock_info = acquire_lock(db, "handover", handover_id, user_id)
-    if not lock_success:
-        logger.warning(f"인수인계 삭제 실패 (락 획득 불가): ID {handover_id}")
-        error_message = lock_info.get("message", "현재 다른 사용자가 편집 중입니다.")
-        detail_url = request.url_for(
-            "get_handover_detail_page", handover_id=handover_id
-        )
-        return RedirectResponse(
-            url=f"{detail_url}?error={quote(error_message)}",
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
+    detail_url = request.url_for("handover_detail_page", handover_id=handover_id)
+    list_url = request.url_for("handover_list_page")
 
+    lock_acquired = False
     try:
-        # 삭제 권한 확인 (ADMIN 또는 작성자)
+        # 락 획득
+        lock_success, lock_info = acquire_lock(db, "handover", handover_id, user_id)
+        if not lock_success:
+            raise HTTPException(
+                status_code=423,
+                detail=lock_info.get("message", "다른 사용자가 편집 중"),
+            )
+        lock_acquired = True
+
+        # 권한 확인
         handover = get_handover_by_id(db, handover_id)
         if not handover:
             raise HTTPException(
                 status_code=404, detail="삭제할 인수인계를 찾을 수 없습니다."
             )
-
-        # 모델에 created_by 또는 writer_id 필드가 있어야 함 (update_by 대신)
-        # 여기서는 update_by 를 작성자로 가정 (명세 확인 필요)
-        is_author = handover.update_by == user_id
+        # 모델의 create_by 필드 사용 (init-db.sql 에 맞게)
+        is_author = handover.create_by == user_id
         if not (user_role == "ADMIN" or is_author):
-            logger.warning(
-                f"권한 없는 인수인계 삭제 시도: id={handover_id}, user={user_id}"
-            )
             raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
 
-        # 서비스 호출 (delete_handover에는 락 처리 없다고 가정)
+        # 서비스 호출
         success = delete_handover(db=db, handover_id=handover_id, user_id=user_id)
-
         if success:
-            logger.info(f"인수인계 삭제 성공(Form): id={handover_id}")
-            # 성공 시 목록 페이지로 리다이렉트
             success_message = quote("인수인계가 성공적으로 삭제되었습니다.")
-            list_url = request.url_for("handover_page")
             return RedirectResponse(
-                url=f"{list_url}?success={success_message}",
+                f"{list_url}?success={success_message}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         else:
-            logger.error(f"인수인계 삭제 서비스 실패 (False 반환): id={handover_id}")
+            # 서비스에서 False 반환 시 (이론상 발생 어려움)
             raise HTTPException(
                 status_code=500, detail="인수인계 삭제 처리 중 오류 발생"
             )
 
     except HTTPException as http_exc:
         logger.warning(
-            f"인수인계 삭제 실패 (HTTPException): id={handover_id}, status={http_exc.status_code}, detail={http_exc.detail}"
+            f"인수인계 삭제 실패 (HTTPException): id={handover_id}, {http_exc.detail}"
         )
-        # 실패 시 상세 페이지로 리다이렉트
-        error_message = quote(http_exc.detail or "인수인계 삭제 중 오류 발생")
-        detail_url = request.url_for(
-            "get_handover_detail_page", handover_id=handover_id
-        )
+        error_message = quote(http_exc.detail)
+        # 403, 404, 423 등은 상세 페이지로 리다이렉트
         return RedirectResponse(
-            url=f"{detail_url}?error={error_message}",
-            status_code=status.HTTP_303_SEE_OTHER,
+            f"{detail_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
     except Exception as e:
-        logger.error(f"인수인계 삭제(Form) 오류: {str(e)}", exc_info=True)
+        logger.error(f"인수인계 삭제 API 오류: {e}", exc_info=True)
         error_message = quote("인수인계 삭제 중 서버 오류 발생")
-        detail_url = request.url_for(
-            "get_handover_detail_page", handover_id=handover_id
-        )
         return RedirectResponse(
-            url=f"{detail_url}?error={error_message}",
-            status_code=status.HTTP_303_SEE_OTHER,
+            f"{detail_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
     finally:
-        # 락 해제
-        release_lock(db, "handover", handover_id, user_id)
+        if lock_acquired:
+            try:
+                release_lock(db, "handover", handover_id, user_id)
+            except Exception as lock_err:
+                logger.error(f"인수인계 삭제 락 해제 실패: {lock_err}")
 
 
 @api_router.get("/lock/{handover_id}", response_model=Dict)
@@ -538,18 +481,13 @@ async def check_handover_lock_api(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """설명서 3.7: 인수인계 락 상태 확인 API"""
     logger.info(
         f"인수인계 락 상태 확인 API: id={handover_id}, user={current_user.get('user_id')}"
     )
     try:
-        lock_status = check_handover_lock_status(
-            db, handover_id, current_user.get("user_id")
-        )
-        logger.info(f"락 상태 확인 API 완료: editable={lock_status.get('editable')}")
-        return lock_status
+        return check_handover_lock_status(db, handover_id, current_user.get("user_id"))
     except Exception as e:
-        logger.error(f"락 상태 확인 API 오류: {str(e)}", exc_info=True)
+        logger.error(f"락 상태 확인 API 오류: {e}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "락 상태 확인 중 오류 발생"},

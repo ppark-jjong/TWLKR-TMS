@@ -180,12 +180,11 @@
   </div>
 </div>
 {% endblock %} {% block page_js %}
-<!-- 초기 데이터를 페이지에 데이터 속성으로 다시 추가 -->
-<div
-  id=\"initialDataContainer\"
-  data-initial=\"{{ initial_data_object|tojson|safe }}\"
-  class=\"hidden\"
-></div>
+<!-- 초기 데이터를 JavaScript 변수로 직접 정의 -->
+<script>
+  // 서버에서 제공된 초기 데이터를 안전하게 JavaScript 변수로 설정
+  var initialDashboardData = {{ initial_data|tojson|safe }};
+</script>
 
 <!-- 대시보드 스크립트 -->
 <script>
@@ -261,23 +260,16 @@
 
     // --- 초기화 함수 ---
     function initDashboard() {
-      showLoading(); 
-      
-      const initialDataElement = document.getElementById('initialDataContainer');
-      let initialData = {};
-      if (initialDataElement) {
-          const rawData = initialDataElement.getAttribute('data-initial');
-          try {
-              initialData = JSON.parse(rawData || '{}');
-          } catch (e) {
-              console.error("Failed to parse initial data JSON:", e);
-              console.error("Raw data string:", rawData); // 원본 데이터 문자열 로깅
-              showError("페이지 초기 데이터 로딩 중 오류가 발생했습니다. 콘솔을 확인하세요.");
-              initialData = {}; // 오류 시 빈 객체로 초기화
-          }
-      } else {
-          console.error('Initial data container not found!');
-          showError('페이지 초기화 중 오류 발생.');
+      showLoading();
+
+      // 서버에서 전달한 JSON을 사용하여 데이터 로드
+      let initialData = initialDashboardData || {};
+      console.log('Initial data loaded from server');
+
+      // 디버깅을 위해 초기 데이터 구조 출력
+      console.log('Initial data structure:', initialData);
+      if (initialData.orders && initialData.orders.length > 0) {
+        console.log('First order example:', initialData.orders[0]);
       }
 
       // 날짜 초기화 - localStorage에서 먼저 확인하고, 없으면 초기 데이터 또는 오늘 날짜 사용
@@ -287,19 +279,21 @@
         startDateInput.value = savedDates.startDate;
         endDateInput.value = savedDates.endDate;
         // URL 파라미터보다 localStorage 우선 사용 시 초기 데이터는 다시 로드해야 함
-        if (savedDates.startDate !== initialData?.start_date || savedDates.endDate !== initialData?.end_date) {
-          fetchAllOrders(savedDates.startDate, savedDates.endDate)
-            .then(() => {
-              initialLoadComplete = true;
-              console.log('Initial data loaded from localStorage date range');
-              hideLoading();
-            });
+        if (
+          savedDates.startDate !== initialData?.start_date ||
+          savedDates.endDate !== initialData?.end_date
+        ) {
+          fetchAllOrders(savedDates.startDate, savedDates.endDate).then(() => {
+            initialLoadComplete = true;
+            console.log('Initial data loaded from localStorage date range');
+            hideLoading();
+          });
         }
       } else {
         startDateInput.value = initialData?.start_date || getTodayDate();
         endDateInput.value = initialData?.end_date || getTodayDate();
       }
-      
+
       // 2. 페이지당 행 수 초기화
       rowsPerPage = parseInt(rowsPerPageSelect.value);
 
@@ -349,10 +343,10 @@
       showLoading();
       clearError();
       console.log(`Fetching all orders for ${startDate} to ${endDate}`);
-      
+
       // 날짜 범위를 localStorage에 저장
       saveDateRangeToStorage(startDate, endDate);
-      
+
       try {
         const response = await fetch(
           `/api/dashboard/list?start_date=${startDate}&end_date=${endDate}`
@@ -441,7 +435,7 @@
       let tableHTML = '';
       orders.forEach((order) => {
         tableHTML += `<tr class="status-${order.status?.toLowerCase()} clickable-row" data-id="${
-          order.dashboardId
+          order.dashboard_id
         }">`;
         columnDefinitions.forEach((col) => {
           if (visibleColumns[col.key]) {
@@ -450,7 +444,7 @@
               case 'orderNo':
                 content = `
                   <a href="/orders/${
-                    order.dashboardId
+                    order.dashboard_id
                   }" class="order-number">${order.orderNo || '-'}</a>
                   <button 
                     class="copy-order-btn" 
@@ -487,20 +481,23 @@
     function copyOrderNumber(event, orderNo) {
       event.stopPropagation(); // 행 클릭 이벤트 전파 방지
       if (!orderNo) return;
-      navigator.clipboard.writeText(orderNo).then(() => {
+      navigator.clipboard.writeText(orderNo).then(
+        () => {
           // 임시 피드백 (툴팁 등으로 개선 가능) -> Utils.alerts 로 변경
           Utils.alerts.showSuccess('주문번호가 복사되었습니다.'); // 성공 알림 추가
           const button = event.currentTarget;
           const originalIcon = button.innerHTML;
           button.innerHTML = '<i class="fa-solid fa-check"></i>';
           setTimeout(() => {
-              button.innerHTML = originalIcon;
+            button.innerHTML = originalIcon;
           }, 1500);
-      }, (err) => {
+        },
+        (err) => {
           console.error('Clipboard copy failed: ', err);
           alert('주문번호 복사에 실패했습니다.'); // 기존 alert 대신 Utils 사용 고려
           Utils.alerts.showError('주문번호 복사에 실패했습니다.'); // 오류 알림 추가
-      });
+        }
+      );
     }
 
     // 테이블 헤더 렌더링
@@ -640,7 +637,7 @@
       const day = String(today.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
-    
+
     // 날짜 범위를 localStorage에 저장
     function saveDateRangeToStorage(startDate, endDate) {
       try {
@@ -651,7 +648,7 @@
         console.warn('LocalStorage에 날짜 범위 저장 실패:', e);
       }
     }
-    
+
     // localStorage에서 날짜 범위 불러오기
     function loadDateRangeFromStorage() {
       try {
@@ -666,7 +663,7 @@
       }
       return { startDate: null, endDate: null };
     }
-    
+
     function formatDateTime(dateString) {
       try {
         // ISO 8601 형식이거나 다른 표준 형식으로 가정
@@ -789,13 +786,13 @@
       dashboardTableBody?.addEventListener('click', (e) => {
         // 클릭된 요소가 복사 버튼이 아닐 경우에만 행 이동 처리
         if (!e.target.closest('.copy-order-btn')) {
-            const row = e.target.closest('tr.clickable-row');
-            if (row) {
-              const orderId = row.dataset.id;
-              if (orderId) {
-                window.location.href = `/orders/${orderId}`;
-              }
+          const row = e.target.closest('tr.clickable-row');
+          if (row) {
+            const orderId = row.dataset.id;
+            if (orderId) {
+              window.location.href = `/orders/${orderId}`;
             }
+          }
         }
       });
 
@@ -823,10 +820,9 @@
 
     // --- 초기화 실행 ---
     initDashboard();
-    
+
     // 복사 함수를 전역 스코프에 노출 (onclick 핸들러에서 사용하기 위해)
     window.copyOrderNumber = copyOrderNumber;
-
   });
 </script>
 {% endblock %}

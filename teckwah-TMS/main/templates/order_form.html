@@ -1,9 +1,11 @@
 {% extends "base.html" %} {% block title %}{% if is_edit %}주문 수정{% else
 %}신규 주문 등록{% endif %} - Teckwah TMS{% endblock %} {% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', path='css/orders.css') }}" />
-{% endblock %} {% block content %} {# JavaScript에서 파싱할 JSON 데이터 포함 #}
-<script id="initial-data-script" type="application/json">
-  {{ initial_data_json|safe }}
+{% endblock %} {% block content %}
+<!-- 초기 데이터를 JavaScript 변수로 직접 정의 -->
+<script>
+  // 서버에서 제공된 초기 데이터를 안전하게 JavaScript 변수로 설정
+  var initialData = {{ initial_data|tojson|safe }};
 </script>
 
 <div class="order-form-page">
@@ -42,7 +44,8 @@
 
   <div class="main-card">
     {# form id 및 action은 JS에서 설정 또는 기본값 사용 후 JS 수정 #}
-    <form id="orderForm" method="POST" class="order-form two-column-form">
+    <form id="orderForm" method="POST" class="order-form two-column-form" 
+          action="{% if is_edit %}/api/orders/{{ order.dashboard_id }}{% else %}/api/orders{% endif %}">
       {# hidden input은 JS에서 필요시 추가 #}
 
       <div class="form-section">
@@ -234,20 +237,18 @@
 {% endblock %} {% block page_js %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    let initialData = {};
-    try {
-      const jsonDataElement = document.getElementById('initial-data-script');
-      initialData = JSON.parse(jsonDataElement.textContent || '{}');
-    } catch (e) {
-      console.error('Failed to parse initial data JSON:', e);
-      // 오류 처리 (예: 사용자에게 메시지 표시)
+    let initialData = window.initialData || {};
+    
+    // 오류 처리는 유지하지만 JSON 파싱 단계는 제거
+    if (!initialData) {
+      console.error('Initial data is missing');
       Utils.alerts.showError('페이지 데이터 로딩 오류');
       return; // 초기화 중단
     }
 
     const isEditMode = initialData.is_edit;
     const order = initialData.order;
-    const currentUserRole = initialData.current_user_role;
+    const currentUserRole = initialData.current_user?.user_role;
     const lockStatus = initialData.lock_status; // 수정 모드일 때만 유효
     const statusOptions = initialData.status_options; // 수정 모드일 때만 유효
 
