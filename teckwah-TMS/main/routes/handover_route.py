@@ -95,18 +95,16 @@ async def handover_page(
             "page_size": pagination_info.get("page_size", page_size),
         }
 
-        initial_data_obj = {
+        # 초기 데이터 객체 생성 (JSON 문자열 대신 직접 객체 사용)
+        initial_data = {
             "handovers": handovers,
             "pagination": pagination_data,
             "notices": notices,
-            "current_user": current_user,
-            "error_message": error_message,
-            "success_message": success_message,
         }
 
         context = {
             "request": request,
-            "initial_data_json": json.dumps(initial_data_obj, cls=CustomJSONEncoder),
+            "initial_data": initial_data,  # JSON 문자열 대신 객체 직접 전달
             "current_user": current_user,
             "notices": notices,
             "handovers": handovers,
