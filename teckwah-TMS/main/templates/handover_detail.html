@@ -1,134 +1,151 @@
-{% extends "base.html" %}
-
-{% block title %}인수인계 상세 - Teckwah TMS{% endblock %}
-
-{% block page_css %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/handover.css') }}">
-{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}인수인계 상세 - Teckwah TMS{%
+endblock %} {% block page_css %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', path='css/handover.css') }}"
+/>
+{% endblock %} {% block content %}
 <div class="handover-detail-page">
-    <div class="page-header">
-        <h1 class="page-title">
-            <i class="fa-solid {% if handover.type == 'NOTICE' %}fa-bullhorn{% else %}fa-exchange-alt{% endif %}"></i>
-            {{ handover.type_label }} 상세 정보
-        </h1>
-        <div class="header-actions">
-            <a href="/handover" class="btn secondary-btn">
-                <i class="fa-solid fa-arrow-left"></i>
-                목록으로
-            </a>
-            {% if user.user_id == handover.created_by or user.user_role == 'ADMIN' %}
-            <a href="/handover/{{ handover.handover_id }}/edit" class="btn primary-btn">
-                <i class="fa-solid fa-edit"></i>
-                수정
-            </a>
-            <button id="deleteHandoverBtn" class="btn danger-btn">
-                <i class="fa-solid fa-trash"></i>
-                삭제
-            </button>
+  <div class="page-header">
+    <h1 class="page-title">
+      <i
+        class="fa-solid {% if handover.type == 'NOTICE' %}fa-bullhorn{% else %}fa-exchange-alt{% endif %}"
+      ></i>
+      {{ handover.type_label }} 상세 정보
+    </h1>
+    <div class="header-actions">
+      <a href="/handover" class="btn secondary-btn">
+        <i class="fa-solid fa-arrow-left"></i>
+        목록으로
+      </a>
+      {% if current_user and (current_user.user_id == handover.created_by or
+      current_user.user_role == 'ADMIN') %}
+      <a
+        href="/handover/{{ handover.handover_id }}/edit"
+        class="btn primary-btn"
+      >
+        <i class="fa-solid fa-edit"></i>
+        수정
+      </a>
+      <button id="deleteHandoverBtn" class="btn danger-btn">
+        <i class="fa-solid fa-trash"></i>
+        삭제
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="main-card">
+    <div class="handover-detail-content">
+      <div class="handover-header">
+        <div class="handover-title-section">
+          <div class="handover-tags">
+            <span
+              class="tag {{ 'notice' if handover.is_notice else 'handover' }}-tag"
+            >
+              {{ '공지사항' if handover.is_notice else '인수인계' }}
+            </span>
+          </div>
+          <h2 class="handover-title">{{ handover.title }}</h2>
+        </div>
+
+        <div class="handover-meta">
+          <div class="meta-item">
+            <i class="fa-solid fa-user"></i>
+            <span class="meta-label">작성자:</span>
+            <span class="meta-value">{{ handover.create_by }}</span>
+          </div>
+          <div class="meta-item">
+            <i class="fa-solid fa-calendar"></i>
+            <span class="meta-label">작성/수정일시:</span>
+            <span class="meta-value">{{ handover.update_at|datetime }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="handover-content">
+        <div class="content-area">{{ handover.content|safe }}</div>
+      </div>
+
+      <div class="handover-footer">
+        <div class="confirmation-section">
+          <h3 class="section-title">
+            <i class="fa-solid fa-check-circle"></i>
+            확인 목록
+          </h3>
+
+          <div class="confirmation-list">
+            {% if handover.confirmations %} {% for confirm in
+            handover.confirmations %}
+            <div class="confirmation-item">
+              <div class="confirm-icon">
+                <i class="fa-solid fa-user-check"></i>
+              </div>
+              <div class="confirm-info">
+                <div class="confirm-name">{{ confirm.user }}</div>
+                <div class="confirm-time">
+                  {{ confirm.confirmed_at|datetime }}
+                </div>
+              </div>
+            </div>
+            {% endfor %} {% else %}
+            <div class="empty-confirmation">
+              <i class="fa-solid fa-info-circle"></i>
+              <p>아직 확인한 사용자가 없습니다.</p>
+            </div>
             {% endif %}
+          </div>
+
+          {% set user_has_confirmed = false %} {% if handover.confirmations %}
+          {% for confirm in handover.confirmations %} {% if current_user and
+          confirm.user == current_user.user_id %} {% set user_has_confirmed =
+          true %} {% set confirmed_at_time = confirm.confirmed_at %} {% endif %}
+          {% endfor %} {% endif %} {% if not user_has_confirmed %}
+          <div class="confirm-action">
+            <form
+              action="/handover/{{ handover.handover_id }}/confirm"
+              method="POST"
+            >
+              <button type="submit" class="btn primary-btn">
+                <i class="fa-solid fa-check"></i> 확인 완료
+              </button>
+            </form>
+          </div>
+          {% else %}
+          <div class="confirmed-message">
+            <i class="fa-solid fa-check-circle"></i>
+            <span
+              >{{ current_user.user_id }}님께서 {{ confirmed_at_time|datetime }}
+              에 확인했습니다.</span
+            >
+          </div>
+          {% endif %}
         </div>
+      </div>
     </div>
-    
-    <div class="main-card">
-        <div class="handover-detail-content">
-            <div class="handover-header">
-                <div class="handover-title-section">
-                    <div class="handover-tags">
-                        <span class="tag {{ handover.type|lower }}-tag">
-                            {{ handover.type_label }}
-                        </span>
-                        <span class="priority-badge priority-{{ handover.priority|lower }}">
-                            {{ handover.priority_label }}
-                        </span>
-                    </div>
-                    <h2 class="handover-title">{{ handover.title }}</h2>
-                </div>
-                
-                <div class="handover-meta">
-                    <div class="meta-item">
-                        <i class="fa-solid fa-user"></i>
-                        <span class="meta-label">작성자:</span>
-                        <span class="meta-value">{{ handover.created_by }}</span>
-                    </div>
-                    <div class="meta-item">
-                        <i class="fa-solid fa-calendar"></i>
-                        <span class="meta-label">작성일시:</span>
-                        <span class="meta-value">{{ handover.created_at|datetime }}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="handover-content">
-                <div class="content-area">
-                    {{ handover.content|safe }}
-                </div>
-            </div>
-            
-            <div class="handover-footer">
-                <div class="confirmation-section">
-                    <h3 class="section-title">
-                        <i class="fa-solid fa-check-circle"></i>
-                        확인 목록
-                    </h3>
-                    
-                    <div class="confirmation-list">
-                        {% if handover.confirmations %}
-                            {% for confirm in handover.confirmations %}
-                            <div class="confirmation-item">
-                                <div class="confirm-icon">
-                                    <i class="fa-solid fa-user-check"></i>
-                                </div>
-                                <div class="confirm-info">
-                                    <div class="confirm-name">{{ confirm.user }}</div>
-                                    <div class="confirm-time">{{ confirm.confirmed_at|datetime }}</div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="empty-confirmation">
-                                <i class="fa-solid fa-info-circle"></i>
-                                <p>아직 확인한 사용자가 없습니다.</p>
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    {% if not is_confirmed %}
-                    <div class="confirm-action">
-                        <form action="/handover/{{ handover.handover_id }}/confirm" method="POST">
-                            <button type="submit" class="btn primary-btn">
-                                <i class="fa-solid fa-check"></i> 확인 완료
-                            </button>
-                        </form>
-                    </div>
-                    {% else %}
-                    <div class="confirmed-message">
-                        <i class="fa-solid fa-check-circle"></i>
-                        <span>사용자님께서 {{ user_confirmed_at|datetime }} 에 확인했습니다.</span>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
+  </div>
 </div>
 
 <!-- 삭제 확인 다이얼로그 -->
 <div id="deleteConfirmDialog" class="dialog">
-    <div class="dialog-content">
-        <h3>삭제 확인</h3>
-        <p>정말로 이 {{ handover.type_label }}을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
-        <div class="dialog-actions">
-            <button class="btn secondary-btn" id="cancelDeleteBtn">취소</button>
-            <form action="/handover/{{ handover.handover_id }}/delete" method="POST">
-                <button type="submit" class="btn danger-btn">삭제</button>
-            </form>
-        </div>
+  <div class="dialog-content">
+    <h3>삭제 확인</h3>
+    <p>
+      정말로 이 {{ handover.type_label }}을 삭제하시겠습니까? 이 작업은 되돌릴
+      수 없습니다.
+    </p>
+    <div class="dialog-actions">
+      <button class="btn secondary-btn" id="cancelDeleteBtn">취소</button>
+      <form
+        action="/api/handover/{{ handover.handover_id }}/delete"
+        method="POST"
+        id="deleteHandoverForm"
+      >
+        <button type="submit" class="btn danger-btn">삭제</button>
+      </form>
     </div>
+  </div>
 </div>
-{% endblock %}
-
-{% block page_js %}
+{% endblock %} {% block page_js %}
 <script src="{{ url_for('static', path='js/handover_detail.js') }}"></script>
 {% endblock %}

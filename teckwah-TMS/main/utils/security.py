@@ -193,31 +193,42 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     Raises:
         HTTPException: 인증되지 않은 경우
     """
-    # FastAPI의 세션 미들웨어 사용 - request.session에서 직접 사용자 정보 확인
     user = request.session.get("user")
+    session_id = request.cookies.get("session_id")  # 쿠키 값 미리 읽기
 
-    # 세션에 사용자 정보가 없는 경우 쿠키의 세션 ID 확인
-    if not user:
-        session_id = request.cookies.get("session_id")
-        session_data = get_session(session_id)
-
-        if session_data:
-            # 세션 데이터가 있으면 세션에 저장
-            request.session["user"] = session_data
-            user = session_data
-            logger.debug(f"세션 ID로 사용자 정보 복원: {session_id[:8]}...")
+    if user:
+        logger.debug(f"세션에서 사용자 정보 확인: {user.get('user_id')}")
+    else:
+        logger.debug(
+            f"세션에 사용자 정보 없음. 쿠키 확인 시도 (session_id: {session_id[:8] if session_id else '없음'})..."
+        )
+        if session_id:
+            session_data = get_session(session_id)
+            if session_data:
+                # 세션 데이터가 있으면 request.session에도 저장하여 일관성 유지
+                request.session["user"] = session_data
+                user = session_data
+                logger.debug(
+                    f"쿠키의 세션 ID로 사용자 정보 복원 및 세션 동기화 성공: {user.get('user_id')}"
+                )
+            else:
+                logger.warning(
+                    f"쿠키의 세션 ID({session_id[:8]}...)는 유효하지 않거나 만료됨."
+                )
         else:
-            # 세션 데이터가 없으면 인증 오류
-            logger.warning(f"인증되지 않은 접근 시도: {request.url.path}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="인증이 필요합니다"
-            )
+            logger.warning("세션 및 쿠키 모두에 사용자 정보 없음.")
 
-    # 사용자 정보 디버그 로깅
+    # 최종 사용자 확인 및 예외 처리
+    if not user:
+        logger.warning(f"인증되지 않은 접근 시도 (최종): {request.url.path}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="인증이 필요합니다"
+        )
+
+    # 사용자 정보 반환 전 로그
     logger.debug(
-        f"인증된 사용자: {user.get('user_id', 'N/A')}, 권한: {user.get('user_role', 'N/A')}"
+        f"인증된 사용자 반환: {user.get('user_id', 'N/A')}, 권한: {user.get('user_role', 'N/A')}"
     )
-
     return user
 
 

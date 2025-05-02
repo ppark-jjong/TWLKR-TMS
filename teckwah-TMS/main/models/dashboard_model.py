@@ -47,7 +47,9 @@ class Dashboard(Base):
         Enum("SEOUL", "BUSAN", "GWANGJU", "DAEJEON", name="dashboard_warehouse_enum"),
         nullable=False,
     )
-    region = Column(String(50), nullable=True)  # 지역 정보를 저장하는 필드 추가
+    region = Column(
+        String(50), nullable=True, info={"generated": True}
+    )  # 생성된 컬럼임을 알려주는 info 설정
     sla = Column(String(10), nullable=False)
     eta = Column(DateTime, nullable=False)
     create_time = Column(DateTime, nullable=False, default=func.now())
@@ -80,3 +82,6 @@ class Dashboard(Base):
         Index("idx_department", "department"),
         Index("idx_order_no", "order_no"),
     )
+
+    # region 컬럼을 INSERT 쿼리에서 제외
+    __mapper_args__ = {"exclude_properties": ["region"]}

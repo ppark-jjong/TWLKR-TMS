@@ -4,7 +4,7 @@
 .app {
   display: flex;
   height: 100vh;
-  overflow: hidden;
+  overflow: hidden; /* 전체 페이지 스크롤 방지 */
 }
 
 .main-layout {
@@ -24,8 +24,9 @@
   transition: width var(--transition-normal);
   z-index: 10;
   box-shadow: var(--shadow-sm);
-  overflow-y: auto;
+  overflow-y: auto; /* 사이드바 자체 스크롤 */
   position: relative;
+  flex-shrink: 0; /* 너비 고정 */
 }
 
 /* 접힌 사이드바 스타일 */
@@ -256,12 +257,14 @@
 
 /* 메인 컨텐츠 영역 */
 .main-content {
-  flex: 1;
-  overflow: auto;
+  flex-grow: 1; /* 남은 공간 모두 차지 */
+  height: 100vh; /* 뷰포트 높이 */
+  display: flex; /* 내부 요소(content-container) 정렬 위해 */
+  flex-direction: column; /* 세로 배치 */
+  overflow: hidden; /* 내부에서 스크롤 처리하도록 */
   background-color: var(--background-color);
   transition: all var(--transition-normal);
   width: calc(100% - 240px);
-  min-height: 100vh;
 }
 
 /* 메인 컨테이너 조정 (사이드바 접힐 때) */
@@ -270,10 +273,13 @@
 }
 
 .content-container {
+  flex-grow: 1; /* main-content 내에서 남은 공간 차지 */
   padding: var(--spacing-md) var(--spacing-lg);
   width: 100%;
   box-sizing: border-box;
-  height: 100%;
+  overflow-y: auto; /* 컨텐츠가 넘칠 경우 여기서 스크롤 */
+  display: flex; /* 내부 카드 정렬 위해 */
+  flex-direction: column; /* 세로 배치 */
 }
 
 /* 전체 너비 콘텐츠 컨테이너 */
@@ -298,12 +304,10 @@
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px var(--spacing-md);
+  align-items: center;
+  padding: 10px var(--spacing-lg); /* 패딩 조정 */
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0; /* 높이 고정, 줄어들지 않음 */
 }
 
 .page-title {
@@ -326,15 +330,11 @@
   background-color: white;
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
   border: 1px solid var(--border-color);
-  transition: box-shadow var(--transition-normal);
   display: flex;
   flex-direction: column;
-  flex: 1;
-  margin: var(--spacing-md);
-  height: calc(100vh - 60px); /* 헤더와 여백 고려 */
+  flex-grow: 1; /* content-container 내에서 남은 공간 차지 */
+  margin: var(--spacing-md) 0 0 0; /* 위쪽 마진만 적용 */
 }
 
 .main-card:hover {
@@ -572,7 +572,7 @@
     margin-left: 0;
     width: 100%;
   }
-  
+
   /* 접힌 사이드바 상태에서 토글 버튼 위치 조정 */
   .sidebar.collapsed .sidebar-toggle {
     right: -60px;
@@ -596,22 +596,22 @@
     justify-content: flex-end;
     margin-top: var(--spacing-sm);
   }
-  
+
   /* 메인 카드 패딩 조정 */
   .main-card {
     padding: var(--spacing-sm);
   }
-  
+
   /* 필터 헤더 조정 */
   .filter-header {
     flex-direction: column;
     gap: var(--spacing-sm);
   }
-  
+
   .date-filter-container {
     width: 100%;
   }
-  
+
   .search-container {
     width: 100%;
   }
@@ -631,26 +631,26 @@
     margin-bottom: var(--spacing-md);
     border-radius: var(--border-radius-md);
   }
-  
+
   .date-input-group {
     flex-direction: column;
     width: 100%;
   }
-  
+
   .date-input {
     width: 100%;
   }
-  
+
   .date-separator {
     display: none;
   }
-  
+
   /* 테이블 레이아웃 조정 */
   .table-container {
     margin: 0 -10px;
     width: calc(100% + 20px);
   }
-  
+
   .data-table th,
   .data-table td {
     padding: 8px;

@@ -2,9 +2,18 @@
 사용자 관리 관련 라우터 - 극도로 단순화
 """
 
-from typing import Dict, Any
-from fastapi import APIRouter, Depends, Request, Query, Form, status, Path
-from fastapi.responses import JSONResponse
+from typing import Dict, Any, Optional
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+    Query,
+    Form,
+    status,
+    Path,
+    HTTPException,
+)
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 import logging
 
@@ -14,33 +23,33 @@ from main.utils.security import get_admin_user, hash_password  # 관리자 전�
 from main.service.user_service import (
     get_user_list,
     create_user,
-    update_user_role,
     delete_user,
 )
 
 logger = logging.getLogger(__name__)
 
-# 라우터 생성 (관리자 전용)
-router = APIRouter()
+# 라우터 생성 (페이지 / API 분리 및 관리자 전용)
+page_router = APIRouter(prefix="/admin/users", dependencies=[Depends(get_admin_user)])
+api_router = APIRouter(
+    prefix="/api/admin/users", dependencies=[Depends(get_admin_user)]
+)
 
 
-@router.get("")
+# === 페이지 렌더링 라우트 ===
+@page_router.get("", include_in_schema=False)
 async def users_page(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 접근 가능
+    current_user: Dict[str, Any] = Depends(get_admin_user),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     role: str = Query(None),
     search_type: str = Query(None),
     search_value: str = Query(None),
 ):
-    """
-    사용자 관리 페이지 렌더링 (관리자 전용)
-    """
-    # 함수 진입점 로깅
+    """설명서 4.1: 사용자 관리 페이지 렌더링 (관리자 전용)"""
     logging.info(
-        f"users_page 시작: 매개변수={{'page': {page}, 'limit': {limit}, 'role': {role}, 'search_type': {search_type}, 'search_value': {search_value}}}"
+        f"users_page 시작: user={current_user.get('user_id')}, 매개변수={{'page': {page}, 'limit': {limit}, 'role': {role}, 'search_type': {search_type}, 'search_value': {search_value}}}"
     )
 
     try:
@@ -75,11 +84,11 @@ async def users_page(
             "users.html",
             {
                 "request": request,
-                "user": current_user,
+                "current_user": current_user,
                 "users": users,
                 "current_page": page,
                 "total_pages": pagination["total_pages"],
-                "filter": filter_data,  # 필터 정보 추가
+                "filter": filter_data,
             },
         )
     except Exception as e:
@@ -96,69 +105,76 @@ async def users_page(
             {
                 "request": request,
                 "error_message": "사용자 목록을 불러오는 중 오류가 발생했습니다.",
+                "current_user": current_user,
             },
             status_code=500,
         )
 
 
-from main.schema.user_schema import UserCreateForm
+# === API 엔드포인트 라우트 ===
 
 
-@router.post("")
+@api_router.post("", status_code=status.HTTP_302_FOUND)
 async def create_new_user(
-    request: Request,
-    user_data: UserCreateForm,
     db: Session = Depends(get_db),
     current_admin: Dict[str, Any] = Depends(get_admin_user),
+    user_id: str = Form(...),
+    user_password: str = Form(...),
+    user_role: str = Form(...),
+    user_department: Optional[str] = Form(None),
 ):
-    """
-    사용자 생성 API (관리자 전용, JSON 요청)
-    """
+    """설명서 4.3: 사용자 생성 처리 (Form 방식)"""
     logging.info(
-        f"사용자 생성 API 호출: userId={user_data.user_id}, role={user_data.user_role}, by={current_admin.get('user_id')}"
+        f"사용자 생성 API 호출: userId={user_id}, role={user_role}, by={current_admin.get('user_id')}"
     )
     try:
-        hashed_password = hash_password(user_data.user_password)
+        hashed_password = hash_password(user_password)
         create_user(
             db=db,
-            user_id=user_data.user_id,
+            user_id=user_id,
             user_password=hashed_password,
-            user_role=user_data.user_role,
-            user_department=user_data.user_department,
+            user_role=user_role,
+            user_department=user_department,
         )
-        logging.info(f"사용자 생성 성공: userId={user_data.user_id}")
-        return {"success": True, "message": "사용자가 성공적으로 생성되었습니다."}
+        logging.info(f"사용자 생성 성공: userId={user_id}")
+        return RedirectResponse(
+            url="/admin/users", status_code=status.HTTP_303_SEE_OTHER
+        )
     except Exception as e:
         logging.error(f"사용자 생성 중 오류 발생: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="사용자 생성 중 오류가 발생했습니다."
+            status_code=500, detail=f"사용자 생성 중 오류가 발생했습니다: {str(e)}"
         )
 
 
-@router.post("/{user_id_to_delete}/delete")
+@api_router.post("/{user_id_to_delete}/delete", status_code=status.HTTP_302_FOUND)
 async def delete_user_account(
-    user_id_to_delete: str = Path(..., description="삭제할 사용자 ID", alias="userId"),
+    user_id_to_delete: str = Path(..., description="삭제할 사용자 ID"),
     db: Session = Depends(get_db),
     current_admin: Dict[str, Any] = Depends(get_admin_user),
 ):
-    """
-    사용자 삭제 API (관리자 전용, 경로 파라미터 사용)
-    """
+    """설명서 4.4: 사용자 삭제 처리"""
     logging.info(
         f"사용자 삭제 API 호출: targetUserId={user_id_to_delete}, by={current_admin.get('user_id')}"
     )
 
-    # 자기 자신 삭제 방지 (선택적)
     if user_id_to_delete == current_admin.get("user_id"):
         logging.warning(f"자기 자신 삭제 시도: user={user_id_to_delete}")
-        raise HTTPException(status_code=400, detail="자기 자신은 삭제할 수 없습니다.")
+        return RedirectResponse(
+            url="/admin/users?error=자기 자신은 삭제할 수 없습니다.",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
     try:
         delete_user(db=db, user_id=user_id_to_delete)
         logging.info(f"사용자 삭제 성공: targetUserId={user_id_to_delete}")
-        return {"success": True, "message": "사용자가 성공적으로 삭제되었습니다."}
+        return RedirectResponse(
+            url="/admin/users?success=사용자가 삭제되었습니다.",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
     except Exception as e:
         logging.error(f"사용자 삭제 중 오류 발생: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="사용자 삭제 중 오류가 발생했습니다."
+        return RedirectResponse(
+            url=f"/admin/users?error=사용자 삭제 중 오류 발생: {str(e)}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )

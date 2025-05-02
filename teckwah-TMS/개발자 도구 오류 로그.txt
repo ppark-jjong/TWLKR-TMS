@@ -1,0 +1,47 @@
+사용자 정보 업데이트: Object
+base.js:53 사용자 정보 초기화됨: CSAdmin
+base.js:91 로그아웃 버튼 이벤트 등록됨
+base.js:108 세션 만료 대화상자 이벤트 등록됨
+base.js:134 세션 체크 타이머 시작됨
+base.js:33 기본 앱 초기화 완료
+layout.js:57 사이드바 상태 복원: 펼침
+layout.js:31 레이아웃 모듈 초기화 완료
+handover/:348 Initial SSR data loaded: 1 handovers, total(all): 0
+handover/:432 Applying filter 'all' and rendering page 1
+handover/:443 Filtered items count: 1
+handover/:453 Rendering 1 items for page 1
+handover/:385 Fetching all handovers and notices...
+api/handover/list?is_notice=false:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+api/handover/list?is_notice=true:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+handover/:418 Error in fetchAllItems: Error: HTTP error! Handover: 500, Notice: 500
+    at fetchAllItems (handover/:394:17)
+fetchAllItems @ handover/:418Understand this error
+handover/:432 Applying filter 'all' and rendering page 1
+handover/:443 Filtered items count: 0
+handover/:453 Rendering 0 items for page 1
+handover/:373 Error fetching initial full data: Error: HTTP error! Handover: 500, Notice: 500
+    at fetchAllItems (handover/:394:17)
+(anonymous) @ handover/:373Understand this error
+handover/:385 Fetching all handovers and notices...
+api/handover/list?is_notice=false:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+api/handover/list?is_notice=true:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+handover/:418 Error in fetchAllItems: Error: HTTP error! Handover: 500, Notice: 500
+    at fetchAllItems (handover/:394:17)
+fetchAllItems @ handover/:418Understand this error
+handover/:432 Applying filter 'all' and rendering page 1
+handover/:443 Filtered items count: 0
+handover/:453 Rendering 0 items for page 1
+handover/:394 Uncaught (in promise) Error: HTTP error! Handover: 500, Notice: 500
+    at fetchAllItems (handover/:394:17)

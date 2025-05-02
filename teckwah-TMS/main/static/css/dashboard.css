@@ -98,7 +98,8 @@
   font-weight: 500;
 }
 
-.filter-select, .date-input {
+.filter-select,
+.date-input {
   padding: 6px 10px;
   border: 1px solid var(--border-color-dark);
   border-radius: var(--border-radius-sm);
@@ -113,10 +114,10 @@
 
 /* 행 개수 선택 스타일 */
 .filter-item.rows-per-page label {
-    margin-right: 5px; /* 레이블과 셀렉트 박스 간격 */
+  margin-right: 5px; /* 레이블과 셀렉트 박스 간격 */
 }
 .filter-item.rows-per-page select {
-    min-width: 80px; /* 너비 조정 */
+  min-width: 80px; /* 너비 조정 */
 }
 
 .date-input {
@@ -133,7 +134,8 @@
   border-top: 1px solid var(--border-color);
 }
 
-.left-actions, .right-actions {
+.left-actions,
+.right-actions {
   display: flex;
   gap: var(--spacing-sm);
 }
@@ -150,7 +152,8 @@
 .table-container {
   width: 100%;
   overflow-y: auto;
-  max-height: calc(100vh - 300px); /* 적절한 높이 조정 */
+  max-height: calc(100vh - 320px); /* 더 보수적인 높이 계산 */
+  height: auto; /* 자동 높이 설정으로 브라우저 간 차이 최소화 */
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
@@ -159,78 +162,81 @@
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  border-spacing: 0;
-  font-size: var(--font-size-sm);
-  background-color: white;
+  table-layout: fixed; /* 컬럼 너비 고정 */
 }
 
-.data-table thead {
-  background-color: var(--background-color-light);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+.data-table th,
+.data-table td {
+  border: 1px solid #e0e0e0; /* 더 연한 회색 테두리 */
+  padding: 10px 12px;
+  text-align: center; /* 가운데 정렬 추가 */
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(0.9rem + 1pt); /* 기본 폰트 크기 + 1pt */
 }
 
 .data-table th {
-  padding: 14px 16px;
+  background-color: #f5f5f5; /* 약간 더 연한 회색 배경 */
   font-weight: 600;
-  border-bottom: 1px solid var(--border-color-dark);
-  background-color: white;
-  color: var(--text-color);
-  font-size: calc(var(--font-size-sm) + 2pt); /* 컬럼명 폰트 크기 증가 */
-  text-align: center; /* 가운데 정렬 */
-}
-
-.data-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: middle;
-  text-align: center; /* 가운데 정렬 */
-}
-
-.data-table tbody tr:last-child td {
-  border-bottom: none;
+  color: #424242; /* 약간 더 연한 텍스트 */
 }
 
 .data-table tbody tr:hover {
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-/* 테이블 행 상태별 배경색 - 주석 처리 (디자인 불필요 시 제거 가능) */
-/* 
-.data-table tr.status-waiting {
-  background-color: rgb(255, 250, 230);
-}
-.data-table tr.status-in_progress {
-  background-color: rgb(220, 240, 255);
-}
-.data-table tr.status-complete {
-  background-color: rgb(230, 250, 230);
-}
-.data-table tr.status-issue {
-  background-color: rgb(255, 230, 230);
-}
-.data-table tr.status-cancel {
-  background-color: rgb(240, 240, 240);
-}
-*/
-
-/* 테이블 내 주문번호 셀 스타일 */
-.order-number {
-  font-weight: 500;
-  color: var(--primary-color);
+  background-color: #f0f0f0 !important; /* 덮어쓰기 위해 !important 사용 */
   cursor: pointer;
-  position: relative;
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
-.order-number:hover {
-  color: var(--primary-color-dark);
+/* 상태별 행 배경색 (더 연한 파스텔톤 + !important) */
+.data-table tbody tr.status-waiting {
+  background-color: #fff5f5 !important; /* 매우 연한 분홍 */
+}
+.data-table tbody tr.status-in_progress {
+  background-color: #eef7ff !important; /* 매우 연한 하늘 */
+}
+.data-table tbody tr.status-complete {
+  background-color: #f4fff0 !important; /* 매우 연한 녹색 */
+}
+.data-table tbody tr.status-issue {
+  background-color: #fffdf0 !important; /* 매우 연한 노랑 */
+}
+.data-table tbody tr.status-cancel {
+  background-color: #fafafa !important; /* 매우 연한 회색 */
+  color: #a0a0a0 !important; /* 취소 텍스트 색상도 조정 */
+}
+
+/* 테이블 내 링크 스타일 */
+.data-table a {
+  color: #0d6efd; /* 기본 파란색 링크 */
+  text-decoration: none;
+}
+
+.data-table a:hover {
   text-decoration: underline;
+}
+
+/* 복사 버튼 스타일 (기존 스타일 유지 또는 재정의) */
+.copy-order-btn {
+  background: none;
+  border: none;
+  color: var(--text-color-secondary, #6c757d); /* 기존 변수 또는 기본값 */
+  cursor: pointer;
+  margin-left: 5px;
+  font-size: 0.9em;
+  padding: 0 3px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  vertical-align: middle; /* 수직 정렬 추가 */
+}
+
+.copy-order-btn:hover {
+  color: var(--primary-color, #0d6efd); /* 기존 변수 또는 기본값 */
+  opacity: 1;
+}
+
+.copy-order-btn i {
+  pointer-events: none; /* 아이콘 클릭 방지 */
 }
 
 /* 빈 테이블 표시 */
@@ -264,41 +270,9 @@
   cursor: pointer;
 }
 
-/* 상태 뱃지 */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  min-width: 70px;
-}
-
-.status-badge.status-waiting {
-  background-color: rgb(255, 250, 230);
-  color: rgb(188, 156, 40);
-}
-
-.status-badge.status-in_progress {
-  background-color: rgb(220, 240, 255);
-  color: rgb(45, 135, 181);
-}
-
-.status-badge.status-complete {
-  background-color: rgb(230, 250, 230);
-  color: rgb(80, 164, 40);
-}
-
-.status-badge.status-issue {
-  background-color: rgb(255, 230, 230);
-  color: rgb(205, 65, 50);
-}
-
-.status-badge.status-cancel {
-  background-color: rgb(240, 240, 240);
-  color: rgb(110, 110, 110);
+/* 행 호버 효과 */
+.data-table tbody tr.clickable-row:hover {
+  background-color: var(--hover-color, #f5f5f5);
 }
 
 /* 페이지네이션 */
@@ -346,4 +320,49 @@
   display: inline-block;
   min-width: 80px;
   text-align: center;
+}
+
+/* 브라우저 호환성을 위한 추가 스타일 */
+@-moz-document url-prefix() {
+  /* Firefox 전용 스타일 */
+  .filter-select,
+  .date-input {
+    height: 36px; /* Firefox에서 높이 일관성 유지 */
+  }
+
+  .data-table th,
+  .data-table td {
+    font-size: 0.9rem; /* Firefox에서는 폰트 크기 약간 줄임 */
+  }
+}
+
+/* 크로스 브라우저 호환성 개선 */
+.filter-bar input,
+.filter-bar select,
+.filter-bar button {
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Chrome, Safari, Edge에서 input 숫자 화살표 제거 */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox에서 input 숫자 화살표 제거 */
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* 복사 버튼 크로스 브라우저 호환성 */
+.copy-order-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  width: 24px;
 }

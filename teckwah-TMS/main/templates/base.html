@@ -58,19 +58,21 @@
           <div
             id="userInfo"
             class="hidden"
-            data-user-id="{{ user.user_id if user else '' }}"
-            data-user-name="{{ user.user_name if user else '' }}"
-            data-user-role="{{ user.user_role if user else '' }}"
-            data-department="{{ user.department if user else '' }}"
+            data-user-id="{{ current_user.user_id if current_user else '' }}"
+            data-user-role="{{ current_user.user_role if current_user else '' }}"
+            data-department="{{ current_user.user_department if current_user else '' }}"
           ></div>
 
           <div class="user-info">
             <div class="user-details">
               <p class="user-id" id="userDisplayId">
-                <span class="user-id-label">ID:</span> {{ user.user_id if user else '로그인 필요' }}
-                {% if user and user.user_role %}
-                <span class="user-role-badge {{ 'admin' if user.user_role == 'ADMIN' else 'user' }}">
-                  {{ user.user_role }}
+                <span class="user-id-label">ID:</span> {{ current_user.user_id
+                if current_user else '로그인 필요' }} {% if current_user and
+                current_user.user_role %}
+                <span
+                  class="user-role-badge {{ 'admin' if current_user.user_role == 'ADMIN' else 'user' }}"
+                >
+                  {{ current_user.user_role }}
                 </span>
                 {% endif %}
               </p>
@@ -88,18 +90,18 @@
                 </a>
               </li>
               <li
-                class="menu-item {% if request.url.path == '/handover' %}active{% endif %}"
+                class="menu-item {% if request.url.path.startswith('/handover') %}active{% endif %}"
               >
                 <a href="/handover">
                   <i class="fa-solid fa-right-left"></i>
                   <span>Work-Notice</span>
                 </a>
               </li>
-              {% if user and user.user_role == 'ADMIN' %}
+              {% if current_user and current_user.user_role == 'ADMIN' %}
               <li
-                class="menu-item {% if request.url.path == '/users' %}active{% endif %}"
+                class="menu-item {% if request.url.path.startswith('/admin/users') %}active{% endif %}"
               >
-                <a href="/users">
+                <a href="/admin/users">
                   <i class="fa-solid fa-users"></i>
                   <span>User Management</span>
                 </a>
@@ -161,12 +163,40 @@
 
     <!-- 공통 JavaScript - 코어 유틸리티 라이브러리 -->
     <script src="{{ url_for('static', path='js/utils.js') }}"></script>
-    
+
     <!-- 공통 애플리케이션 스크립트 -->
     <script src="{{ url_for('static', path='js/base.js') }}"></script>
     <script src="{{ url_for('static', path='js/layout.js') }}"></script>
 
     <!-- 페이지별 JavaScript -->
-    {% block page_js %}{% endblock %}
+    {% block page_js %}{% endblock %} {# URL 파라미터 기반 알림 처리 #}
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const successMessage = urlParams.get('success');
+        const errorMessage = urlParams.get('error');
+        const warningMessage = urlParams.get('warning');
+
+        if (successMessage) {
+          Utils.alerts.showSuccess(decodeURIComponent(successMessage));
+        }
+        if (errorMessage) {
+          Utils.alerts.showError(decodeURIComponent(errorMessage));
+        }
+        if (warningMessage) {
+          Utils.alerts.showWarning(decodeURIComponent(warningMessage));
+        }
+
+        // 알림 표시 후 URL에서 파라미터 제거 (새로고침 시 중복 방지)
+        if (successMessage || errorMessage || warningMessage) {
+          const newUrl = window.location.pathname + window.location.hash; // 쿼리 스트링 제거
+          // 히스토리를 조작하여 URL을 변경하지만 페이지 리로드는 하지 않음
+          // 사용자가 뒤로가기를 눌렀을 때 이전 알림 파라미터가 있는 URL로 돌아갈 수 있음
+          // 더 복잡한 상태 관리가 필요할 수 있지만, 여기서는 간단하게 처리
+          // window.history.replaceState({}, document.title, newUrl);
+          // -> 사용성 측면에서 URL을 그대로 두는 것이 나을 수 있음 (새로고침 시 다시 뜨는 것은 감수)
+        }
+      });
+    </script>
   </body>
 </html>

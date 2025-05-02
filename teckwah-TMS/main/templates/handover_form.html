@@ -1,9 +1,9 @@
-{% extends "base.html" %}
-
-{% block title %}{% if handover %}인수인계 수정{% else %}인수인계 작성{% endif %} - Teckwah TMS{% endblock %}
-
-{% block page_css %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/handover.css') }}">
+{% extends "base.html" %} {% block title %}{% if handover %}인수인계 수정{% else
+%}인수인계 작성{% endif %} - Teckwah TMS{% endblock %} {% block page_css %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', path='css/handover.css') }}"
+/>
 <style>
   /* 간단한 폼 스타일 보강 */
   .form-group label {
@@ -12,7 +12,9 @@
     font-weight: 500;
     color: var(--text-color-secondary);
   }
-  .input-field, .select-field, .text-area {
+  .input-field,
+  .select-field,
+  .text-area {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border-color-dark);
@@ -21,86 +23,148 @@
     margin-bottom: var(--spacing-md);
   }
   .text-area {
-      resize: vertical;
+    resize: vertical;
   }
-  .required { color: var(--danger-color); margin-left: 2px; }
+  .required {
+    color: var(--danger-color);
+    margin-left: 2px;
+  }
   .form-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: var(--spacing-sm);
-      padding-top: var(--spacing-lg);
-      border-top: 1px solid var(--border-color);
-      margin-top: var(--spacing-lg);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--spacing-lg);
   }
   .checkbox-group label {
-      margin-left: 8px;
-      font-weight: normal;
-      color: var(--text-color);
+    margin-left: 8px;
+    font-weight: normal;
+    color: var(--text-color);
   }
 </style>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <div class="handover-form-page">
-    <div class="page-header">
-        <h1 class="page-title">
-            <i class="fa-solid {% if handover %}fa-edit{% else %}fa-plus{% endif %}"></i>
-            {% if handover %}인수인계 수정{% else %}신규 인수인계 작성{% endif %}
-        </h1>
-        <div class="header-actions">
-            <a href="{% if handover %}/handover/{{ handover.handover_id }}{% else %}/handover{% endif %}" class="btn secondary-btn">
-                <i class="fa-solid fa-times"></i>
-                취소
-            </a>
-        </div>
+  <div class="page-header">
+    <h1 class="page-title">
+      <i
+        class="fa-solid {% if handover %}fa-edit{% else %}fa-plus{% endif %}"
+      ></i>
+      {% if handover %}인수인계 수정{% else %}신규 인수인계 작성{% endif %}
+    </h1>
+    <div class="header-actions">
+      <a
+        href="{% if handover %}/handover/{{ handover.handover_id }}{% else %}/handover{% endif %}"
+        class="btn secondary-btn"
+      >
+        <i class="fa-solid fa-times"></i>
+        취소
+      </a>
     </div>
-    
-    <div class="main-card">
-        <form id="handoverForm" action="{% if handover %}/handover/{{ handover.handover_id }}{% else %}/handover{% endif %}" method="POST" class="handover-form">
-            {% if handover %}
-            <input type="hidden" name="_method" value="PUT">
-            <input type="hidden" name="handover_id" value="{{ handover.handover_id }}">
-            {% endif %}
-            
-            <div class="form-section">
-                <div class="form-group">
-                    <label for="title">제목 <span class="required">*</span></label>
-                    <input type="text" id="title" name="title" class="input-field" placeholder="제목을 입력하세요" required value="{{ handover.title if handover else '' }}">
-                </div>
-                
-                {# --- 공지사항 체크박스 (ADMIN 전용) --- #}
-                {% if current_user and current_user.role == 'ADMIN' %}
-                <div class="form-group checkbox-group">
-                    <input type="checkbox" id="is_notice" name="is_notice" value="true" 
-                           {% if handover and handover.is_notice %}checked{% endif %}>
-                    <label for="is_notice">공지사항으로 등록</label>
-                     {# is_notice 값 미전송 시 False 처리를 위한 hidden input #}
-                     <input type="hidden" name="is_notice" value="false" />
-                </div>
-                {% else %}
-                 {# ADMIN이 아닐 경우, 현재 상태가 공지면 hidden으로 전달, 아니면 false 전달 #}
-                 <input type="hidden" name="is_notice" value="{{ 'true' if handover and handover.is_notice else 'false' }}" />
-                {% endif %}
-                
-                <div class="form-group">
-                    <label for="content">내용 <span class="required">*</span></label>
-                    <textarea id="content" name="content" class="text-area" rows="12" required placeholder="내용을 입력하세요">{{ handover.content if handover else '' }}</textarea>
-                </div>
-            </div>
-            
-            <div class="form-actions">
-                <a href="{% if handover %}/handover/{{ handover.handover_id }}{% else %}/handover{% endif %}" class="btn secondary-btn">취소</a>
-                <button type="submit" class="btn primary-btn">
-                    <i class="fa-solid fa-check"></i> 
-                    {% if handover %}저장하기{% else %}등록하기{% endif %}
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-{% endblock %}
+  </div>
 
-{% block page_js %}
-{# 별도 JS 로직 불필요 시 제거 #}
-{# <script src="{{ url_for('static', path='js/handover_form.js') }}"></script> #}
+  <div class="main-card">
+    <form
+      id="handoverForm"
+      action="{% if handover %}/api/handover/{{ handover.handover_id }}{% else %}/api/handover{% endif %}"
+      method="POST"
+      class="handover-form"
+    >
+      {% if handover %}
+      <input type="hidden" name="_method" value="PUT" />
+      <input
+        type="hidden"
+        name="handover_id"
+        value="{{ handover.handover_id }}"
+      />
+      {% endif %}
+
+      <div class="form-section">
+        <div class="form-group">
+          <label for="title">제목 <span class="required">*</span></label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            class="input-field"
+            placeholder="제목을 입력하세요"
+            required
+            value="{{ handover.title if handover else '' }}"
+          />
+        </div>
+
+        {# can_create_notice 플래그를 사용하여 ADMIN에게만 표시 #} {% if
+        can_create_notice %}
+        <div class="form-group checkbox-group">
+          <input
+            type="checkbox"
+            id="is_notice"
+            name="is_notice"
+            value="true"
+            {%
+            if
+            handover
+            and
+            handover.is_notice
+            %}checked{%
+            endif
+            %}
+          />
+          <label for="is_notice">공지사항으로 등록</label>
+          {# is_notice 값 미전송 시 False 처리를 위한 hidden input #}
+          <input type="hidden" name="is_notice" value="false" />
+        </div>
+        {% else %} {# ADMIN이 아닐 경우, 현재 상태가 공지면 hidden으로 전달,
+        아니면 false 전달 #}
+        <input
+          type="hidden"
+          name="is_notice"
+          value="{{ 'true' if handover and handover.is_notice else 'false' }}"
+        />
+        {% endif %}
+
+        <div class="form-group">
+          <label for="content">내용 <span class="required">*</span></label>
+          <textarea
+            id="content"
+            name="content"
+            class="text-area"
+            rows="12"
+            required
+            placeholder="내용을 입력하세요"
+          >
+{{ handover.content if handover else '' }}</textarea
+          >
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <a
+          href="{% if handover %}/handover/{{ handover.handover_id }}{% else %}/handover{% endif %}"
+          class="btn secondary-btn"
+          >취소</a
+        >
+        <button type="submit" class="btn primary-btn">
+          <i class="fa-solid fa-check"></i>
+          {% if handover %}저장하기{% else %}등록하기{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %} {% block page_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // 폼 제출 시 로딩 표시
+    const form = document.getElementById('handoverForm');
+    const submitBtn = document.getElementById('submitBtn');
+    if (form && submitBtn) {
+      form.addEventListener('submit', function () {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML =
+          '<i class="fa-solid fa-spinner fa-spin"></i> 처리 중...';
+      });
+    }
+  });
+</script>
 {% endblock %}

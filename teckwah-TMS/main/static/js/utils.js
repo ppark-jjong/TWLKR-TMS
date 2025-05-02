@@ -23,6 +23,55 @@ const Utils = {
   },
 
   /**
+   * 우편번호 유효성 검사
+   * @param {string} code - 입력된 우편번호
+   * @returns {boolean} - 유효한 우편번호인지 여부(5자리 숫자)
+   */
+  validatePostalCode: function (code) {
+    if (!code) return false;
+    const numericValue = code.replace(/[^\d]/g, '');
+    return numericValue.length === 5;
+  },
+
+  /**
+   * 연락처 자동 하이픈 포맷팅
+   * @param {string} number - 원본 전화번호
+   * @returns {string} - 하이픈이 포함된 전화번호
+   */
+  formatPhoneNumber: function (number) {
+    if (!number) return '';
+
+    // 숫자만 추출
+    const numericValue = number.replace(/[^\d]/g, '');
+
+    // 자릿수에 따라 다른 포맷 적용
+    if (numericValue.length === 11) {
+      // 휴대폰 (01012345678 -> 010-1234-5678)
+      return numericValue.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+    } else if (numericValue.length === 10) {
+      // 지역번호 2자리 (0212345678 -> 02-1234-5678)
+      if (numericValue.startsWith('02')) {
+        return numericValue.replace(/(\d{2})(\d{4})(\d{4})/, '$1-$2-$3');
+      }
+      // 휴대폰 또는 지역번호 3자리 (0101234567 -> 010-123-4567)
+      return numericValue.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+    } else if (numericValue.length === 9) {
+      // 지역번호 2자리 (021234567 -> 02-123-4567)
+      if (numericValue.startsWith('02')) {
+        return numericValue.replace(/(\d{2})(\d{3})(\d{4})/, '$1-$2-$3');
+      }
+      // 기타 9자리 (031123456 -> 031-12-3456)
+      return numericValue.replace(/(\d{3})(\d{2})(\d{4})/, '$1-$2-$3');
+    } else if (numericValue.length === 8) {
+      // 8자리 전화번호 (12345678 -> 1234-5678)
+      return numericValue.replace(/(\d{4})(\d{4})/, '$1-$2');
+    }
+
+    // 그 외의 경우 원래 숫자 반환
+    return numericValue;
+  },
+
+  /**
    * 날짜 형식 변환 (YYYY-MM-DD HH:MM)
    * @param {string|Date} dateString - 변환할 날짜 문자열 또는 Date 객체
    * @returns {string} - 포맷팅된 날짜 문자열
@@ -90,52 +139,91 @@ const Utils = {
      * @private
      */
     _showAlert: function (message, type, duration) {
-      // 기존 알림이 있으면 제거
-      const existingAlert = document.querySelector('.alert');
-      if (existingAlert) {
-        existingAlert.remove();
+      // 기존 알림 컨테이너 확인 또는 생성
+      let container = document.getElementById('alert-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'alert-container';
+        // 화면 우측 상단에 고정시키는 스타일 적용
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.zIndex = '1050'; // 다른 요소 위에 표시
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '10px'; // 알림 간 간격
+        document.body.appendChild(container);
       }
 
-      // 알림 요소 생성
+      // 알림 요소 생성 (간단한 스타일 적용)
       const alert = document.createElement('div');
-      alert.className = `alert alert-${type}`;
+      alert.className = `simple-alert alert-${type}`;
+      alert.style.padding = '15px';
+      alert.style.borderRadius = '5px';
+      alert.style.color = 'white';
+      alert.style.minWidth = '250px';
+      alert.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+      alert.style.display = 'flex';
+      alert.style.alignItems = 'center';
+      alert.style.gap = '10px';
 
-      // 아이콘 선택
-      let icon = 'info-circle';
+      // 타입별 배경색 및 아이콘 설정
+      let backgroundColor = '#0d6efd'; // 기본 (info)
+      let iconClass = 'fa-info-circle';
       switch (type) {
         case 'success':
-          icon = 'check-circle';
+          backgroundColor = '#198754'; // Bootstrap success green
+          iconClass = 'fa-check-circle';
           break;
         case 'error':
-          icon = 'exclamation-circle';
+          backgroundColor = '#dc3545'; // Bootstrap danger red
+          iconClass = 'fa-exclamation-circle';
           break;
         case 'warning':
-          icon = 'exclamation-triangle';
+          backgroundColor = '#ffc107'; // Bootstrap warning yellow
+          iconClass = 'fa-exclamation-triangle';
+          alert.style.color = '#333'; // 경고는 어두운 글씨
           break;
       }
+      alert.style.backgroundColor = backgroundColor;
 
-      // 내용 설정
-      alert.innerHTML = `<i class="fa-solid fa-${icon}"></i><span>${message}</span>`;
+      // 아이콘 및 메시지 내용 추가
+      alert.innerHTML = `<i class="fa-solid ${iconClass}"></i><span>${message}</span>`;
 
-      // 닫기 버튼 추가 (오류 메시지 또는 duration이 0인 경우에만)
-      if (type === 'error' || duration === 0) {
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'close-btn';
-        closeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
-        closeBtn.addEventListener('click', function () {
-          alert.remove();
-        });
-        alert.appendChild(closeBtn);
-      }
+      // 닫기 버튼 추가 (수동 닫기 가능하도록)
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '&times;'; // 'x' 문자
+      closeBtn.style.marginLeft = 'auto'; // 오른쪽 정렬
+      closeBtn.style.background = 'none';
+      closeBtn.style.border = 'none';
+      closeBtn.style.color = 'inherit'; // 부모 요소(alert)의 글자색 상속
+      closeBtn.style.fontSize = '1.2em';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.style.lineHeight = '1';
+      closeBtn.style.padding = '0 5px';
 
-      // 알림 추가
-      document.body.appendChild(alert);
+      closeBtn.addEventListener('click', function () {
+        alert.remove();
+        // 컨테이너가 비면 컨테이너도 제거 (선택적)
+        if (container.children.length === 0) {
+          // container.remove();
+        }
+      });
+      alert.appendChild(closeBtn);
 
-      // 자동 제거 타이머 설정 (duration이 0보다 큰 경우에만)
+      // 알림 컨테이너에 추가 (새 알림이 위로 가도록 prepend 사용)
+      container.prepend(alert);
+
+      // 자동 제거 타이머 설정 (duration이 0보다 큰 경우)
       if (duration > 0) {
         setTimeout(() => {
-          if (alert && alert.parentNode) {
+          // 요소가 여전히 존재하는지 확인 후 제거
+          if (alert && alert.parentNode === container) {
             alert.remove();
+            // 컨테이너가 비면 컨테이너도 제거 (선택적)
+            if (container.children.length === 0) {
+              // container.remove();
+            }
           }
         }, duration);
       }
@@ -416,6 +504,33 @@ const Utils = {
       }
 
       return hasPermission;
+    },
+  },
+
+  /**
+   * UI 관련 공통 기능 (추가)
+   */
+  ui: {
+    /**
+     * 로딩 오버레이 표시
+     */
+    showLoading: function () {
+      const overlay = document.getElementById('loadingOverlay');
+      if (overlay) {
+        overlay.classList.add('active');
+      } else {
+        console.warn('Loading overlay element not found.');
+      }
+    },
+
+    /**
+     * 로딩 오버레이 숨김
+     */
+    hideLoading: function () {
+      const overlay = document.getElementById('loadingOverlay');
+      if (overlay) {
+        overlay.classList.remove('active');
+      }
     },
   },
 };

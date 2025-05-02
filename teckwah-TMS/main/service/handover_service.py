@@ -194,6 +194,7 @@ def create_handover(
             content=content,
             is_notice=is_notice,
             update_by=writer_id,
+            create_by=writer_id,
             update_at=now,
         )
         db.add(handover)

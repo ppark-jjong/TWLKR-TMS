@@ -1,269 +1,289 @@
-{% extends "base.html" %}
-
-{% block title %}인수인계 - Teckwah TMS{% endblock %}
-
+{% extends "base.html" %} {% block title %}인수인계 - Teckwah TMS{% endblock %}
 {% block page_css %}
-<link rel="stylesheet" href="{{ url_for('static', path='css/handover.css') }}">
-{% endblock %}
-
-{% block content %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', path='css/handover.css') }}"
+/>
+{% endblock %} {% block content %}
 <div class="handover-page">
-    <!-- 로딩 오버레이 -->
-    <div class="loading-overlay" id="loadingOverlay">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <p>데이터를 불러오는 중입니다...</p>
-      </div>
+  <!-- 로딩 오버레이 -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <p>데이터를 불러오는 중입니다...</p>
+    </div>
+  </div>
+
+  <div class="main-card">
+    <!-- 페이지 제목 -->
+    <div class="page-header">
+      <h2 class="page-title">인수인계 및 공지사항</h2>
     </div>
 
-    <div class="main-card">
-        <!-- 페이지 제목 -->
-        <div class="page-header">
-            <h2 class="page-title">인수인계 및 공지사항</h2>
+    <!-- 필터 바 -->
+    <div class="filter-bar">
+      <!-- 필터링 요소 추가 -->
+      <div class="filter-controls">
+        <div class="filter-item">
+          <label for="typeFilter">유형</label>
+          <select id="typeFilter" class="filter-select">
+            <option value="all">전체</option>
+            <option value="notice">공지사항</option>
+            <option value="handover">인수인계</option>
+          </select>
         </div>
-        
-        <!-- 필터 바 -->
-        <div class="filter-bar">
-            <!-- 탭 영역 (필터 역할) -->
-            <div class="tabs" id="handoverTabs">
-                <button class="tab active" data-filter="all">
-                    <i class="fa-solid fa-list"></i>
-                    전체 <span class="badge" id="countAll">0</span>
-                </button>
-                <button class="tab" data-filter="notice">
-                    <i class="fa-solid fa-bullhorn"></i>
-                    공지사항 <span class="badge" id="countNotice">0</span>
-                </button>
-                <button class="tab" data-filter="handover">
-                    <i class="fa-solid fa-exchange"></i>
-                    인수인계 <span class="badge" id="countHandover">0</span>
-                </button>
-            </div>
-            
-            <!-- 액션 버튼 영역 -->
-            <div class="actions-row">
-                <div class="left-actions"> <!-- 행 개수 선택 추가 -->
-                   <div class="filter-item rows-per-page">
+        {# 필요시 다른 필터 추가 가능 #}
+      </div>
+
+      <!-- 액션 버튼 영역 -->
+      <div class="actions-row">
+        <div class="left-actions">
+          <!-- 행 개수 선택 제거 -->
+          <!-- <div class="filter-item rows-per-page">
                      <label for="rowsPerPageSelect">행 개수:</label>
                      <select id="rowsPerPageSelect" class="filter-select">
                        <option value="30">30</option>
                        <option value="50">50</option>
                        <option value="100">100</option>
                      </select>
-                   </div>
-                </div>
-                <div class="right-actions">
-                    <button id="refreshBtn" class="btn secondary-btn">
-                        <i class="fa-solid fa-arrows-rotate"></i> 새로고침
-                    </button>
-                    <a href="/handover/new" class="btn primary-btn">
-                        <i class="fa-solid fa-plus"></i> 신규 작성
-                    </a>
-                </div>
-            </div>
+                   </div> -->
         </div>
-
-        <!-- 데이터 테이블 -->
-        <div class="table-scroll-container">
-            <div class="table-container">
-                <table class="data-table" id="handoverTable">
-                    <thead id="handoverTableHead">
-                        <tr>
-                            <!-- <th>No.</th> -->
-                            <th>제목</th>
-                            <th>유형</th>
-                            <!-- <th>우선순위</th> --> <!-- 우선순위 필드 제거됨 -->
-                            <th>작성자</th>
-                            <th>최종수정일</th>
-                        </tr>
-                    </thead>
-                    <tbody id="handoverTableBody">
-                         <tr class="initial-loading-row">
-                           <td colspan="4" class="empty-table">
-                                <div class="empty-placeholder">
-                                <i class="fa-solid fa-spinner fa-spin"></i>
-                                <p>데이터를 로딩 중입니다...</p>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="right-actions">
+          <button id="refreshBtn" class="btn secondary-btn">
+            <i class="fa-solid fa-arrows-rotate"></i> 새로고침
+          </button>
+          <a href="/handover/new" class="btn primary-btn">
+            <i class="fa-solid fa-plus"></i> 신규 작성
+          </a>
         </div>
-
-        <!-- 페이지네이션 -->
-        <div class="pagination-container">
-            <div class="pagination" id="paginationControls">
-                 <button class="page-btn" data-page="prev" disabled>
-                    <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                 <span class="page-info" id="pageInfo">- / -</span>
-                 <button class="page-btn" data-page="next" disabled>
-                    <i class="fa-solid fa-chevron-right"></i>
-                </button>
-            </div>
-        </div>
-        
-        <!-- 오류 메시지 표시 영역 -->
-        <div id="errorMessageContainer" class="error-message-container" style="display: none;">
-          <div class="alert alert-danger">
-            <i class="fa-solid fa-circle-exclamation"></i>
-            <span id="errorMessageText"></span>
-            </div>
-        </div>
+      </div>
     </div>
-</div>
-{% endblock %}
 
-{% block page_js %}
-<!-- 초기 데이터를 페이지에 데이터 속성으로 추가 -->
-<div
-  id="initialDataContainer"
-  data-initial='{{ initial_data|tojson|safe }}'
-  class="hidden"
-></div>
+    <!-- 데이터 테이블 -->
+    <div class="table-scroll-container">
+      <div class="table-container">
+        <table class="data-table" id="handoverTable">
+          <thead id="handoverTableHead">
+            <tr>
+              <!-- <th>No.</th> -->
+              <th>제목</th>
+              <th>유형</th>
+              <!-- <th>우선순위</th> -->
+              <!-- 우선순위 필드 제거됨 -->
+              <th>작성자</th>
+              <th>최종수정일</th>
+            </tr>
+          </thead>
+          <tbody id="handoverTableBody">
+            <tr class="initial-loading-row">
+              <td colspan="4" class="empty-table">
+                <div class="empty-placeholder">
+                  <i class="fa-solid fa-spinner fa-spin"></i>
+                  <p>데이터를 로딩 중입니다...</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 페이지네이션 -->
+    <div class="pagination-container">
+      <div class="pagination" id="paginationControls">
+        <button class="page-btn" data-page="prev" disabled>
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <span class="page-info" id="pageInfo">- / -</span>
+        <button class="page-btn" data-page="next" disabled>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 오류 메시지 표시 영역 -->
+    <div
+      id="errorMessageContainer"
+      class="error-message-container"
+      style="display: none"
+    >
+      <div class="alert alert-danger">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span id="errorMessageText"></span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block page_js %} {# 초기 데이터를 script 태그 내 변수로 전달
+(JSON 문자열) #}
+<script>
+  // JSON 문자열을 JavaScript 문자열 리터럴로 감싸서 할당
+  const initialHandoverDataJson = '{{ initial_data_json|safe }}';
+</script>
 
 <!-- 인수인계 스크립트 -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     // --- DOM 요소 가져오기 ---
     const loadingOverlay = document.getElementById('loadingOverlay');
-    const handoverTabs = document.getElementById('handoverTabs');
+    const typeFilter = document.getElementById('typeFilter');
     const refreshBtn = document.getElementById('refreshBtn');
-    const rowsPerPageSelect = document.getElementById('rowsPerPageSelect');
-    const handoverTableHead = document.getElementById('handoverTableHead'); // thead
-    const handoverTableBody = document.getElementById('handoverTableBody'); // tbody
+    const handoverTableHead = document.getElementById('handoverTableHead');
+    const handoverTableBody = document.getElementById('handoverTableBody');
     const paginationControls = document.getElementById('paginationControls');
     const pageInfo = document.getElementById('pageInfo');
     const prevPageBtn = paginationControls.querySelector('[data-page="prev"]');
     const nextPageBtn = paginationControls.querySelector('[data-page="next"]');
-    const errorMessageContainer = document.getElementById('errorMessageContainer');
+    const errorMessageContainer = document.getElementById(
+      'errorMessageContainer'
+    );
     const errorMessageText = document.getElementById('errorMessageText');
-    const countAllBadge = document.getElementById('countAll');
-    const countNoticeBadge = document.getElementById('countNotice');
-    const countHandoverBadge = document.getElementById('countHandover');
 
     // --- 상태 변수 ---
-    let allItems = []; // API로부터 받은 전체 인수인계/공지 데이터
-    let filteredItems = []; // 현재 필터(탭)가 적용된 데이터
+    let allItems = [];
+    let filteredItems = [];
     let currentPage = 1;
-    let rowsPerPage = 30; // 기본값
+    let rowsPerPage = 30;
     let totalItems = 0;
     let totalPages = 1;
-    let currentFilter = 'all'; // 현재 활성화된 탭 (all, notice, handover)
-    let initialLoadComplete = false; // 전체 데이터 로드 완료 여부
+    let initialLoadComplete = false;
 
     // --- 초기화 함수 ---
     function initHandover() {
       showLoading();
-      const initialDataElement = document.getElementById('initialDataContainer');
-      const initialData = JSON.parse(initialDataElement?.getAttribute('data-initial') || '{}');
 
-      rowsPerPage = parseInt(rowsPerPageSelect.value);
+      let initialData = {};
+      try {
+        // 전역 변수 initialHandoverDataJson (문자열)을 파싱
+        initialData = JSON.parse(initialHandoverDataJson || '{}');
+      } catch (e) {
+        console.error('Failed to parse initial handover data JSON:', e);
+        console.error('Raw JSON string:', initialHandoverDataJson); // 원본 JSON 문자열 로깅
+        showError(
+          '페이지 초기 데이터 로딩 중 오류가 발생했습니다. 콘솔을 확인하세요.'
+        );
+        initialData = {}; // 오류 시 빈 객체로 초기화
+      }
 
       // SSR 데이터로 첫 화면 렌더링 (인수인계 목록만)
       if (initialData && initialData.handovers && initialData.pagination) {
-          allItems = initialData.handovers; // 초기 데이터는 인수인계만 있음 (is_notice=false)
-          totalItems = initialData.pagination.totalCount || 0; // 전체 개수 (인수인계 + 공지)
-          currentPage = initialData.pagination.page || 1;
-          console.log(`Initial SSR data loaded: ${allItems.length} handovers, total(all): ${totalItems}`);
-          applyFiltersAndRender(); // 초기 렌더링 (all 탭 기준, 페이지 1)
+        allItems = initialData.handovers; // 초기 데이터는 인수인계만 있음 (is_notice=false)
+        totalItems = initialData.pagination.totalCount || 0; // 전체 개수 (인수인계 + 공지)
+        currentPage = initialData.pagination.page || 1;
+        console.log(
+          `Initial SSR data loaded: ${allItems.length} handovers, total(all): ${totalItems}`
+        );
+        applyFiltersAndRender(); // 초기 렌더링 (all 탭 기준, 페이지 1)
       } else {
-          console.warn("No initial SSR data found.");
-          handoverTableBody.innerHTML = renderEmptyRow("표시할 데이터가 없습니다.");
-          updatePaginationUI();
-      }
-      
-      // 공지사항 개수 표시 (초기 데이터 활용)
-      if(initialData && initialData.notices) {
-          countNoticeBadge.textContent = initialData.notices.length;
+        console.warn('No initial SSR data found.');
+        handoverTableBody.innerHTML =
+          renderEmptyRow('표시할 데이터가 없습니다.');
+        updatePaginationUI();
       }
 
       // 비동기적으로 전체 데이터(공지 포함) 로드
-      fetchAllItems().then(() => {
+      fetchAllItems()
+        .then(() => {
           initialLoadComplete = true;
           console.log('Initial full data load complete (handovers + notices).');
-          updateCounts(); // 전체 로드 후 정확한 카운트 업데이트
+          applyFiltersAndRender();
           hideLoading();
-      }).catch(error => {
-          console.error("Error fetching initial full data:", error);
-          showError("전체 데이터를 불러오는 중 오류 발생");
+        })
+        .catch((error) => {
+          console.error('Error fetching initial full data:', error);
+          showError('전체 데이터를 불러오는 중 오류 발생');
           hideLoading();
-      });
+        });
 
       setupEventListeners();
     }
 
     // --- 데이터 처리 함수 ---
     async function fetchAllItems() {
-        showLoading();
-        clearError();
-        console.log("Fetching all handovers and notices...");
-        try {
-            // 공지와 인수인계 각각 API 호출 (별도 API가 없다면, is_notice 파라미터 활용)
-            // 여기서는 /api/handover/list 를 두 번 호출하는 것으로 가정
-            const [handoverRes, noticeRes] = await Promise.all([
-                fetch('/api/handover/list?is_notice=false'),
-                fetch('/api/handover/list?is_notice=true')
-            ]);
+      showLoading();
+      clearError();
+      console.log('Fetching all handovers and notices...');
+      try {
+        // API 경로 수정: /api/handover/list
+        const [handoverRes, noticeRes] = await Promise.all([
+          fetch('/api/handover/list?is_notice=false'), // 경로 수정
+          fetch('/api/handover/list?is_notice=true'), // 경로 수정
+        ]);
 
-            if (!handoverRes.ok || !noticeRes.ok) {
-                throw new Error(`HTTP error! Handover: ${handoverRes.status}, Notice: ${noticeRes.status}`);
-            }
-
-            const handoverResult = await handoverRes.json();
-            const noticeResult = await noticeRes.json();
-
-            if (handoverResult.success && noticeResult.success) {
-                allItems = [...(handoverResult.data || []), ...(noticeResult.data || [])];
-                // 필요시 최신순으로 다시 정렬
-                allItems.sort((a, b) => new Date(b.update_at) - new Date(a.update_at)); 
-                totalItems = allItems.length;
-                currentPage = 1; // 데이터 변경 시 첫 페이지로
-                applyFiltersAndRender();
-                console.log(`Successfully fetched ${allItems.length} total items.`);
-            } else {
-                throw new Error("Failed to fetch handover/notice data");
-            }
-        } catch (error) {
-            console.error("Error in fetchAllItems:", error);
-            showError(`데이터 조회 실패: ${error.message}`);
-            allItems = [];
-            applyFiltersAndRender();
-            throw error;
-        } finally {
-             if (initialLoadComplete) { hideLoading(); }
+        if (!handoverRes.ok || !noticeRes.ok) {
+          throw new Error(
+            `HTTP error! Handover: ${handoverRes.status}, Notice: ${noticeRes.status}`
+          );
         }
+
+        const handoverResult = await handoverRes.json();
+        const noticeResult = await noticeRes.json();
+
+        if (handoverResult.success && noticeResult.success) {
+          allItems = [
+            ...(handoverResult.data || []),
+            ...(noticeResult.data || []),
+          ];
+          allItems.sort(
+            (a, b) => new Date(b.update_at) - new Date(a.update_at)
+          );
+          totalItems = allItems.length;
+          currentPage = 1;
+          applyFiltersAndRender();
+          console.log(`Successfully fetched ${allItems.length} total items.`);
+        } else {
+          throw new Error('Failed to fetch handover/notice data');
+        }
+      } catch (error) {
+        console.error('Error in fetchAllItems:', error);
+        showError(`데이터 조회 실패: ${error.message}`);
+        allItems = [];
+        applyFiltersAndRender();
+        throw error;
+      } finally {
+        if (initialLoadComplete) {
+          hideLoading();
+        }
+      }
     }
 
     // 현재 필터 및 페이지 상태에 따라 테이블 렌더링
     function applyFiltersAndRender() {
-        console.log(`Applying filter '${currentFilter}' and rendering page ${currentPage}`);
-        // 1. 필터 적용 (탭 기준)
-        filteredItems = allItems.filter(item => {
-            if (currentFilter === 'all') return true;
-            if (currentFilter === 'notice') return item.is_notice === true;
-            if (currentFilter === 'handover') return item.is_notice === false;
-            return false;
-        });
-        totalItems = filteredItems.length;
-        console.log(`Filtered items count: ${totalItems}`);
-        
-        // 2. 페이지네이션 계산
-        totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
-        currentPage = Math.max(1, Math.min(currentPage, totalPages));
+      const selectedType = typeFilter.value;
+      console.log(
+        `Applying filter '${selectedType}' and rendering page ${currentPage}`
+      );
 
-        // 3. 현재 페이지 데이터 슬라이싱
-        const startIndex = (currentPage - 1) * rowsPerPage;
-        const endIndex = startIndex + rowsPerPage;
-        const pageItems = filteredItems.slice(startIndex, endIndex);
-        console.log(`Rendering ${pageItems.length} items for page ${currentPage}`);
+      console.log(
+        `Applying filter '${currentFilter}' and rendering page ${currentPage}`
+      );
+      // 1. 필터 적용 (탭 기준)
+      filteredItems = allItems.filter((item) => {
+        if (currentFilter === 'all') return true;
+        if (currentFilter === 'notice') return item.is_notice === true;
+        if (currentFilter === 'handover') return item.is_notice === false;
+        return false;
+      });
+      totalItems = filteredItems.length;
+      console.log(`Filtered items count: ${totalItems}`);
 
-        // 4. 테이블 렌더링
-        renderHandoverTableRows(pageItems);
+      // 2. 페이지네이션 계산 (rowsPerPage 변수는 사용됨)
+      totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+      currentPage = Math.max(1, Math.min(currentPage, totalPages));
 
-        // 5. 페이지네이션 UI 업데이트
-        updatePaginationUI();
+      // 3. 현재 페이지 데이터 슬라이싱
+      const startIndex = (currentPage - 1) * rowsPerPage;
+      const endIndex = startIndex + rowsPerPage;
+      const pageItems = filteredItems.slice(startIndex, endIndex);
+      console.log(
+        `Rendering ${pageItems.length} items for page ${currentPage}`
+      );
+
+      // 4. 테이블 렌더링
+      renderHandoverTableRows(pageItems);
+
+      // 5. 페이지네이션 UI 업데이트
+      updatePaginationUI();
     }
 
     // 테이블 행 HTML 생성 및 업데이트
@@ -271,21 +291,24 @@
       if (!handoverTableBody) return;
 
       if (items.length === 0) {
-        handoverTableBody.innerHTML = renderEmptyRow("조건에 맞는 항목이 없습니다.");
+        handoverTableBody.innerHTML =
+          renderEmptyRow('조건에 맞는 항목이 없습니다.');
         return;
       }
 
       let tableHTML = '';
-      items.forEach(item => {
-          const typeText = item.is_notice ? '공지' : '인수인계';
-          const typeClass = item.is_notice ? 'notice' : 'handover';
-          tableHTML += `<tr class="${typeClass}-row clickable-row" data-id="${item.handover_id}">
+      items.forEach((item) => {
+        const typeText = item.is_notice ? '공지' : '인수인계';
+        const typeClass = item.is_notice ? 'notice' : 'handover';
+        tableHTML += `<tr class="${typeClass}-row clickable-row" data-id="${
+          item.handover_id
+        }">
               <td>${item.title || '-'}</td>
               <td><span class="tag ${typeClass}-tag">${typeText}</span></td>
               <td>${item.update_by || '-'}</td>
               <td>${item.update_at || '-'}</td>
              </tr>`;
-             // No. 및 우선순위 제거
+        // No. 및 우선순위 제거
       });
 
       handoverTableBody.innerHTML = tableHTML;
@@ -293,7 +316,7 @@
 
     // 빈 결과 행 HTML 생성
     function renderEmptyRow(message) {
-        return `
+      return `
             <tr class="empty-data-row">
               <td colspan="4" class="empty-table">
                 <div class="empty-placeholder">
@@ -311,17 +334,25 @@
       prevPageBtn.disabled = currentPage <= 1;
       nextPageBtn.disabled = currentPage >= totalPages;
     }
-    
+
     // 탭 카운트 업데이트
     function updateCounts() {
-        countAllBadge.textContent = allItems.length;
-        countNoticeBadge.textContent = allItems.filter(item => item.is_notice).length;
-        countHandoverBadge.textContent = allItems.filter(item => !item.is_notice).length;
+      countAllBadge.textContent = allItems.length;
+      countNoticeBadge.textContent = allItems.filter(
+        (item) => item.is_notice
+      ).length;
+      countHandoverBadge.textContent = allItems.filter(
+        (item) => !item.is_notice
+      ).length;
     }
 
     // --- 유틸리티 함수 ---
-    function showLoading() { loadingOverlay?.classList.add('active'); }
-    function hideLoading() { loadingOverlay?.classList.remove('active'); }
+    function showLoading() {
+      loadingOverlay?.classList.add('active');
+    }
+    function hideLoading() {
+      loadingOverlay?.classList.remove('active');
+    }
     function showError(message) {
       if (!errorMessageContainer || !errorMessageText) return;
       errorMessageText.textContent = message;
@@ -335,58 +366,51 @@
 
     // --- 이벤트 리스너 설정 ---
     function setupEventListeners() {
-        // 탭 클릭 (필터 변경)
-        handoverTabs?.addEventListener('click', (e) => {
-            const tabButton = e.target.closest('.tab');
-            if (tabButton) {
-                handoverTabs.querySelector('.active')?.classList.remove('active');
-                tabButton.classList.add('active');
-                currentFilter = tabButton.dataset.filter;
-                currentPage = 1; // 필터 변경 시 첫 페이지로
-                applyFiltersAndRender();
-            }
-        });
+      // 탭 클릭 (필터 변경)
+      handoverTabs?.addEventListener('click', (e) => {
+        const tabButton = e.target.closest('.tab');
+        if (tabButton) {
+          handoverTabs.querySelector('.active')?.classList.remove('active');
+          tabButton.classList.add('active');
+          currentFilter = tabButton.dataset.filter;
+          currentPage = 1; // 필터 변경 시 첫 페이지로
+          applyFiltersAndRender();
+        }
+      });
 
-        // 페이지네이션 버튼
-        prevPageBtn?.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                applyFiltersAndRender();
-            }
-        });
-        nextPageBtn?.addEventListener('click', () => {
-            if (currentPage < totalPages) {
-                currentPage++;
-                applyFiltersAndRender();
-            }
-        });
+      // 페이지네이션 버튼
+      prevPageBtn?.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          applyFiltersAndRender();
+        }
+      });
+      nextPageBtn?.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          applyFiltersAndRender();
+        }
+      });
 
-        // 행 개수 변경
-        rowsPerPageSelect?.addEventListener('change', (e) => {
-            rowsPerPage = parseInt(e.target.value);
-            currentPage = 1;
-            applyFiltersAndRender();
-        });
+      // 새로고침 버튼
+      refreshBtn?.addEventListener('click', () => {
+        fetchAllItems(); // 전체 데이터 다시 로드
+      });
 
-        // 새로고침 버튼
-        refreshBtn?.addEventListener('click', () => {
-            fetchAllItems(); // 전체 데이터 다시 로드
-        });
-
-        // 테이블 행 클릭 (이벤트 위임)
-        handoverTableBody?.addEventListener('click', (e) => {
-            const row = e.target.closest('tr.clickable-row');
-            if (row) {
-                const handoverId = row.dataset.id;
-                if (handoverId) {
-                    window.location.href = `/handover/${handoverId}`;
-                }
-            }
-        });
+      // 테이블 행 클릭 (이벤트 위임)
+      handoverTableBody?.addEventListener('click', (e) => {
+        const row = e.target.closest('tr.clickable-row');
+        if (row) {
+          const handoverId = row.dataset.id;
+          if (handoverId) {
+            window.location.href = `/handover/${handoverId}`;
+          }
+        }
+      });
     }
 
     // --- 초기화 실행 ---
     initHandover();
-    });
+  });
 </script>
 {% endblock %}

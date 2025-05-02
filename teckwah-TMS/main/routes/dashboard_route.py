@@ -9,6 +9,7 @@ import json
 import logging
 import sys
 import traceback
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -33,9 +34,8 @@ from main.schema.dashboard_schema import (
     DashboardUpdate,
     DashboardResponse,
     DashboardListResponse,
-    StatusChangeRequest,
-    DriverAssignRequest,
     DashboardDeleteRequest,
+    LockStatusResponse,
 )
 from main.service.dashboard_service import (
     get_dashboard_by_id,
@@ -48,6 +48,7 @@ from main.service.dashboard_service import (
     delete_dashboard,
     get_lock_status,
     get_dashboard_list_paginated,
+    get_dashboard_response_data,
 )
 
 # 로깅 설정
@@ -61,8 +62,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 라우터 생성 (인증 의존성 추가)
-router = APIRouter(dependencies=[Depends(get_current_user)])
+# 라우터 생성
+# API는 /api 접두사, 페이지는 접두사 없이 분리
+api_router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
+page_router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 # 공통 응답 생성 유틸리티
@@ -90,7 +93,13 @@ class EnhancedJSONEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         if hasattr(obj, "__dict__"):
-            return obj.__dict__
+            # 순환 참조 방지를 위해 postal_code_obj 제외
+            obj_dict = obj.__dict__.copy()
+            if "_sa_instance_state" in obj_dict:
+                del obj_dict["_sa_instance_state"]
+            if "postal_code_obj" in obj_dict:
+                del obj_dict["postal_code_obj"]
+            return obj_dict
         return super().default(obj)
 
 
@@ -120,202 +129,20 @@ def handle_exception(e: Exception, context: str = "") -> Dict[str, Any]:
     }
 
 
-@router.get("/dashboard/list", response_model=DashboardListResponse)
-async def get_dashboard_list_api(
-    request: Request,
-    db: Session = Depends(get_db),
-    start_date: Optional[date] = Query(None, description="조회 시작일"),
-    end_date: Optional[date] = Query(None, description="조회 종료일"),
-):
-    """
-    대시보드 목록 조회 API (JSON) - 날짜 범위 전체 조회
-    최적화된 데이터 로드 및 변환. 페이지네이션 없음.
-    """
-    logger.info(
-        f"대시보드 목록 조회 API 호출: startDate={start_date}, endDate={end_date}"
-    )
-    try:
-        # 날짜 범위 설정 (기본값: 오늘)
-        if start_date is None or end_date is None:
-            today = datetime.now().date()
-            start_date = start_date or today
-            end_date = end_date or today
-            logger.info(f"기본 날짜 범위 설정: {start_date} ~ {end_date}")
-
-        # 시작일이 종료일보다 늦으면 오류 처리
-        if start_date > end_date:
-            logger.warning(
-                f"잘못된 날짜 범위: 시작일({start_date}) > 종료일({end_date})"
-            )
-            # 오류 응답 대신 빈 데이터 반환 또는 적절한 HTTP 오류 고려
-            return create_response(
-                success=True,
-                message="잘못된 날짜 범위입니다. 시작일은 종료일보다 빠르거나 같아야 합니다.",
-                data=[],  # 빈 리스트 반환
-            )
-
-        # 서비스 함수 호출 (페이지네이션 파라미터 없이 날짜 범위만 전달)
-        # *** 참고: dashboard_service.get_dashboard_list 함수는 페이지네이션 없이
-        # *** 지정된 날짜 범위의 모든 데이터를 반환하도록 수정되어야 합니다.
-        # *** 여기서는 수정되었다고 가정합니다.
-        all_orders = get_dashboard_list(
-            db=db,
-            start_date=start_date,
-            end_date=end_date,
-            # page, page_size 인자 제거
-        )
-        logger.info(
-            f"{start_date} ~ {end_date} 범위 데이터 {len(all_orders)}건 조회 완료"
-        )
-
-        # 상태 및 타입 라벨 (기존 유지)
-        status_labels = {
-            "WAITING": "대기",
-            "IN_PROGRESS": "진행",
-            "COMPLETE": "완료",
-            "ISSUE": "이슈",
-            "CANCEL": "취소",
-        }
-        type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
-
-        # 데이터 변환 최적화 (DashboardListItem 스키마 반영, dashboardId 포함)
-        orders_data = [
-            safe_serialize(
-                {
-                    "dashboardId": order.dashboard_id,
-                    "orderNo": order.order_no,
-                    "type": order.type,
-                    "status": order.status,
-                    "department": order.department,
-                    "warehouse": order.warehouse,
-                    "sla": order.sla,
-                    "region": getattr(order, "region", None),
-                    "eta": order.eta,
-                    "customer": order.customer,
-                    "driverName": order.driver_name,
-                }
-            )
-            for order in all_orders
-        ]
-
-        # 표준화된 응답 반환 (데이터만 포함)
-        response_data = create_response(
-            success=True, message="주문 목록 조회 성공", data=orders_data
-        )
-        return response_data
-
-    except SQLAlchemyError as db_err:
-        # 데이터베이스 오류 처리
-        error_response = handle_exception(db_err, "대시보드 목록 조회 (DB)")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_response
-        )
-    except Exception as e:
-        # 기타 예외 처리 최적화
-        error_response = handle_exception(e, "대시보드 목록 조회")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_response
-        )
-
-
-@router.get("/dashboard/search")
-async def search_order(
-    request: Request,
-    order_no: str = Query(..., description="검색할 주문번호"),
-    db: Session = Depends(get_db),
-    # page, page_size 파라미터 제거
-):  # 반환 모델 제거 또는 단순화
-    """
-    주문번호로 정확히 일치하는 단일 주문 검색 API
-    """
-    logger.info(f"주문번호 검색 API 호출: orderNo='{order_no}'")
-    order_no_trimmed = order_no.strip()
-    if not order_no_trimmed:
-        logger.warning("검색어(주문번호)가 비어 있습니다.")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=create_response(
-                success=False,
-                message="검색할 주문번호를 입력해주세요.",
-                data={"order": None},
-            ),
-        )
-
-    try:
-        # 수정된 서비스 함수 호출 (단일 객체 또는 None 반환)
-        order = search_dashboard_by_order_no(db=db, order_no=order_no_trimmed)
-
-        if order:
-            logger.info(f"주문번호 '{order_no_trimmed}' 검색 성공")
-            # DashboardListItem 스키마 형식으로 변환 (필요 필드만 포함)
-            order_data = safe_serialize(
-                {
-                    "dashboardId": order.dashboard_id,
-                    "orderNo": order.order_no,
-                    "type": order.type,
-                    "status": order.status,
-                    "department": order.department,
-                    "warehouse": order.warehouse,
-                    "sla": order.sla,
-                    "eta": order.eta,
-                    "region": getattr(order, "region", None),
-                    "customer": order.customer,
-                    "driverName": order.driver_name,
-                }
-            )
-            return create_response(
-                success=True,
-                message=f"주문번호 '{order_no_trimmed}' 검색 결과",
-                data={"order": order_data},  # 단일 객체 또는 null
-            )
-        else:
-            logger.info(f"주문번호 '{order_no_trimmed}' 검색 결과 없음")
-            return create_response(
-                success=True,  # 검색 자체는 성공
-                message=f"주문번호 '{order_no_trimmed}'에 해당하는 주문이 없습니다.",
-                data={"order": None},
-            )
-
-    except SQLAlchemyError as db_err:
-        error_response = handle_exception(db_err, "주문번호 검색 (DB)")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_response
-        )
-    except Exception as e:
-        error_response = handle_exception(e, "주문번호 검색")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_response
-        )
-
-
-# === 최종 수정된 /dashboard (SSR) 엔드포인트 ===
-@router.get("/dashboard", include_in_schema=False)
+# === 페이지 렌더링 라우트 ===
+@page_router.get("/dashboard", include_in_schema=False, name="dashboard_page")
 async def get_dashboard_page(
     request: Request,
-    db: Session = Depends(get_db),  # DB 세션 다시 필요
-    start_date: Optional[date] = Query(
-        None, description="초기 조회 시작일"
-    ),  # 파라미터 다시 필요
-    end_date: Optional[date] = Query(
-        None, description="초기 조회 종료일"
-    ),  # 파라미터 다시 필요
+    db: Session = Depends(get_db),
+    start_date: Optional[date] = Query(None, description="초기 조회 시작일"),
+    end_date: Optional[date] = Query(None, description="초기 조회 종료일"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """
-    대시보드 페이지 SSR 렌더링 - 첫 페이지 데이터 포함
-    """
-    # 인증 확인은 Depends(get_current_user) 등으로 FastAPI 의존성 주입 시스템 활용 권장
-    # 여기서는 라우터 데코레이터에 Depends 추가 또는 아래에서 직접 호출 가정
-    # 예: current_user: dict = Depends(get_current_user)
-    current_user = request.session.get("user")  # 세션 방식 유지 시
-    if not current_user:
-        # 실제로는 Depends 에서 처리되거나 미들웨어에서 리디렉션될 것임
-        return RedirectResponse("/login", status_code=status.HTTP_302_FOUND)
-
+    """설명서 2.1: 대시보드 페이지 SSR 렌더링"""
     logger.info(
         f"대시보드 페이지 SSR 요청 (첫 페이지): startDate={start_date}, endDate={end_date}, user={current_user.get('user_id')}"
     )
     try:
-        # 초기 날짜 설정 (기본값: 오늘)
         today = datetime.now().date()
         initial_start_date = start_date or today
         initial_end_date = end_date or today
@@ -327,7 +154,6 @@ async def get_dashboard_page(
             initial_end_date = today
             error_message = "잘못된 날짜 범위가 지정되어 오늘 날짜로 조회합니다."
 
-        # 페이지네이션 서비스 함수 호출 (첫 페이지)
         initial_page = 1
         initial_page_size = 30
 
@@ -345,51 +171,59 @@ async def get_dashboard_page(
             f"초기 데이터 로드 완료: {len(orders)}건 (페이지 {initial_page}/{pagination_info.get('totalPages', 0)})"
         )
 
-        # 상태 및 타입 라벨 정의 (템플릿에서 사용)
-        status_labels = {
-            "WAITING": "대기",
-            "IN_PROGRESS": "진행",
-            "COMPLETE": "완료",
-            "ISSUE": "이슈",
-            "CANCEL": "취소",
+        # JSON 직렬화 전에 current_user에서 필요한 정보만 추출
+        user_data = {
+            "user_id": current_user.get("user_id"),
+            "user_role": current_user.get("user_role"),
+            "department": current_user.get("department"),
         }
-        type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
-        # 템플릿에 전달할 데이터 가공 (DashboardListItem 형식과 유사하게)
-        orders_for_template = [
-            {
-                "dashboardId": order.dashboard_id,
-                "orderNo": order.order_no,
-                "type": order.type,
-                "department": order.department,
-                "warehouse": order.warehouse,
-                "sla": order.sla,
-                "region": getattr(order, "region", None),
-                "eta": order.eta.strftime("%Y-%m-%d %H:%M") if order.eta else None,
-                "customer": order.customer,
-                "status": order.status,
-                "driverName": order.driver_name,
-                # 템플릿에서 직접 사용할 라벨 추가
-                "statusLabel": status_labels.get(order.status, order.status),
-                "typeLabel": type_labels.get(order.type, order.type),
-            }
-            for order in orders
-        ]
+        # 주문 객체 안전하게 직렬화
+        try:
+            orders_for_template = []
+            for order in orders:
+                order_data = get_dashboard_response_data(order, False)
+                orders_for_template.append(order_data)
+        except Exception as e:
+            logger.error(f"주문 데이터 변환 중 오류: {e}", exc_info=True)
+            orders_for_template = []
 
-        # 템플릿 컨텍스트 구성
+        initial_data_object = {
+            "orders": orders_for_template,
+            "pagination": pagination_info,
+            "start_date": initial_start_date.isoformat(),
+            "end_date": initial_end_date.isoformat(),
+            "error_message": error_message,
+            "current_user": user_data,  # 단순화된 유저 데이터
+        }
+
+        try:
+            # 안전하게 직렬화 시도
+            initial_data_json_str = json.dumps(
+                initial_data_object, cls=EnhancedJSONEncoder
+            )
+        except ValueError as ve:
+            if "Circular reference detected" in str(ve):
+                logger.warning("직렬화 중 순환 참조 감지, fallback 방식으로 시도")
+                # 직접 안전한 방식으로 직렬화
+                sanitized_data = {
+                    "orders": orders_for_template,
+                    "pagination": pagination_info,
+                    "start_date": initial_start_date.isoformat(),
+                    "end_date": initial_end_date.isoformat(),
+                    "error_message": error_message,
+                    "current_user": user_data,
+                }
+                initial_data_json_str = json.dumps(sanitized_data)
+            else:
+                raise
+
         context = {
             "request": request,
-            "initial_data": {  # initial_data 객체로 묶어서 전달
-                "orders": orders_for_template,
-                "pagination": pagination_info,  # 서비스에서 받은 페이지네이션 정보
-                "start_date": initial_start_date.isoformat(),
-                "end_date": initial_end_date.isoformat(),
-                "error_message": error_message,
-            },
+            "initial_data_object": initial_data_object,
             "current_user": current_user,
         }
 
-        # logger.debug(f"템플릿 컨텍스트: {context}")
         return templates.TemplateResponse("dashboard.html", context)
 
     except Exception as e:
@@ -397,399 +231,587 @@ async def get_dashboard_page(
         context = {
             "request": request,
             "error_message": "페이지를 로드하는 중 오류가 발생했습니다.",
+            "current_user": current_user,
         }
         return templates.TemplateResponse("error.html", context, status_code=500)
 
 
-# === 주문 CRUD 및 기타 작업 라우터 ===
+# === API 엔드포인트 라우트 ===
 
 
-# --- 주문 생성 (Form 방식) ---
-@router.post(
-    "/orders", status_code=status.HTTP_302_FOUND, response_class=RedirectResponse
-)
-async def create_order_form(
-    request: Request,
+@api_router.get("/dashboard/list", response_model=DashboardListResponse)
+async def get_dashboard_list_api(
     db: Session = Depends(get_db),
-    # Form 데이터 필드들 (DashboardCreate 스키마 기반)
-    orderNo: str = Form(...),
-    type: str = Form(...),
-    department: str = Form(...),
-    warehouse: str = Form(...),
-    sla: str = Form(...),
-    eta: datetime = Form(...),
-    postalCode: str = Form(...),
-    address: str = Form(...),
-    customer: str = Form(...),
-    contact: Optional[str] = Form(None),  # 선택 필드
-    remark: Optional[str] = Form(None),  # 선택 필드
+    start_date: Optional[date] = Query(None, description="조회 시작일"),
+    end_date: Optional[date] = Query(None, description="조회 종료일"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    주문 생성 처리 (Form 데이터 사용)
+    대시보드 목록 조회 API (JSON) - 날짜 범위 전체 조회
+    최적화된 데이터 로드 및 변환. 페이지네이션 없음.
     """
-    current_user = request.session.get("user")  # 세션에서 사용자 정보 가져오기
-    user_id = current_user.get("user_id")
-    logger.info(f"주문 생성 요청(Form): orderNo={orderNo}, user={user_id}")
-
-    # Pydantic 모델 인스턴스 생성 (유효성 검증 포함)
-    try:
-        order_data = DashboardCreate(
-            orderNo=orderNo,
-            type=type,
-            department=department,
-            warehouse=warehouse,
-            sla=sla,
-            eta=eta,
-            postalCode=postalCode,
-            address=address,
-            customer=customer,
-            contact=contact,
-            remark=remark,
-        )
-    except Exception as validation_error:  # Pydantic 유효성 검증 오류 처리
-        logger.warning(f"주문 생성 데이터 유효성 검증 실패: {validation_error}")
-        # TODO: 오류 메시지를 포함하여 생성 폼으로 다시 렌더링하는 로직 필요
-        # 예: return templates.TemplateResponse("order_form.html", {"request": request, "error": str(validation_error), "form_data": request.form()})
-        # 지금은 간단히 400 오류 발생
-        raise HTTPException(
-            status_code=400, detail=f"입력 데이터 오류: {validation_error}"
-        )
-
-    try:
-        # 서비스 함수 호출
-        new_order = create_dashboard(db=db, data=order_data, user_id=user_id)
-        logger.info(f"주문 생성 성공(Form): id={new_order.dashboard_id}")
-        # 성공 시 생성된 주문의 상세 페이지로 리다이렉트
-        return RedirectResponse(
-            url=f"/orders/{new_order.dashboard_id}", status_code=status.HTTP_302_FOUND
-        )
-
-    except HTTPException as http_exc:
-        # 서비스 함수 내에서 발생한 HTTP 예외 처리 (예: DB 오류)
-        logger.error(f"주문 생성 서비스 오류 (HTTPException): {http_exc.detail}")
-        raise http_exc
-    except Exception as e:
-        logger.error(f"주문 생성(Form) 중 예상치 못한 오류: {str(e)}", exc_info=True)
-        # 일반 오류 발생 시
-        raise HTTPException(status_code=500, detail="주문 생성 중 오류 발생")
-
-
-# --- 주문 수정 (Form 방식) ---
-@router.post(
-    "/orders/{dashboard_id}",
-    status_code=status.HTTP_302_FOUND,
-    response_class=RedirectResponse,
-)
-async def update_order_form(
-    request: Request,
-    dashboard_id: int = Path(..., ge=1, description="수정할 주문 ID"),
-    db: Session = Depends(get_db),
-    # Form 데이터 필드들 (DashboardUpdate 스키마 기반)
-    orderNo: str = Form(...),
-    type: str = Form(...),
-    department: str = Form(...),
-    warehouse: str = Form(...),
-    sla: str = Form(...),
-    eta: datetime = Form(...),
-    postalCode: str = Form(...),
-    address: str = Form(...),
-    customer: str = Form(...),
-    contact: Optional[str] = Form(None),  # 선택 필드
-    remark: Optional[str] = Form(None),  # 선택 필드
-    # 기사 정보는 별도 라우터에서 처리하므로 여기서는 제외
-    # driver_name: Optional[str] = Form(None),
-    # driver_contact: Optional[str] = Form(None)
-):
-    """
-    주문 수정 처리 (Form 데이터 사용)
-    서비스 레벨에서 락(Lock) 처리.
-    """
-    current_user = request.session.get("user")
-    user_id = current_user.get("user_id")
-    logger.info(f"주문 수정 요청(Form): id={dashboard_id}, user={user_id}")
-
-    # Pydantic 모델 인스턴스 생성 (유효성 검증 포함)
-    try:
-        # DashboardUpdate 스키마 사용 (모든 필드가 Optional일 수 있음, 스키마 정의 확인 필요)
-        # 여기서는 생성 스키마의 필드를 그대로 사용한다고 가정하고,
-        # 서비스에서 필요한 필드만 업데이트한다고 가정
-        update_data = DashboardUpdate(
-            order_no=orderNo,
-            type=type,
-            department=department,
-            warehouse=warehouse,
-            sla=sla,
-            eta=eta,
-            postal_code=postalCode,
-            address=address,
-            customer=customer,
-            contact=contact,
-            remark=remark,
-            # driver_name, driver_contact 는 여기서 업데이트 안 함
-        )
-    except Exception as validation_error:
-        logger.warning(f"주문 수정 데이터 유효성 검증 실패: {validation_error}")
-        # TODO: 오류 메시지 포함하여 수정 폼으로 리다이렉트
-        raise HTTPException(
-            status_code=400, detail=f"입력 데이터 오류: {validation_error}"
-        )
-
-    try:
-        # 서비스 함수 호출 (update_dashboard는 락 처리 포함)
-        updated_order = update_dashboard(
-            db=db, dashboard_id=dashboard_id, data=update_data, user_id=user_id
-        )
-        logger.info(f"주문 수정 성공(Form): id={updated_order.dashboard_id}")
-        # 성공 시 해당 주문의 상세 페이지로 리다이렉트
-        return RedirectResponse(
-            url=f"/orders/{dashboard_id}", status_code=status.HTTP_302_FOUND
-        )
-
-    except HTTPException as http_exc:
-        # 서비스 함수 내에서 발생한 HTTP 예외 처리 (404, 423 등)
-        logger.warning(
-            f"주문 수정 서비스 오류 (HTTPException): id={dashboard_id}, status={http_exc.status_code}, detail={http_exc.detail}"
-        )
-        # TODO: 오류 메시지 포함하여 수정 폼으로 리다이렉트
-        raise http_exc  # 또는 오류 처리 페이지로
-    except Exception as e:
-        logger.error(f"주문 수정(Form) 중 예상치 못한 오류: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="주문 수정 중 오류 발생")
-
-
-# --- 주문 삭제 (Form 방식) ---
-@router.post(
-    "/orders/{dashboard_id}/delete",
-    status_code=status.HTTP_302_FOUND,
-    response_class=RedirectResponse,
-)
-async def delete_order_form(
-    request: Request,
-    dashboard_id: int = Path(..., ge=1, description="삭제할 주문 ID"),
-    db: Session = Depends(get_db),
-    # current_user: Dict[str, Any] = Depends(get_current_user)
-):
-    """
-    주문 삭제 처리 (Form 방식)
-    ADMIN 권한 필요. 서비스 레벨에서 락(Lock) 처리.
-    """
-    current_user = request.session.get("user")
-    user_id = current_user.get("user_id")
-    user_role = current_user.get("role")
     logger.info(
-        f"주문 삭제 요청(Form): id={dashboard_id}, user={user_id}, role={user_role}"
+        f"대시보드 목록 조회 API 호출: startDate={start_date}, endDate={end_date}, user={current_user.get('user_id')}"
     )
+    try:
+        if start_date is None or end_date is None:
+            today = datetime.now().date()
+            start_date = start_date or today
+            end_date = end_date or today
+            logger.info(f"기본 날짜 범위 설정: {start_date} ~ {end_date}")
 
-    # ADMIN 권한 확인
-    if user_role != "ADMIN":
-        logger.warning(f"권한 없는 주문 삭제 시도: id={dashboard_id}, user={user_id}")
+        if start_date > end_date:
+            logger.warning(
+                f"잘못된 날짜 범위: 시작일({start_date}) > 종료일({end_date})"
+            )
+            return DashboardListResponse(
+                success=True,
+                message="잘못된 날짜 범위입니다. 시작일은 종료일보다 빠르거나 같아야 합니다.",
+                data=[],
+            )
+
+        all_orders = get_dashboard_list(db=db, start_date=start_date, end_date=end_date)
+        logger.info(
+            f"{start_date} ~ {end_date} 범위 데이터 {len(all_orders)}건 조회 완료"
+        )
+
+        orders_data = [
+            get_dashboard_response_data(order, False) for order in all_orders
+        ]
+
+        return DashboardListResponse(
+            success=True, message="주문 목록 조회 성공", data=orders_data
+        )
+
+    except SQLAlchemyError as db_err:
+        error_response = handle_exception(db_err, "대시보드 목록 조회 (DB)")
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="삭제 권한이 없습니다."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_response
         )
-
-    try:
-        # 서비스 함수 호출 (delete_dashboard는 권한 확인 및 락 처리 포함)
-        results = delete_dashboard(
-            db=db, dashboard_ids=[dashboard_id], user_id=user_id, user_role=user_role
-        )
-
-        # delete_dashboard는 결과 리스트를 반환하므로, 첫 번째 결과 확인
-        if results and results[0].get("success"):
-            logger.info(f"주문 삭제 성공(Form): id={dashboard_id}")
-            # 성공 시 대시보드 페이지로 리다이렉트
-            return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-        else:
-            # 서비스 함수 내에서 오류가 발생했거나 실패 메시지를 반환한 경우
-            error_message = results[0].get("message") if results else "알 수 없는 오류"
-            logger.error(
-                f"주문 삭제 서비스 실패: id={dashboard_id}, message={error_message}"
-            )
-            # TODO: 오류 메시지를 포함하여 이전 페이지(상세) 또는 대시보드로 리다이렉트
-            raise HTTPException(
-                status_code=500, detail=f"주문 삭제 처리 중 오류 발생: {error_message}"
-            )
-
-    except HTTPException as http_exc:
-        # 서비스 함수 내에서 발생한 HTTPException (404, 423, 403 등) 처리
-        logger.warning(
-            f"주문 삭제 서비스 오류 (HTTPException): id={dashboard_id}, status={http_exc.status_code}, detail={http_exc.detail}"
-        )
-        raise http_exc
     except Exception as e:
-        logger.error(f"주문 삭제(Form) 중 예상치 못한 오류: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="주문 삭제 중 오류 발생")
+        error_response = handle_exception(e, "대시보드 목록 조회")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_response
+        )
 
 
-# --- 주문 상태 변경 (Form 방식) ---
-@router.post(
-    "/orders/{dashboard_id}/status",
-    status_code=status.HTTP_302_FOUND,
-    response_class=RedirectResponse,
-)
-async def change_order_status_form(
-    request: Request,
-    dashboard_id: int = Path(..., ge=1, description="상태 변경할 주문 ID"),
+@api_router.get("/dashboard/search")
+async def search_order_api(
+    order_no: str = Query(..., description="검색할 주문번호"),
     db: Session = Depends(get_db),
-    # current_user: Dict[str, Any] = Depends(get_current_user),
-    status: str = Form(...),  # 변경할 새로운 상태
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    주문 상태 변경 처리 (Form 데이터 사용)
-    서비스 레벨에서 락(Lock) 및 상태 전이 규칙 처리.
+    주문번호로 정확히 일치하는 단일 주문 검색 API
     """
-    current_user = request.session.get("user")
-    user_id = current_user.get("user_id")
-    user_role = current_user.get("role")
     logger.info(
-        f"주문 상태 변경 요청(Form): id={dashboard_id}, new_status={status}, user={user_id}"
+        f"주문번호 검색 API 호출: orderNo='{order_no}', user={current_user.get('user_id')}"
     )
-
-    # 상태 값 유효성 검사 (선택 사항, 스키마에서 처리 가능)
-    valid_statuses = ["WAITING", "IN_PROGRESS", "COMPLETE", "ISSUE", "CANCEL"]
-    if status not in valid_statuses:
-        logger.warning(f"잘못된 상태 값으로 변경 시도: status={status}")
-        raise HTTPException(status_code=400, detail="유효하지 않은 상태 값입니다.")
+    order_no_trimmed = order_no.strip()
+    if not order_no_trimmed:
+        logger.warning("검색어(주문번호)가 비어 있습니다.")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "검색할 주문번호를 입력해주세요.",
+                "data": {"order": None},
+            },
+        )
 
     try:
-        # 서비스 함수 호출 (change_status는 락, 권한, 규칙 처리 포함)
-        results = change_status(
-            db=db,
-            dashboard_ids=[dashboard_id],
-            new_status=status,
-            user_id=user_id,
-            user_role=user_role,
-        )
+        order = search_dashboard_by_order_no(db=db, order_no=order_no_trimmed)
 
-        # 결과 확인
-        if results and results[0].get("success"):
-            logger.info(
-                f"주문 상태 변경 성공(Form): id={dashboard_id}, new_status={status}"
-            )
-            # 성공 시 해당 주문 상세 페이지로 리다이렉트
-            return RedirectResponse(
-                url=f"/orders/{dashboard_id}", status_code=status.HTTP_302_FOUND
-            )
+        order_data = None
+        if order:
+            logger.info(f"주문번호 '{order_no_trimmed}' 검색 성공")
+            order_data = get_dashboard_response_data(order, False)
+            message = f"주문번호 '{order_no_trimmed}' 검색 결과"
         else:
-            error_message = results[0].get("message") if results else "알 수 없는 오류"
-            logger.error(
-                f"주문 상태 변경 서비스 실패: id={dashboard_id}, message={error_message}"
-            )
-            # TODO: 오류 메시지(예: 규칙 위반, 락 문제 등)를 포함하여 상세 페이지로 리다이렉트
-            raise HTTPException(
-                status_code=400, detail=f"상태 변경 실패: {error_message}"
-            )  # 400 Bad Request 또는 상황에 맞는 코드
+            logger.info(f"주문번호 '{order_no_trimmed}' 검색 결과 없음")
+            message = f"주문번호 '{order_no_trimmed}'에 해당하는 주문이 없습니다."
 
-    except HTTPException as http_exc:
-        logger.warning(
-            f"주문 상태 변경 서비스 오류 (HTTPException): id={dashboard_id}, status={http_exc.status_code}, detail={http_exc.detail}"
+        return {"success": True, "message": message, "data": {"order": order_data}}
+
+    except SQLAlchemyError as db_err:
+        error_response = handle_exception(db_err, "주문번호 검색 (DB)")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_response
         )
-        raise http_exc
     except Exception as e:
-        logger.error(
-            f"주문 상태 변경(Form) 중 예상치 못한 오류: {str(e)}", exc_info=True
-        )
-        raise HTTPException(status_code=500, detail="상태 변경 중 오류 발생")
-
-
-# --- 기사 배정 (Form 방식) ---
-@router.post(
-    "/orders/{dashboard_id}/driver",
-    status_code=status.HTTP_302_FOUND,
-    response_class=RedirectResponse,
-)
-async def assign_driver_form(
-    request: Request,
-    dashboard_id: int = Path(..., ge=1, description="기사 배정할 주문 ID"),
-    db: Session = Depends(get_db),
-    # current_user: Dict[str, Any] = Depends(get_current_user),
-    driver_name: str = Form(...),
-    driver_contact: Optional[str] = Form(None),  # 선택 필드
-):
-    """
-    기사 배정 처리 (Form 데이터 사용)
-    서비스 레벨에서 락(Lock) 처리.
-    """
-    current_user = request.session.get("user")
-    user_id = current_user.get("user_id")
-    logger.info(
-        f"기사 배정 요청(Form): id={dashboard_id}, driver={driver_name}, user={user_id}"
-    )
-
-    try:
-        # 서비스 함수 호출 (assign_driver는 락 처리 포함)
-        results = assign_driver(
-            db=db,
-            dashboard_ids=[dashboard_id],
-            driver_name=driver_name,
-            driver_contact=driver_contact,
-            user_id=user_id,
+        error_response = handle_exception(e, "주문번호 검색")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_response
         )
 
-        # 결과 확인
-        if results and results[0].get("success"):
-            logger.info(
-                f"기사 배정 성공(Form): id={dashboard_id}, driver={driver_name}"
-            )
-            # 성공 시 해당 주문 상세 페이지로 리다이렉트
-            return RedirectResponse(
-                url=f"/orders/{dashboard_id}", status_code=status.HTTP_302_FOUND
-            )
-        else:
-            error_message = results[0].get("message") if results else "알 수 없는 오류"
-            logger.error(
-                f"기사 배정 서비스 실패: id={dashboard_id}, message={error_message}"
-            )
-            # TODO: 오류 메시지(예: 락 문제 등)를 포함하여 상세 페이지로 리다이렉트
-            raise HTTPException(
-                status_code=400, detail=f"기사 배정 실패: {error_message}"
-            )
 
-    except HTTPException as http_exc:
-        logger.warning(
-            f"기사 배정 서비스 오류 (HTTPException): id={dashboard_id}, status={http_exc.status_code}, detail={http_exc.detail}"
-        )
-        raise http_exc
-    except Exception as e:
-        logger.error(f"기사 배정(Form) 중 예상치 못한 오류: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="기사 배정 중 오류 발생")
-
-
-# === 주문 락 상태 확인 API (JSON) ===
-@router.get("/lock/order/{dashboard_id}")
+@api_router.get("/orders/lock/{dashboard_id}", response_model=LockStatusResponse)
 async def check_order_lock_api(
-    request: Request,
     dashboard_id: int = Path(..., ge=1, description="락 상태 확인할 주문 ID"),
     db: Session = Depends(get_db),
-    # current_user: Dict[str, Any] = Depends(get_current_user) # 라우터 레벨 의존성으로 처리됨
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """
-    주문 락 상태 확인 API
-    """
-    current_user = request.session.get("user")
+    """설명서 2.10 (추정): 주문 락 상태 확인 API"""
     user_id = current_user.get("user_id")
     logger.info(f"주문 락 상태 확인 API 요청: id={dashboard_id}, user={user_id}")
 
     try:
-        # 서비스 함수 호출
+        # 서비스 함수 호출 (경로 통일 후 해당 함수 사용)
         lock_status = get_lock_status(db=db, dashboard_id=dashboard_id, user_id=user_id)
         logger.info(
             f"주문 락 상태 확인 완료: id={dashboard_id}, editable={lock_status.get('editable')}"
         )
-        # 서비스에서 반환된 딕셔너리를 그대로 JSON 응답
+        # 서비스에서 반환된 딕셔너리를 LockStatusResponse 모델로 자동 변환하여 반환
         return lock_status
 
     except HTTPException as http_exc:
         logger.warning(
             f"주문 락 상태 확인 오류 (HTTPException): id={dashboard_id}, status={http_exc.status_code}, detail={http_exc.detail}"
         )
-        raise http_exc
+        raise http_exc  # 그대로 전달하여 FastAPI가 처리하도록 함
     except Exception as e:
         logger.error(f"주문 락 상태 확인 API 오류: {str(e)}", exc_info=True)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"success": False, "message": "락 상태 확인 중 오류 발생"},
+        # 일관된 오류 응답 반환 (스키마에 맞춰)
+        return LockStatusResponse(
+            success=False,
+            editable=False,
+            locked_by=None,
+            message="락 상태 확인 중 서버 오류 발생",
         )
 
 
-# === 불필요 라우터 제거 ===
-# ... (주석 처리됨) ...
+# --- 주문 생성 페이지 (order_routes.py 에서 이동) ---
+@page_router.get("/orders/new", name="order_create_page")
+async def order_create_page(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """주문 생성 페이지 렌더링"""
+    logger.info(f"order_create_page 시작: 사용자={current_user.get('user_id')}")
+    try:
+        logger.debug("템플릿 렌더링 시작: order_form.html")
+        initial_data_obj = {
+            "is_edit": False,
+            "order": None,
+            "current_user": current_user,  # JS에서도 사용 가능하도록 추가
+        }
+        initial_data_json_str = json.dumps(initial_data_obj, cls=EnhancedJSONEncoder)
+        logger.info("order_create_page 완료: 결과=성공")
+        return templates.TemplateResponse(
+            "order_form.html",
+            {
+                "request": request,
+                "current_user": current_user,
+                "initial_data_json": initial_data_json_str,
+                "is_edit": False,  # 템플릿에서 직접 사용
+                "order": None,  # 템플릿에서 직접 사용
+            },
+        )
+    except Exception as e:
+        logger.error(f"주문 생성 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
+        logger.info(f"order_create_page 완료: 결과=오류, 메시지={str(e)[:100]}")
+        error_message = quote("페이지를 불러오는 중 오류가 발생했습니다")
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# --- 주문 상세 페이지 (order_routes.py 에서 이동) ---
+@page_router.get("/orders/{dashboard_id}", name="order_detail_page")
+async def order_detail_page(
+    request: Request,
+    dashboard_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """주문 상세 페이지 렌더링"""
+    logger.info(
+        f"order_detail_page 시작: dashboard_id={dashboard_id}, 사용자={current_user.get('user_id')}"
+    )
+    try:
+        logger.debug(f"DB 쿼리 시작: 주문 ID={dashboard_id} 상세 조회")
+        order = get_dashboard_by_id(db, dashboard_id)
+        if not order:
+            logger.warning(f"존재하지 않는 주문 조회 시도: ID={dashboard_id}")
+            error_message = quote("주문을 찾을 수 없습니다")
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+        logger.debug(
+            f"락 상태 확인: 주문 ID={dashboard_id}, 사용자={current_user.get('user_id')}"
+        )
+        lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
+        is_editable = lock_status.get("editable", False)
+
+        # 응답 데이터 가공 (get_dashboard_response_data 사용)
+        order_data = get_dashboard_response_data(order, is_editable)
+
+        # JS에서 사용할 데이터 객체
+        page_data_obj = {
+            "order": order_data,
+            "lock_status": lock_status,  # editable 정보 외 추가 정보 포함 가능성
+            "current_user": current_user,
+        }
+        page_data_json_str = json.dumps(page_data_obj, cls=EnhancedJSONEncoder)
+
+        logger.debug(f"템플릿 렌더링 시작: order_page.html, 주문={order.order_no}")
+        logger.info(f"order_detail_page 완료: 결과=성공, 주문={order.order_no}")
+        return templates.TemplateResponse(
+            "order_page.html",
+            {
+                "request": request,
+                "current_user": current_user,
+                "order": order_data,
+                "page_data_json": page_data_json_str,
+            },
+        )
+    except Exception as e:
+        logger.error(f"주문 상세 페이지 렌더링 중 오류 발생: {str(e)}", exc_info=True)
+        logger.info(f"order_detail_page 완료: 결과=오류, 메시지={str(e)[:100]}")
+        error_message = quote("주문 정보를 불러오는 중 오류가 발생했습니다")
+        return RedirectResponse(
+            url=f"/dashboard?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# --- 주문 수정 페이지 (order_routes.py 에서 이동) ---
+@page_router.get(
+    "/orders/{dashboard_id}/edit", include_in_schema=False, name="order_edit_page"
+)
+async def order_edit_page(
+    request: Request,
+    dashboard_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """설명서 2.6: 주문 수정 페이지 로드 및 락 확인"""
+    user_id = current_user.get("user_id")
+    logger.info(f"주문 수정 페이지 로드 시작: id={dashboard_id}, user={user_id}")
+
+    try:
+        order = get_dashboard_by_id(db, dashboard_id)
+        if not order:
+            logger.warning(f"수정 대상 주문 없음: id={dashboard_id}")
+            error_message = quote("수정할 주문을 찾을 수 없습니다.")
+            return RedirectResponse(
+                url=f"/dashboard?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+        lock_info = get_lock_status(db, dashboard_id, user_id)
+        is_editable = lock_info.get("editable", False)
+
+        if not is_editable:
+            locked_by_user = lock_info.get("locked_by", "다른 사용자")
+            error_message = f"{locked_by_user}님이 현재 수정 중입니다."
+            logger.warning(
+                f"락으로 인해 수정 페이지 접근 불가: id={dashboard_id}, locked_by={locked_by_user}"
+            )
+            detail_page_url = request.url_for(
+                "order_detail_page", dashboard_id=dashboard_id
+            )
+            redirect_url = f"{detail_page_url}?error={quote(error_message)}"
+            return RedirectResponse(
+                url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
+            )
+
+        # 락이 없거나 내가 소유 -> 수정 페이지 렌더링
+        order_data = get_dashboard_response_data(order, True)
+
+        initial_data_obj = {
+            "is_edit": True,
+            "order": order_data,
+            "current_user": current_user,
+        }
+        initial_data_json_str = json.dumps(initial_data_obj, cls=EnhancedJSONEncoder)
+
+        context = {
+            "request": request,
+            "current_user": current_user,
+            "initial_data_json": initial_data_json_str,
+            "is_edit": True,
+            "order": order_data,
+        }
+        return templates.TemplateResponse("order_form.html", context)
+
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.error(f"주문 수정 페이지 로드 오류: {str(e)}", exc_info=True)
+        context = {
+            "request": request,
+            "error_message": "페이지 로드 중 오류 발생",
+            "current_user": current_user,
+        }
+        return templates.TemplateResponse("error.html", context, status_code=500)
+
+
+# --- 주문 생성 처리 API (order_routes.py 에서 이동, 개선사항 반영) ---
+@api_router.post("/orders", status_code=status.HTTP_302_FOUND)
+async def create_order_action(
+    request: Request,  # 리다이렉트 URL 생성에 필요
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    # Form 필드명 snake_case
+    order_no: str = Form(...),
+    type: str = Form(...),
+    department: str = Form(...),
+    warehouse: str = Form(...),
+    sla: str = Form(...),
+    eta: str = Form(..., description="YYYY-MM-DDTHH:MM 또는 YYYY-MM-DD HH:MM"),
+    postal_code: str = Form(...),
+    address: str = Form(...),
+    customer: str = Form(...),
+    contact: Optional[str] = Form(None),
+    remark: Optional[str] = Form(None),
+):
+    """설명서 2.5: 주문 생성 처리 API"""
+    user_id = current_user.get("user_id")
+    logger.info(
+        f"주문 생성 API 시작: 사용자={user_id}, Form Data={{'order_no': '{order_no}', ...}}"
+    )
+
+    eta_dt = None
+    try:
+        eta_dt = datetime.fromisoformat(eta)
+    except ValueError:
+        try:
+            eta_dt = datetime.strptime(eta, "%Y-%m-%d %H:%M")
+        except ValueError:
+            logger.error(f"잘못된 ETA 형식 수신: {eta}")
+            # 오류 발생 시 생성 페이지로 에러 메시지와 함께 리다이렉트
+            error_message = quote(
+                "ETA 형식이 잘못되었습니다 (YYYY-MM-DDTHH:MM 또는 YYYY-MM-DD HH:MM)."
+            )
+            # 이전 입력값 유지를 위해선 복잡한 처리 필요, 여기서는 메시지만 전달
+            return RedirectResponse(
+                url=f"/orders/new?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    try:
+        dashboard_data = DashboardCreate(
+            order_no=order_no,
+            type=type,
+            department=department,
+            warehouse=warehouse,
+            sla=sla,
+            eta=eta_dt,
+            postal_code=postal_code,
+            address=address,
+            customer=customer,
+            contact=contact,
+            remark=remark,
+        )
+        logger.debug(f"생성할 DashboardCreate 객체: {dashboard_data.model_dump()}")
+
+        new_dashboard = create_dashboard(db=db, data=dashboard_data, user_id=user_id)
+        logger.info(f"주문 생성 API 성공: ID={new_dashboard.dashboard_id}")
+
+        # 성공 메시지와 함께 상세 페이지로 리다이렉트
+        success_message = quote("주문이 성공적으로 생성되었습니다.")
+        detail_url = request.url_for(
+            "order_detail_page", dashboard_id=new_dashboard.dashboard_id
+        )
+        return RedirectResponse(
+            url=f"{detail_url}?success={success_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    except HTTPException as http_exc:
+        logger.warning(
+            f"주문 생성 API 실패 (HTTPException): 사용자={user_id}, Detail={http_exc.detail}"
+        )
+        error_message = quote(http_exc.detail or "주문 생성 중 오류 발생")
+        return RedirectResponse(
+            url=f"/orders/new?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except Exception as e:
+        logger.error(f"주문 생성 API 오류: 사용자={user_id}, Error={e}", exc_info=True)
+        error_message = quote("주문 생성 중 서버 오류가 발생했습니다.")
+        return RedirectResponse(
+            url=f"/orders/new?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# --- 주문 수정 처리 API (order_routes.py 에서 이동, 개선사항 반영) ---
+@api_router.post("/orders/{dashboard_id}", status_code=status.HTTP_302_FOUND)
+async def update_order_action(
+    request: Request,  # 리다이렉트 URL 생성에 필요
+    dashboard_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    # Form 필드명 snake_case
+    type: str = Form(...),
+    department: str = Form(...),
+    warehouse: str = Form(...),
+    sla: str = Form(...),
+    eta: str = Form(..., description="YYYY-MM-DDTHH:MM 또는 YYYY-MM-DD HH:MM"),
+    postal_code: str = Form(...),
+    address: str = Form(...),
+    customer: str = Form(...),
+    contact: Optional[str] = Form(None),
+    remark: Optional[str] = Form(None),
+    status_val: Optional[str] = Form(
+        None, alias="status"
+    ),  # alias 유지 또는 name="status"
+    driver_name: Optional[str] = Form(None),
+    driver_contact: Optional[str] = Form(None),
+):
+    """설명서 2.7: 주문 수정 처리 API"""
+    user_id = current_user.get("user_id")
+    logger.info(
+        f"주문 수정 API 시작: ID={dashboard_id}, 사용자={user_id}, Form Data={{'type': '{type}', 'status': '{status_val}', ...}}"
+    )
+
+    eta_dt = None
+    try:
+        eta_dt = datetime.fromisoformat(eta)
+    except ValueError:
+        try:
+            eta_dt = datetime.strptime(eta, "%Y-%m-%d %H:%M")
+        except ValueError:
+            logger.error(f"잘못된 ETA 형식 수신 (수정): {eta}")
+            error_message = quote(
+                "ETA 형식이 잘못되었습니다 (YYYY-MM-DDTHH:MM 또는 YYYY-MM-DD HH:MM)."
+            )
+            edit_url = request.url_for("order_edit_page", dashboard_id=dashboard_id)
+            return RedirectResponse(
+                url=f"{edit_url}?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    try:
+        update_data = DashboardUpdate(
+            type=type,
+            department=department,
+            warehouse=warehouse,
+            sla=sla,
+            eta=eta_dt,
+            postal_code=postal_code,
+            address=address,
+            customer=customer,
+            contact=contact,
+            remark=remark,
+            status=status_val,
+            driver_name=driver_name,
+            driver_contact=driver_contact,
+        )
+        logger.debug(
+            f"업데이트할 DashboardUpdate 객체: {update_data.model_dump(exclude_none=True)}"
+        )
+
+        updated_dashboard = update_dashboard(
+            db=db, dashboard_id=dashboard_id, data=update_data, user_id=user_id
+        )
+        logger.info(f"주문 수정 API 성공: ID={dashboard_id}")
+
+        # 성공 메시지와 함께 상세 페이지로 리다이렉트
+        success_message = quote("주문 정보가 성공적으로 수정되었습니다.")
+        detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
+        return RedirectResponse(
+            url=f"{detail_url}?success={success_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    except HTTPException as http_exc:
+        logger.warning(
+            f"주문 수정 API 실패 (HTTPException): ID={dashboard_id}, 사용자={user_id}, Detail={http_exc.detail}"
+        )
+        error_message = quote(http_exc.detail or "주문 수정 중 오류 발생")
+        edit_url = request.url_for("order_edit_page", dashboard_id=dashboard_id)
+        return RedirectResponse(
+            url=f"{edit_url}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except Exception as e:
+        logger.error(
+            f"주문 수정 API 오류: ID={dashboard_id}, 사용자={user_id}, Error={e}",
+            exc_info=True,
+        )
+        error_message = quote("주문 수정 중 서버 오류가 발생했습니다.")
+        edit_url = request.url_for("order_edit_page", dashboard_id=dashboard_id)
+        return RedirectResponse(
+            url=f"{edit_url}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# --- 주문 삭제 처리 API (order_routes.py 에서 이동, 개선사항 반영) ---
+@api_router.post("/orders/{dashboard_id}/delete", status_code=status.HTTP_302_FOUND)
+async def delete_order_action(
+    request: Request,  # 리다이렉트 URL 생성에 필요
+    dashboard_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_admin_user),
+):
+    """설명서 2.8: 주문 삭제 처리 API (ADMIN 전용)"""
+    user_id = current_user.get("user_id")
+    logger.info(
+        f"delete_order_action 시작: dashboard_id={dashboard_id}, 사용자={user_id}"
+    )
+
+    try:
+        result_list = delete_dashboard(
+            db=db,
+            dashboard_ids=[dashboard_id],
+            user_id=user_id,
+            user_role=current_user.get("user_role"),
+        )
+
+        if result_list and result_list[0].get("success"):
+            logger.info(f"delete_order_action 완료: 결과=성공, ID={dashboard_id}")
+            success_message = quote("주문이 성공적으로 삭제되었습니다.")
+            # 삭제 성공 시 대시보드로 리다이렉트
+            dashboard_url = request.url_for("dashboard_page")
+            return RedirectResponse(
+                url=f"{dashboard_url}?success={success_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        else:
+            error_message = (
+                result_list[0].get("message", "삭제 실패")
+                if result_list
+                else "삭제 실패"
+            )
+            logger.warning(
+                f"delete_order_action 완료: 결과=실패, ID={dashboard_id}, 메시지={error_message}"
+            )
+            # 실패 시 상세 페이지로 리다이렉트
+            detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
+            return RedirectResponse(
+                url=f"{detail_url}?error={quote(error_message)}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    except HTTPException as http_exc:
+        logger.warning(
+            f"주문 삭제 실패 (HTTPException): ID={dashboard_id}, Detail={http_exc.detail}"
+        )
+        error_message = quote(
+            http_exc.detail or "삭제 권한이 없거나 오류가 발생했습니다."
+        )
+        detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
+        return RedirectResponse(
+            url=f"{detail_url}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except Exception as e:
+        logger.error(f"주문 삭제 중 오류 발생: {str(e)}", exc_info=True)
+        error_message = quote("주문 삭제 중 오류가 발생했습니다")
+        detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
+        return RedirectResponse(
+            url=f"{detail_url}?error={error_message}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# === 불필요 라우터 제거 확인 ===
+# - 상태 변경 API (/api/orders/{id}/status) -> update_order_action 에 통합됨
+# - 기사 배정 API (/api/orders/{id}/driver) -> update_order_action 에 통합됨

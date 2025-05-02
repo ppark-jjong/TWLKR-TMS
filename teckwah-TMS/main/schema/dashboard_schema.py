@@ -55,6 +55,15 @@ class DashboardUpdate(BaseModel):
     customer: Optional[str] = Field(None, description="고객명")
     contact: Optional[str] = Field(None, description="연락처")
     remark: Optional[str] = Field(None, description="비고")
+    status: Optional[str] = Field(
+        None, description="상태(WAITING/IN_PROGRESS/COMPLETE/ISSUE/CANCEL)"
+    )
+    driver_name: Optional[str] = Field(
+        None, description="기사 이름", alias="driverName"
+    )
+    driver_contact: Optional[str] = Field(
+        None, description="기사 연락처", alias="driverContact"
+    )
 
     @validator("postal_code")
     def validate_postal_code(cls, v):
@@ -168,37 +177,6 @@ class DashboardListResponse(BaseModel):
     success: bool = Field(..., description="성공 여부")
     message: str = Field(..., description="메시지")
     data: List[DashboardListItem] = Field(..., description="주문 목록")
-
-    class Config:
-        """스키마 설정"""
-
-        by_alias = True
-        populate_by_name = True
-
-
-class StatusChangeRequest(BaseModel):
-    """상태 변경 요청 스키마"""
-
-    ids: List[int] = Field(..., description="변경할 주문 ID 목록", alias="orderIds")
-    status: str = Field(
-        ..., description="변경할 상태(WAITING/IN_PROGRESS/COMPLETE/ISSUE/CANCEL)"
-    )
-
-    class Config:
-        """스키마 설정"""
-
-        by_alias = True
-        populate_by_name = True
-
-
-class DriverAssignRequest(BaseModel):
-    """기사 배정 요청 스키마"""
-
-    ids: List[int] = Field(..., description="배정할 주문 ID 목록", alias="orderIds")
-    driver_name: str = Field(..., description="기사 이름", alias="driverName")
-    driver_contact: Optional[str] = Field(
-        None, description="기사 연락처", alias="driverContact"
-    )
 
     class Config:
         """스키마 설정"""
