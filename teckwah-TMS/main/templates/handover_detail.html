@@ -37,6 +37,15 @@ endblock %} {% block page_css %}
 
   <div class="main-card">
     <div class="handover-detail-content">
+      {# 디버그 정보: 페이지 상단에 주석으로 표시 #}
+      <!-- 
+      DEBUG INFO:
+      handover.handover_id: {{ handover.handover_id }}
+      handover.is_notice: {{ handover.is_notice }}
+      handover.title: {{ handover.title }}
+      handover.type_label: {{ handover.type_label }}
+      -->
+
       <div class="handover-header">
         <div class="handover-title-section">
           <div class="handover-tags">

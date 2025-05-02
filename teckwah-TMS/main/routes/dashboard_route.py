@@ -341,6 +341,12 @@ async def order_detail_page(
         is_editable = lock_status.get("editable", False)
         order_data = get_dashboard_response_data(order, is_editable)
 
+        # 추가 디버깅 로그: order_data의 내용 확인
+        logger.info(f"주문 상세 데이터 키: {list(order_data.keys())}")
+        logger.info(
+            f"주문 상세 데이터 샘플: dashboard_id={order_data.get('dashboard_id')}, order_no={order_data.get('order_no')}"
+        )
+
         # 설명서에 따라 Form(PRG) 방식 적용 - 템플릿에 직접 객체 전달
         context = {
             "request": request,

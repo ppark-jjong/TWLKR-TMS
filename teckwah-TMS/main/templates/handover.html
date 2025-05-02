@@ -114,11 +114,36 @@
     </div>
   </div>
 </div>
-{% endblock %} {% block page_js %} {# 초기 데이터를 script 태그 내 변수로 전달
-(객체에서 tojson 필터로 변환) #}
+{% endblock %} {% block page_js %} {# 디버그 정보: 전달된 데이터 확인 #}
+<!-- 
+DEBUG INFO:
+공지사항 개수: {{ notices|length }}
+인수인계 개수: {{ handovers|length }}
+{% if notices %}
+첫번째 공지사항: ID={{ notices[0].handover_id }}, is_notice={{ notices[0].is_notice }}, 제목={{ notices[0].title }}
+{% endif %}
+{% if handovers %}
+첫번째 인수인계: ID={{ handovers[0].handover_id }}, is_notice={{ handovers[0].is_notice }}, 제목={{ handovers[0].title }}
+{% endif %}
+-->
+
+{# 초기 데이터를 script 태그 내 변수로 전달 (객체에서 tojson 필터로 변환) #}
 <script>
+  /* eslint-disable */
   // 안전한 JSON 변환을 위해 tojson 필터 사용
-  const initialData = {{ initial_data|tojson }};
+  var initialData = {{ initial_data|tojson|safe }};
+
+  // 디버그 - 브라우저 콘솔에 초기 데이터 구조 확인
+  console.log('Initial Data Structure:', initialData);
+  if (initialData && initialData.notices) {
+    console.log('Notices count:', initialData.notices.length);
+    console.log('First notice sample:', initialData.notices[0]);
+  }
+  if (initialData && initialData.handovers) {
+    console.log('Handovers count:', initialData.handovers.length);
+    console.log('First handover sample:', initialData.handovers[0]);
+  }
+  /* eslint-enable */
 </script>
 
 <!-- 인수인계 스크립트 -->

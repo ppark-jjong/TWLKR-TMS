@@ -80,12 +80,29 @@ async def handover_page(
     success_message = request.query_params.get("success")
 
     try:
+        # 공지사항 데이터 조회 (is_notice=True)
         notices, _ = get_handover_list_paginated(
             db=db, page=1, page_size=5, is_notice=True
         )
+
+        # 디버깅: 로그에 공지사항 데이터 출력
+        logger.info(f"공지사항 데이터 조회 결과: {len(notices)}개 항목")
+        for idx, notice in enumerate(notices):
+            logger.info(
+                f"공지사항 #{idx+1}: ID={notice.get('handover_id')}, is_notice={notice.get('is_notice')}, 제목={notice.get('title')}"
+            )
+
+        # 인수인계 데이터 조회 (is_notice=False)
         handovers, pagination_info = get_handover_list_paginated(
             db=db, page=page, page_size=page_size, is_notice=False
         )
+
+        # 디버깅: 로그에 인수인계 데이터 출력
+        logger.info(f"인수인계 데이터 조회 결과: {len(handovers)}개 항목")
+        for idx, handover in enumerate(handovers[:3]):  # 처음 3개만 로그 출력
+            logger.info(
+                f"인수인계 #{idx+1}: ID={handover.get('handover_id')}, is_notice={handover.get('is_notice')}, 제목={handover.get('title')}"
+            )
 
         # 페이지네이션 정보 키 표준화
         pagination_data = {
@@ -101,6 +118,30 @@ async def handover_page(
             "pagination": pagination_data,
             "notices": notices,
         }
+
+        # 디버깅: 템플릿에 전달되는 데이터 구조 로그 출력
+        logger.info(
+            f"템플릿 전달 데이터: notices={len(notices)}개, handovers={len(handovers)}개"
+        )
+        if notices:
+            logger.info(f"템플릿 notices 샘플: {notices[0] if notices else 'none'}")
+        if handovers:
+            logger.info(
+                f"템플릿 handovers 샘플: {handovers[0] if handovers else 'none'}"
+            )
+
+        # 초기 데이터 확인 로그
+        logger.info(f"initial_data 키 확인: {list(initial_data.keys())}")
+        logger.info(f"initial_data[handovers] 길이: {len(initial_data['handovers'])}")
+        logger.info(f"template에 전달될 initial_data 타입: {type(initial_data)}")
+
+        # Jinja2에 전달되는 템플릿 컨텍스트의 initial_data 값을 JSON으로 직렬화하여 로그에 출력
+        try:
+            logger.info(
+                f"initial_data 샘플 (JSON): {json.dumps(initial_data, default=str)[:200]}..."
+            )
+        except Exception as json_err:
+            logger.error(f"JSON 직렬화 오류: {json_err}")
 
         context = {
             "request": request,
