@@ -46,10 +46,8 @@ def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
         )
 
 
-def get_dashboard_response_data(
-    order: Dashboard, is_editable: bool = False
-) -> Dict[str, Any]:
-    """주문 상세 정보를 위한 딕셔너리 변환 (snake_case 유지)"""
+def get_dashboard_response_data(order: Dashboard) -> Dict[str, Any]:
+    """주문 상세 정보를 위한 딕셔너리 변환 (snake_case 유지, editable 제외)"""
     try:
         return {
             "dashboard_id": order.dashboard_id,
@@ -81,7 +79,6 @@ def get_dashboard_response_data(
             "duration_time": order.duration_time,
             "status_label": status_labels.get(order.status, order.status),
             "type_label": type_labels.get(order.type, order.type),
-            "editable": is_editable,
         }
     except AttributeError as e:
         logger.error(
@@ -226,31 +223,34 @@ def update_dashboard(
     db: Session, dashboard_id: int, data: Dict[str, Any], user_id: str
 ) -> Dashboard:
     """주문 업데이트 및 락 관리, 상태 변경 시 시간 자동 업데이트"""
-    # update_field API 에서 호출 시 data는 {"status": "NEW_STATUS"} 형태일 수 있음
     # update_order_action API 에서 호출 시 data는 DashboardUpdate 모델의 dict 형태
 
     lock_held = False
     try:
-        # 락 획득 (update_dashboard 진입 전에 acquire_lock 호출 안함, 서비스 내에서 관리)
-        lock_success, lock_info = acquire_lock(db, "dashboard", dashboard_id, user_id)
-        if not lock_success:
+        # 1. 락 상태 확인 (서비스 함수 진입 시)
+        lock_status = check_lock_status(db, "dashboard", dashboard_id, user_id)
+        if not lock_status.get("success") or not lock_status.get("editable"):
+            # 락 상태 확인 실패 또는 편집 권한 없음
             raise HTTPException(
                 status_code=status.HTTP_423_LOCKED,
-                detail=lock_info.get("message", "현재 다른 사용자가 편집 중입니다."),
+                detail=lock_status.get(
+                    "message", "다른 사용자가 편집 중이거나 락이 만료되었습니다."
+                ),
             )
-        lock_held = True
+        lock_held = True  # 락을 소유하고 있음을 확인
 
         order = (
             db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
         )
         if not order:
+            # 이 경우는 거의 발생하지 않음 (락 확인 시점에 존재했으므로)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="수정할 주문을 찾을 수 없습니다.",
             )
 
-        # update_data 준비 (스키마 사용 안하고 dict 직접 처리)
-        update_fields = data.copy()  # 원본 data 수정 방지
+        # update_data 준비
+        update_fields = data.copy()
 
         # region 필드는 DB에서 자동 생성되므로 제거
         if "region" in update_fields:
@@ -336,40 +336,30 @@ def update_dashboard(
         return order
 
     except HTTPException as http_exc:
-        # 락 획득 실패 또는 유효성 검사 오류 등은 여기서 처리
-        # db.rollback() # 트랜잭션 데코레이터가 처리
+        # 락 점검 실패(423) 또는 유효성 검사 오류(400 등)는 그대로 전달
         raise http_exc
     except SQLAlchemyError as e:
-        # db.rollback() # 트랜잭션 데코레이터가 처리
         logger.error(f"주문 업데이트 DB 오류: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="주문 업데이트 중 데이터베이스 오류 발생",
         )
     except Exception as e:
-        # 예상치 못한 오류
-        # db.rollback() # 트랜잭션 데코레이터가 처리
         logger.error(f"주문 업데이트 중 예외 발생: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="주문 업데이트 처리 중 오류 발생",
         )
     finally:
-        # 락을 획득했다면 반드시 해제
+        # 락을 소유하고 시작했다면 작업 완료 후 해제 시도
         if lock_held:
             try:
-                # release_lock은 내부적으로 commit/rollback을 수행할 수 있으므로 주의
-                # 여기서는 트랜잭션 관리와 분리하여 락 해제만 시도
-                release_success, _ = release_lock(
-                    db, "dashboard", dashboard_id, user_id
-                )
-                if release_success:
-                    logger.info(f"주문 락 해제 성공 (finally): ID {dashboard_id}")
-                else:
-                    logger.warning(f"주문 락 해제 실패 (finally): ID {dashboard_id}")
+                release_lock(db, "dashboard", dashboard_id, user_id)
+                logger.info(f"주문 업데이트 완료 후 락 해제: ID {dashboard_id}")
             except Exception as lock_release_err:
+                # 락 해제 실패는 로깅만 하고 오류를 전파하지 않음 (주요 작업은 완료됨)
                 logger.error(
-                    f"주문 락 해제 실패 (finally): ID {dashboard_id}, 오류: {lock_release_err}"
+                    f"주문 업데이트 후 락 해제 실패 (finally): ID {dashboard_id}, 오류: {lock_release_err}"
                 )
 
 
@@ -387,8 +377,21 @@ def change_status(
     }
 
     for dashboard_id in dashboard_ids:
-        lock_acquired = False
+        lock_held = False  # 각 주문마다 락 처리
         try:
+            # 1. 락 상태 확인
+            lock_status = check_lock_status(db, "dashboard", dashboard_id, user_id)
+            if not lock_status.get("success") or not lock_status.get("editable"):
+                results.append(
+                    {
+                        "id": dashboard_id,
+                        "success": False,
+                        "message": lock_status.get("message", "락 오류"),
+                    }
+                )
+                continue  # 다음 주문으로
+            lock_held = True
+
             order = (
                 db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
@@ -445,21 +448,6 @@ def change_status(
                     )
                     continue
 
-            # 락 획득
-            lock_success, lock_info = acquire_lock(
-                db, "dashboard", dashboard_id, user_id
-            )
-            if not lock_success:
-                results.append(
-                    {
-                        "id": dashboard_id,
-                        "success": False,
-                        "message": lock_info.get("message", "다른 사용자가 편집 중"),
-                    }
-                )
-                continue
-            lock_acquired = True
-
             # 상태 변경 및 시간 기록
             order.status = new_status
             now = datetime.now()
@@ -502,12 +490,12 @@ def change_status(
                 {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
             )
         finally:
-            if lock_acquired:
+            if lock_held:
                 try:
                     release_lock(db, "dashboard", dashboard_id, user_id)
-                except Exception as lock_release_err:
+                except Exception as release_err:
                     logger.error(
-                        f"상태 변경 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+                        f"상태 변경 락 해제 실패: ID {dashboard_id}, {release_err}"
                     )
 
     # 모든 변경 사항 커밋 (라우터 레벨에서 처리하는 것이 더 안전할 수 있음)
@@ -525,8 +513,21 @@ def assign_driver(
     """주문에 기사 배정"""
     results = []
     for dashboard_id in dashboard_ids:
-        lock_acquired = False
+        lock_held = False
         try:
+            # 1. 락 상태 확인
+            lock_status = check_lock_status(db, "dashboard", dashboard_id, user_id)
+            if not lock_status.get("success") or not lock_status.get("editable"):
+                results.append(
+                    {
+                        "id": dashboard_id,
+                        "success": False,
+                        "message": lock_status.get("message", "락 오류"),
+                    }
+                )
+                continue
+            lock_held = True
+
             order = (
                 db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
@@ -541,20 +542,6 @@ def assign_driver(
                     }
                 )
                 continue
-
-            lock_success, lock_info = acquire_lock(
-                db, "dashboard", dashboard_id, user_id
-            )
-            if not lock_success:
-                results.append(
-                    {
-                        "id": dashboard_id,
-                        "success": False,
-                        "message": lock_info.get("message", "다른 사용자가 편집 중"),
-                    }
-                )
-                continue
-            lock_acquired = True
 
             order.driver_name = driver_name
             order.driver_contact = driver_contact
@@ -580,12 +567,12 @@ def assign_driver(
                 {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
             )
         finally:
-            if lock_acquired:
+            if lock_held:
                 try:
                     release_lock(db, "dashboard", dashboard_id, user_id)
-                except Exception as lock_release_err:
+                except Exception as release_err:
                     logger.error(
-                        f"기사 배정 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+                        f"기사 배정 락 해제 실패: ID {dashboard_id}, {release_err}"
                     )
 
     # db.commit()
@@ -595,16 +582,31 @@ def assign_driver(
 def delete_dashboard(
     db: Session, dashboard_ids: List[int], user_id: str, user_role: str
 ) -> List[Dict[str, Any]]:
-    """주문 삭제 (ADMIN 전용)"""
+    """주문 삭제 (ADMIN 전용, 락 점검 포함)"""
     results = []
     if user_role != "ADMIN":
         logger.warning(f"주문 삭제 권한 없음: 사용자 {user_id}")
-        # 단일 결과만 반환하거나, 각 ID별 실패 메시지 반환 고려
         return [{"success": False, "message": "삭제 권한이 없습니다."}]
 
     for dashboard_id in dashboard_ids:
-        lock_acquired = False
+        lock_held = False
         try:
+            # 1. 락 상태 확인 (삭제 전)
+            lock_status = check_lock_status(db, "dashboard", dashboard_id, user_id)
+            if not lock_status.get("success") or not lock_status.get("editable"):
+                # 다른 사용자가 락을 잡고 있으면 실패 처리
+                results.append(
+                    {
+                        "id": dashboard_id,
+                        "success": False,
+                        "message": lock_status.get(
+                            "message", "다른 사용자가 편집 중이거나 락 오류"
+                        ),
+                    }
+                )
+                continue  # 다음 ID 처리
+            lock_held = True  # 락 소유 확인
+
             order = (
                 db.query(Dashboard)
                 .filter(Dashboard.dashboard_id == dashboard_id)
@@ -620,21 +622,7 @@ def delete_dashboard(
                 )
                 continue
 
-            lock_success, lock_info = acquire_lock(
-                db, "dashboard", dashboard_id, user_id
-            )
-            if not lock_success:
-                results.append(
-                    {
-                        "id": dashboard_id,
-                        "success": False,
-                        "message": lock_info.get("message", "다른 사용자가 편집 중"),
-                    }
-                )
-                continue
-            lock_acquired = True
-
-            order_no = order.order_no  # 삭제 전 정보 저장
+            order_no = order.order_no
             db.delete(order)
             db.flush()
             results.append(
@@ -644,31 +632,41 @@ def delete_dashboard(
                     "message": f"주문 삭제 완료: {order_no}",
                 }
             )
+            logger.info(f"주문 삭제 완료: ID {dashboard_id}, OrderNo {order_no}")
 
         except SQLAlchemyError as e:
-            db.rollback()
             logger.error(
                 f"주문 삭제 중 DB 오류: ID {dashboard_id}, {str(e)}", exc_info=True
             )
             results.append(
                 {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
             )
+            # 롤백은 트랜잭션 데코레이터가 처리
+        except Exception as e:
+            logger.error(
+                f"주문 삭제 중 오류: ID {dashboard_id}, {str(e)}", exc_info=True
+            )
+            results.append(
+                {
+                    "id": dashboard_id,
+                    "success": False,
+                    "message": f"삭제 중 오류 발생: {e}",
+                }
+            )
         finally:
-            if lock_acquired:
+            # 락을 획득(소유 확인)했다면 삭제 후 해제 시도
+            if lock_held:
                 try:
+                    # release_lock은 삭제된 행에 대해선 실패할 수 있으나 시도는 함
                     release_lock(db, "dashboard", dashboard_id, user_id)
+                    logger.info(f"주문 삭제 후 락 해제 시도: ID {dashboard_id}")
                 except Exception as lock_release_err:
-                    logger.error(
-                        f"삭제 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+                    # 삭제 후 락 해제 실패는 로깅만
+                    logger.warning(
+                        f"삭제된 주문 락 해제 실패 (예상 가능): ID {dashboard_id}, 오류: {lock_release_err}"
                     )
 
-    # db.commit()
     return results
-
-
-def get_lock_status(db: Session, dashboard_id: int, user_id: str) -> Dict[str, Any]:
-    """주문 락 상태 확인"""
-    return check_lock_status(db, "dashboard", dashboard_id, user_id)
 
 
 def get_dashboard_list_paginated(

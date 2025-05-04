@@ -268,9 +268,15 @@ async def order_detail_page(
         if not order:
             raise HTTPException(status_code=404, detail="주문을 찾을 수 없습니다.")
 
-        lock_status = get_lock_status(db, dashboard_id, current_user.get("user_id"))
-        is_editable = lock_status.get("editable", False)
-        order_data = get_dashboard_response_data(order, is_editable)
+        # 락 상태 확인 (check_lock_status 사용)
+        lock_status = check_lock_status(
+            db, "dashboard", dashboard_id, current_user.get("user_id")
+        )
+        # is_editable은 get_dashboard_response_data 내부에서 처리하도록 변경 고려?
+        # 일단 여기서는 editable 정보를 사용하지 않음.
+        order_data = get_dashboard_response_data(
+            order
+        )  # editable 파라미터 제거 또는 수정
 
         # 추가 디버깅 로그: order_data의 내용 확인
         logger.info(f"주문 상세 데이터 키: {list(order_data.keys())}")
@@ -310,7 +316,7 @@ async def order_detail_page(
 
 # --- 주문 수정 페이지 --- (락 보유 확인 후 페이지 렌더링)
 @page_router.get("/orders/{dashboard_id}/edit", name="order_edit_page")
-@db_transaction  # DB 조회 필요
+@db_transaction  # 락 획득/해제 위해 트랜잭션 필요
 async def order_edit_page(
     request: Request,
     dashboard_id: int = Path(..., ge=1),
@@ -323,9 +329,10 @@ async def order_edit_page(
 
     # 상세 페이지 URL (리다이렉트용)
     detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
+    lock_held = False  # 락 해제를 위한 플래그
 
     try:
-        # 주문 정보 로드
+        # 주문 정보 로드 (락 전에 수행)
         dashboard = get_dashboard_by_id(db, dashboard_id)
         if not dashboard:
             error_message = quote("수정할 주문을 찾을 수 없습니다.")
@@ -334,9 +341,8 @@ async def order_edit_page(
                 status_code=status.HTTP_303_SEE_OTHER,
             )
 
-        # 락 획득 시도
+        # 락 획득 시도 (페이지 로드 전에 수행)
         lock_acquired, lock_info = acquire_lock(db, "dashboard", dashboard_id, user_id)
-
         if not lock_acquired:
             # 락 획득 실패 시 상세 페이지로 리다이렉트
             error_message = quote(
@@ -346,12 +352,16 @@ async def order_edit_page(
                 f"{detail_url}?error={error_message}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
+        lock_held = True  # 락 획득 성공
 
         # 락 획득 성공 시 수정 페이지 렌더링
         logger.info(f"주문 수정 페이지 락 획득 성공: id={dashboard_id}, user={user_id}")
 
-        # 주문 데이터 가져오기
-        dashboard_dict = dashboard_to_dict(dashboard)
+        # 주문 데이터 가져오기 (락 획득 후)
+        # dashboard = get_dashboard_by_id(db, dashboard_id) # 이미 위에서 로드함
+        dashboard_dict = dashboard_to_dict(
+            dashboard
+        )  # dashboard_to_dict 헬퍼 함수가 있다고 가정
 
         # ETA 날짜 포맷 변환 (HTML 입력용)
         if "eta" in dashboard_dict and dashboard_dict["eta"]:
@@ -378,6 +388,18 @@ async def order_edit_page(
             f"{detail_url}?error={error_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
+    finally:
+        # 페이지 로드 중 예외 발생 시에도 락 해제 시도
+        if lock_held:
+            try:
+                release_lock(db, "dashboard", dashboard_id, user_id)
+                logger.info(
+                    f"주문 수정 페이지 로드 완료/오류 후 락 해제: id={dashboard_id}"
+                )
+            except Exception as release_err:
+                logger.error(
+                    f"주문 수정 페이지 락 해제 중 오류: {release_err}", exc_info=True
+                )
 
 
 # --- 주문 수정 처리 API --- (Form 데이터 처리 및 서비스 호출)
@@ -411,7 +433,7 @@ async def update_order_action(
     detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
     edit_url = request.url_for("order_edit_page", dashboard_id=dashboard_id)
 
-    # 락 관리는 서비스 레이어에서 처리하므로 여기서는 제거
+    # 락 점검 및 관리는 서비스 레이어(update_dashboard)에서 처리
     try:
         # ETA 파싱
         try:
@@ -488,6 +510,7 @@ async def delete_order_action(
     detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
     dashboard_url = request.url_for("dashboard_page")
 
+    # 락 점검 및 관리는 서비스 레이어(delete_dashboard)에서 처리
     try:
         result_list = delete_dashboard(
             db=db, dashboard_ids=[dashboard_id], user_id=user_id, user_role=user_role
@@ -521,123 +544,6 @@ async def delete_order_action(
         error_message = quote("주문 삭제 중 오류가 발생했습니다")
         return RedirectResponse(
             f"{detail_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
-        )
-
-
-@api_router.patch("/orders/{dashboard_id}/update-field")
-@db_transaction
-async def update_order_field(
-    request: Request,
-    dashboard_id: int = Path(..., ge=1),
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """주문 필드 인라인 업데이트 (주로 상태 변경용)"""
-    user_id = current_user.get("user_id")
-    logger.info(f"주문 필드 업데이트 요청: id={dashboard_id}, user={user_id}")
-
-    try:
-        # 요청 본문 파싱
-        body = await request.json()
-        field_name = body.get("field")
-        new_value = body.get("value")
-
-        if not field_name or new_value is None:
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"success": False, "message": "필드명과 값이 필요합니다."},
-            )
-
-        # 특수 필드 처리: 락 관련 체크
-        if field_name == "check_edit_status":
-            # 상태 변경 드롭다운 표시 전 락 획득 시도
-            lock_acquired, lock_info = acquire_lock(
-                db, "dashboard", dashboard_id, user_id
-            )
-
-            if not lock_acquired:
-                return JSONResponse(
-                    status_code=status.HTTP_423_LOCKED,
-                    content={
-                        "success": False,
-                        "message": lock_info.get(
-                            "message", "현재 다른 사용자가 수정 중입니다"
-                        ),
-                    },
-                )
-
-            # 락 획득 성공
-            return JSONResponse(
-                content={"success": True, "message": "상태 변경 가능합니다."}
-            )
-
-        # 특수 필드 처리: 락 해제
-        if field_name == "release_edit_lock":
-            # 락 해제 시도
-            release_success, _ = release_lock(db, "dashboard", dashboard_id, user_id)
-            return JSONResponse(
-                content={"success": release_success, "message": "락 해제 요청 처리됨"}
-            )
-
-        # 일반 필드 업데이트 처리
-        # 락 획득 시도
-        lock_acquired, lock_info = acquire_lock(db, "dashboard", dashboard_id, user_id)
-
-        if not lock_acquired:
-            # 락 획득 실패
-            return JSONResponse(
-                status_code=status.HTTP_423_LOCKED,
-                content={
-                    "success": False,
-                    "message": lock_info.get(
-                        "message", "현재 다른 사용자가 수정 중입니다"
-                    ),
-                },
-            )
-
-        # 업데이트 수행 (서비스 레이어 호출)
-        try:
-            update_data = {field_name: new_value}
-            update_result = update_dashboard_fields(
-                db=db,
-                dashboard_id=dashboard_id,
-                update_data=update_data,
-                user_id=user_id,
-            )
-
-            # 락 해제
-            release_lock(db, "dashboard", dashboard_id, user_id)
-
-            # 응답 반환
-            return JSONResponse(
-                content={
-                    "success": True,
-                    "message": f"{field_name} 필드가 업데이트되었습니다.",
-                    "data": update_result,
-                }
-            )
-
-        except ValueError as ve:
-            # 락 해제 후 오류 반환
-            release_lock(db, "dashboard", dashboard_id, user_id)
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"success": False, "message": str(ve)},
-            )
-
-    except JSONDecodeError:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"success": False, "message": "유효하지 않은 JSON 형식입니다."},
-        )
-    except Exception as e:
-        logger.error(f"필드 업데이트 중 예외 발생: {str(e)}", exc_info=True)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "success": False,
-                "message": "필드 업데이트 중 오류가 발생했습니다.",
-            },
         )
 
 

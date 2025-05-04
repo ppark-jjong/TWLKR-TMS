@@ -206,85 +206,6 @@
   position: relative;
 }
 
-.edit-btn {
-  background: transparent;
-  border: none;
-  color: var(--primary-color);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 4px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.edit-btn:hover {
-  background-color: rgba(215, 37, 25, 0.1);
-  transform: scale(1.1);
-}
-
-.edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 12px;
-  width: 180px;
-  position: absolute;
-  z-index: 100;
-  left: 0;
-  top: 30px;
-}
-
-.edit-form-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: var(--text-color);
-  border-bottom: 1px solid #eee;
-  padding-bottom: 6px;
-}
-
-.edit-form .form-control {
-  flex: 1;
-  min-width: 100%;
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  font-size: 14px;
-}
-
-.edit-form .btn-group {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: 6px;
-}
-
-.edit-form .btn {
-  padding: 6px 12px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  flex: 1;
-  margin: 0 4px;
-}
-
-.edit-form .btn i {
-  font-size: 12px;
-}
-
-.edit-form select {
-  cursor: pointer;
-}
-
 .status-badge {
   padding: 4px 10px;
   border-radius: 12px;
@@ -294,14 +215,4 @@
   align-items: center;
   justify-content: center;
   min-width: 70px;
-}
-
-/* 애니메이션 효과 추가 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.edit-form {
-  animation: fadeIn 0.2s ease-out;
 }

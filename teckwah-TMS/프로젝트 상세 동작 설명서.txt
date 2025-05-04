@@ -1,6 +1,5 @@
 # 프로젝트 상세 동작 설명서
 
-*기준 문서: 프로젝트 기본 설명서.txt *
 *기준 코드: main/routes/, main/service/, main/schema/ 등*
 *렌더링 전략: 초기 SSR(첫 페이지) + 전체 데이터 CSR (대시보드, 인수인계 공통)*
 *인증: 모든 보호된 라우트 접근 시 인증 확인 및 리디렉션 적용*
@@ -26,11 +25,13 @@
 ### 2.1 핵심 원칙
 
 1. **SSR 우선 + CSR 보조** (SEO·초기 속도 확보)
-2. **단일 레코드 = Form(PRG)**, **목록/락 = JSON**
+2. **단일 레코드 = Form(PRG)**, **목록 = JSON**
 3. **명시적 액션** – 자동화 최소화
 4. **YAGNI** – 필요 기능만 구현
 5. **서버 최종 검증, 클라이언트 실시간 검증**
 6. **UI 일관성** – 상황별 UI/UX 패턴 통일
+7. **자동 헬스체크 리로드 금지 ** - 무조건 사용자 명시적 액션을 통한 리로드만 가능, 자동 헬스체크 금지
+
 
 ### 2.2 기술 스택
 
@@ -107,14 +108,14 @@
 *   **인증:** 아래 명시된 엔드포인트 중 `/login`, `/logout` 및 정적 파일(`/static/...`)을 제외한 **모든 페이지 및 API 접근 시** 서버 측에서 사용자 세션 유효성을 검증합니다. (예: 각 라우터의 `dependencies=[Depends(get_current_user)]` 또는 `Depends(get_admin_user)` 적용)
     *   **인증 실패 시:** 전역 401 예외 핸들러가 사용자를 즉시 로그인 페이지 (`/login`)로 리다이렉트합니다. (`return_to` 쿼리 파라미터 포함)
     *   **권한:** 특정 기능(예: 사용자 관리, 주문 삭제)은 `Depends(get_admin_user)`를 통해 ADMIN 역할만 접근 가능하도록 제한합니다. 권한 부족 시 403 Forbidden 오류를 반환합니다.
-*   **락(Lock) 메커니즘:** 주문 및 인수인계 데이터의 동시 수정을 방지하기 위해 `is_locked` (BOOLEAN) 필드를 사용합니다. (**별도의 락 관련 API는 사용하지 않습니다.**)
+*   **락(Lock) 메커니즘:** 주문 및 인수인계 데이터의 동시 수정을 방지하기 위해 `is_locked` (BOOLEAN), `locked_by` (VARCHAR), `locked_at` (DATETIME) 필드를 사용합니다. (`update_by`, `update_at`은 이제 실제 데이터 변경자/시간 기록에만 사용됩니다.)
     *   **수정 페이지 로드 시 락 획득:** 사용자가 수정 버튼 클릭 시 (`GET /orders/{id}/edit`, `GET /handover/{id}/edit`) **서버 라우트 핸들러 내부에서** 해당 레코드의 `is_locked` 상태를 확인하고 **락 획득을 시도**(`acquire_lock` 유틸리티 사용)합니다.
-        *   **락 성공:** `is_locked`를 `True`로 변경하고 수정 페이지(`order_form.html` 또는 `handover_form.html`)를 정상적으로 반환합니다.
-        *   **락 실패:** 이미 `is_locked`가 `True`인 경우, 사용자를 **상세 페이지로 리다이렉트**하고 URL 쿼리 파라미터로 표준 오류 메시지 (`?error=현재 다른 사용자가 수정 중입니다`)를 전달합니다.
-    *   **수정/삭제 처리 시 락 획득:** `POST /api/orders/{id}`, `POST /api/orders/{id}/delete`, `POST /api/handover/{id}`, `POST /api/handover/{id}/delete` 등의 요청 처리 시, **해당 서비스 함수 내부에서** 먼저 **락 획득을 시도**(`acquire_lock` 유틸리티 사용)합니다.
-        *   **락 성공:** 작업을 계속 진행합니다.
-        *   **락 실패:** (이미 `is_locked`가 `True`인 경우) HTTP **423 Locked** 상태 코드와 함께 오류 메시지 (`{ "success": false, "message": "현재 다른 사용자가 수정 중입니다" }`)를 JSON으로 반환합니다.
-    *   **작업 완료 후 락 해제:** 수정 또는 삭제 작업이 성공하거나 실패한 경우, **서비스 함수 또는 라우트 핸들러의 `finally` 블록 등에서 반드시 락을 해제**(`release_lock` 유틸리티 사용, `is_locked`를 `False`로 변경)합니다.
+        *   **락 성공:** `is_locked`를 `True`로, `locked_by`를 현재 사용자 ID로, `locked_at`을 현재 시간으로 변경하고 수정 페이지(`order_form.html` 또는 `handover_form.html`)를 정상적으로 반환합니다.
+        *   **락 실패:** 이미 `is_locked`가 `True`이고 현재 사용자의 락이 아닌 경우, 사용자를 **상세 페이지로 리다이렉트**하고 URL 쿼리 파라미터로 표준 오류 메시지 (`?error=현재 다른 사용자({locked_by})가 {locked_at_str}부터 수정 중입니다`)를 전달합니다. (락 타임아웃 발생 시에는 락 해제 후 획득 시도)
+    *   **수정/삭제 처리 시 락 점검:** `POST /api/orders/{id}`, `POST /api/orders/{id}/delete`, `POST /api/handover/{id}`, `POST /api/handover/{id}/delete` 등의 요청 처리 시, **해당 서비스 함수 내부에서** 먼저 **락 상태를 점검** (`check_lock_status` 유틸리티 사용)하여 현재 요청 사용자가 락을 소유하고 있는지 확인합니다.
+        *   **락 소유 확인:** 작업을 계속 진행합니다.
+        *   **락 소유 실패:** HTTP **423 Locked** 상태 코드와 함께 오류 메시지 (`{ "success": false, "message": "현재 다른 사용자({locked_by})가 수정 중이거나 락이 만료되었습니다. 다시 시도해주세요." }`)를 JSON으로 반환합니다.
+    *   **작업 완료 후 락 해제:** 수정 또는 삭제 작업이 성공하거나 실패한 경우, **서비스 함수 또는 라우트 핸들러의 `finally` 블록 등에서 반드시 락을 해제** (`release_lock` 유틸리티 사용, `is_locked`를 `False`로, `locked_by`와 `locked_at`을 `NULL`로 변경)합니다.
 *   **오류 처리:** API 호출 실패 시 표준화된 JSON 응답 (`{ "success": false, "message": "오류 내용", "error_details": "..." }`) 및 적절한 HTTP 상태 코드를 반환합니다. 페이지 로드 실패 시 `error.html` 템플릿을 렌더링하거나, 관련 페이지로 리다이렉트하며 오류 메시지를 쿼리 파라미터로 전달합니다.
 *   **알림 기능:** 사용자 액션(생성, 수정, 삭제, 복사 등) 결과 및 락 경고는 **클라이언트 JavaScript**를 통해 알림창으로 표시됩니다.
     *   **서버 응답 (리다이렉션):** 서버는 Form 처리 후 리다이렉션 시 URL 쿼리 파라미터(`?success=...`, `?error=...`)에 메시지를 담아 전달합니다.

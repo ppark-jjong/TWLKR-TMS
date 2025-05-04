@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS dashboard (
   remark TEXT NULL,
   update_at DATETIME NULL,
   is_locked BOOLEAN DEFAULT FALSE,
+  locked_by VARCHAR(50) NULL,  -- 락 소유자
+  locked_at DATETIME NULL,    -- 락 획득 시간
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
   INDEX idx_eta (eta),
   INDEX idx_department (department),
@@ -85,6 +87,8 @@ CREATE TABLE IF NOT EXISTS handover (
     create_by VARCHAR(50) NOT NULL,
     is_notice BOOLEAN DEFAULT FALSE,
     is_locked BOOLEAN DEFAULT FALSE,
+    locked_by VARCHAR(50) NULL,  -- 락 소유자
+    locked_at DATETIME NULL,    -- 락 획득 시간
     FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE,
     FOREIGN KEY (create_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB
