@@ -663,6 +663,40 @@ const Utils = {
         overlay.classList.remove("active");
       }
     },
+
+    /**
+     * URL 쿼리 파라미터의 success 또는 error 메시지를 알림으로 표시
+     */
+    showPageMessages: function() {
+      // 이미 메시지가 표시되었는지 확인
+      if (window._messagesShown) return;
+      
+      // URL에서 쿼리 파라미터 가져오기
+      const urlParams = new URLSearchParams(window.location.search);
+      const successMsg = urlParams.get('success');
+      const errorMsg = urlParams.get('error');
+      
+      // 성공 메시지가 있으면 표시
+      if (successMsg) {
+        Utils.alerts.showSuccess(decodeURIComponent(successMsg));
+      }
+      
+      // 오류 메시지가 있으면 표시
+      if (errorMsg) {
+        Utils.alerts.showError(decodeURIComponent(errorMsg));
+      }
+      
+      // 메시지가 표시되었음을 기록
+      if (successMsg || errorMsg) {
+        window._messagesShown = true;
+        
+        // 메시지 표시 후 URL에서 쿼리 파라미터 제거 (필요시 활성화)
+        /*
+        const cleanUrl = window.location.pathname;
+        history.replaceState({}, document.title, cleanUrl);
+        */
+      }
+    }
   },
 };
 

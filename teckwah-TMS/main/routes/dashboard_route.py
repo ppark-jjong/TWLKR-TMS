@@ -357,6 +357,9 @@ async def order_detail_page(
         # 주문 데이터를 응답용 형식으로 변환
         order_data = get_dashboard_response_data(order)
 
+        # 주문은 누구나 수정 가능하므로 항상 editable=True 설정
+        order_data["editable"] = True
+
         # 상세페이지에 필요한 메시지 파라미터 추출
         error_message = request.query_params.get("error")
         success_message = request.query_params.get("success")
@@ -443,7 +446,7 @@ async def order_edit_page(
 
         context = {
             "request": request,
-            "dashboard": dashboard_dict,
+            "order": dashboard_dict,
             "sla_options": sla_options,
             "current_user": current_user,
             "is_edit": True,
@@ -639,6 +642,7 @@ async def create_order_action(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
     # Form 필드명 snake_case
+    order_no: str = Form(...),
     type: str = Form(...),
     department: str = Form(...),
     warehouse: str = Form(...),
@@ -671,6 +675,7 @@ async def create_order_action(
 
         # 생성 데이터 준비
         create_data = {
+            "order_no": order_no,
             "type": type,
             "department": department,
             "warehouse": warehouse,

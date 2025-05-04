@@ -25,9 +25,14 @@ def _handover_to_dict(handover: Handover) -> Dict[str, Any]:
         "content": handover.content,
         "is_notice": handover.is_notice,
         "create_by": handover.create_by,
+        "create_at": handover.create_at.isoformat() if handover.create_at else None,
         "update_by": handover.update_by,
-        "update_at": handover.update_at,  # datetime 객체 그대로 반환
+        "update_at": handover.update_at.isoformat() if handover.update_at else None,
         "is_locked": handover.is_locked,
+        "locked_by": handover.locked_by,
+        "lock_expires_at": (
+            handover.lock_expires_at.isoformat() if handover.lock_expires_at else None
+        ),
     }
 
 
@@ -93,25 +98,21 @@ def create_handover(
     writer_id: str,
 ) -> Handover:
     """인수인계 생성"""
+    logger.info(f"인수인계 생성 요청: 작성자={writer_id}, 제목='{title}'")
     try:
-        now = datetime.now()
+        # Handover 객체 생성 시 락 관련 필드 제외
         handover = Handover(
             title=title,
             content=content,
             is_notice=is_notice,
             create_by=writer_id,
-            update_by=writer_id,
-            update_at=now,
-            is_locked=False,
-            locked_by=None,  # 새 필드 초기화
-            locked_at=None,  # 새 필드 초기화
+            # is_locked, locked_by, lock_expires_at는 기본값 사용
         )
         db.add(handover)
-        db.flush()  # ID 등 생성 값 확인
-        logger.info(f"인수인계 생성 완료: ID {handover.handover_id}")
+        db.flush()
+        logger.info(f"인수인계 생성 완료: ID={handover.handover_id}")
         return handover
     except Exception as e:
-        # db.rollback() # 트랜잭션은 데코레이터에서 처리
         logger.error(f"인수인계 생성 오류: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="인수인계 생성 중 오류 발생")
 

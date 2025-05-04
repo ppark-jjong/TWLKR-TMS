@@ -18,8 +18,7 @@ endblock %} {% block page_css %}
         <i class="fa-solid fa-arrow-left"></i>
         목록으로
       </a>
-      {% if current_user and (current_user.user_id == handover.created_by or
-      current_user.user_role == 'ADMIN') %}
+      {% if handover.editable %}
       <a
         href="/handover/{{ handover.handover_id }}/edit"
         class="btn primary-btn"

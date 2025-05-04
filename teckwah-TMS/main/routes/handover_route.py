@@ -144,10 +144,16 @@ async def get_handover_detail_page(
             raise HTTPException(status_code=404, detail="인수인계를 찾을 수 없습니다.")
 
         handover_data = _handover_to_dict(handover_model)
+
         # 락 상태 확인 (utils에서 가져온 check_lock_status 사용)
         lock_info = check_lock_status(
             db, "handover", handover_id, current_user.get("user_id")
         )
+
+        # 작성자 본인 또는 ADMIN만 수정 가능하도록 editable 속성 설정
+        is_owner = handover_model.create_by == current_user.get("user_id")
+        is_admin = current_user.get("user_role") == "ADMIN"
+        handover_data["editable"] = is_owner or is_admin
 
         # 라벨 정보 추가
         type_labels = {"NOTICE": "공지", "HANDOVER": "인수인계"}
@@ -242,7 +248,7 @@ async def handover_edit_page(
         # 페이지 컨텍스트 설정
         context = {
             "request": request,
-            "handover": handover_data,
+            "handover": handover_data,  # 템플릿에서 사용하는 변수명 유지
             "current_user": current_user,
             "is_edit": True,
             "can_create_notice": can_make_notice,
