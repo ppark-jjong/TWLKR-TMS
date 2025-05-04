@@ -35,7 +35,9 @@ class DashboardCreate(BaseModel):
         """스키마 설정"""
 
         populate_by_name = True
-        json_encoders = {datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S")}
+        json_encoders = {
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
+        }
 
 
 class DashboardUpdate(BaseModel):
@@ -75,7 +77,7 @@ class DashboardUpdate(BaseModel):
 
         populate_by_name = True
         json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
         }
 
 
@@ -116,7 +118,7 @@ class DashboardResponse(BaseModel):
         populate_by_name = True
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
         }
 
 
@@ -143,7 +145,7 @@ class DashboardListItem(BaseModel):
         populate_by_name = True
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
         }
 
 
@@ -186,5 +188,5 @@ class LockStatusResponse(BaseModel):
 
         populate_by_name = True
         json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
         }

@@ -47,81 +47,68 @@ def get_dashboard_by_id(db: Session, dashboard_id: int) -> Optional[Dashboard]:
 
 
 def get_dashboard_response_data(order: Dashboard) -> Dict[str, Any]:
-    """주문 상세 정보를 위한 딕셔너리 변환 (snake_case 유지, editable 제외)"""
-    try:
-        return {
-            "dashboard_id": order.dashboard_id,
-            "order_no": order.order_no,
-            "type": order.type,
-            "status": order.status,
-            "department": order.department,
-            "warehouse": order.warehouse,
-            "sla": order.sla,
-            "eta": order.eta,
-            "create_time": order.create_time,
-            "depart_time": order.depart_time,
-            "complete_time": order.complete_time,
-            "postal_code": order.postal_code,
-            "address": order.address,
-            "customer": order.customer,
-            "contact": order.contact,
-            "driver_name": order.driver_name,
-            "driver_contact": order.driver_contact,
-            "update_by": order.update_by,
-            "remark": order.remark,
-            "update_at": order.update_at,
-            "is_locked": order.is_locked,
-            "city": order.city,
-            "county": order.county,
-            "district": order.district,
-            "region": order.region,  # DB에서 생성된 값
-            "distance": order.distance,
-            "duration_time": order.duration_time,
-            "status_label": status_labels.get(order.status, order.status),
-            "type_label": type_labels.get(order.type, order.type),
-        }
-    except AttributeError as e:
-        logger.error(
-            f"주문 데이터 변환 중 속성 오류 (ID: {getattr(order, 'dashboard_id', 'N/A')}): {e}",
-            exc_info=True,
-        )
-        # 오류 시 일부 필수 정보만 반환하거나 예외 발생 고려
-        return {"dashboard_id": getattr(order, "dashboard_id", "오류"), "error": str(e)}
+    """Dashboard 모델 객체를 API 응답용 딕셔너리로 변환 (ISO 8601 형식 사용)"""
+    if not order:
+        return None
+
+    # 기본 필드 변환
+    data = {
+        "dashboard_id": order.dashboard_id,
+        "order_no": order.order_no,
+        "type": order.type,
+        "department": order.department,
+        "warehouse": order.warehouse,
+        "sla": order.sla,
+        "postal_code": order.postal_code,
+        "address": order.address,
+        "customer": order.customer,
+        "contact": order.contact,
+        "status": order.status,
+        "driver_name": order.driver_name,
+        "driver_contact": order.driver_contact,
+        "remark": order.remark,
+        "update_at": order.update_at.isoformat() if order.update_at else None,
+        "is_locked": order.is_locked,
+        "locked_by": order.locked_by,
+        "locked_at": order.locked_at.isoformat() if order.locked_at else None,
+        # ETA 필드 ISO 8601 형식으로 변환
+        "eta": order.eta.isoformat() if order.eta else None,
+        # 상태 및 유형 라벨 추가
+        "status_label": status_labels.get(order.status, order.status),
+        "type_label": type_labels.get(order.type, order.type),
+        # update_by 필드 추가
+        "update_by": order.update_by,
+    }
+
+    return data
 
 
 def get_dashboard_list_item_data(order: Dashboard) -> Dict[str, Any]:
-    """주문 목록 아이템을 위한 딕셔너리 변환 (snake_case 유지)"""
-    try:
-        # region 생성 로직 추가 (DB 생성 값이 None인 경우)
-        region_value = order.region
-        if region_value is None:
-            # city, county, district가 모두 있는 경우 수동으로 생성
-            if order.city and order.county and order.district:
-                region_value = f"{order.city} {order.county} {order.district}".strip()
-            elif order.city:  # 최소한 도시라도 있으면 표시
-                region_value = order.city
+    """Dashboard 모델 객체를 목록 응답용 딕셔너리로 변환 (ISO 8601 형식 사용)"""
+    if not order:
+        return None
 
-        return {
-            "dashboard_id": order.dashboard_id,
-            "order_no": order.order_no,
-            "type": order.type,
-            "department": order.department,
-            "warehouse": order.warehouse,
-            "sla": order.sla,
-            "region": region_value,  # 수정된 region 값 사용
-            "eta": order.eta,
-            "customer": order.customer,
-            "status": order.status,
-            "driver_name": order.driver_name,
-            "status_label": status_labels.get(order.status, order.status),
-            "type_label": type_labels.get(order.type, order.type),
-        }
-    except AttributeError as e:
-        logger.error(
-            f"주문 목록 데이터 변환 중 속성 오류 (ID: {getattr(order, 'dashboard_id', 'N/A')}): {e}",
-            exc_info=True,
-        )
-        return {"dashboard_id": getattr(order, "dashboard_id", "오류"), "error": str(e)}
+    data = {
+        "dashboard_id": order.dashboard_id,
+        "order_no": order.order_no,
+        "type": order.type,
+        "department": order.department,
+        "warehouse": order.warehouse,
+        "sla": order.sla,
+        "postal_code": order.postal_code,
+        "address": order.address,
+        "customer": order.customer,
+        "status": order.status,
+        # ETA 필드 ISO 8601 형식으로 변환
+        "eta": order.eta.isoformat() if order.eta else None,
+        "driver_name": order.driver_name,
+        "update_at": order.update_at.isoformat() if order.update_at else None,
+        # 상태 및 유형 라벨 추가
+        "status_label": status_labels.get(order.status, order.status),
+        "type_label": type_labels.get(order.type, order.type),
+    }
+
+    return data
 
 
 def get_dashboard_by_order_no(db: Session, order_no: str) -> Optional[Dashboard]:
@@ -225,25 +212,27 @@ def update_dashboard(
     """주문 업데이트 및 락 관리, 상태 변경 시 시간 자동 업데이트"""
     # update_order_action API 에서 호출 시 data는 DashboardUpdate 모델의 dict 형태
 
-    lock_held = False
     try:
         # 1. 락 상태 확인 (서비스 함수 진입 시)
         lock_status = check_lock_status(db, "dashboard", dashboard_id, user_id)
-        if not lock_status.get("success") or not lock_status.get("editable"):
-            # 락 상태 확인 실패 또는 편집 권한 없음
+
+        # 락 상태 확인이 실패했거나 락이 있으면서 내 락이 아닌 경우
+        if not lock_status.get("success") or (
+            lock_status.get("locked") and not lock_status.get("editable")
+        ):
+            error_msg = lock_status.get(
+                "message", "다른 사용자가 편집 중이거나 락이 만료되었습니다."
+            )
+            logger.warning(f"주문 업데이트 락 확인 실패: {error_msg}")
             raise HTTPException(
                 status_code=status.HTTP_423_LOCKED,
-                detail=lock_status.get(
-                    "message", "다른 사용자가 편집 중이거나 락이 만료되었습니다."
-                ),
+                detail=error_msg,
             )
-        lock_held = True  # 락을 소유하고 있음을 확인
 
         order = (
             db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
         )
         if not order:
-            # 이 경우는 거의 발생하지 않음 (락 확인 시점에 존재했으므로)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="수정할 주문을 찾을 수 없습니다.",
@@ -258,8 +247,6 @@ def update_dashboard(
 
         if not update_fields:
             logger.info(f"주문 업데이트 내용 없음: ID {dashboard_id}")
-            # 변경 내용 없어도 update_by, update_at 갱신 및 락 해제는 필요할 수 있음
-            # 여기서는 일단 그대로 반환 (락 해제는 finally에서 처리)
             return order
 
         # 상태 변경 시 시간 업데이트 로직
@@ -333,6 +320,17 @@ def update_dashboard(
         db.add(order)  # 세션에 변경사항 추가
         db.flush()  # DB에 반영 (아직 커밋 아님)
         logger.info(f"주문 업데이트 DB 반영 완료 (커밋 전): ID {dashboard_id}")
+
+        # 수정 완료 후 락 해제
+        try:
+            release_lock(db, "dashboard", dashboard_id, user_id)
+            logger.info(f"주문 업데이트 완료 후 락 해제: ID {dashboard_id}")
+        except Exception as lock_release_err:
+            logger.error(
+                f"주문 업데이트 후 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
+            )
+            # 락 해제 실패는 오류 처리하지 않고 계속 진행
+
         return order
 
     except HTTPException as http_exc:
@@ -350,17 +348,6 @@ def update_dashboard(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="주문 업데이트 처리 중 오류 발생",
         )
-    finally:
-        # 락을 소유하고 시작했다면 작업 완료 후 해제 시도
-        if lock_held:
-            try:
-                release_lock(db, "dashboard", dashboard_id, user_id)
-                logger.info(f"주문 업데이트 완료 후 락 해제: ID {dashboard_id}")
-            except Exception as lock_release_err:
-                # 락 해제 실패는 로깅만 하고 오류를 전파하지 않음 (주요 작업은 완료됨)
-                logger.error(
-                    f"주문 업데이트 후 락 해제 실패 (finally): ID {dashboard_id}, 오류: {lock_release_err}"
-                )
 
 
 def change_status(

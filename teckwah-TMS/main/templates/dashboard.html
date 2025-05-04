@@ -1,5 +1,5 @@
-{% extends "base.html" %} {% block title %}대시보드 - Teckwah TMS{% endblock %}
-{% block page_css %}
+{% extends "base.html" %} {% block title %}대시보드 - TeckwahKR TMS{% endblock
+%} {% block page_css %}
 <link
   rel="stylesheet"
   href="{{ url_for('static', path='css/dashboard.css') }}"
@@ -34,6 +34,14 @@
             <label for="endDate">종료일</label>
             <input type="date" id="endDate" class="date-input" />
           </div>
+          <button
+            type="button"
+            id="todayBtn"
+            class="btn secondary-btn"
+            title="오늘 날짜로 설정"
+          >
+            <i class="fa-solid fa-calendar-day"></i> 오늘
+          </button>
           <button
             type="button"
             id="dateSearchBtn"

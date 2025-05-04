@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const columnSettingsGrid = document.getElementById("columnSettingsGrid");
   const cancelColumnsBtn = document.getElementById("cancelColumnsBtn");
   const applyColumnsBtn = document.getElementById("applyColumnsBtn");
+  const todayBtn = document.getElementById("todayBtn");
 
   // --- 상태 변수 ---
   let allOrders = [];
@@ -40,6 +41,9 @@ document.addEventListener("DOMContentLoaded", function () {
   let totalPages = 1;
   let initialLoadComplete = false; // 전체 데이터 로드 완료 여부
   let etaSortDirection = null; // 'asc', 'desc', null(정렬안함)
+  // Flatpickr 인스턴스
+  let startDatePicker = null;
+  let endDatePicker = null;
 
   // 컬럼 정보 (표시 순서 및 기본 표시 여부 정의)
   const columnDefinitions = [
@@ -97,6 +101,9 @@ document.addEventListener("DOMContentLoaded", function () {
       console.log(`오늘 날짜로 초기화: ${today}`);
     }
 
+    // Flatpickr 초기화
+    initDatePickers();
+
     // 페이지당 행 수 초기화
     rowsPerPage = parseInt(rowsPerPageSelect.value);
 
@@ -122,6 +129,51 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // 이벤트 리스너 설정
     setupEventListeners();
+  }
+
+  // Flatpickr 달력 초기화
+  function initDatePickers() {
+    // 공통 옵션
+    const commonOptions = {
+      locale: "ko",
+      dateFormat: "Y-m-d",
+      allowInput: true,
+      disableMobile: true, // 모바일에서도 일관된 UI 사용
+      maxDate: new Date(), // 오늘까지만 선택 가능
+      showMonths: 1,
+      prevArrow: '<i class="fa fa-chevron-left"></i>',
+      nextArrow: '<i class="fa fa-chevron-right"></i>',
+    };
+
+    // 시작일 Flatpickr
+    startDatePicker = flatpickr(startDateInput, {
+      ...commonOptions,
+      onChange: function (selectedDates, dateStr) {
+        // 종료일의 최소 날짜를 시작일로 설정
+        if (endDatePicker) {
+          endDatePicker.set("minDate", dateStr);
+        }
+      },
+    });
+
+    // 종료일 Flatpickr
+    endDatePicker = flatpickr(endDateInput, {
+      ...commonOptions,
+      onChange: function (selectedDates, dateStr) {
+        // 시작일의 최대 날짜를 종료일로 설정
+        if (startDatePicker) {
+          startDatePicker.set("maxDate", dateStr);
+        }
+      },
+    });
+
+    // 시작 및 종료일 관계 설정
+    if (startDateInput.value) {
+      endDatePicker.set("minDate", startDateInput.value);
+    }
+    if (endDateInput.value) {
+      startDatePicker.set("maxDate", endDateInput.value);
+    }
   }
 
   // --- 데이터 처리 함수 ---
@@ -173,8 +225,8 @@ document.addEventListener("DOMContentLoaded", function () {
       // order.order_no가 템플릿에서 사용될 수 있도록 camelCase 변환 추가
       orderNo: order.order_no,
       driverName: order.driver_name,
-      // ETA 포맷팅 (이미 문자열로 올 수 있으므로 안전하게 처리)
-      etaFormatted: order.eta ? formatDateTime(order.eta) : "-",
+      // ETA는 ISO 형식 그대로 사용
+      etaFormatted: order.eta || "-",
     }));
   }
 
@@ -496,23 +548,6 @@ document.addEventListener("DOMContentLoaded", function () {
     return { startDate: null, endDate: null };
   }
 
-  function formatDateTime(dateString) {
-    try {
-      // ISO 8601 형식이거나 다른 표준 형식으로 가정
-      const date = new Date(dateString);
-      if (isNaN(date)) return dateString; // 파싱 실패 시 원본 반환
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
-    } catch (e) {
-      console.warn(`Error formatting date: ${dateString}`, e);
-      return dateString; // 오류 시 원본 반환
-    }
-  }
-
   // --- 이벤트 리스너 설정 ---
   function setupEventListeners() {
     // 날짜 조회 버튼
@@ -524,6 +559,14 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
       fetchAllOrders(startDate, endDate);
+    });
+
+    // 오늘 버튼 클릭 이벤트
+    todayBtn?.addEventListener("click", () => {
+      const today = getTodayDate();
+      startDatePicker.setDate(today);
+      endDatePicker.setDate(today);
+      fetchAllOrders(today, today);
     });
 
     // 필터 변경 (상태, 부서)

@@ -29,7 +29,7 @@ class CustomJSONEncoder(json.JSONEncoder):
 
         # datetime 타입 처리
         if isinstance(obj, datetime):
-            return obj.strftime("%Y-%m-%d %H:%M:%S")
+            return obj.strftime("%Y-%m-%dT%H:%M")
 
         # date 타입 처리
         if isinstance(obj, date):

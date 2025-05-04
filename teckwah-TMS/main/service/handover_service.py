@@ -18,20 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 def _handover_to_dict(handover: Handover) -> Dict[str, Any]:
-    """Handover 모델 객체를 API 응답용 딕셔너리로 변환"""
+    """Handover 모델 객체를 API 응답용 딕셔너리로 변환 (ISO 8601 형식 사용)"""
     return {
         "handover_id": handover.handover_id,
         "title": handover.title,
         "content": handover.content,
         "is_notice": handover.is_notice,
         "create_by": handover.create_by,
-        "create_at": handover.create_at.isoformat() if handover.create_at else None,
+        "create_at": handover.update_at.isoformat() if handover.update_at else None,
         "update_by": handover.update_by,
         "update_at": handover.update_at.isoformat() if handover.update_at else None,
         "is_locked": handover.is_locked,
-        "locked_by": handover.locked_by,
-        "lock_expires_at": (
-            handover.lock_expires_at.isoformat() if handover.lock_expires_at else None
+        "locked_by": getattr(handover, "locked_by", None),
+        "locked_at": (
+            getattr(handover, "locked_at", None).isoformat()
+            if getattr(handover, "locked_at", None)
+            else None
         ),
     }
 
@@ -100,13 +102,17 @@ def create_handover(
     """인수인계 생성"""
     logger.info(f"인수인계 생성 요청: 작성자={writer_id}, 제목='{title}'")
     try:
-        # Handover 객체 생성 시 락 관련 필드 제외
+        # Handover 객체 생성 시 필수 필드 명시적 설정
         handover = Handover(
             title=title,
             content=content,
             is_notice=is_notice,
             create_by=writer_id,
-            # is_locked, locked_by, lock_expires_at는 기본값 사용
+            update_by=writer_id,
+            update_at=datetime.now(),  # 명시적으로 현재 시간 설정
+            is_locked=False,  # 기본값 명시적 설정
+            locked_by=None,
+            locked_at=None,
         )
         db.add(handover)
         db.flush()

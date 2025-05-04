@@ -72,26 +72,28 @@ const Utils = {
   },
 
   /**
-   * 날짜 형식 변환 (YYYY-MM-DD HH:MM)
+   * 날짜 형식 변환 (ISO 8601 형식: YYYY-MM-DDTHH:MM)
    * @param {string|Date} dateString - 변환할 날짜 문자열 또는 Date 객체
-   * @returns {string} - 포맷팅된 날짜 문자열
+   * @returns {string} - ISO 8601 형식의 날짜 문자열
    */
   formatDate: function (dateString) {
     if (!dateString) return "";
 
-    const date = dateString instanceof Date ? dateString : new Date(dateString);
+    let date;
+    // 이미 ISO 문자열이면 그대로 반환
+    if (typeof dateString === "string" && dateString.includes("T")) {
+      return dateString;
+    }
+    // Date 객체이거나 다른 형식의 문자열이면 변환
+    else {
+      date = dateString instanceof Date ? dateString : new Date(dateString);
+    }
 
     // 유효한 날짜가 아니면 원래 값 반환
     if (isNaN(date.getTime())) return dateString;
 
-    // YYYY-MM-DD HH:MM 포맷으로 변환
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
+    // ISO 8601 형식으로 변환 (YYYY-MM-DDTHH:MM)
+    return date.toISOString().slice(0, 16);
   },
 
   /**
@@ -232,12 +234,27 @@ const Utils = {
         document.body.appendChild(alertContainer);
       }
 
+      // 동일한 메시지와 타입을 가진 알림이 이미 존재하는지 확인
+      const alertElements = alertContainer.querySelectorAll(".custom-alert");
+      for (let i = 0; i < alertElements.length; i++) {
+        const alert = alertElements[i];
+        if (
+          alert.getAttribute("data-type") === type &&
+          alert.querySelector(".alert-message").textContent === message
+        ) {
+          console.debug("중복 알림 감지됨:", type, message);
+          return; // 중복 알림이면 새로 생성하지 않고 종료
+        }
+      }
+
       // 알림 ID 생성
       const alertId = "alert-" + Date.now();
 
       // 알림 요소 생성
       const alertElement = document.createElement("div");
       alertElement.id = alertId;
+      alertElement.className = "custom-alert";
+      alertElement.setAttribute("data-type", type); // 타입 저장
       alertElement.style.backgroundColor = "white";
       alertElement.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
       alertElement.style.borderRadius = "4px";
@@ -667,36 +684,40 @@ const Utils = {
     /**
      * URL 쿼리 파라미터의 success 또는 error 메시지를 알림으로 표시
      */
-    showPageMessages: function() {
+    showPageMessages: function () {
       // 이미 메시지가 표시되었는지 확인
       if (window._messagesShown) return;
-      
+
       // URL에서 쿼리 파라미터 가져오기
       const urlParams = new URLSearchParams(window.location.search);
-      const successMsg = urlParams.get('success');
-      const errorMsg = urlParams.get('error');
-      
-      // 성공 메시지가 있으면 표시
-      if (successMsg) {
-        Utils.alerts.showSuccess(decodeURIComponent(successMsg));
-      }
-      
-      // 오류 메시지가 있으면 표시
-      if (errorMsg) {
-        Utils.alerts.showError(decodeURIComponent(errorMsg));
-      }
-      
-      // 메시지가 표시되었음을 기록
-      if (successMsg || errorMsg) {
+      const successMsg = urlParams.get("success");
+      const errorMsg = urlParams.get("error");
+      const warningMsg = urlParams.get("warning");
+
+      // 메시지가 있으면 한 번만 표시하기 위한 플래그 설정
+      if (successMsg || errorMsg || warningMsg) {
         window._messagesShown = true;
-        
-        // 메시지 표시 후 URL에서 쿼리 파라미터 제거 (필요시 활성화)
-        /*
+
+        // 성공 메시지가 있으면 표시
+        if (successMsg) {
+          Utils.alerts.showSuccess(decodeURIComponent(successMsg));
+        }
+
+        // 오류 메시지가 있으면 표시
+        if (errorMsg) {
+          Utils.alerts.showError(decodeURIComponent(errorMsg));
+        }
+
+        // 경고 메시지가 있으면 표시
+        if (warningMsg) {
+          Utils.alerts.showWarning(decodeURIComponent(warningMsg));
+        }
+
+        // 메시지 표시 후 URL에서 쿼리 파라미터 제거 (브라우저 새로고침 시 중복 표시 방지)
         const cleanUrl = window.location.pathname;
         history.replaceState({}, document.title, cleanUrl);
-        */
       }
-    }
+    },
   },
 };
 

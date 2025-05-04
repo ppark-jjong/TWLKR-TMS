@@ -77,6 +77,8 @@ class Dashboard(Base):
     remark = Column(Text, nullable=True)
     update_at = Column(DateTime, nullable=True, onupdate=func.now())
     is_locked = Column(Boolean, default=False)
+    locked_by = Column(String(50), nullable=True)  # 락 소유자 ID
+    locked_at = Column(DateTime, nullable=True)  # 락 획득 시간
 
     # 관계 설정
     postal_code_obj = relationship("PostalCode", back_populates="dashboard_entries")

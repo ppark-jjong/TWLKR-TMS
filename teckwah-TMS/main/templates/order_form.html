@@ -1,5 +1,5 @@
 {% extends "base.html" %} {% block title %}{% if is_edit %}주문 수정{% else
-%}신규 주문 등록{% endif %} - Teckwah TMS{% endblock %} {% block page_css %}
+%}신규 주문 등록{% endif %} - TeckwahKR TMS{% endblock %} {% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', path='css/orders.css') }}" />
 {% endblock %} {% block content %}
 
@@ -100,7 +100,7 @@
               id="eta"
               name="eta"
               class="input-field"
-              value="{{ order.eta.strftime('%Y-%m-%dT%H:%M') if is_edit and order.eta else '' }}"
+              value="{{ order.eta if is_edit and order.eta else '' }}"
               required
             />
           </div>
@@ -266,6 +266,144 @@
         this.value = Utils.formatPhoneNumber(numericValue);
       });
     }
+
+    // ETA 날짜/시간 선택기 개선 (flatpickr)
+    const etaInput = document.getElementById('eta');
+    if (etaInput) {
+      // ETA 기존 값이 있으면 파싱
+      let defaultDate = null;
+      const currentValue = etaInput.value;
+      if (currentValue) {
+        try {
+          defaultDate = new Date(currentValue);
+        } catch (e) {
+          console.error("ETA 날짜 파싱 오류:", e);
+        }
+      }
+
+      // flatpickr 초기화
+      const etaPicker = flatpickr(etaInput, {
+        locale: "ko",
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        time_24hr: true,
+        minuteIncrement: 10,
+        defaultDate: defaultDate,
+        disableMobile: true,
+        allowInput: true,
+        // 현재 시간 버튼 추가
+        plugins: [{
+          onReady: function(dateObj, dateStr, instance) {
+            // 현재 시간 버튼 생성
+            const nowBtn = document.createElement('button');
+            nowBtn.className = 'flatpickr-now-btn';
+            nowBtn.textContent = '지금';
+            nowBtn.style.marginLeft = '5px';
+            nowBtn.addEventListener('click', function() {
+              const now = new Date();
+              instance.setDate(now, true);
+            });
+
+            // 시간 선택기 컨테이너에 버튼 추가
+            const container = instance.calendarContainer.querySelector('.flatpickr-time');
+            if (container) {
+              container.appendChild(nowBtn);
+            }
+          }
+        }]
+      });
+    }
+
+    // 주문 상태 단계적 변경 검증
+    const statusSelect = document.getElementById('status');
+    if (statusSelect) {
+      // 기존 상태 저장
+      const initialStatus = statusSelect.value;
+      
+      // 상태 순서 정의 (순차적 진행만 허용)
+      const statusOrder = {
+        'WAITING': 0,
+        'IN_PROGRESS': 1,
+        'COMPLETE': 2,
+        'ISSUE': 2,
+        'CANCEL': 2
+      };
+      
+      // 현재 상태에서 변경 가능한 상태 정의
+      const allowedTransitions = {
+        'WAITING': ['WAITING', 'IN_PROGRESS'],
+        'IN_PROGRESS': ['IN_PROGRESS', 'COMPLETE', 'ISSUE', 'CANCEL'],
+        'COMPLETE': ['COMPLETE'],
+        'ISSUE': ['ISSUE'],
+        'CANCEL': ['CANCEL']
+      };
+      
+      // 변경 시 검증
+      statusSelect.addEventListener('change', function() {
+        const currentStatus = initialStatus;
+        const newStatus = this.value;
+        
+        // 변경 가능한 상태인지 검증
+        if (!allowedTransitions[currentStatus].includes(newStatus)) {
+          // 이전 값으로 되돌리기
+          this.value = currentStatus;
+          
+          // 알림 표시
+          let errorMessage = '';
+          if (currentStatus === 'WAITING') {
+            errorMessage = '대기 상태에서는 진행 상태로만 변경할 수 있습니다.';
+          } else if (currentStatus === 'IN_PROGRESS') {
+            errorMessage = '진행 상태에서만 완료/이슈/취소 상태로 변경할 수 있습니다.';
+          } else {
+            errorMessage = `${currentStatus} 상태는 더 이상 변경할 수 없습니다.`;
+          }
+          
+          Utils.alerts.showWarning(errorMessage);
+        }
+      });
+    }
+
+    // 페이지 나갈 때 락 해제
+    {% if is_edit and order and order.dashboard_id %}
+    const dashboardId = "{{ order.dashboard_id }}";
+    
+    if (dashboardId) {
+      // 페이지 이탈 시 락 해제 함수
+      const releaseLock = async () => {
+        try {
+          // 락 해제 API 호출 (브라우저 캐시 방지용 랜덤 파라미터 추가)
+          const response = await fetch(`/api/orders/${dashboardId}/release-lock?_=${Date.now()}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+          
+          console.log('락 해제 요청 완료:', await response.text());
+        } catch (error) {
+          console.error('락 해제 중 오류 발생:', error);
+        }
+      };
+      
+      // 페이지 이탈 이벤트에 락 해제 연결
+      window.addEventListener('beforeunload', releaseLock);
+      
+      // 취소 버튼 클릭 시에도 락 해제
+      const cancelBtn = document.querySelector('.secondary-btn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+          // 기본 이벤트 방지 (href 이동 전에 락 해제 실행)
+          e.preventDefault();
+          
+          // 락 해제 후 페이지 이동
+          releaseLock().then(() => {
+            window.location.href = this.getAttribute('href');
+          });
+        });
+      }
+    }
+    {% endif %}
 
     // 폼 제출 처리
     const form = document.getElementById('orderForm');

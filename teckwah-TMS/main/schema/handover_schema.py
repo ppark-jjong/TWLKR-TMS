@@ -47,7 +47,7 @@ class HandoverResponse(HandoverBase):
         from_attributes = True
         populate_by_name = True
         json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M") if v else None
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
         }
 
 
@@ -71,7 +71,7 @@ class HandoverListItem(BaseModel):
         from_attributes = True
         populate_by_name = True
         json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M") if v else None
+            datetime: lambda v: v.strftime("%Y-%m-%dT%H:%M") if v else None
         }
 
 

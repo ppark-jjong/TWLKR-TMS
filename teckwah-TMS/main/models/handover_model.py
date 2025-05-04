@@ -25,6 +25,8 @@ class Handover(Base):
     is_notice = Column(Boolean, default=False)
     update_at = Column(DateTime, nullable=False, default=func.now())
     is_locked = Column(Boolean, default=False)
+    locked_by = Column(String(50), nullable=True)  # 락 소유자 ID
+    locked_at = Column(DateTime, nullable=True)  # 락 획득 시간
 
     # 관계 설정 - backref 대신 back_populates로 명시적 양방향 관계 정의
     updater = relationship(

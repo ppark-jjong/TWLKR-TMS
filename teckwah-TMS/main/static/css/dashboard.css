@@ -23,8 +23,12 @@
 /* 날짜 범위 필터 */
 .date-range-filter {
   display: flex;
-  align-items: flex-end;
-  gap: var(--spacing-sm);
+  align-items: center;
+  gap: 8px;
+}
+
+.date-range-filter .filter-item {
+  margin-bottom: 0;
 }
 
 .date-separator {
@@ -392,4 +396,44 @@ input[type='number'] {
   justify-content: center;
   height: 24px;
   width: 24px;
+}
+
+/* Flatpickr 스타일 커스터마이징 */
+.flatpickr-input {
+  background-color: white !important;
+  border: 1px solid var(--border-color-dark);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.flatpickr-input:hover {
+  border-color: var(--primary-color-light);
+}
+
+.flatpickr-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(215, 37, 25, 0.2);
+  outline: none;
+}
+
+.flatpickr-now-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.flatpickr-now-btn:hover {
+  background-color: var(--primary-color-dark);
+}
+
+/* 오늘 버튼 스타일 */
+#todayBtn {
+  padding: 8px 12px;
+  font-size: 0.9em;
+  white-space: nowrap;
 }

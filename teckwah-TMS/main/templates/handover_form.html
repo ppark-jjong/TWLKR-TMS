@@ -1,5 +1,5 @@
 {% extends "base.html" %} {% block title %}{% if handover %}인수인계 수정{% else
-%}인수인계 작성{% endif %} - Teckwah TMS{% endblock %} {% block page_css %}
+%}인수인계 작성{% endif %} - TeckwahKR TMS{% endblock %} {% block page_css %}
 <link
   rel="stylesheet"
   href="{{ url_for('static', path='css/handover.css') }}"
@@ -145,6 +145,7 @@
               type="checkbox"
               id="is_notice"
               name="is_notice"
+              value="true"
               class="notice-checkbox"
               {%
               if
@@ -154,6 +155,13 @@
               %}checked{%
               endif
               %}
+            />
+            <!-- 체크되지 않았을 때 전송될 히든 필드 추가 -->
+            <input
+              type="hidden"
+              name="is_notice"
+              value="false"
+              id="is_notice_hidden"
             />
             <label for="is_notice" class="notice-label">
               <i class="fa-solid fa-bullhorn"></i>
@@ -201,17 +209,84 @@
 </div>
 {% endblock %} {% block page_js %}
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener("DOMContentLoaded", function () {
     // 폼 제출 시 로딩 표시
-    const form = document.getElementById('handoverForm');
-    const submitBtn = document.getElementById('submitBtn');
+    const form = document.getElementById("handoverForm");
+    const submitBtn = document.querySelector(".primary-btn");
+
     if (form && submitBtn) {
-      form.addEventListener('submit', function () {
+      form.addEventListener("submit", function () {
         submitBtn.disabled = true;
         submitBtn.innerHTML =
           '<i class="fa-solid fa-spinner fa-spin"></i> 처리 중...';
       });
     }
+
+    // 공지사항 체크박스 처리
+    const noticeCheckbox = document.getElementById("is_notice");
+    const hiddenField = document.getElementById("is_notice_hidden");
+
+    if (noticeCheckbox && hiddenField) {
+      // 체크박스 초기 상태에 따라 히든 필드 비활성화/활성화
+      if (noticeCheckbox.checked) {
+        hiddenField.disabled = true;
+      }
+
+      // 체크박스 변경 이벤트 처리
+      noticeCheckbox.addEventListener("change", function() {
+        if (this.checked) {
+          // 체크된 경우 히든 필드 비활성화 (값 전송되지 않도록)
+          hiddenField.disabled = true;
+          console.log("공지사항 설정: true");
+        } else {
+          // 체크 해제된 경우 히든 필드 활성화 (false 값 전송)
+          hiddenField.disabled = false;
+          console.log("공지사항 설정: false");
+        }
+      });
+    }
+
+    // 페이지 나갈 때 락 해제
+    {% if handover and is_edit %}
+    const handoverId = "{{ handover.handover_id }}";
+
+    if (handoverId) {
+      // 페이지 이탈 시 락 해제 함수
+      const releaseLock = async () => {
+        try {
+          // 락 해제 API 호출 (브라우저 캐시 방지용 랜덤 파라미터 추가)
+          const response = await fetch(`/api/handover/${handoverId}/release-lock?_=${Date.now()}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+
+          console.log('락 해제 요청 완료:', await response.text());
+        } catch (error) {
+          console.error('락 해제 중 오류 발생:', error);
+        }
+      };
+
+      // 페이지 이탈 이벤트에 락 해제 연결
+      window.addEventListener('beforeunload', releaseLock);
+
+      // 취소 버튼 클릭 시에도 락 해제
+      const cancelBtn = document.querySelector('.secondary-btn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+          // 기본 이벤트 방지 (href 이동 전에 락 해제 실행)
+          e.preventDefault();
+
+          // 락 해제 후 페이지 이동
+          releaseLock().then(() => {
+            window.location.href = this.getAttribute('href');
+          });
+        });
+      }
+    }
+    {% endif %}
   });
 </script>
 {% endblock %}

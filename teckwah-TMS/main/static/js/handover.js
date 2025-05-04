@@ -28,8 +28,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function initHandover() {
     showLoading();
 
-    // URL 파라미터에서 알림 확인 (Utils.alerts가 로드된 후 호출되도록 이동)
-    // checkUrlParamsForNotifications(); // 이동
+    // URL 파라미터에서 알림 확인 - 제거 (base.js에서 일괄 처리됨)
+    // checkUrlParamsForNotifications(); // 제거
 
     // 비동기적으로 전체 데이터 로드
     fetchAllItems()
@@ -38,8 +38,8 @@ document.addEventListener("DOMContentLoaded", function () {
         console.log("Initial full data load complete.");
         applyFiltersAndRender();
         hideLoading();
-        // 데이터 로드 후 알림 확인
-        checkUrlParamsForNotifications();
+        // 데이터 로드 후 알림 확인 - 제거 (base.js에서 일괄 처리됨)
+        // checkUrlParamsForNotifications(); // 제거
       })
       .catch((error) => {
         console.error("Error fetching initial full data:", error);
@@ -130,10 +130,8 @@ document.addEventListener("DOMContentLoaded", function () {
     items.forEach((item) => {
       const typeText = item.is_notice ? "공지" : "인수인계";
       const typeClass = item.is_notice ? "notice" : "handover";
-      // 날짜 포맷팅 (Utils 사용)
-      const formattedDate = item.update_at
-        ? Utils.formatDate(item.update_at)
-        : "-";
+      // 날짜는 ISO 형식 그대로 사용
+      const formattedDate = item.update_at || "-";
 
       tableHTML += `<tr class="${typeClass}-row clickable-row" data-id="${
         item.handover_id
