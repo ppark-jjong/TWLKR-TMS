@@ -5,7 +5,7 @@ endblock %} {% block page_css %}
   href="{{ url_for('static', path='css/handover.css') }}"
 />
 {% endblock %} {% block content %}
-<div class="handover-detail-page">
+<div class="handover-detail-page" data-handover-id="{{ handover.handover_id }}">
   <div class="page-header">
     <h1 class="page-title">
       <i

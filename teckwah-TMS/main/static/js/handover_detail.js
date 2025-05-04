@@ -41,54 +41,12 @@ document.addEventListener("DOMContentLoaded", function () {
     return; // ID 없으면 이후 로직 실행 불가
   }
 
-  // --- 메인 수정 버튼 클릭 시 락 획득 로직 ---
+  // --- 메인 수정 버튼 클릭 이벤트 ---
+  // 수정버튼 클릭 시 서버에서 락 획득을 시도하므로 별도 처리 불필요
+  // 서버에서 락을 처리하기 때문에 기본 링크 동작 유지
   if (mainEditBtn) {
-    mainEditBtn.addEventListener("click", async function (event) {
-      event.preventDefault(); // 기본 링크 이동 방지
-      const editUrl = this.href; // 이동할 URL
-
-      console.log(`수정 버튼 클릭: 락 획득 시도 (ID: ${handoverId})`);
-      Utils.alerts.showLoading("수정 권한 확인 중...");
-
-      try {
-        const response = await fetch(
-          `/api/handover/lock/${handoverId}/acquire-for-edit`, // handoverId 사용
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        const result = await response.json();
-        Utils.alerts.hideLoading();
-
-        if (response.ok && result.success) {
-          console.log("락 획득 성공, 수정 페이지로 이동:", editUrl);
-          window.location.href = editUrl;
-        } else {
-          // 통일된 오류 메시지 표시
-          const errorMessage =
-            result?.message || "현재 다른 사용자가 편집 중입니다.";
-          const lockedByUser = result?.locked_by;
-
-          // 상세 오류 메시지 구성 (락 보유자 정보 포함)
-          const displayMessage = lockedByUser
-            ? `${lockedByUser}님이 현재 편집 중입니다.`
-            : errorMessage;
-
-          console.warn(`락 획득 실패: ${displayMessage}`);
-          Utils.alerts.showError(displayMessage);
-        }
-      } catch (error) {
-        Utils.alerts.hideLoading();
-        console.error("락 획득 API 호출 오류:", error);
-        Utils.alerts.showError(
-          "수정 권한 확인 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요."
-        );
-      }
-    });
+    // 기존 코드 제거 - 서버에서 직접 락 획득 처리
+    console.log("수정 버튼 이벤트: 서버에서 락 처리");
   }
 
   // --- 삭제 버튼 관련 로직 ---

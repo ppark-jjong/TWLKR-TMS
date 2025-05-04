@@ -216,3 +216,35 @@
   justify-content: center;
   min-width: 70px;
 }
+
+/* Input with inline button */
+.input-with-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-button .input-field {
+  flex: 1;
+  margin-right: 8px;
+}
+
+.inline-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.9em;
+  height: 36px;
+  white-space: nowrap;
+}
+
+.inline-btn:hover {
+  background-color: var(--primary-color-dark);
+}
+
+.inline-btn:active {
+  transform: translateY(1px);
+}

@@ -95,14 +95,17 @@
           </div>
           <div class="form-group">
             <label for="eta">ETA <span class="required">*</span></label>
-            <input
-              type="datetime-local"
-              id="eta"
-              name="eta"
-              class="input-field"
-              value="{{ order.eta if is_edit and order.eta else '' }}"
-              required
-            />
+            <div class="input-with-button">
+              <input
+                type="datetime-local"
+                id="eta"
+                name="eta"
+                class="input-field"
+                value="{{ order.eta if is_edit and order.eta else '' }}"
+                required
+              />
+              <button type="button" id="etaNowBtn" class="inline-btn">지금</button>
+            </div>
           </div>
         </div>
       </div>
@@ -269,6 +272,8 @@
 
     // ETA 날짜/시간 선택기 개선 (flatpickr)
     const etaInput = document.getElementById('eta');
+    const etaNowBtn = document.getElementById('etaNowBtn');
+    
     if (etaInput) {
       // ETA 기존 값이 있으면 파싱
       let defaultDate = null;
@@ -290,28 +295,16 @@
         minuteIncrement: 10,
         defaultDate: defaultDate,
         disableMobile: true,
-        allowInput: true,
-        // 현재 시간 버튼 추가
-        plugins: [{
-          onReady: function(dateObj, dateStr, instance) {
-            // 현재 시간 버튼 생성
-            const nowBtn = document.createElement('button');
-            nowBtn.className = 'flatpickr-now-btn';
-            nowBtn.textContent = '지금';
-            nowBtn.style.marginLeft = '5px';
-            nowBtn.addEventListener('click', function() {
-              const now = new Date();
-              instance.setDate(now, true);
-            });
-
-            // 시간 선택기 컨테이너에 버튼 추가
-            const container = instance.calendarContainer.querySelector('.flatpickr-time');
-            if (container) {
-              container.appendChild(nowBtn);
-            }
-          }
-        }]
+        allowInput: true
       });
+
+      // '지금' 버튼 이벤트 설정
+      if (etaNowBtn) {
+        etaNowBtn.addEventListener('click', function() {
+          const now = new Date();
+          etaPicker.setDate(now, true);
+        });
+      }
     }
 
     // 주문 상태 단계적 변경 검증
@@ -364,7 +357,7 @@
     }
 
     // 페이지 나갈 때 락 해제
-    {% if is_edit and order and order.dashboard_id %}
+    /* {% if is_edit and order and order.dashboard_id %} */
     const dashboardId = "{{ order.dashboard_id }}";
     
     if (dashboardId) {
@@ -403,7 +396,7 @@
         });
       }
     }
-    {% endif %}
+    /* {% endif %} */
 
     // 폼 제출 처리
     const form = document.getElementById('orderForm');

@@ -139,7 +139,6 @@ document.addEventListener("DOMContentLoaded", function () {
       dateFormat: "Y-m-d",
       allowInput: true,
       disableMobile: true, // 모바일에서도 일관된 UI 사용
-      maxDate: new Date(), // 오늘까지만 선택 가능
       showMonths: 1,
       prevArrow: '<i class="fa fa-chevron-left"></i>',
       nextArrow: '<i class="fa fa-chevron-right"></i>',
@@ -174,6 +173,16 @@ document.addEventListener("DOMContentLoaded", function () {
     if (endDateInput.value) {
       startDatePicker.set("maxDate", endDateInput.value);
     }
+
+    // 오늘 버튼 이벤트 설정
+    todayBtn.addEventListener("click", () => {
+      const today = getTodayDate();
+      // Flatpickr 인스턴스의 setDate 메서드 사용
+      startDatePicker.setDate(today);
+      endDatePicker.setDate(today);
+      // 날짜 변경 후 데이터 로드
+      fetchAllOrders(today, today);
+    });
   }
 
   // --- 데이터 처리 함수 ---
