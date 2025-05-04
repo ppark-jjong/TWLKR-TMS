@@ -53,7 +53,7 @@
               id="order_no"
               name="order_no"
               class="input-field"
-              value="{{ order.orderNo if is_edit else '' }}"
+              value="{{ order.order_no if is_edit else '' }}"
               required
               {% if is_edit %}readonly{% endif %}
             />
@@ -119,7 +119,7 @@
               id="postal_code"
               name="postal_code"
               class="input-field"
-              value="{{ order.postalCode if is_edit else '' }}"
+              value="{{ order.postal_code if is_edit else '' }}"
               maxlength="5"
               required
               {% if is_edit and not order.editable %}disabled{% endif %}
@@ -191,7 +191,7 @@
               id="driver_name"
               name="driver_name"
               class="input-field"
-              value="{{ order.driverName if is_edit else '' }}"
+              value="{{ order.driver_name if is_edit else '' }}"
               {% if is_edit and not order.editable %}disabled{% endif %}
             />
           </div>
@@ -202,7 +202,7 @@
               id="driver_contact"
               name="driver_contact"
               class="input-field"
-              value="{{ order.driverContact if is_edit else '' }}"
+              value="{{ order.driver_contact if is_edit else '' }}"
               {% if is_edit and not order.editable %}disabled{% endif %}
             />
           </div>

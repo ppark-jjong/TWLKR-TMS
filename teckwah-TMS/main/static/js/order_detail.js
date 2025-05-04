@@ -1,293 +1,319 @@
 /**
  * 주문 상세 페이지 스크립트
  * 주문 상세 조회, 삭제 등 기능 처리
- * 인라인 편집 기능 추가
+ * 인라인 편집 기능 추가 (상태 변경 전용)
  */
-document.addEventListener('DOMContentLoaded', function () {
-  // --- 초기 데이터 로드 --- (추가)
+document.addEventListener("DOMContentLoaded", function () {
+  // 디버깅용 로그 추가
+  console.log("order_detail.js 스크립트 초기화");
+
+  // 페이지 데이터 로드 (HTML의 script 태그에서 가져옴)
   let pageData = {};
   let order = null;
-  let lockStatus = null;
-  let orderId = null;
-
+  let dashboardId = ""; // 변수명 변경: orderId -> dashboardId
+  let currentUserRole = "";
   try {
-    console.log('Attempting to parse page data...');
-    const jsonDataElement = document.getElementById('page-data-script');
-    if (!jsonDataElement)
-      throw new Error('Page data script element not found.');
-    pageData = JSON.parse(jsonDataElement.textContent || '{}');
-    order = pageData.order;
-    lockStatus = pageData.lock_status;
-    orderId = order?.dashboardId;
-
-    if (!orderId) {
-      throw new Error('Order ID not found in page data');
+    const jsonDataElement = document.getElementById("page-data-script");
+    if (jsonDataElement) {
+      pageData = JSON.parse(jsonDataElement.textContent || "{}");
+      order = pageData.order;
+      dashboardId = order?.dashboard_id; // 초기화 시 dashboard_id 사용
+      currentUserRole = pageData.current_user_role;
+      console.log("상세 페이지 데이터 로드 성공 (ID: " + dashboardId + ")");
+    } else {
+      console.error("페이지 데이터 script 태그를 찾을 수 없음");
+      return;
     }
-    console.log('Initial page data loaded successfully:', pageData);
-  } catch (e) {
-    console.error('Failed to initialize page data:', e);
-    alert('페이지 초기화 오류: 데이터를 불러올 수 없습니다.'); // 임시 알림
+  } catch (error) {
+    console.error("데이터 파싱 실패:", error);
+    Utils.alerts.showError("페이지 데이터를 로드하는데 실패했습니다.");
     return;
   }
 
-  // 주문 상세 관리 모듈
-  const OrderDetail = {
-    orderId: orderId,
-    lockStatus: lockStatus,
+  if (!dashboardId) {
+    // 변수명 변경
+    console.error("주문 ID(dashboardId)를 찾을 수 없음");
+    Utils.alerts.showError("주문 정보를 식별할 수 없습니다.");
+    return;
+  }
 
-    init() {
-      console.log('OrderDetail init started.');
-      this.initEventListeners();
-      if (this.orderId) {
-        console.log('Initial data exists, displaying order.');
-        this.displayOrderData(order);
-        this.handleDeleteButtonVisibility(); // Utils.auth.isAdmin 호출 확인 필요
-        this.updateLockStatusUI();
-      } else {
-        console.error('Order ID missing after initialization.');
-      }
-      console.log('OrderDetail init finished.');
-    },
+  // DOM 요소 가져오기
+  const copyOrderNoBtn = document.getElementById("copyOrderNo");
+  const editStatusBtn = document.getElementById("editStatusBtn");
+  const statusDisplayElement = document.getElementById("statusDisplay"); // 상태 표시 영역
 
-    initEventListeners() {
-      console.log('Initializing event listeners...');
-      // 삭제 버튼
-      const deleteBtn = document.getElementById('deleteOrderBtn');
-      const deleteForm = deleteBtn?.closest('form');
-      if (deleteForm && deleteBtn) {
-        deleteBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          if (
-            confirm(
-              '정말로 이 주문을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.'
-            )
-          ) {
-            console.log('Delete confirmed, submitting form...');
-            deleteForm.submit();
-          }
-        });
-      } else {
-        console.warn('Delete form or button not found.');
-      }
-
-      // 주문번호 복사 버튼
-      const copyOrderNoBtn = document.getElementById('copyOrderNo');
-      copyOrderNoBtn?.addEventListener('click', () => {
-        const orderNo = document.getElementById('detailOrderNo')?.textContent;
-        if (orderNo) {
-          navigator.clipboard.writeText(orderNo).then(
-            () => {
-              alert('주문번호가 복사되었습니다.'); // 임시 알림
-            },
-            (err) => {
-              console.error('Clipboard copy failed: ', err);
-              alert('주문번호 복사에 실패했습니다.');
-            }
-          );
+  // 주문번호 복사 버튼 기능
+  if (copyOrderNoBtn) {
+    copyOrderNoBtn.addEventListener("click", function () {
+      const orderNoElement = document.getElementById("detailOrderNo");
+      if (orderNoElement) {
+        const orderNo = orderNoElement.textContent;
+        if (Utils && Utils.dom && Utils.dom.copyToClipboard) {
+          Utils.dom.copyToClipboard(orderNo);
+          Utils.alerts.showSuccess("주문번호가 복사되었습니다.");
+        } else {
+          navigator.clipboard
+            .writeText(orderNo)
+            .then(() => Utils.alerts.showSuccess("주문번호가 복사되었습니다."))
+            .catch((err) => {
+              console.error("클립보드 복사 실패:", err);
+              Utils.alerts.showError("클립보드 복사에 실패했습니다.");
+            });
         }
+      }
+    });
+  }
+
+  // --- 상태 수정 관련 로직 (CSR) ---
+  function setupEditButtons() {
+    if (!editStatusBtn) {
+      console.log("상태 수정 버튼 없음");
+      return;
+    }
+
+    editStatusBtn.addEventListener("click", async function () {
+      if (document.getElementById("statusEditForm")) {
+        console.log("이미 상태 편집 UI가 열려 있습니다.");
+        return;
+      }
+
+      console.log(`상태 수정 버튼 클릭: 드롭다운 표시 준비`);
+      Utils.alerts.showLoading("상태 변경 준비 중...");
+
+      try {
+        const response = await fetch(
+          `/api/orders/${dashboardId}/update-field`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              field: "check_edit_status",
+              value: true,
+            }),
+          }
+        );
+
+        const result = await response.json();
+        Utils.alerts.hideLoading();
+
+        if (response.ok && result && result.success === true) {
+          console.log("상태 편집 가능, 드롭다운 표시");
+          createEditForm("status", "상태", order?.status || "WAITING");
+        } else {
+          // 편집 실패 (락 획득 실패 등)
+          const errorMessage =
+            result?.message || "현재 다른 사용자가 수정 중입니다.";
+          console.warn(`상태 편집 불가: ${errorMessage}`);
+          Utils.alerts.showError(errorMessage);
+        }
+      } catch (error) {
+        Utils.alerts.hideLoading();
+        console.error("상태 변경 준비 중 오류:", error);
+        Utils.alerts.showError(
+          "상태 변경 준비 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요."
+        );
+      }
+    });
+  }
+
+  // 편집 폼 생성 함수 (CSR 용)
+  function createEditForm(fieldName, fieldLabel, currentValue) {
+    if (!statusDisplayElement) {
+      console.error("상태 표시 영역(statusDisplay)을 찾을 수 없습니다.");
+      return;
+    }
+
+    const formContainer = document.createElement("div");
+    formContainer.className = "edit-form inline-edit-form";
+    formContainer.id = `${fieldName}EditForm`;
+
+    const selectElement = document.createElement("select");
+    selectElement.className = "form-control";
+    selectElement.id = `${fieldName}EditSelect`;
+
+    const statusOptions = [
+      { value: "WAITING", label: "대기중" },
+      { value: "IN_PROGRESS", label: "진행중" },
+      { value: "COMPLETE", label: "완료" },
+      { value: "ISSUE", label: "이슈" },
+      { value: "CANCEL", label: "취소" },
+    ];
+
+    statusOptions.forEach((option) => {
+      const optionElement = document.createElement("option");
+      optionElement.value = option.value;
+      optionElement.textContent = option.label;
+      if (option.value === currentValue) {
+        optionElement.selected = true;
+      }
+      selectElement.appendChild(optionElement);
+    });
+
+    const btnContainer = document.createElement("div");
+    btnContainer.className = "edit-form-actions";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "btn btn-sm btn-primary";
+    saveBtn.textContent = "저장";
+    saveBtn.addEventListener("click", () => {
+      const newValue = selectElement.value;
+      saveFieldEdit(fieldName, newValue);
+    });
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn btn-sm btn-secondary";
+    cancelBtn.textContent = "취소";
+    cancelBtn.addEventListener("click", () => {
+      closeEditForm(fieldName, true);
+    });
+
+    btnContainer.appendChild(saveBtn);
+    btnContainer.appendChild(cancelBtn);
+
+    formContainer.appendChild(selectElement);
+    formContainer.appendChild(btnContainer);
+
+    // 현재 값을 저장 및 숨김 처리
+    const currentValueDisplay =
+      statusDisplayElement.querySelector(".value-display");
+    if (currentValueDisplay) {
+      currentValueDisplay.style.display = "none";
+    }
+
+    statusDisplayElement.appendChild(formContainer);
+  }
+
+  // 편집 폼 닫기 (저장 없이 취소)
+  async function closeEditForm(fieldName, releaseLockFlag = false) {
+    const formElement = document.getElementById(`${fieldName}EditForm`);
+    if (!formElement) return;
+
+    // 현재 값 표시 복원
+    const valueDisplay = statusDisplayElement?.querySelector(".value-display");
+    if (valueDisplay) {
+      valueDisplay.style.display = "";
+    }
+
+    // 폼 제거
+    formElement.remove();
+
+    // 락 해제 요청 (선택적)
+    if (releaseLockFlag) {
+      try {
+        await fetch(`/api/orders/${dashboardId}/update-field`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            field: "release_edit_lock",
+            value: true,
+          }),
+        });
+        console.log("상태 편집 락 해제 완료");
+      } catch (error) {
+        console.error("락 해제 중 오류:", error);
+      }
+    }
+  }
+
+  // 필드 값 저장
+  async function saveFieldEdit(fieldName, newValue) {
+    if (!dashboardId || !fieldName) {
+      console.error("필수 정보 누락: dashboard_id 또는 field_name");
+      return;
+    }
+
+    console.log(`${fieldName} 필드 값 저장 시도: ${newValue}`);
+    Utils.alerts.showLoading("상태 변경 중...");
+
+    try {
+      const response = await fetch(`/api/orders/${dashboardId}/update-field`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          field: fieldName,
+          value: newValue,
+        }),
       });
 
-      console.log('Event listeners initialized (inline edit removed).');
-    },
+      const result = await response.json();
+      Utils.alerts.hideLoading();
 
-    displayOrderData(orderData) {
-      if (!orderData) return;
-      console.log('Displaying order data:', orderData);
-      try {
-        const orderNoField = document.getElementById('detailOrderNo');
-        if (orderNoField) orderNoField.textContent = orderData.orderNo || '-';
+      if (response.ok && result.success) {
+        console.log(`${fieldName} 필드 업데이트 성공:`, result);
 
-        const updateFields = {
-          고객: orderData.customer,
-          유형: orderData.typeLabel || orderData.type,
-          부서: orderData.department,
-          창고: orderData.warehouse,
-          SLA: orderData.sla,
-          우편번호: orderData.postalCode,
-          ETA: this.formatDateTime(orderData.eta),
-          '생성 시간': this.formatDateTime(orderData.createTime),
-          '출발 시간': orderData.departTime
-            ? this.formatDateTime(orderData.departTime)
-            : '-',
-          '완료 시간': orderData.completeTime
-            ? this.formatDateTime(orderData.completeTime)
-            : '-',
-          배송기사: orderData.driverName || '-',
-          '배송기사 연락처': orderData.driverContact || '-',
-          배송주소: orderData.address,
-          연락처: orderData.contact || '-',
-        };
-        document.querySelectorAll('.detail-label').forEach((label) => {
-          const labelText = label.textContent.trim();
-          if (updateFields[labelText]) {
-            const detailItem = label.closest('.detail-item');
-            const valueEl = detailItem?.querySelector('.detail-value');
-            if (valueEl) valueEl.textContent = updateFields[labelText];
-          }
-        });
+        // UI 업데이트 (상태 표시)
+        updateStatusDisplay(newValue);
 
-        const statusBadge = document.getElementById('statusDisplay');
-        if (statusBadge) {
-          statusBadge.textContent =
-            orderData.statusLabel || this.getStatusLabel(orderData.status);
-          statusBadge.className = `status-badge status-${orderData.status.toLowerCase()}`;
-          statusBadge.dataset.statusValue = orderData.status;
+        // 편집 폼 닫기 (락 해제 불필요 - 서버에서 처리함)
+        closeEditForm(fieldName, false);
+
+        // 성공 메시지
+        Utils.alerts.showSuccess(`상태가 변경되었습니다.`);
+
+        // 전체 주문 객체 업데이트 (필요 시, 지금은 상태만 갱신)
+        if (order) {
+          order.status = newValue;
         }
-        this.updateElementText('driverNameDisplay', orderData.driverName);
-        this.updateElementText('driverContactDisplay', orderData.driverContact);
-
-        const remarkContainer = document.querySelector(
-          '.remark-container .detail-value'
-        );
-        if (remarkContainer)
-          remarkContainer.textContent = orderData.remark || '-';
-
-        const updateAtEl = document.querySelector(
-          '.update-info .update-value:first-child'
-        );
-        const updateByEl = document.querySelector(
-          '.update-info .update-value:last-child'
-        );
-        if (updateAtEl)
-          updateAtEl.textContent = this.formatDateTime(orderData.updateAt);
-        if (updateByEl) updateByEl.textContent = orderData.updatedBy || '-';
-      } catch (error) {
-        console.error('Error displaying order data:', error);
-      }
-    },
-
-    updateElementText(elementId, text) {
-      const element = document.getElementById(elementId);
-      if (element) element.textContent = text || '-';
-    },
-
-    formatDateTime(dateTimeStr) {
-      if (!dateTimeStr) return '-';
-      try {
-        const date = new Date(dateTimeStr);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}`;
-      } catch (e) {
-        return dateTimeStr || '-';
-      }
-    },
-
-    handleDeleteButtonVisibility() {
-      console.log('Checking delete button visibility...');
-      const deleteBtnContainer = document.querySelector(
-        '.header-actions form[action*="/delete"]'
-      );
-      // 관리자 여부 확인 필요 - 임시로 항상 보이게 하거나 서버 데이터 기반 처리
-      // const isAdmin = pageData?.current_user_role === 'ADMIN'; // 초기 데이터 사용
-      // if (deleteBtnContainer && !isAdmin) {
-      //     deleteBtnContainer.style.display = 'none';
-      // }
-      console.log('Delete button visibility check done.');
-    },
-
-    async checkLockAndNotify() {
-      console.log('[Lock Check] Starting check...');
-      const lockInfo = await this.checkLockStatus();
-      console.log('[Lock Check] Info received:', lockInfo);
-      if (!lockInfo || (lockInfo.isLocked && !lockInfo.editable)) {
-        // isLocked 속성 사용 가정
-        console.warn('[Lock Check] Cannot edit, item is locked.');
-        alert(
-          `수정 불가: ${lockInfo?.lockedBy || '다른 사용자'}님이 편집 중입니다.`
-        );
-        return false;
-      }
-      console.log('[Lock Check] Editable.');
-      return true;
-    },
-
-    async checkLockStatus() {
-      console.log(
-        `[Lock Check] Fetching lock status for order ID: ${this.orderId}`
-      );
-      if (!this.orderId) return null;
-      try {
-        const response = await fetch(`/api/lock/order/${this.orderId}`);
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `HTTP error ${response.status}`); // 서버 응답의 message 사용 시도
-        }
-        const result = await response.json();
-        // 서버 응답 형식이 { editable: bool, message: str, locked_by: str|null, locked_at: str|null } 라고 가정
-        if (typeof result?.editable === 'undefined') {
-          throw new Error('Invalid lock status response format.');
-        }
-        console.log('[Lock Check] API result:', result);
-        this.lockStatus = result;
-        this.updateLockStatusUI();
-        return this.lockStatus;
-      } catch (error) {
-        console.error('[Lock Check] API Error:', error);
-        alert('락 상태를 확인하는 중 오류가 발생했습니다.');
-        this.disableInlineEditButtons();
-        return null;
-      }
-    },
-
-    updateLockStatusUI() {
-      const lockNotificationArea = document.getElementById(
-        'lockNotificationArea'
-      );
-      if (!lockNotificationArea) return;
-
-      const isEditable = this.lockStatus?.editable;
-      const isLocked = this.lockStatus?.isLocked; // lockStatus 스키마 확인 필요, isLocked 사용 가정
-      const lockedBy = this.lockStatus?.lockedBy;
-      console.log(
-        `[UI Update] Lock Status: isLocked=${isLocked}, isEditable=${isEditable}, lockedBy=${lockedBy}`
-      );
-
-      if (isLocked && !isEditable) {
-        lockNotificationArea.innerHTML = `
-                <div class="alert alert-warning" role="alert">
-                    <i class="fa-solid fa-lock me-2"></i>
-                    <strong>알림:</strong> 현재 ${
-                      lockedBy || '다른 사용자'
-                    }님이 편집 중입니다.
-                </div>`;
-        this.disableInlineEditButtons();
       } else {
-        lockNotificationArea.innerHTML = ''; // 알림 없음
-        this.enableInlineEditButtons();
+        console.error(`${fieldName} 필드 업데이트 실패:`, result);
+        Utils.alerts.showError(
+          result.message || "상태 변경 중 오류가 발생했습니다."
+        );
+        closeEditForm(fieldName, true); // 실패해도 폼은 닫기 (락 해제 요청)
       }
+    } catch (error) {
+      Utils.alerts.hideLoading();
+      console.error("필드 저장 중 API 오류:", error);
+      Utils.alerts.showError("네트워크 오류로 상태를 변경할 수 없습니다.");
+      closeEditForm(fieldName, true); // 오류 발생 시에도 폼은 닫기 (락 해제 요청)
+    }
+  }
 
-      const mainEditBtn = document.querySelector(
-        '.header-actions a[href*="/edit"]'
-      );
-      if (mainEditBtn) {
-        mainEditBtn.style.display = isEditable ? '' : 'none'; // 전체 수정 버튼 제어
+  // 상태 표시 업데이트 (UI)
+  function updateStatusDisplay(newStatus) {
+    if (!statusDisplayElement) return;
+
+    const valueDisplay = statusDisplayElement.querySelector(".value-display");
+    if (!valueDisplay) return;
+
+    // 상태값에 따른 라벨과 클래스
+    const statusInfo = {
+      WAITING: { label: "대기중", cls: "badge-secondary" },
+      IN_PROGRESS: { label: "진행중", cls: "badge-primary" },
+      COMPLETE: { label: "완료", cls: "badge-success" },
+      ISSUE: { label: "이슈", cls: "badge-danger" },
+      CANCEL: { label: "취소", cls: "badge-dark" },
+    };
+
+    const statusData = statusInfo[newStatus] || {
+      label: newStatus,
+      cls: "badge-secondary",
+    };
+
+    // 기존 뱃지 클래스 제거 및 새 클래스 추가
+    const badgeElement = valueDisplay.querySelector(".badge");
+    if (badgeElement) {
+      // 모든 badge-* 클래스 제거
+      for (const cls of Object.values(statusInfo)) {
+        badgeElement.classList.remove(cls.cls);
       }
-    },
+      // 새 클래스 추가
+      badgeElement.classList.add(statusData.cls);
+      badgeElement.textContent = statusData.label;
+    }
+  }
 
-    disableInlineEditButtons() {
-      console.log('Disabling inline edit buttons.');
-      document.getElementById('editStatusBtn')?.setAttribute('disabled', true);
-      document.getElementById('editDriverBtn')?.setAttribute('disabled', true);
-    },
+  // 설정 및 초기화 함수 호출
+  setupEditButtons();
 
-    enableInlineEditButtons() {
-      console.log('Enabling inline edit buttons.');
-      document.getElementById('editStatusBtn')?.removeAttribute('disabled');
-      document.getElementById('editDriverBtn')?.removeAttribute('disabled');
-    },
-
-    getStatusLabel(status) {
-      const statusMap = { WAITING: '대기' /*...*/ };
-      return statusMap[status] || status;
-    },
-
-    // deleteOrder 함수는 Form 제출 방식으로 변경되었으므로 제거 또는 주석 처리
-    // deleteOrder() { ... }
-  };
-
-  OrderDetail.init();
+  // 페이지 파라미터로 전달된 성공/오류 메시지 처리
+  Utils.ui.showPageMessages();
 });

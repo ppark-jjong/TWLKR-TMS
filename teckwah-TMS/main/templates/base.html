@@ -82,7 +82,7 @@
           <nav class="menu">
             <ul>
               <li
-                class="menu-item {% if request.url.path == '/dashboard' %}active{% endif %}"
+                class="menu-item {% if request.url.path == '/dashboard' or request.url.path.startswith('/orders') %}active{% endif %}"
               >
                 <a href="/dashboard">
                   <i class="fa-solid fa-chart-line"></i>
@@ -171,11 +171,11 @@
     <!-- 페이지별 JavaScript -->
     {% block page_js %}{% endblock %} {# URL 파라미터 기반 알림 처리 #}
     <script>
-      document.addEventListener('DOMContentLoaded', function () {
+      document.addEventListener("DOMContentLoaded", function () {
         const urlParams = new URLSearchParams(window.location.search);
-        const successMessage = urlParams.get('success');
-        const errorMessage = urlParams.get('error');
-        const warningMessage = urlParams.get('warning');
+        const successMessage = urlParams.get("success");
+        const errorMessage = urlParams.get("error");
+        const warningMessage = urlParams.get("warning");
 
         if (successMessage) {
           Utils.alerts.showSuccess(decodeURIComponent(successMessage));

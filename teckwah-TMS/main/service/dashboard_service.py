@@ -223,17 +223,23 @@ def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashbo
 
 
 def update_dashboard(
-    db: Session, dashboard_id: int, data: DashboardUpdate, user_id: str
+    db: Session, dashboard_id: int, data: Dict[str, Any], user_id: str
 ) -> Dashboard:
-    """주문 업데이트 및 락 관리"""
-    lock_success, lock_info = acquire_lock(db, "dashboard", dashboard_id, user_id)
-    if not lock_success:
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail=lock_info.get("message", "현재 다른 사용자가 편집 중입니다."),
-        )
+    """주문 업데이트 및 락 관리, 상태 변경 시 시간 자동 업데이트"""
+    # update_field API 에서 호출 시 data는 {"status": "NEW_STATUS"} 형태일 수 있음
+    # update_order_action API 에서 호출 시 data는 DashboardUpdate 모델의 dict 형태
 
+    lock_held = False
     try:
+        # 락 획득 (update_dashboard 진입 전에 acquire_lock 호출 안함, 서비스 내에서 관리)
+        lock_success, lock_info = acquire_lock(db, "dashboard", dashboard_id, user_id)
+        if not lock_success:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=lock_info.get("message", "현재 다른 사용자가 편집 중입니다."),
+            )
+        lock_held = True
+
         order = (
             db.query(Dashboard).filter(Dashboard.dashboard_id == dashboard_id).first()
         )
@@ -243,53 +249,128 @@ def update_dashboard(
                 detail="수정할 주문을 찾을 수 없습니다.",
             )
 
-        update_data = data.model_dump(exclude_unset=True, exclude={"region"})
+        # update_data 준비 (스키마 사용 안하고 dict 직접 처리)
+        update_fields = data.copy()  # 원본 data 수정 방지
 
-        if not update_data:
+        # region 필드는 DB에서 자동 생성되므로 제거
+        if "region" in update_fields:
+            del update_fields["region"]
+
+        if not update_fields:
             logger.info(f"주문 업데이트 내용 없음: ID {dashboard_id}")
-            return order  # 변경 내용 없으면 그대로 반환
+            # 변경 내용 없어도 update_by, update_at 갱신 및 락 해제는 필요할 수 있음
+            # 여기서는 일단 그대로 반환 (락 해제는 finally에서 처리)
+            return order
+
+        # 상태 변경 시 시간 업데이트 로직
+        if "status" in update_fields and order.status != update_fields["status"]:
+            old_status = order.status
+            new_status = update_fields["status"]
+            now = datetime.now()
+
+            # 1. WAITING -> IN_PROGRESS
+            if (
+                old_status == "WAITING"
+                and new_status == "IN_PROGRESS"
+                and order.depart_time is None
+            ):
+                order.depart_time = now
+                logger.info(
+                    f"주문 ID {dashboard_id}: 상태 변경(IN_PROGRESS), depart_time 설정: {now}"
+                )
+
+            # 2. IN_PROGRESS -> COMPLETE/ISSUE/CANCEL
+            elif (
+                old_status == "IN_PROGRESS"
+                and new_status in ["COMPLETE", "ISSUE", "CANCEL"]
+                and order.complete_time is None
+            ):
+                order.complete_time = now
+                logger.info(
+                    f"주문 ID {dashboard_id}: 상태 변경({new_status}), complete_time 설정: {now}"
+                )
+
+            # 3. 롤백: COMPLETE/ISSUE/CANCEL -> IN_PROGRESS/WAITING
+            elif old_status in ["COMPLETE", "ISSUE", "CANCEL"] and new_status in [
+                "IN_PROGRESS",
+                "WAITING",
+            ]:
+                if order.complete_time is not None:
+                    order.complete_time = None
+                    logger.info(
+                        f"주문 ID {dashboard_id}: 상태 롤백({new_status}), complete_time 초기화"
+                    )
+                # 추가: IN_PROGRESS로 롤백 시 depart_time은 유지되어야 함
+                # WAITNG으로 롤백 시 depart_time도 초기화 (아래 4번 조건에서 처리)
+
+            # 4. 롤백: IN_PROGRESS -> WAITING
+            elif old_status == "IN_PROGRESS" and new_status == "WAITING":
+                if order.depart_time is not None:
+                    order.depart_time = None
+                    logger.info(
+                        f"주문 ID {dashboard_id}: 상태 롤백(WAITING), depart_time 초기화"
+                    )
 
         # 우편번호 변경 시 처리
         if (
-            "postal_code" in update_data
-            and order.postal_code != update_data["postal_code"]
+            "postal_code" in update_fields
+            and order.postal_code != update_fields["postal_code"]
         ):
-            _ensure_postal_code_exists(db, update_data["postal_code"])
+            _ensure_postal_code_exists(db, update_fields["postal_code"])
 
-        for key, value in update_data.items():
+        # 필드 업데이트 적용
+        for key, value in update_fields.items():
             setattr(order, key, value)
 
+        # 공통 업데이트 정보 설정
         order.update_by = user_id
         order.update_at = datetime.now()
+
         logger.info(
-            f"주문 정보 업데이트: ID={dashboard_id}, 필드={list(update_data.keys())}"
+            f"주문 정보 업데이트 준비: ID={dashboard_id}, 변경 필드={list(update_fields.keys())}"
         )
 
-        db.flush()  # 변경사항 반영
-        logger.info(f"주문 업데이트 완료 (커밋 전): ID {dashboard_id}")
-        return (
-            order  # 커밋은 라우터의 @db_transaction 데코레이터 또는 명시적 호출에 위임
-        )
+        db.add(order)  # 세션에 변경사항 추가
+        db.flush()  # DB에 반영 (아직 커밋 아님)
+        logger.info(f"주문 업데이트 DB 반영 완료 (커밋 전): ID {dashboard_id}")
+        return order
 
     except HTTPException as http_exc:
-        db.rollback()  # 명시적 롤백
+        # 락 획득 실패 또는 유효성 검사 오류 등은 여기서 처리
+        # db.rollback() # 트랜잭션 데코레이터가 처리
         raise http_exc
     except SQLAlchemyError as e:
-        db.rollback()
+        # db.rollback() # 트랜잭션 데코레이터가 처리
         logger.error(f"주문 업데이트 DB 오류: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="주문 업데이트 중 데이터베이스 오류 발생",
         )
+    except Exception as e:
+        # 예상치 못한 오류
+        # db.rollback() # 트랜잭션 데코레이터가 처리
+        logger.error(f"주문 업데이트 중 예외 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="주문 업데이트 처리 중 오류 발생",
+        )
     finally:
-        # 락 해제 (성공/실패 무관). commit/rollback 후에 실행되도록 보장 필요.
-        # 트랜잭션 관리 방식에 따라 위치 조정 필요 (예: 별도 미들웨어)
-        try:
-            release_lock(db, "dashboard", dashboard_id, user_id)
-        except Exception as lock_release_err:
-            logger.error(
-                f"주문 락 해제 실패: ID {dashboard_id}, 오류: {lock_release_err}"
-            )
+        # 락을 획득했다면 반드시 해제
+        if lock_held:
+            try:
+                # release_lock은 내부적으로 commit/rollback을 수행할 수 있으므로 주의
+                # 여기서는 트랜잭션 관리와 분리하여 락 해제만 시도
+                release_success, _ = release_lock(
+                    db, "dashboard", dashboard_id, user_id
+                )
+                if release_success:
+                    logger.info(f"주문 락 해제 성공 (finally): ID {dashboard_id}")
+                else:
+                    logger.warning(f"주문 락 해제 실패 (finally): ID {dashboard_id}")
+            except Exception as lock_release_err:
+                logger.error(
+                    f"주문 락 해제 실패 (finally): ID {dashboard_id}, 오류: {lock_release_err}"
+                )
 
 
 def change_status(

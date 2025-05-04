@@ -28,12 +28,8 @@ class Handover(Base):
 
     # 관계 설정 - backref 대신 back_populates로 명시적 양방향 관계 정의
     updater = relationship(
-        "User", 
-        foreign_keys=[update_by], 
-        back_populates="updated_handovers"
+        "User", foreign_keys=[update_by], back_populates="updated_handovers"
     )
     creator = relationship(
-        "User", 
-        foreign_keys=[create_by], 
-        back_populates="created_handovers"
+        "User", foreign_keys=[create_by], back_populates="created_handovers"
     )

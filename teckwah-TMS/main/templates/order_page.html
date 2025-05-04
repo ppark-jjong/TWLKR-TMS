@@ -15,13 +15,13 @@
         목록으로
       </a>
       {% if order.editable %}
-      <a href="/orders/{{ order.dashboardId }}/edit" class="btn primary-btn">
+      <a href="/orders/{{ order.dashboard_id }}/edit" class="btn primary-btn">
         <i class="fa-solid fa-edit"></i>
         수정
       </a>
       {% endif %} {% if current_user and current_user.user_role == 'ADMIN' %}
       <form
-        action="/api/orders/{{ order.dashboardId }}/delete"
+        action="/api/orders/{{ order.dashboard_id }}/delete"
         method="POST"
         style="display: inline"
         onsubmit="return confirm('정말로 이 주문을 삭제하시겠습니까?');"
@@ -36,6 +36,7 @@
   </div>
 
   <div id="lockNotificationArea" class="mb-3"></div>
+  <div id="notificationArea" class="mb-3"></div>
 
   <div class="main-card">
     <div class="order-detail-content">
@@ -53,12 +54,12 @@
                 <span class="detail-label">주문번호</span>
                 <div class="copyable-value">
                   <span class="detail-value" id="detailOrderNo"
-                    >{{ order.orderNo }}</span
+                    >{{ order.order_no }}</span
                   >
                   <button
                     id="copyOrderNo"
                     class="copy-btn"
-                    onclick="Utils.dom.copyToClipboard('{{ order.orderNo }}')"
+                    onclick="Utils.dom.copyToClipboard('{{ order.order_no }}')"
                   >
                     <i class="fa-regular fa-copy"></i>
                   </button>
@@ -66,11 +67,21 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">상태</span>
-                <span
-                  class="status-badge status-{{ order.status|lower }}"
-                  id="statusDisplay"
-                  >{{ order.statusLabel }}</span
-                >
+                <div class="field-with-edit">
+                  <span
+                    class="status-badge status-{{ order.status|lower }}"
+                    id="statusDisplay"
+                    >{{ order.status_label }}</span
+                  >
+                  <button
+                    type="button"
+                    class="edit-btn"
+                    id="editStatusBtn"
+                    title="상태 수정"
+                  >
+                    <i class="fa-solid fa-pen"></i>
+                  </button>
+                </div>
               </div>
               <div class="detail-item">
                 <span class="detail-label">고객</span>
@@ -78,7 +89,7 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">유형</span>
-                <span class="detail-value">{{ order.typeLabel }}</span>
+                <span class="detail-value">{{ order.type_label }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">부서</span>
@@ -94,7 +105,7 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">우편번호</span>
-                <span class="detail-value">{{ order.postalCode }}</span>
+                <span class="detail-value">{{ order.postal_code }}</span>
               </div>
             </div>
           </div>
@@ -119,14 +130,14 @@
               <div class="detail-item">
                 <span class="detail-label">출발 시간</span>
                 <span class="detail-value"
-                  >{% if order.departTime %}{{ order.departTime|datetime }}{%
+                  >{% if order.depart_time %}{{ order.depart_time|datetime }}{%
                   else %}-{% endif %}</span
                 >
               </div>
               <div class="detail-item">
                 <span class="detail-label">완료 시간</span>
                 <span class="detail-value"
-                  >{% if order.completeTime %}{{ order.completeTime|datetime
+                  >{% if order.complete_time %}{{ order.complete_time|datetime
                   }}{% else %}-{% endif %}</span
                 >
               </div>
@@ -140,8 +151,9 @@
               <div class="detail-item">
                 <span class="detail-label">예상 소요시간</span>
                 <span class="detail-value"
-                  >{% if order.durationTime is not none %}{{ order.durationTime
-                  }} 분{% else %}데이터 없음{% endif %}</span
+                  >{% if order.duration_time is not none %}{{
+                  order.duration_time }} 분{% else %}데이터 없음{% endif
+                  %}</span
                 >
               </div>
             </div>
@@ -159,17 +171,21 @@
             <div class="detail-grid">
               <div class="detail-item">
                 <span class="detail-label">배송기사</span>
-                <span id="driverNameDisplay"
-                  >{% if order.driverName %}{{ order.driverName }}{% else %}-{%
-                  endif %}</span
-                >
+                <div class="field-with-edit">
+                  <span id="driverNameDisplay"
+                    >{% if order.driver_name %}{{ order.driver_name }}{% else
+                    %}-{% endif %}</span
+                  >
+                </div>
               </div>
               <div class="detail-item">
                 <span class="detail-label">배송기사 연락처</span>
-                <span id="driverContactDisplay"
-                  >{% if order.driverContact %}{{ order.driverContact }}{% else
-                  %}-{% endif %}</span
-                >
+                <div class="field-with-edit">
+                  <span id="driverContactDisplay"
+                    >{% if order.driver_contact %}{{ order.driver_contact }}{%
+                    else %}-{% endif %}</span
+                  >
+                </div>
               </div>
               <div class="detail-item">
                 <span class="detail-label">지역</span>
@@ -229,61 +245,19 @@
     </div>
   </div>
 </div>
-{% endblock %} {% block page_js %}
+{% endblock %} {% block page_js %} {# 디버깅용 코드 제거 #} {#
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    // 주문번호 복사 버튼 기능
-    const copyOrderNoBtn = document.getElementById('copyOrderNo');
-    if (copyOrderNoBtn) {
-      copyOrderNoBtn.addEventListener('click', function () {
-        const orderNo = document.getElementById('detailOrderNo').textContent;
-        Utils.dom.copyToClipboard(orderNo);
-      });
-    }
-
-    // 락 상태 확인 및 UI 업데이트 (필요시 API 호출)
-    const lockNotificationArea = document.getElementById(
-      'lockNotificationArea'
-    );
-    const orderId = '{{ order.dashboard_id }}';
-
-    async function checkLockStatus() {
-      try {
-        const response = await fetch(`/api/orders/lock/${orderId}`);
-        if (response.ok) {
-          const lockData = await response.json();
-          updateLockNotification(lockData);
-        }
-      } catch (error) {
-        console.error('Lock check failed:', error);
-      }
-    }
-
-    function updateLockNotification(lockData) {
-      if (lockData && lockData.locked && lockData.locked_by) {
-        lockNotificationArea.innerHTML = `
-          <div class="alert alert-warning">
-            <i class="fa-solid fa-lock"></i>
-            ${lockData.locked_by}님이 현재 수정 중입니다.
-          </div>
-        `;
-      } else {
-        lockNotificationArea.innerHTML = '';
-      }
-    }
-
-    // 주기적으로 락 상태 확인 (10초 간격)
-    const checkInterval = setInterval(checkLockStatus, 10000);
-
-    // 초기 락 상태 확인
-    checkLockStatus();
-
-    // 페이지 떠날 때 인터벌 정리
-    window.addEventListener('beforeunload', function () {
-      clearInterval(checkInterval);
-    });
-  });
+  console.log("JS에서 확인한 주문 ID: {{ order.dashboard_id }}");
+  console.log("주문 데이터 키: {{ order.keys()|list|join(', ') }}");
+  console.log(
+    "주문 데이터 샘플: {{ order.dashboard_id }}, {{ order.order_no }}"
+  );
+</script>
+#} {# 페이지 데이터를 JSON으로 변환하여 스크립트 태그에 저장 #}
+<script id="page-data-script" type="application/json">
+  {{ {'order': order, 'lock_status': lock_status, 'current_user_role': current_user.user_role}|tojson|safe }}
 </script>
 
+{# 분리된 order_detail.js 파일 로드 #}
 <script src="{{ url_for('static', path='js/order_detail.js') }}"></script>
 {% endblock %}

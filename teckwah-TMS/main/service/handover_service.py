@@ -51,10 +51,16 @@ def get_handover_list_paginated(
         raise HTTPException(status_code=500, detail="목록 조회 중 오류 발생")
 
 
-def get_handover_list_all(db: Session, is_notice: bool = False) -> List[Dict[str, Any]]:
-    """전체 인수인계/공지 목록 조회"""
+def get_handover_list_all(
+    db: Session, is_notice: Optional[bool] = None
+) -> List[Dict[str, Any]]:
+    """전체 인수인계/공지 목록 조회 (is_notice가 None이면 전체)"""
     try:
-        query = db.query(Handover).filter(Handover.is_notice == is_notice)
+        query = db.query(Handover)
+        if is_notice is not None:
+            # is_notice 값이 True 또는 False로 명시된 경우 필터링
+            query = query.filter(Handover.is_notice == is_notice)
+        # is_notice가 None이면 필터링 없이 전체 조회
         all_handovers = query.order_by(desc(Handover.update_at)).all()
         return [_handover_to_dict(h) for h in all_handovers]
     except Exception as e:

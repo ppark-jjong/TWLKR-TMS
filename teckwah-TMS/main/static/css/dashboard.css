@@ -183,6 +183,34 @@
   color: #424242; /* 약간 더 연한 텍스트 */
 }
 
+/* 정렬 가능한 컬럼 스타일 */
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  position: relative;
+}
+
+.sortable-header:hover {
+  background-color: #e8e8e8;
+}
+
+.sortable-header i {
+  margin-left: 5px;
+  font-size: 14px;
+  color: #888;
+  transition: color 0.2s;
+}
+
+.sortable-header:hover i {
+  color: var(--primary-color);
+}
+
+.sortable-header i.fa-sort-up,
+.sortable-header i.fa-sort-down {
+  color: var(--primary-color);
+}
+
 .data-table tbody tr:hover {
   background-color: #f0f0f0 !important; /* 덮어쓰기 위해 !important 사용 */
   cursor: pointer;
@@ -199,10 +227,10 @@
   background-color: #f4fff0 !important; /* 매우 연한 녹색 */
 }
 .data-table tbody tr.status-issue {
-  background-color: #ffebee !important; /* 연한 빨간색으로 변경 */
+  background-color: #fff0f0 !important; /* 매우 연한 빨간색 */
 }
 .data-table tbody tr.status-cancel {
-  background-color: #f5f5f5 !important; /* 연한 회색 */
+  background-color: #f0f0f0 !important; /* 연한 회색 */
 }
 
 /* 테이블 내 링크 스타일 */

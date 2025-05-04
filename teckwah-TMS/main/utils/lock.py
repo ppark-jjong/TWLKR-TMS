@@ -30,9 +30,17 @@ def acquire_lock(
 
     Returns:
         bool: 락 획득 성공 여부
-        dict: 현재 락 정보 (실패 시 현재 락 보유자 정보 포함)
+        dict: 락 정보 메시지
     """
     try:
+        # 허용된 테이블 이름 목록 (화이트리스트 방식)
+        allowed_tables = ["dashboard", "handover"]
+
+        # 테이블 이름 유효성 검증
+        if table_name not in allowed_tables:
+            logger.error(f"유효하지 않은 테이블 이름: {table_name}")
+            return False, {"message": "유효하지 않은 테이블 이름입니다"}
+
         # 락 정보 조회 쿼리 생성
         query = text(
             f"""
@@ -51,34 +59,28 @@ def acquire_lock(
             )
             return False, {"message": "지정된 항목을 찾을 수 없습니다"}
 
-        is_locked, locked_by, locked_at = result
+        is_locked, update_by, update_at = result
 
-        # 이미 락이 있고 다른 사용자가 점유 중인 경우
-        if is_locked and locked_by != user_id:
+        # 이미 락이 설정되어 있는 경우
+        if is_locked:
             # 락 타임아웃 확인 (5분 이상 경과한 락은 만료로 간주)
             lock_timeout = datetime.now() - timedelta(
                 seconds=settings.LOCK_TIMEOUT_SECONDS
             )
 
-            if locked_at and locked_at < lock_timeout:
+            if update_at and update_at < lock_timeout:
                 # 락 타임아웃 발생 - 락 해제 후 재획득 시도
-                logger.info(
-                    f"만료된 락 해제: {table_name} ID {row_id}, 이전 사용자: {locked_by}"
-                )
+                logger.info(f"만료된 락 해제: {table_name} ID {row_id}")
                 return _update_lock(db, table_name, row_id, user_id, True)
 
-            # 락 획득 실패, 현재 락 보유자 정보 반환
-            logger.warning(
-                f"락 획득 실패: {table_name} ID {row_id}는 현재 {locked_by}가 락 보유 중"
-            )
+            # 락 획득 실패, 다른 사용자가 편집 중
+            logger.warning(f"락 획득 실패: {table_name} ID {row_id} (이미 락이 설정됨)")
             return False, {
-                "message": f"현재 다른 사용자가 편집 중입니다",
-                "locked_by": locked_by,
-                "locked_at": locked_at,
+                "message": "현재 다른 사용자가 수정 중입니다",
                 "editable": False,
             }
 
-        # 락이 없거나, 본인이 락 보유 중인 경우 획득/갱신
+        # 락이 없는 경우 획득
         return _update_lock(db, table_name, row_id, user_id, True)
 
     except SQLAlchemyError as e:
@@ -250,59 +252,39 @@ def check_lock_status(
                     return {
                         "success": True,
                         "editable": True,
-                        "message": "만료된 락이 자동 해제되었습니다. 편집 가능합니다.",
-                        "expired": True,
+                        "message": "만료된 락이 해제되었습니다",
+                        "locked": False,
+                        "locked_by": None,
                     }
-                else:
-                    db.rollback()
+
+        # 락이 있는 경우
+        if is_locked:
+            # 본인이 보유한 락인지 확인
+            is_own_lock = locked_by == user_id
+
+            # 응답 메시지 통일
+            message = (
+                "현재 편집 중입니다"
+                if is_own_lock
+                else "현재 다른 사용자가 편집 중입니다"
+            )
+
+            return {
+                "success": True,  # API 호출 자체는 성공
+                "editable": is_own_lock,  # 본인이 락을 가지고 있으면 편집 가능
+                "message": message,
+                "locked": True,
+                "locked_by": locked_by,
+                "locked_at": locked_at,
+            }
 
         # 락이 없는 경우
-        if not is_locked:
-            return {
-                "success": True,
-                "editable": True,
-                "message": "락이 없습니다. 편집 가능합니다.",
-            }
-
-        # 본인이 락을 보유한 경우
-        if locked_by == user_id:
-            # 락 만료 시간 계산 (5분)
-            expiry_time = locked_at + timedelta(seconds=settings.LOCK_TIMEOUT_SECONDS)
-            time_left = int((expiry_time - datetime.now()).total_seconds())
-
-            # 남은 시간이 음수면 0으로 설정 (이미 만료되었지만 정리되지 않은 경우)
-            time_left = max(0, time_left)
-
-            return {
-                "success": True,
-                "editable": True,
-                "message": "본인이 락을 보유 중입니다. 편집 가능합니다.",
-                "lockedBy": locked_by,
-                "lockedAt": (
-                    locked_at.strftime("%Y-%m-%d %H:%M:%S") if locked_at else None
-                ),
-                "expiresIn": time_left,
-                "expiryTime": (
-                    expiry_time.strftime("%Y-%m-%d %H:%M:%S") if expiry_time else None
-                ),
-            }
-
-        # 다른 사용자가 락을 보유한 경우
-        # 락 만료 시간 계산
-        expiry_time = locked_at + timedelta(seconds=settings.LOCK_TIMEOUT_SECONDS)
-        time_left = int((expiry_time - datetime.now()).total_seconds())
-        time_left = max(0, time_left)
-
         return {
             "success": True,
-            "editable": False,
-            "message": f"다른 사용자({locked_by})가 편집 중입니다. {time_left}초 후 자동 해제됩니다.",
-            "lockedBy": locked_by,
-            "lockedAt": locked_at.strftime("%Y-%m-%d %H:%M:%S") if locked_at else None,
-            "expiresIn": time_left,
-            "expiryTime": (
-                expiry_time.strftime("%Y-%m-%d %H:%M:%S") if expiry_time else None
-            ),
+            "editable": True,
+            "message": "편집 가능합니다",
+            "locked": False,
+            "locked_by": None,
         }
 
     except SQLAlchemyError as e:

@@ -9,14 +9,14 @@ const Utils = {
    * @returns {string} - 포맷팅된 우편번호
    */
   formatPostalCode: function (code) {
-    if (!code) return '';
+    if (!code) return "";
 
     // 숫자만 추출
-    const numericValue = code.replace(/[^\d]/g, '');
+    const numericValue = code.replace(/[^\d]/g, "");
 
     // 4자리인 경우 앞에 0 추가
     if (numericValue.length === 4) {
-      return '0' + numericValue;
+      return "0" + numericValue;
     }
 
     return numericValue;
@@ -29,7 +29,7 @@ const Utils = {
    */
   validatePostalCode: function (code) {
     if (!code) return false;
-    const numericValue = code.replace(/[^\d]/g, '');
+    const numericValue = code.replace(/[^\d]/g, "");
     return numericValue.length === 5;
   },
 
@@ -39,32 +39,32 @@ const Utils = {
    * @returns {string} - 하이픈이 포함된 전화번호
    */
   formatPhoneNumber: function (number) {
-    if (!number) return '';
+    if (!number) return "";
 
     // 숫자만 추출
-    const numericValue = number.replace(/[^\d]/g, '');
+    const numericValue = number.replace(/[^\d]/g, "");
 
     // 자릿수에 따라 다른 포맷 적용
     if (numericValue.length === 11) {
       // 휴대폰 (01012345678 -> 010-1234-5678)
-      return numericValue.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+      return numericValue.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
     } else if (numericValue.length === 10) {
       // 지역번호 2자리 (0212345678 -> 02-1234-5678)
-      if (numericValue.startsWith('02')) {
-        return numericValue.replace(/(\d{2})(\d{4})(\d{4})/, '$1-$2-$3');
+      if (numericValue.startsWith("02")) {
+        return numericValue.replace(/(\d{2})(\d{4})(\d{4})/, "$1-$2-$3");
       }
       // 휴대폰 또는 지역번호 3자리 (0101234567 -> 010-123-4567)
-      return numericValue.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+      return numericValue.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
     } else if (numericValue.length === 9) {
       // 지역번호 2자리 (021234567 -> 02-123-4567)
-      if (numericValue.startsWith('02')) {
-        return numericValue.replace(/(\d{2})(\d{3})(\d{4})/, '$1-$2-$3');
+      if (numericValue.startsWith("02")) {
+        return numericValue.replace(/(\d{2})(\d{3})(\d{4})/, "$1-$2-$3");
       }
       // 기타 9자리 (031123456 -> 031-12-3456)
-      return numericValue.replace(/(\d{3})(\d{2})(\d{4})/, '$1-$2-$3');
+      return numericValue.replace(/(\d{3})(\d{2})(\d{4})/, "$1-$2-$3");
     } else if (numericValue.length === 8) {
       // 8자리 전화번호 (12345678 -> 1234-5678)
-      return numericValue.replace(/(\d{4})(\d{4})/, '$1-$2');
+      return numericValue.replace(/(\d{4})(\d{4})/, "$1-$2");
     }
 
     // 그 외의 경우 원래 숫자 반환
@@ -77,7 +77,7 @@ const Utils = {
    * @returns {string} - 포맷팅된 날짜 문자열
    */
   formatDate: function (dateString) {
-    if (!dateString) return '';
+    if (!dateString) return "";
 
     const date = dateString instanceof Date ? dateString : new Date(dateString);
 
@@ -86,10 +86,10 @@ const Utils = {
 
     // YYYY-MM-DD HH:MM 포맷으로 변환
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
 
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   },
@@ -104,7 +104,7 @@ const Utils = {
      * @param {number} duration - 표시 지속 시간 (밀리초)
      */
     showSuccess: function (message, duration = 3000) {
-      Utils.alerts._showAlert(message, 'success', duration);
+      Utils.alerts._showAlert(message, "success", duration);
     },
 
     /**
@@ -113,7 +113,7 @@ const Utils = {
      * @param {number} duration - 표시 지속 시간 (0이면 수동으로 닫을 때까지 유지)
      */
     showError: function (message, duration = 0) {
-      Utils.alerts._showAlert(message, 'error', duration);
+      Utils.alerts._showAlert(message, "error", duration);
     },
 
     /**
@@ -122,7 +122,7 @@ const Utils = {
      * @param {number} duration - 표시 지속 시간 (밀리초)
      */
     showWarning: function (message, duration = 5000) {
-      Utils.alerts._showAlert(message, 'warning', duration);
+      Utils.alerts._showAlert(message, "warning", duration);
     },
 
     /**
@@ -131,101 +131,232 @@ const Utils = {
      * @param {number} duration - 표시 지속 시간 (밀리초)
      */
     showInfo: function (message, duration = 3000) {
-      Utils.alerts._showAlert(message, 'info', duration);
+      Utils.alerts._showAlert(message, "info", duration);
     },
 
     /**
-     * 알림 메시지 내부 구현
+     * 로딩 표시
+     * @param {string} message - 표시할 메시지 (기본값: "로딩 중...")
+     */
+    showLoading: function (message = "로딩 중...") {
+      // 기존 로딩 제거
+      Utils.alerts.hideLoading();
+
+      // 로딩 오버레이 생성
+      const overlay = document.createElement("div");
+      overlay.id = "loading-overlay";
+      overlay.style.position = "fixed";
+      overlay.style.top = "0";
+      overlay.style.left = "0";
+      overlay.style.width = "100%";
+      overlay.style.height = "100%";
+      overlay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+      overlay.style.display = "flex";
+      overlay.style.justifyContent = "center";
+      overlay.style.alignItems = "center";
+      overlay.style.zIndex = "2000";
+
+      // 로딩 컨테이너
+      const loadingContainer = document.createElement("div");
+      loadingContainer.style.backgroundColor = "white";
+      loadingContainer.style.borderRadius = "5px";
+      loadingContainer.style.padding = "20px";
+      loadingContainer.style.display = "flex";
+      loadingContainer.style.flexDirection = "column";
+      loadingContainer.style.alignItems = "center";
+      loadingContainer.style.gap = "10px";
+
+      // 스피너
+      const spinner = document.createElement("div");
+      spinner.className = "loading-spinner";
+      spinner.style.width = "30px";
+      spinner.style.height = "30px";
+      spinner.style.border = "3px solid rgba(0, 0, 0, 0.1)";
+      spinner.style.borderRadius = "50%";
+      spinner.style.borderTop = "3px solid #D72519"; // 포인트 색상 적용
+      spinner.style.animation = "spin 1s linear infinite";
+
+      // 애니메이션 스타일 추가
+      const style = document.createElement("style");
+      style.textContent = `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+
+      // 메시지 텍스트
+      const messageElement = document.createElement("div");
+      messageElement.textContent = message;
+
+      // 컴포넌트 조립
+      loadingContainer.appendChild(spinner);
+      loadingContainer.appendChild(messageElement);
+      overlay.appendChild(loadingContainer);
+      document.body.appendChild(overlay);
+    },
+
+    /**
+     * 로딩 숨기기
+     */
+    hideLoading: function () {
+      const overlay = document.getElementById("loading-overlay");
+      if (overlay) {
+        overlay.remove();
+      }
+    },
+
+    /**
+     * 알림 메시지 내부 표시 로직
+     * @param {string} message - 표시할 메시지
+     * @param {string} type - 알림 유형 (success, error, warning, info)
+     * @param {number} duration - 표시 지속 시간 (밀리초, 0이면 무기한)
      * @private
      */
     _showAlert: function (message, type, duration) {
-      // 기존 알림 컨테이너 확인 또는 생성
-      let container = document.getElementById('alert-container');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'alert-container';
-        // 화면 우측 상단에 고정시키는 스타일 적용
-        container.style.position = 'fixed';
-        container.style.top = '20px';
-        container.style.right = '20px';
-        container.style.zIndex = '1050'; // 다른 요소 위에 표시
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.gap = '10px'; // 알림 간 간격
-        document.body.appendChild(container);
+      // 이미 존재하는 알림 컨테이너 찾기 또는 생성
+      let alertContainer = document.getElementById("custom-alert-container");
+
+      if (!alertContainer) {
+        alertContainer = document.createElement("div");
+        alertContainer.id = "custom-alert-container";
+        alertContainer.style.position = "fixed";
+        alertContainer.style.top = "20px";
+        alertContainer.style.right = "20px";
+        alertContainer.style.zIndex = "1999";
+        alertContainer.style.maxWidth = "400px";
+        alertContainer.style.display = "flex";
+        alertContainer.style.flexDirection = "column";
+        alertContainer.style.gap = "10px";
+        document.body.appendChild(alertContainer);
       }
 
-      // 알림 요소 생성 (간단한 스타일 적용)
-      const alert = document.createElement('div');
-      alert.className = `simple-alert alert-${type}`;
-      alert.style.padding = '15px';
-      alert.style.borderRadius = '5px';
-      alert.style.color = 'white';
-      alert.style.minWidth = '250px';
-      alert.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-      alert.style.display = 'flex';
-      alert.style.alignItems = 'center';
-      alert.style.gap = '10px';
+      // 알림 ID 생성
+      const alertId = "alert-" + Date.now();
 
-      // 타입별 배경색 및 아이콘 설정
-      let backgroundColor = '#0d6efd'; // 기본 (info)
-      let iconClass = 'fa-info-circle';
+      // 알림 요소 생성
+      const alertElement = document.createElement("div");
+      alertElement.id = alertId;
+      alertElement.style.backgroundColor = "white";
+      alertElement.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
+      alertElement.style.borderRadius = "4px";
+      alertElement.style.padding = "15px";
+      alertElement.style.marginBottom = "10px";
+      alertElement.style.display = "flex";
+      alertElement.style.alignItems = "flex-start";
+      alertElement.style.opacity = "0";
+      alertElement.style.transition = "opacity 0.3s ease-in-out";
+
+      // 타입별 테두리 색상과 아이콘 설정
+      let iconClass, borderColor, iconColor;
+
       switch (type) {
-        case 'success':
-          backgroundColor = '#198754'; // Bootstrap success green
-          iconClass = 'fa-check-circle';
+        case "success":
+          iconClass = "fa-solid fa-check-circle";
+          borderColor = "#4CAF50";
+          iconColor = "#4CAF50";
           break;
-        case 'error':
-          backgroundColor = '#dc3545'; // Bootstrap danger red
-          iconClass = 'fa-exclamation-circle';
+        case "error":
+          iconClass = "fa-solid fa-exclamation-circle";
+          borderColor = "#F44336";
+          iconColor = "#F44336";
           break;
-        case 'warning':
-          backgroundColor = '#ffc107'; // Bootstrap warning yellow
-          iconClass = 'fa-exclamation-triangle';
-          alert.style.color = '#333'; // 경고는 어두운 글씨
+        case "warning":
+          iconClass = "fa-solid fa-exclamation-triangle";
+          borderColor = "#FF9800";
+          iconColor = "#FF9800";
+          break;
+        case "info":
+        default:
+          iconClass = "fa-solid fa-info-circle";
+          borderColor = "#2196F3";
+          iconColor = "#2196F3";
           break;
       }
-      alert.style.backgroundColor = backgroundColor;
 
-      // 아이콘 및 메시지 내용 추가
-      alert.innerHTML = `<i class="fa-solid ${iconClass}"></i><span>${message}</span>`;
+      // 락 관련 메시지인 경우 아이콘 변경
+      if (
+        message.includes("편집 중입니다") ||
+        message.includes("님이 현재 편집 중")
+      ) {
+        iconClass = "fa-solid fa-lock";
+      }
 
-      // 닫기 버튼 추가 (수동 닫기 가능하도록)
-      const closeBtn = document.createElement('button');
-      closeBtn.innerHTML = '&times;'; // 'x' 문자
-      closeBtn.style.marginLeft = 'auto'; // 오른쪽 정렬
-      closeBtn.style.background = 'none';
-      closeBtn.style.border = 'none';
-      closeBtn.style.color = 'inherit'; // 부모 요소(alert)의 글자색 상속
-      closeBtn.style.fontSize = '1.2em';
-      closeBtn.style.cursor = 'pointer';
-      closeBtn.style.lineHeight = '1';
-      closeBtn.style.padding = '0 5px';
+      alertElement.style.borderLeft = `4px solid ${borderColor}`;
 
-      closeBtn.addEventListener('click', function () {
-        alert.remove();
-        // 컨테이너가 비면 컨테이너도 제거 (선택적)
-        if (container.children.length === 0) {
-          // container.remove();
-        }
+      // 아이콘 요소
+      const iconElement = document.createElement("i");
+      iconElement.className = iconClass;
+      iconElement.style.marginRight = "10px";
+      iconElement.style.color = iconColor;
+      iconElement.style.fontSize = "18px";
+
+      // 메시지 텍스트 요소
+      const messageElement = document.createElement("div");
+      messageElement.style.flex = "1";
+      messageElement.style.paddingRight = "10px";
+      messageElement.textContent = message;
+
+      // 닫기 버튼 요소
+      const closeButton = document.createElement("button");
+      closeButton.innerHTML = "&times;";
+      closeButton.style.background = "none";
+      closeButton.style.border = "none";
+      closeButton.style.cursor = "pointer";
+      closeButton.style.fontSize = "16px";
+      closeButton.style.fontWeight = "bold";
+      closeButton.style.color = "#888";
+      closeButton.style.padding = "0 5px";
+
+      closeButton.addEventListener("click", function () {
+        Utils.alerts._removeAlert(alertId);
       });
-      alert.appendChild(closeBtn);
 
-      // 알림 컨테이너에 추가 (새 알림이 위로 가도록 prepend 사용)
-      container.prepend(alert);
+      // 요소들 조립
+      alertElement.appendChild(iconElement);
+      alertElement.appendChild(messageElement);
+      alertElement.appendChild(closeButton);
+      alertContainer.appendChild(alertElement);
 
-      // 자동 제거 타이머 설정 (duration이 0보다 큰 경우)
+      // 애니메이션 효과로 표시
+      setTimeout(() => {
+        alertElement.style.opacity = "1";
+      }, 10);
+
+      // 지정된 시간 후 자동 제거 (duration이 0보다 큰 경우)
       if (duration > 0) {
         setTimeout(() => {
-          // 요소가 여전히 존재하는지 확인 후 제거
-          if (alert && alert.parentNode === container) {
-            alert.remove();
-            // 컨테이너가 비면 컨테이너도 제거 (선택적)
-            if (container.children.length === 0) {
-              // container.remove();
-            }
-          }
+          Utils.alerts._removeAlert(alertId);
         }, duration);
+      }
+    },
+
+    /**
+     * 알림 요소 제거
+     * @param {string} alertId - 제거할 알림의 ID
+     * @private
+     */
+    _removeAlert: function (alertId) {
+      const alertElement = document.getElementById(alertId);
+      if (alertElement) {
+        // 페이드 아웃 효과
+        alertElement.style.opacity = "0";
+
+        // 애니메이션 완료 후 요소 제거
+        setTimeout(() => {
+          if (alertElement.parentNode) {
+            alertElement.parentNode.removeChild(alertElement);
+          }
+
+          // 컨테이너에 알림이 없으면 컨테이너도 제거
+          const alertContainer = document.getElementById(
+            "custom-alert-container"
+          );
+          if (alertContainer && alertContainer.children.length === 0) {
+            alertContainer.parentNode.removeChild(alertContainer);
+          }
+        }, 300);
       }
     },
   },
@@ -245,7 +376,7 @@ const Utils = {
       if (!form) return;
 
       // 폼 내 모든 입력 요소 찾기
-      const inputs = form.querySelectorAll('input, select, textarea, button');
+      const inputs = form.querySelectorAll("input, select, textarea, button");
 
       // 비활성화 상태 설정
       inputs.forEach((input) => {
@@ -274,7 +405,7 @@ const Utils = {
       if (!form) return false;
 
       // required 속성이 있는 모든 필드 검색
-      const requiredFields = form.querySelectorAll('[required]');
+      const requiredFields = form.querySelectorAll("[required]");
       let isValid = true;
 
       // 각 필수 필드 검증
@@ -282,17 +413,17 @@ const Utils = {
         if (!field.value.trim()) {
           isValid = false;
           // 오류 스타일 적용
-          field.classList.add('input-error');
+          field.classList.add("input-error");
 
           // 오류 메시지 표시 (필드 아래)
-          const fieldName = field.getAttribute('data-name') || field.name;
-          const errorSpan = document.createElement('span');
-          errorSpan.className = 'error-message';
+          const fieldName = field.getAttribute("data-name") || field.name;
+          const errorSpan = document.createElement("span");
+          errorSpan.className = "error-message";
           errorSpan.textContent = `${fieldName}을(를) 입력해주세요.`;
 
           // 기존 오류 메시지 제거
           const existingError =
-            field.parentNode.querySelector('.error-message');
+            field.parentNode.querySelector(".error-message");
           if (existingError) {
             existingError.remove();
           }
@@ -302,11 +433,11 @@ const Utils = {
 
           // 입력 시 오류 스타일 제거
           field.addEventListener(
-            'input',
+            "input",
             function () {
               if (field.value.trim()) {
-                field.classList.remove('input-error');
-                const error = field.parentNode.querySelector('.error-message');
+                field.classList.remove("input-error");
+                const error = field.parentNode.querySelector(".error-message");
                 if (error) error.remove();
               }
             },
@@ -331,7 +462,7 @@ const Utils = {
      */
     get: async function (url, options = {}) {
       return Utils.api._request(url, {
-        method: 'GET',
+        method: "GET",
         ...options,
       });
     },
@@ -345,9 +476,9 @@ const Utils = {
      */
     post: async function (url, data, options = {}) {
       return Utils.api._request(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(options.headers || {}),
         },
         body: JSON.stringify(data),
@@ -363,7 +494,7 @@ const Utils = {
       try {
         const response = await fetch(url, {
           ...options,
-          credentials: 'include',
+          credentials: "include",
         });
 
         // 세션 만료 체크 (401 상태 코드)
@@ -381,9 +512,9 @@ const Utils = {
         return await response.json();
       } catch (error) {
         Utils.alerts.showError(
-          '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
+          "네트워크 오류가 발생했습니다. 다시 시도해주세요."
         );
-        console.error('API 요청 오류:', error);
+        console.error("API 요청 오류:", error);
         return null;
       }
     },
@@ -393,7 +524,7 @@ const Utils = {
      * @private
      */
     _handleSessionExpired: function () {
-      Utils.alerts.showError('세션이 만료되었습니다. 다시 로그인해주세요.');
+      Utils.alerts.showError("세션이 만료되었습니다. 다시 로그인해주세요.");
 
       // 현재 URL을 저장하여 로그인 후 돌아올 수 있도록 함
       const returnUrl = encodeURIComponent(window.location.pathname);
@@ -409,7 +540,7 @@ const Utils = {
      * @private
      */
     _handleErrorResponse: async function (response) {
-      let errorMessage = '요청 처리 중 오류가 발생했습니다.';
+      let errorMessage = "요청 처리 중 오류가 발생했습니다.";
 
       try {
         const errorData = await response.json();
@@ -421,7 +552,7 @@ const Utils = {
         return errorData;
       } catch (parseError) {
         Utils.alerts.showError(errorMessage);
-        console.error('오류 응답 파싱 실패:', parseError);
+        console.error("오류 응답 파싱 실패:", parseError);
         return null;
       }
     },
@@ -447,7 +578,7 @@ const Utils = {
      */
     isAdmin: function () {
       const user = Utils.auth.getCurrentUser();
-      return user && user.user_role === 'ADMIN';
+      return user && user.user_role === "ADMIN";
     },
 
     /**
@@ -467,7 +598,7 @@ const Utils = {
     setCurrentUser: function (user) {
       window._currentUser = user;
       // 사용자 정보가 변경되었을 때 UI 업데이트 등의 추가 로직을 여기에 구현할 수 있습니다.
-      console.log('사용자 정보 업데이트:', user);
+      console.log("사용자 정보 업데이트:", user);
     },
 
     /**
@@ -475,9 +606,9 @@ const Utils = {
      * 사용자 정보를 삭제하고 서버 로그아웃 처리
      */
     logout: function () {
-      console.log('로그아웃 요청');
+      console.log("로그아웃 요청");
       // 서버 로그아웃 요청
-      window.location.href = '/logout';
+      window.location.href = "/logout";
     },
 
     /**
@@ -492,14 +623,14 @@ const Utils = {
       if (!hasPermission) {
         console.warn(
           `권한 부족: 필요한 권한 ${requiredRole}, 현재 역할: ${
-            user ? user.user_role : '인증되지 않음'
+            user ? user.user_role : "인증되지 않음"
           }`
         );
-        Utils.alerts.showError('이 페이지에 접근할 권한이 없습니다.');
+        Utils.alerts.showError("이 페이지에 접근할 권한이 없습니다.");
 
         // 3초 후 대시보드로 리다이렉트
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          window.location.href = "/dashboard";
         }, 3000);
       }
 
@@ -515,11 +646,11 @@ const Utils = {
      * 로딩 오버레이 표시
      */
     showLoading: function () {
-      const overlay = document.getElementById('loadingOverlay');
+      const overlay = document.getElementById("loadingOverlay");
       if (overlay) {
-        overlay.classList.add('active');
+        overlay.classList.add("active");
       } else {
-        console.warn('Loading overlay element not found.');
+        console.warn("Loading overlay element not found.");
       }
     },
 
@@ -527,9 +658,9 @@ const Utils = {
      * 로딩 오버레이 숨김
      */
     hideLoading: function () {
-      const overlay = document.getElementById('loadingOverlay');
+      const overlay = document.getElementById("loadingOverlay");
       if (overlay) {
-        overlay.classList.remove('active');
+        overlay.classList.remove("active");
       }
     },
   },
