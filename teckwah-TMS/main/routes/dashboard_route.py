@@ -2,7 +2,7 @@
 대시보드(주문) 관련 라우터 - 리팩토링 버전
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, Tuple
 from datetime import datetime, date
 from decimal import Decimal
 import json
@@ -20,6 +20,7 @@ from fastapi import (
     Path,
     status,
     Form,
+    Body,
 )
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -46,7 +47,6 @@ from main.service.dashboard_service import (
     change_status,
     assign_driver,
     delete_dashboard,
-    get_lock_status,
     get_dashboard_list_paginated,
     get_dashboard_response_data,
     get_dashboard_list_item_data,
@@ -69,6 +69,80 @@ logger = logging.getLogger(__name__)
 # 라우터 생성
 api_router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 page_router = APIRouter(dependencies=[Depends(get_current_user)])
+
+
+# === 유틸리티 함수 ===
+def handle_redirect_error(
+    error: Union[Exception, str],
+    redirect_url: str,
+    status_code: int = status.HTTP_303_SEE_OTHER,
+) -> RedirectResponse:
+    """오류를 처리하고 리다이렉션 응답을 생성하는 헬퍼 함수"""
+    if isinstance(error, Exception):
+        error_message = getattr(error, "detail", str(error))
+    else:
+        error_message = error
+
+    # 메시지 인코딩 및 리다이렉션
+    encoded_message = quote(error_message)
+    return RedirectResponse(
+        f"{redirect_url}?error={encoded_message}", status_code=status_code
+    )
+
+
+def handle_redirect_success(
+    message: str, redirect_url: str, status_code: int = status.HTTP_303_SEE_OTHER
+) -> RedirectResponse:
+    """성공 메시지를 처리하고 리다이렉션 응답을 생성하는 헬퍼 함수"""
+    encoded_message = quote(message)
+    return RedirectResponse(
+        f"{redirect_url}?success={encoded_message}", status_code=status_code
+    )
+
+
+def try_lock_operation(
+    db: Session, operation_func, table_name: str, row_id: int, user_id: str, **kwargs
+) -> Tuple[bool, Dict[str, Any]]:
+    """
+    락 획득 및 작업 수행을 시도하는 헬퍼 함수
+
+    Args:
+        db: 데이터베이스 세션
+        operation_func: 수행할 작업 함수 (락 보유 상태에서 호출됨)
+        table_name: 락을 획득할 테이블 이름
+        row_id: 락을 획득할 행 ID
+        user_id: 락을 획득하려는 사용자 ID
+        **kwargs: 작업 함수에 전달할 추가 인자
+
+    Returns:
+        Tuple[bool, Dict]: (성공 여부, 결과 또는 오류 메시지)
+    """
+    lock_acquired = False
+    try:
+        # 락 획득 시도
+        lock_acquired, lock_info = acquire_lock(db, table_name, row_id, user_id)
+        if not lock_acquired:
+            return False, {
+                "success": False,
+                "message": lock_info.get("message", "락 획득 실패"),
+                "status_code": status.HTTP_423_LOCKED,
+            }
+
+        # 작업 수행
+        result = operation_func(db=db, row_id=row_id, user_id=user_id, **kwargs)
+        return True, {"success": True, "data": result}
+
+    except Exception as e:
+        logger.error(f"작업 수행 중 오류: {str(e)}", exc_info=True)
+        return False, {"success": False, "message": str(e)}
+
+    finally:
+        # 락 해제 시도
+        if lock_acquired:
+            try:
+                release_lock(db, table_name, row_id, user_id)
+            except Exception as e:
+                logger.error(f"락 해제 중 오류: {str(e)}", exc_info=True)
 
 
 # === 페이지 렌더링 라우트 ===
@@ -211,9 +285,16 @@ async def check_order_lock_api(
         f"주문 락 상태 확인 API 요청: id={dashboard_id}, user={current_user.get('user_id')}"
     )
     try:
-        return get_lock_status(
-            db=db, dashboard_id=dashboard_id, user_id=current_user.get("user_id")
+        # 서비스의 get_lock_status 대신 utils의 check_lock_status 직접 사용
+        lock_info = check_lock_status(
+            db=db,
+            table_name="dashboard",
+            row_id=dashboard_id,
+            user_id=current_user.get("user_id"),
         )
+        # check_lock_status 반환값이 LockStatusResponse 스키마와 호환되는지 확인 필요
+        # 현재 check_lock_status는 필요한 필드를 포함한 dict를 반환하므로 스키마에 맞게 변환 불필요
+        return lock_info
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
@@ -268,35 +349,29 @@ async def order_detail_page(
         if not order:
             raise HTTPException(status_code=404, detail="주문을 찾을 수 없습니다.")
 
-        # 락 상태 확인 (check_lock_status 사용)
+        # 락 상태 확인 - 단순 확인만 수행 (락 획득/해제 없음)
         lock_status = check_lock_status(
             db, "dashboard", dashboard_id, current_user.get("user_id")
         )
-        # is_editable은 get_dashboard_response_data 내부에서 처리하도록 변경 고려?
-        # 일단 여기서는 editable 정보를 사용하지 않음.
-        order_data = get_dashboard_response_data(
-            order
-        )  # editable 파라미터 제거 또는 수정
 
-        # 추가 디버깅 로그: order_data의 내용 확인
-        logger.info(f"주문 상세 데이터 키: {list(order_data.keys())}")
-        logger.info(
-            f"주문 상세 데이터 샘플: dashboard_id={order_data.get('dashboard_id')}, order_no={order_data.get('order_no')}"
-        )
+        # 주문 데이터를 응답용 형식으로 변환
+        order_data = get_dashboard_response_data(order)
 
-        # 설명서에 따라 Form(PRG) 방식 적용 - 템플릿에 직접 객체 전달
+        # 상세페이지에 필요한 메시지 파라미터 추출
+        error_message = request.query_params.get("error")
+        success_message = request.query_params.get("success")
+
         context = {
             "request": request,
             "current_user": current_user,
-            "order": order_data,  # snake_case 키를 가진 데이터
+            "order": order_data,
             "lock_status": lock_status,
-            "error_message": request.query_params.get("error"),
-            "success_message": request.query_params.get("success"),
+            "error_message": error_message,
+            "success_message": success_message,
         }
         return templates.TemplateResponse("order_page.html", context)
 
     except HTTPException as http_exc:
-        # 404 등 예상된 오류 처리
         logger.warning(
             f"주문 상세 로드 중 오류: {http_exc.status_code}, {http_exc.detail}"
         )
@@ -329,7 +404,6 @@ async def order_edit_page(
 
     # 상세 페이지 URL (리다이렉트용)
     detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
-    lock_held = False  # 락 해제를 위한 플래그
 
     try:
         # 주문 정보 로드 (락 전에 수행)
@@ -352,16 +426,12 @@ async def order_edit_page(
                 f"{detail_url}?error={error_message}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
-        lock_held = True  # 락 획득 성공
 
         # 락 획득 성공 시 수정 페이지 렌더링
         logger.info(f"주문 수정 페이지 락 획득 성공: id={dashboard_id}, user={user_id}")
 
-        # 주문 데이터 가져오기 (락 획득 후)
-        # dashboard = get_dashboard_by_id(db, dashboard_id) # 이미 위에서 로드함
-        dashboard_dict = dashboard_to_dict(
-            dashboard
-        )  # dashboard_to_dict 헬퍼 함수가 있다고 가정
+        # 주문 데이터 가져오기 (get_dashboard_response_data 함수 사용)
+        dashboard_dict = get_dashboard_response_data(dashboard)
 
         # ETA 날짜 포맷 변환 (HTML 입력용)
         if "eta" in dashboard_dict and dashboard_dict["eta"]:
@@ -379,27 +449,21 @@ async def order_edit_page(
             "is_edit": True,
         }
 
+        # 락을 해제하지 않고 유지 - 실제 수정 API 호출 시 락 관리
         return templates.TemplateResponse("order_form.html", context)
 
     except Exception as e:
         logger.error(f"주문 수정 페이지 로드 중 오류: {str(e)}", exc_info=True)
         error_message = quote("페이지 로드 중 오류가 발생했습니다.")
+        try:
+            # 예외 발생 시 락 해제 시도
+            release_lock(db, "dashboard", dashboard_id, user_id)
+        except Exception as release_err:
+            logger.error(f"락 해제 중 추가 오류: {release_err}", exc_info=True)
         return RedirectResponse(
             f"{detail_url}?error={error_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
-    finally:
-        # 페이지 로드 중 예외 발생 시에도 락 해제 시도
-        if lock_held:
-            try:
-                release_lock(db, "dashboard", dashboard_id, user_id)
-                logger.info(
-                    f"주문 수정 페이지 로드 완료/오류 후 락 해제: id={dashboard_id}"
-                )
-            except Exception as release_err:
-                logger.error(
-                    f"주문 수정 페이지 락 해제 중 오류: {release_err}", exc_info=True
-                )
 
 
 # --- 주문 수정 처리 API --- (Form 데이터 처리 및 서비스 호출)
@@ -433,7 +497,6 @@ async def update_order_action(
     detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
     edit_url = request.url_for("order_edit_page", dashboard_id=dashboard_id)
 
-    # 락 점검 및 관리는 서비스 레이어(update_dashboard)에서 처리
     try:
         # ETA 파싱
         try:
@@ -444,8 +507,7 @@ async def update_order_action(
                 detail="ETA 형식이 잘못되었습니다 (YYYY-MM-DD HH:MM 또는 YYYY-MM-DDTHH:MM)",
             )
 
-        # 서비스에 전달할 데이터 dict 생성
-        # DashboardUpdate 스키마 대신 직접 dict 생성
+        # 업데이트 데이터 준비
         update_data = {
             "type": type,
             "department": department,
@@ -461,32 +523,42 @@ async def update_order_action(
             "driver_name": driver_name,
             "driver_contact": driver_contact,
         }
-        # None 값 필터링 (선택 사항, 서비스에서 처리 가능하면 제거)
+        # None 값 필터링
         update_data = {k: v for k, v in update_data.items() if v is not None}
 
-        # update_dashboard 서비스 호출 (락 관리 및 시간 업데이트 포함)
+        # update_dashboard 서비스 호출 (락 확인, 데이터 업데이트, 락 해제까지 수행)
         updated_dashboard = update_dashboard(
             db=db, dashboard_id=dashboard_id, data=update_data, user_id=user_id
         )
-        success_message = quote("주문 정보가 성공적으로 수정되었습니다.")
 
-        # 성공 시 상세 페이지로 리다이렉트
+        # 락은 update_dashboard 서비스에서 확인하고 관리함
+        success_message = quote("주문 정보가 성공적으로 수정되었습니다.")
         return RedirectResponse(
             f"{detail_url}?success={success_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
     except HTTPException as http_exc:
-        # 서비스 레벨에서 발생한 오류 (락 실패, 유효성 검사 등)
+        # 서비스에서 발생한 예외 (락 실패, 유효성 검사 등)
         logger.warning(
             f"주문 수정 실패 (HTTPException): id={dashboard_id}, {http_exc.detail}"
         )
-        error_message = quote(http_exc.detail)
-        return RedirectResponse(
-            f"{edit_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
-        )
+
+        # 락 오류(423)인 경우는 상세 페이지로, 그 외에는 편집 페이지로 리다이렉트
+        if http_exc.status_code == status.HTTP_423_LOCKED:
+            error_message = quote(http_exc.detail)
+            return RedirectResponse(
+                f"{detail_url}?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        else:
+            error_message = quote(http_exc.detail)
+            return RedirectResponse(
+                f"{edit_url}?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
     except Exception as e:
-        # 예상치 못한 서버 오류
+        # 기타 예외
         logger.error(f"주문 수정 API 처리 중 예외 발생: {e}", exc_info=True)
         error_message = quote("주문 수정 중 서버 오류가 발생했습니다.")
         return RedirectResponse(
@@ -510,19 +582,22 @@ async def delete_order_action(
     detail_url = request.url_for("order_detail_page", dashboard_id=dashboard_id)
     dashboard_url = request.url_for("dashboard_page")
 
-    # 락 점검 및 관리는 서비스 레이어(delete_dashboard)에서 처리
     try:
+        # 서비스 함수 호출 - 내부에서 락 획득/확인 및 권한 체크, 삭제 후 락 해제
         result_list = delete_dashboard(
             db=db, dashboard_ids=[dashboard_id], user_id=user_id, user_role=user_role
         )
 
+        # 결과 확인 및 리다이렉트
         if result_list and result_list[0].get("success"):
+            # 성공 시 대시보드로 리다이렉트
             success_message = quote("주문이 성공적으로 삭제되었습니다.")
             return RedirectResponse(
                 f"{dashboard_url}?success={success_message}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         else:
+            # 서비스에서 실패 메시지를 반환한 경우
             error_message = (
                 result_list[0].get("message", "삭제 실패")
                 if result_list
@@ -534,8 +609,17 @@ async def delete_order_action(
         logger.warning(
             f"주문 삭제 실패 (HTTPException): id={dashboard_id}, {http_exc.detail}"
         )
+
+        # 락 오류(423)인 경우 특별 처리
+        if http_exc.status_code == status.HTTP_423_LOCKED:
+            error_message = quote(http_exc.detail)
+            return RedirectResponse(
+                f"{detail_url}?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+        # 기타 HTTP 오류
         error_message = quote(http_exc.detail)
-        # 실패 시 상세 페이지로 리다이렉트
         return RedirectResponse(
             f"{detail_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
@@ -547,7 +631,7 @@ async def delete_order_action(
         )
 
 
-# --- 주문 생성 API --- (새로 추가)
+# --- 주문 생성 API ---
 @api_router.post("/orders", status_code=status.HTTP_302_FOUND)
 @db_transaction
 async def create_order_action(
@@ -585,7 +669,7 @@ async def create_order_action(
                 detail="ETA 형식이 잘못되었습니다 (YYYY-MM-DD HH:MM 또는 YYYY-MM-DDTHH:MM)",
             )
 
-        # 서비스에 전달할 데이터 dict 생성
+        # 생성 데이터 준비
         create_data = {
             "type": type,
             "department": department,
@@ -608,23 +692,22 @@ async def create_order_action(
         create_data_obj = DashboardCreate(**create_data)
         new_dashboard = create_dashboard(db=db, data=create_data_obj, user_id=user_id)
 
-        success_message = quote("새 주문이 성공적으로 생성되었습니다.")
-
         # 성공 시 새 주문 상세 페이지로 리다이렉트
+        success_message = quote("새 주문이 성공적으로 생성되었습니다.")
         return RedirectResponse(
             f"/orders/{new_dashboard.dashboard_id}?success={success_message}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
     except HTTPException as http_exc:
-        # 서비스 레벨에서 발생한 오류 (유효성 검사 등)
+        # HTTP 예외 처리
         logger.warning(f"주문 생성 실패 (HTTPException): {http_exc.detail}")
         error_message = quote(http_exc.detail)
         return RedirectResponse(
             f"{create_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
         )
     except Exception as e:
-        # 예상치 못한 서버 오류
+        # 기타 예외
         logger.error(f"주문 생성 API 처리 중 예외 발생: {e}", exc_info=True)
         error_message = quote("주문 생성 중 서버 오류가 발생했습니다.")
         return RedirectResponse(

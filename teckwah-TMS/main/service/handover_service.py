@@ -103,6 +103,8 @@ def create_handover(
             update_by=writer_id,
             update_at=now,
             is_locked=False,
+            locked_by=None,  # 새 필드 초기화
+            locked_at=None,  # 새 필드 초기화
         )
         db.add(handover)
         db.flush()  # ID 등 생성 값 확인
@@ -117,81 +119,136 @@ def create_handover(
 def update_handover(
     db: Session,
     handover_id: int,
-    title: str,
-    content: str,
-    is_notice: bool,
+    update_data: Dict[str, Any],  # 수정할 데이터 딕셔너리
     updated_by: str,
+    user_role: str,  # 권한 확인용
 ) -> Handover:
-    """인수인계 수정"""
-    # 락 처리는 라우터 또는 별도 미들웨어에서 수행 가정
+    """인수인계 수정 (락 점검 및 권한 확인 포함)"""
+    lock_held = False
     try:
+        # 1. 락 상태 확인
+        lock_status = check_common_lock_status(db, "handover", handover_id, updated_by)
+        if not lock_status.get("success") or not lock_status.get("editable"):
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=lock_status.get(
+                    "message", "다른 사용자가 편집 중이거나 락 오류"
+                ),
+            )
+        lock_held = True
+
         handover = get_handover_by_id(db, handover_id)
         if not handover:
             raise HTTPException(
-                status_code=404, detail="수정할 인수인계를 찾을 수 없습니다."
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="수정할 인수인계를 찾을 수 없습니다.",
             )
 
-        # 변경된 필드만 업데이트 (더 효율적인 방법)
-        update_data = {
-            "title": title,
-            "content": content,
-            "is_notice": is_notice,
-            "update_at": datetime.now(),
-            "update_by": updated_by,
-            "is_locked": False,  # 수정 완료 후 락 해제 (락 처리 로직 위치에 따라 조정)
-        }
+        # 2. 수정 권한 확인 (작성자 또는 ADMIN)
+        if handover.create_by != updated_by and user_role != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="이 인수인계를 수정할 권한이 없습니다.",
+            )
+
+        # 3. 공지사항 변경 권한 확인 (ADMIN만 가능)
+        is_notice_new = update_data.get("is_notice")
+        if (
+            is_notice_new is not None
+            and is_notice_new != handover.is_notice
+            and user_role != "ADMIN"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="관리자만 공지사항 여부를 변경할 수 있습니다.",
+            )
+
+        # 4. 필드 업데이트 적용
         for key, value in update_data.items():
             setattr(handover, key, value)
+
+        # 공통 업데이트 정보
+        handover.update_at = datetime.now()
+        handover.update_by = updated_by
 
         db.flush()  # 변경사항 반영
         logger.info(f"인수인계 수정 완료 (커밋 전): ID {handover.handover_id}")
         return handover
+
     except HTTPException as http_exc:
-        # db.rollback() # 트랜잭션은 데코레이터에서 처리
         raise http_exc
     except Exception as e:
-        # db.rollback()
         logger.error(f"인수인계 수정 오류: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="인수인계 수정 중 오류 발생")
+    finally:
+        # 락을 소유하고 시작했다면 작업 완료 후 해제 시도
+        if lock_held:
+            try:
+                from main.utils.lock import (
+                    release_lock,
+                )  # 순환 참조 피하기 위해 함수 내 임포트
+
+                release_lock(db, "handover", handover_id, updated_by)
+                logger.info(f"인수인계 수정 완료 후 락 해제: ID {handover_id}")
+            except Exception as lock_release_err:
+                logger.error(f"인수인계 수정 후 락 해제 실패: {lock_release_err}")
 
 
-def delete_handover(db: Session, handover_id: int, user_id: str) -> bool:
-    """인수인계 삭제"""
-    # 락 처리 및 권한 확인은 라우터 또는 별도 미들웨어에서 수행 가정
+def delete_handover(
+    db: Session, handover_id: int, user_id: str, user_role: str
+) -> bool:
+    """인수인계 삭제 (락 점검 및 권한 확인 포함)"""
+    lock_held = False
     try:
+        # 1. 락 상태 확인
+        lock_status = check_common_lock_status(db, "handover", handover_id, user_id)
+        if not lock_status.get("success") or not lock_status.get("editable"):
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=lock_status.get(
+                    "message", "다른 사용자가 편집 중이거나 락 오류"
+                ),
+            )
+        lock_held = True
+
         handover = get_handover_by_id(db, handover_id)
         if not handover:
-            return False  # 또는 404 예외 발생
+            # 락 확인 후 객체가 사라진 경우 (매우 드묾)
+            logger.warning(f"삭제할 인수인계({handover_id}) 찾을 수 없음 (락 확인 후)")
+            # 실패로 처리하거나, 이미 삭제된 것으로 간주하고 성공 처리 가능
+            return False  # 실패로 처리
+
+        # 2. 삭제 권한 확인 (작성자 또는 ADMIN)
+        if handover.create_by != user_id and user_role != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="이 인수인계를 삭제할 권한이 없습니다.",
+            )
 
         db.delete(handover)
         db.flush()
         logger.info(f"인수인계 삭제 완료 (커밋 전): ID {handover_id}")
         return True
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
-        # db.rollback()
         logger.error(f"인수인계 삭제 오류: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="인수인계 삭제 중 오류 발생")
+    finally:
+        # 락을 소유하고 시작했다면 작업 완료 후 해제 시도
+        if lock_held:
+            try:
+                from main.utils.lock import (
+                    release_lock,
+                )  # 순환 참조 피하기 위해 함수 내 임포트
+
+                release_lock(db, "handover", handover_id, user_id)
+                logger.info(f"인수인계 삭제 완료 후 락 해제 시도: ID {handover_id}")
+            except Exception as lock_release_err:
+                logger.warning(
+                    f"삭제된 인수인계 락 해제 실패 (예상 가능): {lock_release_err}"
+                )
 
 
-def check_handover_lock_status(
-    db: Session, handover_id: int, user_id: str
-) -> Dict[str, Any]:
-    """인수인계 락 상태 확인"""
-    logger.info(f"인수인계 락 상태 확인: id={handover_id}, user={user_id}")
-    try:
-        return check_common_lock_status(db, "handover", handover_id, user_id)
-    except Exception as e:
-        logger.error(f"인수인계 락 상태 확인 중 오류: {e}", exc_info=True)
-        # 실패 시 기본 응답 반환
-        return {
-            "editable": False,
-            "message": "락 상태 확인 중 오류가 발생했습니다",
-            "locked_by": None,
-            "locked_at": None,
-        }
-
-
-# 이전 라우터 호환성을 위한 함수 (제거 예정 또는 유지)
-# check_lock_status 함수는 이제 사용되지 않음
-# def check_lock_status(db: Session, handover_id: int, user_id: str) -> Dict[str, Any]:
-#    return check_handover_lock_status(db, handover_id, user_id)
+# check_handover_lock_status 함수 제거 (common 사용)
+# 이전 라우터 호환성을 위한 함수 제거

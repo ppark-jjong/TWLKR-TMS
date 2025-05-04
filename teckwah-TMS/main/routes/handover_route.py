@@ -2,7 +2,7 @@
 인수인계 관련 라우터 - 리팩토링 버전
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, Tuple
 from datetime import datetime
 from urllib.parse import quote
 from fastapi import (
@@ -34,7 +34,6 @@ from main.service.handover_service import (
     create_handover,
     update_handover,
     delete_handover,
-    check_handover_lock_status,  # 이름 변경됨
     _handover_to_dict,  # 내부 변환 함수 임포트
 )
 from main.utils.json_util import CustomJSONEncoder
@@ -47,6 +46,36 @@ logger = logging.getLogger(__name__)
 # 라우터 생성 (페이지 / API 분리)
 page_router = APIRouter(prefix="/handover", dependencies=[Depends(get_current_user)])
 api_router = APIRouter(prefix="/api/handover", dependencies=[Depends(get_current_user)])
+
+
+# === 유틸리티 함수 ===
+def handle_redirect_error(
+    error: Union[Exception, str],
+    redirect_url: str,
+    status_code: int = status.HTTP_303_SEE_OTHER,
+) -> RedirectResponse:
+    """오류를 처리하고 리다이렉션 응답을 생성하는 헬퍼 함수"""
+    if isinstance(error, Exception):
+        error_message = getattr(error, "detail", str(error))
+    else:
+        error_message = error
+
+    # 메시지 인코딩 및 리다이렉션
+    encoded_message = quote(error_message)
+    return RedirectResponse(
+        f"{redirect_url}?error={encoded_message}", status_code=status_code
+    )
+
+
+def handle_redirect_success(
+    message: str, redirect_url: str, status_code: int = status.HTTP_303_SEE_OTHER
+) -> RedirectResponse:
+    """성공 메시지를 처리하고 리다이렉션 응답을 생성하는 헬퍼 함수"""
+    encoded_message = quote(message)
+    return RedirectResponse(
+        f"{redirect_url}?success={encoded_message}", status_code=status_code
+    )
+
 
 # === 페이지 렌더링 라우트 ===
 
@@ -114,9 +143,10 @@ async def get_handover_detail_page(
         if not handover_model:
             raise HTTPException(status_code=404, detail="인수인계를 찾을 수 없습니다.")
 
-        handover_data = _handover_to_dict(handover_model)  # 모델 -> 딕셔너리 변환
-        lock_info = check_handover_lock_status(
-            db, handover_id, current_user.get("user_id")
+        handover_data = _handover_to_dict(handover_model)
+        # 락 상태 확인 (utils에서 가져온 check_lock_status 사용)
+        lock_info = check_lock_status(
+            db, "handover", handover_id, current_user.get("user_id")
         )
 
         # 라벨 정보 추가
@@ -154,7 +184,7 @@ async def get_handover_detail_page(
 
 
 @page_router.get("/{handover_id}/edit", name="handover_edit_page")
-@db_transaction  # DB 조회 필요
+@db_transaction  # 락 획득/해제 위해 트랜잭션 필요
 async def handover_edit_page(
     request: Request,
     handover_id: int = Path(..., ge=1),
@@ -166,7 +196,7 @@ async def handover_edit_page(
     detail_url = request.url_for("handover_detail_page", handover_id=handover_id)
 
     try:
-        # 인수인계 정보 로드
+        # 인수인계 정보 로드 (락 전에 수행)
         handover_model = get_handover_by_id(db, handover_id)
         if not handover_model:
             error_message = quote("수정할 인수인계를 찾을 수 없습니다.")
@@ -175,10 +205,9 @@ async def handover_edit_page(
                 status_code=status.HTTP_303_SEE_OTHER,
             )
 
-        # 권한 확인: 작성자 또는 ADMIN만 수정 가능
-        if (
-            handover_model.create_by != user_id
-            and current_user.get("user_role") != "ADMIN"
+        # 작성자 또는 관리자만 수정 가능
+        if (handover_model.create_by != user_id) and (
+            current_user.get("user_role") != "ADMIN"
         ):
             error_message = quote("이 인수인계를 수정할 권한이 없습니다.")
             return RedirectResponse(
@@ -186,7 +215,7 @@ async def handover_edit_page(
                 status_code=status.HTTP_303_SEE_OTHER,
             )
 
-        # 락 획득 시도
+        # 락 획득 시도 (페이지 로드 전에 수행)
         lock_acquired, lock_info = acquire_lock(db, "handover", handover_id, user_id)
 
         if not lock_acquired:
@@ -206,21 +235,32 @@ async def handover_edit_page(
 
         # 인수인계 데이터
         handover_data = _handover_to_dict(handover_model)
-        can_create_notice = current_user.get("user_role") == "ADMIN"
 
+        # 공지사항 생성 권한
+        can_make_notice = current_user.get("user_role") == "ADMIN"
+
+        # 페이지 컨텍스트 설정
         context = {
             "request": request,
             "handover": handover_data,
             "current_user": current_user,
             "is_edit": True,
-            "can_create_notice": can_create_notice,
+            "can_create_notice": can_make_notice,
         }
 
+        # 락을 해제하지 않고 유지 - 실제 수정 API 호출 시까지 락 유지
         return templates.TemplateResponse("handover_form.html", context)
 
     except Exception as e:
-        logger.error(f"인수인계 수정 페이지 로드 중 오류: {str(e)}", exc_info=True)
-        error_message = quote("페이지 로드 중 오류가 발생했습니다.")
+        logger.error(f"인수인계 수정 페이지 로드 오류: {e}", exc_info=True)
+        error_message = quote("수정 페이지 로드 중 오류 발생")
+
+        # 예외 발생 시 락 해제 시도
+        try:
+            release_lock(db, "handover", handover_id, user_id)
+        except Exception as release_err:
+            logger.error(f"락 해제 오류: {release_err}", exc_info=True)
+
         return RedirectResponse(
             f"{detail_url}?error={error_message}",
             status_code=status.HTTP_303_SEE_OTHER,
@@ -334,7 +374,6 @@ async def update_handover_action(
 
     detail_url = request.url_for("handover_detail_page", handover_id=handover_id)
     edit_url = request.url_for("handover_edit_page", handover_id=handover_id)
-    lock_held = False
 
     try:
         # 수정 전 락 상태 확인 (본인이 락을 가지고 있는지)
@@ -343,85 +382,54 @@ async def update_handover_action(
             not lock_info.get("editable", False)
             or lock_info.get("locked_by") != user_id
         ):
-            raise HTTPException(
-                status_code=423,  # Locked
-                detail=lock_info.get(
-                    "message", "수정 권한이 없거나 락이 만료되었습니다."
-                ),
+            # 락 점검 실패 시 상세 페이지로 리다이렉트
+            error_message = quote(
+                lock_info.get("message", "수정 권한이 없거나 락이 만료되었습니다.")
             )
-        lock_held = True
-
-        # 인수인계 존재 확인 (락 확인 후)
-        original_handover = get_handover_by_id(db, handover_id)
-        if not original_handover:
-            raise HTTPException(
-                status_code=404, detail="수정할 인수인계를 찾을 수 없습니다."
-            )
-
-        # 권한 확인 (작성자 또는 ADMIN만 수정 가능)
-        if user_id != original_handover.create_by and user_role != "ADMIN":
-            raise HTTPException(
-                status_code=403, detail="인수인계를 수정할 권한이 없습니다."
+            return RedirectResponse(
+                f"{detail_url}?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
             )
 
         # 문자열 "true"/"false"를 불리언으로 변환
         is_notice_bool = is_notice.lower() == "true"
 
-        # 일반 사용자가 공지사항으로 변경 시도하는 경우 방지
-        if is_notice_bool and not original_handover.is_notice and user_role != "ADMIN":
-            raise HTTPException(
-                status_code=403, detail="관리자만 공지사항으로 변경할 수 있습니다."
-            )
-
-        # 서비스 호출
+        # 서비스 호출을 위한 데이터 준비
         update_data = {
             "title": title,
             "content": content,
             "is_notice": is_notice_bool,
         }
 
-        # 서비스 레이어 호출 (업데이트 수행)
-        update_handover(db, handover_id, update_data)
-        logger.info(f"인수인계 수정 완료 (커밋 전): ID {handover_id}")
+        # 서비스 레이어 호출 (업데이트 수행) - 필요한 모든 인자 전달
+        updated_handover = update_handover(
+            db=db,
+            handover_id=handover_id,
+            update_data=update_data,
+            updated_by=user_id,
+            user_role=user_role,
+        )
 
-        # 수정 성공 후 락 해제
-        release_lock(db, "handover", handover_id, user_id)
-        lock_held = False
+        logger.info(f"인수인계 수정 완료: ID {handover_id}")
 
-        success_message = quote("인수인계 정보가 성공적으로 수정되었습니다.")
-        return RedirectResponse(
-            f"/handover/{handover_id}?success={success_message}",
-            status_code=status.HTTP_303_SEE_OTHER,
+        # 헬퍼 함수를 사용한 리다이렉트
+        return handle_redirect_success(
+            "인수인계 정보가 성공적으로 수정되었습니다.",
+            detail_url,
+            status.HTTP_303_SEE_OTHER,
         )
 
     except HTTPException as http_exc:
         # HTTP 예외는 그대로 반환
         logger.warning(f"인수인계 수정 API 오류: {http_exc.detail}")
-        error_message = quote(http_exc.detail)
-        return RedirectResponse(
-            f"{edit_url}?error={error_message}",  # 실패 시 edit 페이지로 리다이렉트
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
+
+        # 락 관련 오류(423)는 상세 페이지로, 나머지는 수정 페이지로 리다이렉트
+        redirect_to = detail_url if http_exc.status_code == 423 else edit_url
+        return handle_redirect_error(http_exc.detail, redirect_to)
     except Exception as e:
         # 예상치 못한 오류 처리
-        logger.error(f"인수인계 수정 중 예외 발생: {str(e)}", exc_info=True)
-        error_message = quote("인수인계 수정 중 오류가 발생했습니다.")
-        return RedirectResponse(
-            f"{edit_url}?error={error_message}",  # 실패 시 edit 페이지로 리다이렉트
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
-    finally:
-        # 예외 발생 시에도 락을 보유하고 있었다면 해제 시도
-        if lock_held:
-            try:
-                release_lock(db, "handover", handover_id, user_id)
-                logger.info(
-                    f"인수인계 수정 API 예외 처리 중 락 해제: id={handover_id}, user={user_id}"
-                )
-            except Exception as release_err:
-                logger.error(
-                    f"인수인계 수정 API 예외 처리 중 락 해제 실패: {release_err}"
-                )
+        logger.error(f"인수인계 수정 중 예외 발생: {e}", exc_info=True)
+        return handle_redirect_error("인수인계 수정 중 오류가 발생했습니다.", edit_url)
 
 
 @api_router.post("/{handover_id}/delete", status_code=status.HTTP_302_FOUND)
@@ -439,60 +447,36 @@ async def delete_handover_action(
     detail_url = request.url_for("handover_detail_page", handover_id=handover_id)
     list_url = request.url_for("handover_list_page")
 
-    lock_acquired = False
     try:
-        # 락 획득
+        # 락 획득 시도
         lock_success, lock_info = acquire_lock(db, "handover", handover_id, user_id)
         if not lock_success:
-            raise HTTPException(
-                status_code=423,
-                detail=lock_info.get("message", "다른 사용자가 편집 중"),
+            # 락 획득 실패 시 상세 페이지로 리다이렉트
+            return handle_redirect_error(
+                lock_info.get("message", "다른 사용자가 편집 중입니다"), detail_url
             )
-        lock_acquired = True
 
-        # 권한 확인
-        handover = get_handover_by_id(db, handover_id)
-        if not handover:
-            raise HTTPException(
-                status_code=404, detail="삭제할 인수인계를 찾을 수 없습니다."
-            )
-        # 권한 확인 로직 복구: 작성자 또는 ADMIN
-        is_author = handover.create_by == user_id
-        if not (user_role == "ADMIN" or is_author):
-            raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+        # 서비스 함수 호출 - 내부에서 권한 체크 및 삭제 수행
+        success = delete_handover(
+            db=db, handover_id=handover_id, user_id=user_id, user_role=user_role
+        )
 
-        # 서비스 호출
-        success = delete_handover(db=db, handover_id=handover_id, user_id=user_id)
         if success:
-            success_message = quote("인수인계가 성공적으로 삭제되었습니다.")
-            return RedirectResponse(
-                f"{list_url}?success={success_message}",
-                status_code=status.HTTP_303_SEE_OTHER,
+            # 삭제 성공 시 목록 페이지로 리다이렉트
+            return handle_redirect_success(
+                "인수인계가 성공적으로 삭제되었습니다.", list_url
             )
         else:
-            # 서비스에서 False 반환 시 (이론상 발생 어려움)
-            raise HTTPException(
-                status_code=500, detail="인수인계 삭제 처리 중 오류 발생"
-            )
+            # 삭제 실패했지만 예외는 발생하지 않은 경우
+            return handle_redirect_error("인수인계 삭제에 실패했습니다.", detail_url)
 
     except HTTPException as http_exc:
-        logger.warning(
-            f"인수인계 삭제 실패 (HTTPException): id={handover_id}, {http_exc.detail}"
-        )
-        error_message = quote(http_exc.detail)
-        # 403, 404, 423 등은 상세 페이지로 리다이렉트
-        return RedirectResponse(
-            f"{detail_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
-        )
+        # HTTP 예외 처리
+        logger.warning(f"인수인계 삭제 API 오류: {http_exc.detail}")
+
+        # 락 관련 오류(423)나 권한 오류(403)는 상세 페이지로 리다이렉트
+        return handle_redirect_error(http_exc.detail, detail_url)
     except Exception as e:
-        logger.error(f"인수인계 삭제 API 오류: {e}", exc_info=True)
-        error_message = quote("인수인계 삭제 중 서버 오류 발생")
-        return RedirectResponse(
-            f"{detail_url}?error={error_message}", status_code=status.HTTP_303_SEE_OTHER
-        )
-    finally:
-        if lock_acquired:
-            try:
-                release_lock(db, "handover", handover_id, user_id)
-            except Exception as lock_err:
-                logger.error(f"인수인계 삭제 락 해제 실패: {lock_err}")
+        # 기타 예외 처리
+        logger.error(f"인수인계 삭제 중 예외 발생: {e}", exc_info=True)
+        return handle_redirect_error("인수인계 삭제 중 오류가 발생했습니다", detail_url)
