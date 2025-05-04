@@ -107,13 +107,19 @@
 *   **인증:** 아래 명시된 엔드포인트 중 `/login`, `/logout` 및 정적 파일(`/static/...`)을 제외한 **모든 페이지 및 API 접근 시** 서버 측에서 사용자 세션 유효성을 검증합니다. (예: 각 라우터의 `dependencies=[Depends(get_current_user)]` 또는 `Depends(get_admin_user)` 적용)
     *   **인증 실패 시:** 전역 401 예외 핸들러가 사용자를 즉시 로그인 페이지 (`/login`)로 리다이렉트합니다. (`return_to` 쿼리 파라미터 포함)
     *   **권한:** 특정 기능(예: 사용자 관리, 주문 삭제)은 `Depends(get_admin_user)`를 통해 ADMIN 역할만 접근 가능하도록 제한합니다. 권한 부족 시 403 Forbidden 오류를 반환합니다.
-*   **락(Lock) 메커니즘:** 주문 및 인수인계 데이터의 동시 수정을 방지하기 위해, **수정 페이지 로드 시** 및 **수정/삭제 처리 시** 관련 서비스 함수 내에서 락 상태를 확인하고 필요한 경우 락을 획득/해제합니다.
-    *   **수정 페이지 로드 시 락 확인:** `GET /orders/{id}/edit`, `GET /handover/{id}/edit` 요청 시 서비스 함수(`get_lock_status`, `check_handover_lock_status` 등 활용)가 락 상태를 확인합니다. 다른 사용자가 락을 보유하고 있다면, **상세 페이지로 리다이렉트**하고 사용자에게 알림 메시지 (예: "{user_id}님이 수정 중입니다.")를 URL 쿼리 파라미터 (`?error=...`)로 전달합니다.
-    *   **수정/삭제 처리 시 락 획득:** `POST /api/orders/{id}`, `POST /api/orders/{id}/delete`, `POST /api/handover/{id}`, `POST /api/handover/{id}/delete` 등의 요청 처리 시, 해당 서비스 함수(`update_dashboard`, `delete_dashboard`, `update_handover`, `delete_handover` 등)가 **먼저 락 획득을 시도**합니다. 락 획득 실패 시 (다른 사용자가 편집 중) HTTP 423 Locked 상태 코드 및 오류 메시지를 반환합니다. 작업 완료 또는 실패 시 서비스 함수 내에서 **락을 해제**합니다.
-*   **오류 처리:** API 호출 실패 시 표준화된 JSON 응답 (`{ "success": false, "message": "오류 내용", "error_details": "..." }`) 및 적절한 HTTP 상태 코드를 반환합니다. 페이지 로드 실패 시 `error.html` 템플릿을 렌더링합니다.
+*   **락(Lock) 메커니즘:** 주문 및 인수인계 데이터의 동시 수정을 방지하기 위해 `is_locked` (BOOLEAN) 필드를 사용합니다. (**별도의 락 관련 API는 사용하지 않습니다.**)
+    *   **수정 페이지 로드 시 락 획득:** 사용자가 수정 버튼 클릭 시 (`GET /orders/{id}/edit`, `GET /handover/{id}/edit`) **서버 라우트 핸들러 내부에서** 해당 레코드의 `is_locked` 상태를 확인하고 **락 획득을 시도**(`acquire_lock` 유틸리티 사용)합니다.
+        *   **락 성공:** `is_locked`를 `True`로 변경하고 수정 페이지(`order_form.html` 또는 `handover_form.html`)를 정상적으로 반환합니다.
+        *   **락 실패:** 이미 `is_locked`가 `True`인 경우, 사용자를 **상세 페이지로 리다이렉트**하고 URL 쿼리 파라미터로 표준 오류 메시지 (`?error=현재 다른 사용자가 수정 중입니다`)를 전달합니다.
+    *   **수정/삭제 처리 시 락 획득:** `POST /api/orders/{id}`, `POST /api/orders/{id}/delete`, `POST /api/handover/{id}`, `POST /api/handover/{id}/delete` 등의 요청 처리 시, **해당 서비스 함수 내부에서** 먼저 **락 획득을 시도**(`acquire_lock` 유틸리티 사용)합니다.
+        *   **락 성공:** 작업을 계속 진행합니다.
+        *   **락 실패:** (이미 `is_locked`가 `True`인 경우) HTTP **423 Locked** 상태 코드와 함께 오류 메시지 (`{ "success": false, "message": "현재 다른 사용자가 수정 중입니다" }`)를 JSON으로 반환합니다.
+    *   **작업 완료 후 락 해제:** 수정 또는 삭제 작업이 성공하거나 실패한 경우, **서비스 함수 또는 라우트 핸들러의 `finally` 블록 등에서 반드시 락을 해제**(`release_lock` 유틸리티 사용, `is_locked`를 `False`로 변경)합니다.
+*   **오류 처리:** API 호출 실패 시 표준화된 JSON 응답 (`{ "success": false, "message": "오류 내용", "error_details": "..." }`) 및 적절한 HTTP 상태 코드를 반환합니다. 페이지 로드 실패 시 `error.html` 템플릿을 렌더링하거나, 관련 페이지로 리다이렉트하며 오류 메시지를 쿼리 파라미터로 전달합니다.
 *   **알림 기능:** 사용자 액션(생성, 수정, 삭제, 복사 등) 결과 및 락 경고는 **클라이언트 JavaScript**를 통해 알림창으로 표시됩니다.
-    *   **서버 응답:** 서버는 Form 처리 후 리다이렉션 시 URL 쿼리 파라미터(`?success=...`, `?error=...`, `?warning=...`)에 메시지를 담아 전달합니다.
-    *   **클라이언트 처리:** 페이지 로드 시 JavaScript(`base.js` 또는 각 페이지 JS)가 쿼리 파라미터를 확인하여 `Utils.alerts` 함수를 호출, 알림을 표시합니다. 클라이언트 액션(예: 복사) 결과는 해당 이벤트 핸들러에서 직접 `Utils.alerts`를 호출합니다.
+    *   **서버 응답 (리다이렉션):** 서버는 Form 처리 후 리다이렉션 시 URL 쿼리 파라미터(`?success=...`, `?error=...`)에 메시지를 담아 전달합니다.
+    *   **서버 응답 (JSON):** API 엔드포인트는 성공/실패 여부와 메시지를 JSON으로 반환합니다. (예: 락 실패 시 423 응답)
+    *   **클라이언트 처리:** 페이지 로드 시 JavaScript(`order_detail.js`, `handover_detail.js` 등)가 URL 쿼리 파라미터를 확인하거나, API 호출 응답(JSON)을 분석하여 `Utils.alerts` 함수를 호출, 알림을 표시합니다. 클라이언트 액션(예: 복사) 결과는 해당 이벤트 핸들러에서 직접 `Utils.alerts`를 호출합니다.
 *   **시간:** 모든 시간은 KST (UTC+9) 기준이며, `YYYY-MM-DD HH:MM` 형식으로 표시/처리됩니다. 무조건 해당 방식으로 통일하세요
 *   **로깅:** 각 동작 포인트별 디버깅에 용이하게 표준 `logging` 라이브러리를 활용한 로그를 구현합니다. (기존 `logger.py` 사용 로직 제거)
 *   **JSON 필드 규칙:** API 응답과 클라이언트 간의 데이터 전송 시 **snake_case** 필드명을 사용합니다(예: `dashboard_id`). 클라이언트 JavaScript에서도 동일한 snake_case 필드명을 사용해야 합니다.
@@ -184,8 +190,8 @@
 *   **전송 방식:** HTML (SSR)
 *   **인증:** 필요 (`Depends(get_current_user)`)
 *   **요청 파라미터 (Path):** `id`
-*   **응답:** `order_page.html` 렌더링 (`order` 객체, `lock_info`, `current_user` 포함)
-*   **동작 설명:** 인증 확인 -> `get_dashboard_by_id` 호출 -> `get_lock_status` 호출 -> 템플릿 렌더링. **페이지 관련 JavaScript 로직(상태 수정, 락 확인 등)은 `main/static/js/order_detail.js` 파일에 분리되어 있으며, 템플릿에서 해당 파일을 로드합니다.**
+*   **응답:** `order_page.html` 렌더링 (`order` 객체, `current_user` 포함)
+*   **동작 설명:** 인증 확인 -> `get_dashboard_by_id` 호출 -> 템플릿 렌더링. **페이지 관련 JavaScript 로직(상태 수정 등)은 `main/static/js/order_detail.js` 파일에 분리되어 있으며, 템플릿에서 해당 파일을 로드합니다.**
 
 ### 2.5 주문 생성 처리 (`/api/orders`)
 
@@ -205,9 +211,9 @@
 *   **인증:** 필요 (`Depends(get_current_user)`)
 *   **요청 파라미터 (Path):** `id`
 *   **응답:**
-    *   **락 없음:** `order_form.html` 렌더링 (`order` 정보 등 포함)
-    *   **락 있음 (타인):** `/orders/{id}` 로 리다이렉트 + 알림 메시지 (`?error=...`)
-*   **동작:** 인증 확인 -> `get_dashboard_by_id` 호출 -> **락 상태 확인 (`get_lock_status`)** -> 조건에 따라 렌더링 또는 리다이렉트.
+    *   **락 성공:** `order_form.html` 렌더링 (`order` 정보 등 포함)
+    *   **락 실패:** `/orders/{id}` 로 리다이렉트 + 알림 메시지 (`?error=현재 다른 사용자가 수정 중입니다`)
+*   **동작:** 인증 확인 -> `get_dashboard_by_id` 호출 -> 서버 내부에서 락 획득 시도 (`acquire_lock`) -> 성공 시 템플릿 렌더링, 실패 시 상세 페이지로 리다이렉트.
 
 ### 2.7 주문 수정 처리 (`/api/orders/{id}`)
 
@@ -217,8 +223,8 @@
 *   **인증:** 필요 (`Depends(get_current_user)`)
 *   **요청 파라미터 (Path):** `id`
 *   **요청 필드:** `type`, `department`, ..., `status`(선택), `driver_name`(선택), `driver_contact`(선택) - HTML form 필드명은 snake_case
-*   **응답:** 성공 시 `/orders/{id}` 리다이렉트 (성공 메시지 포함), 실패 시 오류 응답 또는 리다이렉트 (오류 메시지 포함).
-*   **동작:** 인증 확인 -> **락 획득 시도** (서비스 내) -> Form 데이터 유효성 검증 -> `update_dashboard` 서비스 호출 (상태 변경 로직 포함) -> **락 해제** (서비스 내) -> 성공 시 리다이렉트.
+*   **응답:** 성공 시 `/orders/{id}` 리다이렉트 (성공 메시지 포함), 실패 시 (락 실패 포함) 오류 응답 또는 리다이렉트 (오류 메시지 포함).
+*   **동작:** 인증 확인 -> 서비스 함수 내부에서 락 획득 시도 (`acquire_lock`) -> 실패 시 423 Locked 또는 리다이렉트 -> 성공 시 Form 데이터 유효성 검증 -> `update_dashboard` 서비스 호출 (상태 변경 로직 포함) -> 작업 완료 후 락 해제 (`release_lock`) -> 성공 시 리다이렉트.
 
 ### 2.8 주문 삭제 처리 (`/api/orders/{id}/delete`)
 
@@ -228,8 +234,26 @@
 *   **인증:** 필요 (`Depends(get_admin_user)`)
 *   **권한:** **ADMIN**
 *   **요청 파라미터 (Path):** `id`
-*   **응답:** 성공 시 `/dashboard` 리다이렉트 (성공 메시지 포함), 실패 시 `/orders/{id}` 리다이렉트 (오류 메시지 포함).
-*   **동작:** 인증/권한 확인 -> **락 획득 시도** (서비스 내) -> `delete_dashboard` 서비스 호출 -> 성공/실패에 따라 리다이렉트.
+*   **응답:** 성공 시 `/dashboard` 리다이렉트 (성공 메시지 포함), 실패 시 (락 실패 포함) `/orders/{id}` 리다이렉트 (오류 메시지 포함).
+*   **동작:** 인증/권한 확인 -> 서비스 함수 내부에서 락 획득 시도 (`acquire_lock`) -> 실패 시 423 Locked 또는 리다이렉트 -> 성공 시 `delete_dashboard` 서비스 호출 -> 작업 완료 후 락 해제 (`release_lock`) -> 성공/실패에 따라 리다이렉트.
+
+### 2.9 주문 상태 인라인 수정 (`PATCH /api/orders/{dashboard_id}/update-field`)
+*   **HTTP Method:** `PATCH`
+*   **경로:** `/api/orders/{dashboard_id}/update-field`
+*   **전송 방식:** JSON
+*   **인증:** 필요 (`Depends(get_current_user)`)
+*   **요청 파라미터 (Path):** `dashboard_id`
+*   **요청 본문 (JSON):** `{ "field": "status", "value": "NEW_STATUS" }` 또는 `{ "field": "check_edit_status", "value": true }` 또는 `{ "field": "release_edit_lock", "value": true }`
+*   **응답 (JSON):**
+    *   **`check_edit_status` 성공:** `{ "success": true, "message": "상태 변경 가능합니다." }`
+    *   **`check_edit_status` 실패 (락):** HTTP 423, `{ "success": false, "message": "현재 다른 사용자가 수정 중입니다" }`
+    *   **상태 업데이트 성공:** `{ "success": true, "message": "status 필드가 업데이트되었습니다.", "data": {...} }`
+    *   **상태 업데이트 실패 (락):** HTTP 423, `{ "success": false, "message": "현재 다른 사용자가 수정 중입니다" }`
+    *   **락 해제 요청:** `{ "success": true/false, "message": "락 해제 요청 처리됨" }`
+*   **동작:**
+    1.  **상태 변경 준비 (check_edit_status):** `order_detail.js`에서 상태 수정 버튼 클릭 시 호출. 서버에서 **락 획득 시도**. 성공 시 200 OK, 실패 시 423 Locked 응답. JS는 성공 시 드롭다운 표시, 실패 시 알림 표시.
+    2.  **상태 변경 저장 (status):** 드롭다운에서 상태 선택 후 저장 시 호출. 서버에서 **락 획득 시도**. 성공 시 상태 업데이트(`update_dashboard_fields`), **락 해제** 후 200 OK 응답. 실패 시 423 Locked 응답. JS는 성공 시 UI 업데이트, 실패 시 알림 표시.
+    3.  **상태 변경 취소 (release_edit_lock):** 드롭다운에서 취소 시 호출. 서버에서 **락 해제 시도**. JS는 폼 닫기.
 
 ---
 
@@ -261,8 +285,8 @@
 *   **경로:** `/handover/{id}`
 *   **전송 방식:** HTML (SSR)
 *   **인증:** 필요 (`Depends(get_current_user)`)
-*   **응답:** `handover_detail.html` 렌더링 (`handover` 객체, `lock_info`, `current_user` 포함)
-*   **동작:** 인증 확인 -> `get_handover_by_id` 호출 -> `check_handover_lock_status` 호출 -> 템플릿 렌더링.
+*   **응답:** `handover_detail.html` 렌더링 (`handover` 객체, `current_user` 포함)
+*   **동작:** 인증 확인 -> `get_handover_by_id` 호출 -> 템플릿 렌더링.
 *   **참고사항:** 인수인계 상세에는 제목, 내용, 공지사항 여부, 생성자, 업데이트 정보가 표시되며, "확인 완료" 기능은 실제로 구현되지 않음.
 
 ### 3.4 인수인계 생성 페이지 로드 (`/handover/new`)
@@ -293,9 +317,9 @@
 *   **인증:** 필요 (`Depends(get_current_user)`)
 *   **요청 파라미터 (Path):** `id`
 *   **응답:**
-    *   **락 없음, 수정 권한 있음:** `handover_form.html` 렌더링 (`handover` 정보 등 포함)
-    *   **락 있음 (타인):** `/handover/{id}` 로 리다이렉트 + 알림 메시지 (`?error=...`)
-*   **동작:** 인증 확인 -> `get_handover_by_id` 호출 -> **락 상태 확인 (`check_handover_lock_status`)** -> 작성자 또는 ADMIN 확인 -> 조건에 따라 렌더링 또는 리다이렉트.
+    *   **락 성공 & 권한 있음:** `handover_form.html` 렌더링 (`handover` 정보 등 포함)
+    *   **락 실패 또는 권한 없음:** `/handover/{id}` 로 리다이렉트 + 알림 메시지 (`?error=...`)
+*   **동작:** 인증 확인 -> `get_handover_by_id` 호출 -> 작성자 또는 ADMIN 권한 확인 -> **서버 내부에서 락 획득 시도 (`acquire_lock`)** -> 성공 시 템플릿 렌더링, 실패 시 상세 페이지로 리다이렉트.
 
 ### 3.7 인수인계 수정 처리 (`/api/handover/{id}`)
 
@@ -304,8 +328,8 @@
 *   **전송 방식:** **Form**
 *   **인증:** 필요 (`Depends(get_current_user)`)
 *   **요청 필드:** `title`, `content`, `is_notice`
-*   **응답:** 성공 시 `/handover/{id}` 리다이렉트 (성공 메시지 포함), 실패 시 오류 응답 또는 리다이렉트 (오류 메시지 포함).
-*   **동작:** 인증 확인 -> (작성자 또는 ADMIN 권한 확인) -> (공지사항 변경 시 ADMIN 권한 확인) -> **락 획득 시도** -> `update_handover` 서비스 호출 -> **락 해제** -> 성공 시 리다이렉트.
+*   **응답:** 성공 시 `/handover/{id}` 리다이렉트 (성공 메시지 포함), 실패 시 (락 실패 포함) 오류 응답 또는 리다이렉트 (오류 메시지 포함).
+*   **동작:** 인증 확인 -> (작성자 또는 ADMIN 권한 확인) -> (공지사항 변경 시 ADMIN 권한 확인) -> **서비스 함수 내부에서 락 획득 시도 (`acquire_lock`)** -> 실패 시 423 Locked 또는 리다이렉트 -> 성공 시 `update_handover` 서비스 호출 -> **작업 완료 후 락 해제 (`release_lock`)** -> 성공 시 리다이렉트.
 *   **참고사항:** 
      * 수정은 원래 작성자와 ADMIN만 가능
      * 공지사항 여부 변경(`is_notice` 값 변경)은 ADMIN만 가능
@@ -317,8 +341,8 @@
 *   **전송 방식:** **Form**
 *   **인증:** 필요 (`Depends(get_current_user)`)
 *   **권한:** 작성자 본인 또는 ADMIN (서비스 내 확인)
-*   **응답:** 성공 시 `/handover` 리다이렉트 (성공 메시지 포함), 실패 시 `/handover/{id}` 리다이렉트 (오류 메시지 포함).
-*   **동작:** 인증 확인 -> **락 획득 시도** -> 권한 확인 (작성자 또는 ADMIN 확인) -> `delete_handover` 서비스 호출 -> 성공/실패에 따라 리다이렉트.
+*   **응답:** 성공 시 `/handover` 리다이렉트 (성공 메시지 포함), 실패 시 (락 실패 포함) `/handover/{id}` 리다이렉트 (오류 메시지 포함).
+*   **동작:** 인증 확인 -> **서비스 함수 내부에서 락 획득 시도 (`acquire_lock`)** -> 실패 시 423 Locked 또는 리다이렉트 -> 성공 시 권한 확인 (작성자 또는 ADMIN 확인) -> `delete_handover` 서비스 호출 -> **작업 완료 후 락 해제 (`release_lock`)** -> 성공/실패에 따라 리다이렉트.
 
 ---
 
@@ -333,4 +357,4 @@
 *   **동작:** ADMIN 확인 -> `get_user_list` 호출 -> 템플릿 렌더링.
 
 ### 4.2 사용자 생성 처리 (`/api/admin/users`)
-*   **HTTP Method:** `
+*   **HTTP Method:** `POST`
