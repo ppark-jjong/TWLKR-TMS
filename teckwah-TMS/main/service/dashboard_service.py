@@ -78,6 +78,13 @@ def get_dashboard_response_data(order: Dashboard) -> Dict[str, Any]:
         "type_label": type_labels.get(order.type, order.type),
         # update_by 필드 추가
         "update_by": order.update_by,
+        # 누락된 필드 추가 - 우편번호 관련
+        "city": order.city,
+        "county": order.county,
+        "district": order.district,
+        "region": order.region,
+        "distance": order.distance,
+        "duration_time": order.duration_time,
     }
 
     return data
@@ -88,24 +95,27 @@ def get_dashboard_list_item_data(order: Dashboard) -> Dict[str, Any]:
     if not order:
         return None
 
+    # 목록 화면에서 실제로 필요한 필드만 선택하여 응답 최적화
     data = {
-        "dashboard_id": order.dashboard_id,
-        "order_no": order.order_no,
-        "type": order.type,
-        "department": order.department,
-        "warehouse": order.warehouse,
-        "sla": order.sla,
-        "postal_code": order.postal_code,
-        "address": order.address,
-        "customer": order.customer,
-        "status": order.status,
-        # ETA 필드 ISO 8601 형식으로 변환
-        "eta": order.eta.isoformat() if order.eta else None,
-        "driver_name": order.driver_name,
-        "update_at": order.update_at.isoformat() if order.update_at else None,
+        "dashboard_id": order.dashboard_id,  # 주문 상세로 이동하기 위한 ID
+        "order_no": order.order_no,  # 주문번호
+        "type": order.type,  # 배송/회수 구분
+        "department": order.department,  # 부서
+        "warehouse": order.warehouse,  # 창고
+        "sla": order.sla,  # SLA
+        "customer": order.customer,  # 고객명
+        "status": order.status,  # 상태
+        "driver_name": order.driver_name,  # 배송기사명
+        "eta": order.eta.isoformat() if order.eta else None,  # 예상 도착 시간
         # 상태 및 유형 라벨 추가
         "status_label": status_labels.get(order.status, order.status),
         "type_label": type_labels.get(order.type, order.type),
+        # 목록에 표시되는 지역 정보
+        "region": order.region,  # 지역 정보
+        # 목록에 표시되는 거리 정보
+        "distance": order.distance,  # 거리
+        # 마지막 업데이트 정보 (정렬 등에 필요)
+        "update_at": order.update_at.isoformat() if order.update_at else None,
     }
 
     return data

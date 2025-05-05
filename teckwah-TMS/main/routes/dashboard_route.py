@@ -258,7 +258,7 @@ async def search_order_api(
 
     try:
         order = search_dashboard_by_order_no(db=db, order_no=order_no_trimmed)
-        order_data = get_dashboard_response_data(order, False) if order else None
+        order_data = get_dashboard_response_data(order) if order else None
         message = (
             f"'{order_no_trimmed}' 검색 결과"
             if order
@@ -970,3 +970,48 @@ async def release_order_lock(
     except Exception as e:
         logger.error(f"주문 락 해제 API 오류: {str(e)}")
         return {"success": False, "message": "락 해제 처리 중 오류가 발생했습니다"}
+
+
+@api_router.post("/dashboard/{dashboard_id}/release-lock")
+async def release_dashboard_lock(
+    dashboard_id: int,
+    lock_data: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    페이지 이탈 시 호출되는 락 해제 API
+    브라우저 종료, 탭 전환 등 상황에서 사용됨
+    """
+    user_id = current_user.get("user_id")
+    logger.info(f"주문 락 해제 요청: ID={dashboard_id}, 사용자={user_id}")
+
+    try:
+        # 락 확인 및 해제
+        success, message = release_lock(db, "dashboard", dashboard_id, user_id)
+        db.commit()
+
+        if success:
+            logger.info(f"락 해제 성공: 주문 ID {dashboard_id}")
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"success": True, "message": "락이 성공적으로 해제되었습니다."},
+            )
+        else:
+            logger.warning(
+                f"락 해제 실패: 주문 ID {dashboard_id}, 사유: {message.get('message')}"
+            )
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "success": False,
+                    "message": message.get("message", "락 해제 실패"),
+                },
+            )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"락 해제 처리 중 오류: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "message": f"락 해제 중 서버 오류: {str(e)}"},
+        )

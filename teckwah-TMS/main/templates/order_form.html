@@ -122,8 +122,10 @@
               class="input-field"
               value="{{ order.postal_code if is_edit else '' }}"
               maxlength="5"
+              placeholder="숫자 5자리"
               required
             />
+            <small class="form-text text-muted">숫자 5자리로 입력해주세요</small>
           </div>
           <div class="form-group">
             <label for="customer">고객명 <span class="required">*</span></label>
@@ -157,7 +159,9 @@
               name="contact"
               class="input-field"
               value="{{ order.contact if is_edit else '' }}"
+              placeholder="010-0000-0000"
             />
+            <small class="form-text text-muted">하이픈(-)은 자동으로 입력됩니다</small>
           </div>
           <div class="form-group">
             <label for="status">상태 <span class="required">*</span></label>
@@ -198,7 +202,9 @@
               name="driver_contact"
               class="input-field"
               value="{{ order.driver_contact if is_edit else '' }}"
+              placeholder="010-0000-0000"
             />
+            <small class="form-text text-muted">하이픈(-)은 자동으로 입력됩니다</small>
           </div>
         </div>
       </div>
@@ -257,6 +263,13 @@
         // 하이픈 포맷팅 적용
         this.value = Utils.formatPhoneNumber(numericValue);
       });
+      
+      // 유효성 검사
+      contactInput.addEventListener('blur', function() {
+        if (this.value && this.value.length < 8) {
+          Utils.alerts.showWarning('연락처 형식이 올바르지 않습니다. 정확한 번호를 입력해주세요.');
+        }
+      });
     }
     
     // 기사 연락처 자동 하이픈 포맷팅
@@ -267,6 +280,13 @@
         const numericValue = this.value.replace(/[^\d]/g, '');
         // 하이픈 포맷팅 적용
         this.value = Utils.formatPhoneNumber(numericValue);
+      });
+      
+      // 유효성 검사
+      driverContactInput.addEventListener('blur', function() {
+        if (this.value && this.value.length < 8) {
+          Utils.alerts.showWarning('기사 연락처 형식이 올바르지 않습니다. 정확한 번호를 입력해주세요.');
+        }
       });
     }
 
@@ -404,16 +424,34 @@
     
     if (form) {
       form.addEventListener('submit', function (e) {
+        let hasError = false;
+        
         // 우편번호 유효성 검사
         if (postalCodeInput && postalCodeInput.value.length !== 5) {
           e.preventDefault();
           Utils.alerts.showWarning('우편번호는 5자리 숫자로 입력해주세요.');
           postalCodeInput.focus();
-          return false;
+          hasError = true;
+        }
+        
+        // 연락처 유효성 검사 (입력된 경우)
+        if (contactInput && contactInput.value && contactInput.value.replace(/[^0-9]/g, '').length < 8) {
+          e.preventDefault();
+          Utils.alerts.showWarning('올바른 연락처 형식으로 입력해주세요.');
+          contactInput.focus();
+          hasError = true;
+        }
+        
+        // 기사 연락처 유효성 검사 (입력된 경우)
+        if (driverContactInput && driverContactInput.value && driverContactInput.value.replace(/[^0-9]/g, '').length < 8) {
+          e.preventDefault();
+          Utils.alerts.showWarning('올바른 기사 연락처 형식으로 입력해주세요.');
+          driverContactInput.focus();
+          hasError = true;
         }
       
-        // 로딩 상태 표시
-        if (submitBtn) {
+        // 오류가 없으면 로딩 상태 표시
+        if (!hasError && submitBtn) {
           submitBtn.disabled = true;
           const isEdit = "{{ is_edit }}" === "True";
           submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${
