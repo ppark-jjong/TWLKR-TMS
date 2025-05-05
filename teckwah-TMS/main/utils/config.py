@@ -8,6 +8,9 @@ from typing import List, Dict, Any
 from functools import lru_cache
 import logging
 
+# 로깅 설정
+logger = logging.getLogger(__name__)
+
 # 시스템 전체 타임존을 Asia/Seoul로 설정
 os.environ["TZ"] = "Asia/Seoul"
 try:
@@ -16,6 +19,8 @@ except AttributeError:
     # Windows 환경에서는 tzset()이 지원되지 않음
     pass
 
+# .env 파일 로드는 선택적으로 수행
+# 환경 변수가 이미 설정되어 있다면 .env 파일은 무시됨
 try:
     from dotenv import load_dotenv
 
@@ -23,27 +28,28 @@ try:
     env_paths = [
         "/app/.env",  # Docker 컨테이너 내부 경로
         os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), ".env"
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"
         ),  # 프로젝트 루트
-        os.path.join(os.path.dirname(__file__), ".env"),  # backend 폴더
+        ".env",  # 현재 디렉토리
     ]
 
     env_loaded = False
     for env_path in env_paths:
         if os.path.exists(env_path):
-            load_dotenv(env_path)
-            logging.info(f".env 파일을 로드했습니다: {env_path}")
+            # override=False: 이미 설정된 환경 변수는 덮어쓰지 않음
+            load_dotenv(env_path, override=False)
+            logger.info(f".env 파일을 로드했습니다 (보조): {env_path}")
             env_loaded = True
             break
 
     if not env_loaded:
-        logging.warning(
-            "어떤 .env 파일도 찾을 수 없습니다. 기본 환경 변수를 사용합니다."
+        logger.info(
+            ".env 파일이 없습니다. 시스템 환경 변수만 사용합니다."
         )
 
 except ImportError:
-    logging.warning(
-        "python-dotenv 패키지가 설치되지 않았습니다. 기본 환경 변수를 사용합니다."
+    logger.info(
+        "python-dotenv 패키지가 설치되지 않았습니다. 시스템 환경 변수만 사용합니다."
     )
 
 
@@ -87,11 +93,20 @@ class Settings:
         self.LOCK_CLEANUP_INTERVAL_MINUTES = int(
             os.getenv("LOCK_CLEANUP_INTERVAL_MINUTES", "10")
         )
+        
+        # GAE 환경 확인
+        self.GAE_ENV = os.getenv("GAE_ENV", "")
 
         # 설정 로드 로그
-        logging.debug("애플리케이션 설정이 로드되었습니다")
-        logging.debug(f"DEBUG: {self.DEBUG}")
-        logging.debug(f"ALLOWED_ORIGINS: {self.ALLOWED_ORIGINS}")
+        logger.info("=== 애플리케이션 설정 로드 ===")
+        logger.info(f"DEBUG: {self.DEBUG}")
+        logger.info(f"PORT: {self.PORT}")
+        logger.info(f"ALLOWED_ORIGINS: {self.ALLOWED_ORIGINS}")
+        logger.info(f"MYSQL_HOST: {self.MYSQL_HOST}")
+        logger.info(f"MYSQL_DATABASE: {self.MYSQL_DATABASE}")
+        logger.info(f"GAE_ENV: {self.GAE_ENV}")
+        logger.info(f"환경변수 SESSION_SECRET 설정: {'YES' if os.getenv('SESSION_SECRET') else 'NO (기본값 사용)'}")
+        logger.info("=============================")
 
     # 로그 경로 설정 - Docker와 로컬 환경 모두 고려
     @property
@@ -103,7 +118,15 @@ class Settings:
     # DB 연결 문자열
     @property
     def DATABASE_URL(self) -> str:
-        return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}?charset={self.MYSQL_CHARSET}"
+        # GAE 환경에서는 Private IP 사용 (포트 번호가 환경변수에 없을 수 있음)
+        if self.GAE_ENV.startswith('standard'):
+            # GAE 프로덕션 환경에서는 Private IP 직접 연결
+            logger.info("GAE 프로덕션 환경 감지 - Private IP 연결 사용")
+            return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}/{self.MYSQL_DATABASE}?charset={self.MYSQL_CHARSET}"
+        else:
+            # 로컬 개발 환경
+            logger.info("로컬/개발 환경 - 포트 포함 연결 사용")
+            return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}?charset={self.MYSQL_CHARSET}"
 
 
 @lru_cache()

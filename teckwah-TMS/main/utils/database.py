@@ -9,12 +9,22 @@ from typing import Generator
 import logging
 from functools import wraps
 from fastapi import Depends
+import os
 
 from main.utils.config import get_settings
 
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
+
+# 환경에 따른 데이터베이스 연결 정보 로깅
+logger.info("=== 데이터베이스 설정 확인 ===")
+logger.info(f"MYSQL_HOST: {settings.MYSQL_HOST}")
+logger.info(f"MYSQL_PORT: {settings.MYSQL_PORT}")
+logger.info(f"MYSQL_DATABASE: {settings.MYSQL_DATABASE}")
+logger.info(f"GAE_ENV: {os.getenv('GAE_ENV', '없음')}")
+logger.info(f"연결 URL 패턴: mysql+pymysql://[user]@{settings.MYSQL_HOST}{'/' if os.getenv('GAE_ENV', '').startswith('standard') else ':' + str(settings.MYSQL_PORT) + '/'}{settings.MYSQL_DATABASE}")
+logger.info("===========================")
 
 # SQLAlchemy 엔진 생성
 engine = create_engine(
@@ -41,7 +51,8 @@ def test_db_connection():
     from sqlalchemy import text
 
     try:
-        logger.info("데이터베이스 연결 시도...")
+        logger.info("데이터베이스 연결 테스트 시작...")
+        logger.info(f"환경: {'GAE 프로덕션' if os.getenv('GAE_ENV', '').startswith('standard') else '로컬/개발'}")
         logger.info(
             f"연결 정보: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}, 데이터베이스: {settings.MYSQL_DATABASE}, 사용자: {settings.MYSQL_USER}"
         )
@@ -57,6 +68,7 @@ def test_db_connection():
             return True
     except Exception as e:
         logger.error(f"데이터베이스 연결 실패: {str(e)}")
+        logger.error(f"사용된 연결 URL 패턴: {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else settings.DATABASE_URL}")
         logger.warning(
             f"데이터베이스 설정을 확인하세요: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
         )

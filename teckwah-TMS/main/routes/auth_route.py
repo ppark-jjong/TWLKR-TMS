@@ -11,10 +11,10 @@ import logging
 from datetime import datetime
 
 from main.utils.database import get_db
-from main.utils.security import delete_session, get_current_user
+from main.utils.security import get_current_user
 from main.utils.config import get_settings
 from main.schema.auth_schema import LoginRequest, LoginResponse
-from main.service.auth_service import authenticate_user, create_user_session
+from main.service.auth_service import authenticate_user
 from main.core.templating import templates
 
 # 설정 로드
@@ -22,14 +22,6 @@ settings = get_settings()
 
 # 라우터 생성
 router = APIRouter()
-
-# 올바른 경로에서 get_session 임포트 (get_session 함수 존재 가정)
-try:
-    from main.utils.security import get_session
-except ImportError:
-    # get_session 함수가 없을 경우를 대비한 임시 처리 (실제 구현 확인 필요)
-    logging.warning("main.utils.security 모듈에서 get_session 함수를 찾을 수 없습니다.")
-    get_session = None
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -75,6 +67,7 @@ async def login(
 ):
     """
     로그인 처리 (폼 데이터 방식)
+    쿠키 기반 세션(SessionMiddleware) 사용
     """
     # 함수 진입점 로깅
     logging.info(f"login 시작: 사용자 ID={user_id}, return_to={return_to}")
@@ -97,7 +90,7 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
-    # 세션에 사용자 정보 저장
+    # 쿠키 기반 세션에 사용자 정보 저장
     request.session["user"] = user_data
     
     # 중간 포인트 로깅 - 로그인 성공
@@ -110,11 +103,13 @@ async def login(
 async def logout(request: Request):
     """
     로그아웃 처리
+    쿠키 기반 세션 제거
     """
     # 함수 진입점 로깅
     user_id = request.session.get("user", {}).get("user_id", "알 수 없음")
     logging.info(f"logout 시작: 사용자 ID={user_id}")
     
+    # 쿠키 기반 세션 클리어
     request.session.clear()
     
     # 중간 포인트 로깅 - 로그아웃 성공

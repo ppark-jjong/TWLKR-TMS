@@ -108,6 +108,12 @@
               <option value="100">100 행</option>
             </select>
           </div>
+          {% if current_user.user_role == "ADMIN" %}
+          <!-- 관리자용 엑셀 다운로드 버튼 -->
+          <button class="btn secondary-btn" id="excelDownloadBtn">
+            <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
+          </button>
+          {% endif %}
         </div>
         <div class="right-actions">
           <button class="btn secondary-btn" id="refreshBtn">
@@ -201,4 +207,37 @@
 
 <!-- 대시보드 관련 스크립트 -->
 <script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+<script>
+  /* 엑셀 다운로드 기능 */
+  document.addEventListener('DOMContentLoaded', function () {
+    // 엑셀 다운로드 버튼이 있으면 이벤트 등록
+    const excelBtn = document.getElementById('excelDownloadBtn');
+    if (excelBtn) {
+      excelBtn.addEventListener('click', function () {
+        // 현재 선택된 날짜 가져오기
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+
+        // URL 생성
+        let url = '/api/dashboard/export/excel';
+        const params = [];
+
+        if (startDate) {
+          params.push(`start_date=${startDate}`);
+        }
+
+        if (endDate) {
+          params.push(`end_date=${endDate}`);
+        }
+
+        if (params.length > 0) {
+          url += '?' + params.join('&');
+        }
+
+        // 다운로드 창 열기
+        window.location.href = url;
+      });
+    }
+  });
+</script>
 {% endblock %}

@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 import logging
 
 from main.models.user_model import User
-from main.utils.security import verify_password, create_session
+from main.utils.security import verify_password
 
 
 def authenticate_user(
@@ -68,27 +68,3 @@ def authenticate_user(
         # 예외 발생 시 상세 로깅
         logging.error(f"인증 프로세스 중 오류 발생: {str(e)}", exc_info=True)
         return False, None
-
-
-def create_user_session(user_data: Dict[str, Any]) -> str:
-    """
-    사용자 세션을 생성하는 서비스 함수
-
-    Args:
-        user_data: 세션에 저장할 사용자 데이터
-
-    Returns:
-        str: 생성된 세션 ID
-    """
-    try:
-        # 세션 생성 (security.py의 create_session 함수 사용)
-        session_id = create_session(user_data)
-        logging.info(f"세션 생성 성공: 사용자 '{user_data.get('user_id')}'")
-        return session_id
-    except Exception as e:
-        # 세션 생성 실패
-        logging.error(f"세션 생성 실패: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="세션 생성 중 오류가 발생했습니다",
-        )

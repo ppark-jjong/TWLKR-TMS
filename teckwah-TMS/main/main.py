@@ -50,10 +50,9 @@ async def lifespan(app: FastAPI):
     logging.info("애플리케이션 시작 (lifespan)...")
     test_db_connection()
 
-    # 세션 정리 초기화
-    from main.utils.security import initialize_session_cleanup
-
-    initialize_session_cleanup()
+    # 쿠키 기반 세션만 사용하므로 메모리 기반 세션 정리 비활성화
+    # from main.utils.security import initialize_session_cleanup
+    # initialize_session_cleanup()
 
     yield
     # 애플리케이션 종료 시
@@ -118,11 +117,14 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 app.add_middleware(LoggingMiddleware)
 
 # 2. 세션 미들웨어
+# GAE 환경에서는 HTTPS 강제, 로컬에서는 HTTP 허용
+is_production = os.getenv('GAE_ENV', '').startswith('standard')
+logger.info(f"환경 감지: {'프로덕션(GAE)' if is_production else '로컬/개발'} - HTTPS 강제: {is_production}")
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SESSION_SECRET,
     max_age=settings.SESSION_EXPIRE_HOURS * 60 * 60,
-    https_only=False,
+    https_only=is_production,  # 프로덕션에서만 HTTPS 강제
     same_site="lax",
     session_cookie="session",
 )

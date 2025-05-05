@@ -32,4 +32,10 @@ python-dotenv==1.0.1
 colorama==0.4.6  # Windows 콘솔에서 색상 지원
 
 # 날짜/시간 처리
-pytz==2024.1 
+pytz==2024.1
+
+# 프로덕션 서버 (GAE용)
+gunicorn==21.2.0
+
+# 엑셀 파일 생성 
+xlsxwriter==3.1.9
