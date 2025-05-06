@@ -242,7 +242,7 @@ const Utils = {
           alert.getAttribute("data-type") === type &&
           alert.querySelector(".alert-message").textContent === message
         ) {
-          console.debug("중복 알림 감지됨:", type, message);
+
           return; // 중복 알림이면 새로 생성하지 않고 종료
         }
       }
@@ -531,7 +531,7 @@ const Utils = {
         Utils.alerts.showError(
           "네트워크 오류가 발생했습니다. 다시 시도해주세요."
         );
-        console.error("API 요청 오류:", error);
+
         return null;
       }
     },
@@ -569,7 +569,7 @@ const Utils = {
         return errorData;
       } catch (parseError) {
         Utils.alerts.showError(errorMessage);
-        console.error("오류 응답 파싱 실패:", parseError);
+
         return null;
       }
     },
@@ -615,7 +615,7 @@ const Utils = {
     setCurrentUser: function (user) {
       window._currentUser = user;
       // 사용자 정보가 변경되었을 때 UI 업데이트 등의 추가 로직을 여기에 구현할 수 있습니다.
-      console.log("사용자 정보 업데이트:", user);
+
     },
 
     /**
@@ -623,7 +623,7 @@ const Utils = {
      * 사용자 정보를 삭제하고 서버 로그아웃 처리
      */
     logout: function () {
-      console.log("로그아웃 요청");
+
       // 서버 로그아웃 요청
       window.location.href = "/logout";
     },

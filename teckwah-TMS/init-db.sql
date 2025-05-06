@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS dashboard (
 CREATE TABLE IF NOT EXISTS handover (
     handover_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
+	department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
     content TEXT NOT NULL,
     update_at DATETIME NOT NULL,
     update_by VARCHAR(50) NOT NULL,

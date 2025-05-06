@@ -252,11 +252,11 @@
         if (this.checked) {
           // 체크된 경우 히든 필드 비활성화 (값 전송되지 않도록)
           hiddenField.disabled = true;
-          console.log("공지사항 설정: true");
+          // 공지사항 true로 설정
         } else {
           // 체크 해제된 경우 히든 필드 활성화 (false 값 전송)
           hiddenField.disabled = false;
-          console.log("공지사항 설정: false");
+          // 공지사항 false로 설정
         }
       });
     }
@@ -278,9 +278,9 @@
             }
           });
 
-          console.log('락 해제 요청 완료:', await response.text());
+          await response.text(); // 락 해제 요청 완료
         } catch (error) {
-          console.error('락 해제 중 오류 발생:', error);
+          // 락 해제 중 오류 발생
         }
       };
 

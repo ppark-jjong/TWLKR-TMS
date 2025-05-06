@@ -11,23 +11,17 @@ from decimal import Decimal
 # os.path.dirname(os.path.dirname(__file__)) -> /app/main
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 
-# 디렉토리 존재 확인 (디버깅용)
+# 디렉토리 존재 확인
 try:
     if not os.path.isdir(TEMPLATE_DIR):
-        print(f"[Templating] Warning: Template directory not found at {TEMPLATE_DIR}")
         # 대체 경로 시도 (로컬 실행 시)
         alt_template_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "templates")
         )
         if os.path.isdir(alt_template_dir):
-            print(
-                f"[Templating] Using alternative template directory: {alt_template_dir}"
-            )
             TEMPLATE_DIR = alt_template_dir
-        else:
-            print(f"[Templating] Error: Cannot find templates directory.")
-except Exception as e:
-    print(f"[Templating] Error checking template directory: {e}")
+except Exception:
+    pass
 
 # Jinja2Templates 인스턴스 생성
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
@@ -133,10 +127,3 @@ def render_template(template_name, context):
         context["user"] = user
 
     return templates.TemplateResponse(template_name, context)
-
-
-# 디버깅용 메시지
-print(f"[Templating] 템플릿 필터 등록 완료: {list(templates.env.filters.keys())}")
-print(
-    f"[Templating] 템플릿 전역 함수/변수 등록 완료: {list(templates.env.globals.keys())}"
-)

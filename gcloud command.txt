@@ -1,5 +1,5 @@
 .\cloud-sql-proxy.exe `
   --port 3307 `
   --credentials-file "C:\MyMain\teckwah-dashboard\cloud\gcloud-credentials.json" `
-  prefab-faculty-452705-t2:asia-northeast3:teckwahkr-db
+  prefab-faculty-452705-t2:asia-northeast3:teckwahkr-tms
 

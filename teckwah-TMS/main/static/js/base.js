@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // URL 파라미터에서 알림 메시지 확인 (모든 페이지 공통)
       this.checkUrlParamsForNotifications();
 
-      console.log("기본 앱 초기화 완료");
+
     },
 
     /**
@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (Utils && Utils.ui) {
         // Utils.ui.showPageMessages 함수가 이미 중복 방지 로직을 포함하고 있음
         Utils.ui.showPageMessages();
-        console.log("URL 파라미터 알림 메시지 확인 완료");
+
       }
     },
 
@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function () {
         // 유효한 사용자 정보가 있는 경우에만 설정
         if (userData.user_id) {
           Utils.auth.setCurrentUser(userData);
-          console.log("사용자 정보 초기화됨:", userData.user_id);
+
 
           // UI 요소 업데이트
           const userIdDisplay = document.getElementById("userDisplayId");
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function () {
           }
         });
 
-        console.log("로그아웃 버튼 이벤트 등록됨");
+
       }
     },
 
@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", function () {
             "/login?return_to=" + encodeURIComponent(window.location.pathname);
         });
 
-        console.log("세션 만료 대화상자 이벤트 등록됨");
+
       }
     },
 
@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // 최초 1회 세션 체크
       this.checkSession();
 
-      console.log("세션 체크 타이머 시작됨");
+
     },
 
     /**
@@ -156,20 +156,20 @@ document.addEventListener("DOMContentLoaded", function () {
      */
     async checkSession() {
       try {
-        console.debug("세션 체크 시작: 유효성 확인");
+
 
         // 세션 체크 API 호출
         const response = await fetch("/api/check-session");
 
         if (response.status === 401) {
-          console.warn("세션 체크: 인증 실패 (401)");
+
           this.handleSessionExpired();
           return;
         }
 
         // 응답이 성공적이지 않은 경우 무시
         if (!response.ok) {
-          console.warn(`세션 체크: 응답 실패 (${response.status})`);
+
           return;
         }
 
@@ -178,12 +178,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // 인증 상태 확인
         if (!result.authenticated) {
-          console.warn("세션 체크: 세션 만료됨");
+
           this.handleSessionExpired();
         }
       } catch (error) {
         // 오류 무시 (네트워크 오류는 세션 만료로 간주하지 않음)
-        console.warn("세션 체크 중 오류:", error);
+
       }
     },
 

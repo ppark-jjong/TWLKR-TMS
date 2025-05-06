@@ -36,6 +36,3 @@ pytz==2024.1
 
 # 프로덕션 서버 (GAE용)
 gunicorn==21.2.0
-
-# 엑셀 파일 생성 
-xlsxwriter==3.1.9

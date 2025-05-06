@@ -82,7 +82,6 @@ document.addEventListener("DOMContentLoaded", function () {
     showLoading();
 
     // CSR 방식으로 변경 - 서버에서 데이터를 받아오는 대신 직접 API 호출
-    console.log("Initial data loaded from server");
 
     // 날짜 초기화 - localStorage에서 먼저 확인하고, 없으면 오늘 날짜 사용
     const savedDates = loadDateRangeFromStorage();
@@ -90,15 +89,11 @@ document.addEventListener("DOMContentLoaded", function () {
       // localStorage에 날짜가 있으면 우선 사용
       startDateInput.value = savedDates.startDate;
       endDateInput.value = savedDates.endDate;
-      console.log(
-        `저장된 날짜 범위 불러옴: ${savedDates.startDate} ~ ${savedDates.endDate}`
-      );
     } else {
       // 없으면 오늘 날짜로 초기화
       const today = getTodayDate();
       startDateInput.value = today;
       endDateInput.value = today;
-      console.log(`오늘 날짜로 초기화: ${today}`);
     }
 
     // Flatpickr 초기화
@@ -118,11 +113,9 @@ document.addEventListener("DOMContentLoaded", function () {
     fetchAllOrders(startDateInput.value, endDateInput.value)
       .then(() => {
         initialLoadComplete = true;
-        console.log("Initial full data load complete.");
         hideLoading();
       })
       .catch((error) => {
-        console.error("Error fetching initial full data:", error);
         showError("전체 데이터를 불러오는 중 오류 발생");
         hideLoading();
       });
@@ -190,7 +183,6 @@ document.addEventListener("DOMContentLoaded", function () {
   async function fetchAllOrders(startDate, endDate) {
     showLoading();
     clearError();
-    console.log(`Fetching all orders for ${startDate} to ${endDate}`);
 
     // 날짜 범위를 localStorage에 저장
     saveDateRangeToStorage(startDate, endDate);
@@ -208,12 +200,10 @@ document.addEventListener("DOMContentLoaded", function () {
         totalItems = allOrders.length;
         currentPage = 1;
         applyFiltersAndRender();
-        console.log(`Successfully fetched ${allOrders.length} orders.`);
       } else {
         throw new Error(result.message || "Failed to fetch data");
       }
     } catch (error) {
-      console.error("Error in fetchAllOrders:", error);
       showError(`데이터 조회 실패: ${error.message}`);
       allOrders = [];
       applyFiltersAndRender();
@@ -241,7 +231,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // 현재 필터 및 페이지 상태에 따라 테이블 렌더링
   function applyFiltersAndRender() {
-    console.log(`Applying filters and rendering page ${currentPage}`);
     // 1. 필터 적용
     const status = statusFilter.value;
     const department = departmentFilter.value;
@@ -267,7 +256,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     totalItems = filteredOrders.length; // 필터링된 결과로 전체 아이템 수 업데이트
-    console.log(`Filtered orders count: ${totalItems}`);
 
     // 2. 페이지네이션 계산
     totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
@@ -277,9 +265,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const startIndex = (currentPage - 1) * rowsPerPage;
     const endIndex = startIndex + rowsPerPage;
     const pageOrders = filteredOrders.slice(startIndex, endIndex);
-    console.log(
-      `Rendering ${pageOrders.length} orders for page ${currentPage}`
-    );
 
     // 4. 테이블 렌더링
     renderTableRows(pageOrders);
@@ -300,11 +285,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let tableHTML = "";
     orders.forEach((order) => {
-      // 디버깅: 각 주문 객체의 dashboard_id 확인
-      console.log(
-        `주문 데이터: ID=${order.dashboard_id}, 주문번호=${order.orderNo}`
-      );
-
       const statusClass = `status-${order.status.toLowerCase()}`;
       // 상태 클래스를 행에 직접 적용
       let rowHTML = `<tr data-id="${order.dashboard_id}" class="order-row ${statusClass}">`;
@@ -343,13 +323,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         const orderId = this.getAttribute("data-id");
-        console.log(`행 클릭: 주문 ID=${orderId} 상세 페이지로 이동`);
 
         if (orderId) {
           // data-id 속성에서 주문 ID를 가져와 상세 페이지로 이동
           window.location.href = `/orders/${orderId}`;
-        } else {
-          console.error("주문 ID가 없습니다. data-id 속성 확인 필요");
         }
       });
     });
@@ -462,7 +439,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }, {});
         return { ...defaults, ...parsed };
       } catch (e) {
-        console.error("Error parsing saved columns:", e);
+        // 오류 처리 (콘솔 로그 제거)
       }
     }
     // 저장된 설정 없으면 기본값 반환
@@ -536,9 +513,8 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       localStorage.setItem("dashboardStartDate", startDate);
       localStorage.setItem("dashboardEndDate", endDate);
-      console.log(`날짜 범위 저장됨: ${startDate} ~ ${endDate}`);
     } catch (e) {
-      console.warn("LocalStorage에 날짜 범위 저장 실패:", e);
+      // 오류 처리 (콘솔 로그 제거)
     }
   }
 
@@ -548,11 +524,10 @@ document.addEventListener("DOMContentLoaded", function () {
       const startDate = localStorage.getItem("dashboardStartDate");
       const endDate = localStorage.getItem("dashboardEndDate");
       if (startDate && endDate) {
-        console.log(`저장된 날짜 범위 불러옴: ${startDate} ~ ${endDate}`);
         return { startDate, endDate };
       }
     } catch (e) {
-      console.warn("LocalStorage에서 날짜 범위 불러오기 실패:", e);
+      // 오류 처리 (콘솔 로그 제거)
     }
     return { startDate: null, endDate: null };
   }
@@ -651,7 +626,6 @@ document.addEventListener("DOMContentLoaded", function () {
           throw new Error(result.message || "Search failed");
         }
       } catch (error) {
-        console.error("Search error:", error);
         showError(`검색 실패: ${error.message}`);
         renderSearchResult(null);
       } finally {
@@ -726,7 +700,6 @@ function copyOrderNumber(event, orderNo) {
       }, 1500);
     },
     (err) => {
-      console.error("Clipboard copy failed: ", err);
       Utils.alerts.showError("주문번호 복사에 실패했습니다.");
     }
   );

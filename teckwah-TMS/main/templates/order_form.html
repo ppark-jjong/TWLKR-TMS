@@ -302,7 +302,7 @@
         try {
           defaultDate = new Date(currentValue);
         } catch (e) {
-          console.error("ETA 날짜 파싱 오류:", e);
+          // ETA 날짜 파싱 오류 발생
         }
       }
 
@@ -393,9 +393,9 @@
             }
           });
           
-          console.log('락 해제 요청 완료:', await response.text());
+          await response.text(); // 락 해제 요청 완료
         } catch (error) {
-          console.error('락 해제 중 오류 발생:', error);
+          // 락 해제 중 오류 발생
         }
       };
       

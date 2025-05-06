@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
         this.mode = 'create';
       }
       
-      console.log(`폼 모드: ${this.mode}${this.orderId ? ', ID: ' + this.orderId : ''}`);
+
     },
     
     /**
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 폼 필드 설정
         this.fillFormData(data);
       } catch (error) {
-        console.error('주문 데이터 로드 오류:', error);
+
         Utils.message.error('주문 데이터를 불러오는 중 오류가 발생했습니다.');
         
         // 오류 발생 시 목록 페이지로 돌아가기
@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
           throw new Error(response.message || '저장 실패');
         }
       } catch (error) {
-        console.error('폼 제출 오류:', error);
+
         Utils.message.error(error.message || '주문 저장 중 오류가 발생했습니다.');
       } finally {
         // 로딩 숨김

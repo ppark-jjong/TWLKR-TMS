@@ -30,9 +30,3 @@ services:
       # 락 설정
       LOCK_TIMEOUT_SECONDS: '300'
       LOCK_CLEANUP_INTERVAL_MINUTES: '10'
-
-      # GAE 환경 시뮬레이션
-      GAE_ENV: 'standard' # 프로덕션 환경 시뮬레이션
-
-# 단일 컨테이너 배포 테스트를 위해 db 서비스 제거
-# 로컬 머신의 MySQL에 직접 접근합니다.

@@ -49,29 +49,89 @@ def test_db_connection():
     프로젝트 규칙에 따라 최초 한 번만 시도합니다.
     """
     from sqlalchemy import text
+    import socket
 
     try:
+        logger.info("=====================================================")
         logger.info("데이터베이스 연결 테스트 시작...")
-        logger.info(f"환경: {'GAE 프로덕션' if os.getenv('GAE_ENV', '').startswith('standard') else '로컬/개발'}")
-        logger.info(
-            f"연결 정보: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}, 데이터베이스: {settings.MYSQL_DATABASE}, 사용자: {settings.MYSQL_USER}"
-        )
+        
+        # 환경 정보 로깅
+        is_gae = os.getenv('GAE_ENV', '').startswith('standard')
+        logger.info(f"환경: {'GAE 프로덕션' if is_gae else '로컬/개발'}")
+        logger.info(f"호스트 IP: {socket.gethostbyname(socket.gethostname())}")
+        
+        # 상세 연결 정보 로깅
+        logger.info(f"연결 대상: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}")
+        logger.info(f"데이터베이스: {settings.MYSQL_DATABASE}")
+        logger.info(f"사용자: {settings.MYSQL_USER}")
+        logger.info(f"비밀번호 길이: {len(settings.MYSQL_PASSWORD) if settings.MYSQL_PASSWORD else 0}")
+        
+        # 연결 URL 로깅 (비밀번호 마스킹)
+        safe_url = settings.DATABASE_URL.replace(settings.MYSQL_PASSWORD, "******")
+        logger.info(f"생성된 연결 URL: {safe_url}")
 
-        # 간단한 쿼리로 연결 테스트 (SQLAlchemy 2.0 호환)
+        # 먼저 IP 주소로 연결 가능한지 소켓으로 확인 (MySQL 서버까지 네트워크 연결 가능성 확인)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)  # 5초 타임아웃
+            result = sock.connect_ex((settings.MYSQL_HOST, settings.MYSQL_PORT))
+            sock.close()
+            
+            if result == 0:
+                logger.info(f"소켓 테스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}에 연결 가능")
+            else:
+                logger.warning(f"소켓 테스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}에 연결 불가 (오류코드: {result})")
+        except Exception as sock_err:
+            logger.warning(f"소켓 연결 테스트 실패: {str(sock_err)}")
+
+        # 실제 데이터베이스 연결 시도 
+        logger.info("SQLAlchemy로 데이터베이스 연결 시도...")
         with engine.connect() as conn:
-            # text() 함수를 사용하여 문자열 쿼리를 실행 가능한 객체로 변환
-            result = conn.execute(text("SELECT 1"))
-            row = result.fetchone()
-
-            logger.info("데이터베이스 연결 성공!")
-
+            # MySQL 버전 확인
+            result = conn.execute(text("SELECT VERSION()"))
+            version = result.fetchone()[0]
+            
+            # 현재 사용자 확인 
+            result = conn.execute(text("SELECT CURRENT_USER()"))
+            current_user = result.fetchone()[0]
+            
+            logger.info(f"데이터베이스 연결 성공!")
+            logger.info(f"MySQL 버전: {version}")
+            logger.info(f"연결된 사용자: {current_user}")
+            logger.info("=====================================================")
+            
             return True
     except Exception as e:
+        logger.error("=====================================================")
         logger.error(f"데이터베이스 연결 실패: {str(e)}")
-        logger.error(f"사용된 연결 URL 패턴: {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else settings.DATABASE_URL}")
-        logger.warning(
-            f"데이터베이스 설정을 확인하세요: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
-        )
+        
+        # 오류 메시지에서 'Access denied' 문자열 확인
+        error_msg = str(e).lower()
+        if 'access denied' in error_msg:
+            logger.error("원인: MySQL 사용자 접근 권한 문제")
+            logger.error("해결 방법:")
+            logger.error("1. Cloud SQL에서 다음 SQL 명령어로 사용자 권한 설정:")
+            logger.error("   CREATE USER 'teckwahkr-db'@'%' IDENTIFIED BY 'teckwah0206';")
+            logger.error("   GRANT ALL PRIVILEGES ON delivery_system.* TO 'teckwahkr-db'@'%';")
+            logger.error("   FLUSH PRIVILEGES;")
+            
+            # 오류 메시지에서 실제 IP 주소 추출 시도
+            import re
+            ip_match = re.search(r"'([^']*)'@'([^']*)'", error_msg)
+            if ip_match:
+                connecting_ip = ip_match.group(2)
+                logger.error(f"2. 연결 시도 IP: {connecting_ip} - 이 IP에 대한 권한이 필요합니다.")
+        
+        # 연결 URL 부분 마스킹 (비밀번호 제외)
+        parts = settings.DATABASE_URL.split('@')
+        if len(parts) > 1:
+            masked_url = f"...@{parts[1]}"
+            logger.error(f"사용된 연결 URL: {masked_url}")
+        
+        logger.error(f"설정된 DB 호스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}")
+        logger.error(f"설정된 DB 이름: {settings.MYSQL_DATABASE}")
+        logger.error("=====================================================")
+        
         return False
 
 

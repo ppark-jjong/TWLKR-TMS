@@ -54,7 +54,6 @@ from main.service.dashboard_service import (
 )
 from main.utils.json_util import CustomJSONEncoder
 from main.utils.lock import acquire_lock, release_lock, check_lock_status
-from main.utils.excel_util import create_dashboard_excel
 
 # 로깅 설정
 logging.basicConfig(
@@ -1015,49 +1014,4 @@ async def release_dashboard_lock(
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": f"락 해제 중 서버 오류: {str(e)}"},
-        )
-
-
-# === 엑셀 다운로드 API 라우트 추가 ===
-@api_router.get("/dashboard/export/excel")
-async def export_dashboard_excel(
-    start_date: Optional[date] = Query(None, description="조회 시작일"),
-    end_date: Optional[date] = Query(None, description="조회 종료일"),
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자만 접근 가능
-):
-    """
-    대시보드 데이터를 엑셀 파일로 내보냅니다 (관리자 전용).
-    조회 기간에 맞는 모든 데이터가 포함됩니다.
-    """
-    logger.info(
-        f"엑셀 다운로드 요청: user={current_user.get('user_id')}, start_date={start_date}, end_date={end_date}"
-    )
-
-    try:
-        # 모든 데이터를 조회 (페이지네이션 없이)
-        orders = get_dashboard_list(db, start_date, end_date)
-
-        # 응답 데이터 형식으로 변환
-        data = [get_dashboard_response_data(order) for order in orders]
-
-        # 시작일/종료일 문자열로 변환
-        start_date_str = None
-        end_date_str = None
-        if start_date:
-            start_date_str = start_date.strftime("%Y-%m-%d")
-        if end_date:
-            end_date_str = end_date.strftime("%Y-%m-%d")
-
-        # 엑셀 파일 생성 및 반환
-        return create_dashboard_excel(data, start_date_str, end_date_str)
-
-    except HTTPException as e:
-        logger.error(f"엑셀 다운로드 HTTP 오류: {e.detail}")
-        raise e
-    except Exception as e:
-        logger.error(f"엑셀 다운로드 중 오류 발생: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"엑셀 파일 생성 중 오류: {str(e)}",
         )

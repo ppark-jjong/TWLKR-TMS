@@ -3,9 +3,6 @@
  * 주문 상세 조회, 삭제 등 기능 처리
  */
 document.addEventListener('DOMContentLoaded', function () {
-  // 디버깅용 로그 추가
-  console.log('order_detail.js 스크립트 초기화');
-
   // 페이지 데이터 로드 (HTML의 script 태그에서 가져옴)
   let pageData = {};
   let order = null;
@@ -23,20 +20,17 @@ document.addEventListener('DOMContentLoaded', function () {
       currentUserRole = pageData.current_user_role;
       userId = pageData.current_user_id || '';
       isLocked = order?.is_locked || false; // 락 상태 초기화
-      console.log('상세 페이지 데이터 로드 성공 (ID: ' + dashboardId + ')');
     } else {
-      console.error('페이지 데이터 script 태그를 찾을 수 없음');
+      Utils.alerts.showError('페이지 데이터를 로드하는데 실패했습니다.');
       return;
     }
   } catch (error) {
-    console.error('데이터 파싱 실패:', error);
     Utils.alerts.showError('페이지 데이터를 로드하는데 실패했습니다.');
     return;
   }
 
   if (!dashboardId) {
     // 변수명 변경
-    console.error('주문 ID(dashboardId)를 찾을 수 없음');
     Utils.alerts.showError('주문 정보를 식별할 수 없습니다.');
     return;
   }
@@ -58,7 +52,6 @@ document.addEventListener('DOMContentLoaded', function () {
             .writeText(orderNo)
             .then(() => Utils.alerts.showSuccess('주문번호가 복사되었습니다.'))
             .catch((err) => {
-              console.error('클립보드 복사 실패:', err);
               Utils.alerts.showError('클립보드 복사에 실패했습니다.');
             });
         }
@@ -74,7 +67,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!isLocked || !dashboardId || !userId) return;
 
     try {
-      console.log('페이지 이탈: 락 해제 시도 중...');
       const response = await fetch(
         `/api/dashboard/${dashboardId}/release-lock`,
         {
@@ -87,13 +79,10 @@ document.addEventListener('DOMContentLoaded', function () {
       );
 
       if (response.ok) {
-        console.log('페이지 이탈: 락 해제 성공');
         isLocked = false;
-      } else {
-        console.error('페이지 이탈: 락 해제 실패', await response.text());
       }
     } catch (error) {
-      console.error('페이지 이탈: 락 해제 중 오류 발생', error);
+      // 오류 처리 (콘솔 로그 제거)
     }
   }
 
@@ -105,7 +94,6 @@ document.addEventListener('DOMContentLoaded', function () {
       const url = `/api/dashboard/${dashboardId}/release-lock`;
       const data = JSON.stringify({ user_id: userId });
       navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }));
-      console.log('sendBeacon을 통한 락 해제 요청 전송');
     }
   });
 

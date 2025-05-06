@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
           this.handleLockConflict(lockStatus.owner);
         }
       } catch (error) {
-        console.error('락 새로고침 오류:', error);
+        // 오류 처리 (콘솔 로그 제거)
         // 오류 발생 시 타이머 중지하지 않고 계속 진행
       }
     },
@@ -228,7 +228,6 @@ document.addEventListener('DOMContentLoaded', function() {
             throw lockError;
           }
           // 그 외 오류는 무시하고 계속 진행
-          console.warn('락 확인 오류 무시:', lockError);
         }
         
         // API 요청
@@ -249,7 +248,6 @@ document.addEventListener('DOMContentLoaded', function() {
           throw new Error(response.message || '주문 수정 실패');
         }
       } catch (error) {
-        console.error('주문 저장 오류:', error);
         Utils.message.error(error.message || '주문을 저장하는 중 오류가 발생했습니다.');
         
         // 버튼 상태 복원
