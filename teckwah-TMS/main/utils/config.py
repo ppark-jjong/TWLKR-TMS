@@ -44,10 +44,10 @@ class Settings:
         self.ALLOWED_ORIGINS = parse_comma_separated_list(origins_env)
 
         # 데이터베이스 설정
-        self.MYSQL_HOST = os.getenv("MYSQL_HOST", "10.54.192.6")
+        self.MYSQL_HOST = os.getenv("MYSQL_HOST", "10.54.192.10")
         self.MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
-        self.MYSQL_USER = os.getenv("MYSQL_USER", "teckwahkr-db")
-        self.MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "teckwah0206")
+        self.MYSQL_USER = os.getenv("MYSQL_USER", "root")
+        self.MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "Teckwah0206@")
         self.MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "delivery_system")
         self.MYSQL_CHARSET = os.getenv("MYSQL_CHARSET", "utf8mb4")
 

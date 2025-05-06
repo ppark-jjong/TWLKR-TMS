@@ -5,72 +5,106 @@
   href="{{ url_for('static', path='css/handover.css') }}"
 />
 <style>
-  /* 간단한 폼 스타일 보강 */
+  /* 폼 스타일 개선 */
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+  
   .form-group label {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 0.5rem;
     font-weight: 500;
-    color: var(--text-color-secondary);
+    color: #495057;
   }
+  
+  .required {
+    color: #dc3545;
+    margin-left: 4px;
+  }
+  
   .input-field,
   .select-field,
   .text-area {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border-color-dark);
-    border-radius: var(--border-radius-sm);
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--spacing-md);
+    padding: 0.75rem 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
   }
+  
+  .input-field:focus,
+  .select-field:focus,
+  .text-area:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  
   .text-area {
+    min-height: 200px;
     resize: vertical;
   }
-  .required {
-    color: var(--danger-color);
-    margin-left: 2px;
+  
+  /* 섹션 스타일 */
+  .section-title {
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 1.25rem;
+    color: #212529;
   }
-
-  /* 폼 액션 영역 제거 (상단 버튼으로 대체) */
-  .form-actions {
-    display: none;
+  
+  /* 작성/수정 폼 페이지 스타일 */
+  .handover-form-page .main-card {
+    max-width: 800px;
+    margin: 0 auto 2rem;
   }
-
-  /* 두 컬럼 레이아웃 추가 */
-  .two-column-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-lg);
+  
+  .handover-form {
+    padding: 1.5rem;
   }
-
-  .checkbox-group label {
-    margin-left: 8px;
-    font-weight: normal;
-    color: var(--text-color);
+  
+  /* 부서 선택 필드 강조 */
+  .department-select-container {
+    position: relative;
   }
-
-  /* 공지사항 체크박스 스타일 */
+  
+  .department-select-container::after {
+    content: '';
+    position: absolute;
+    top: 70%;
+    right: 1rem;
+    transform: translateY(-50%);
+    pointer-events: none;
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: #495057 transparent transparent transparent;
+  }
+  
+  /* 공지사항 체크박스 강조 스타일 */
   .notice-checkbox-container {
     display: flex;
     align-items: center;
-    margin: 12px 0 20px;
-    padding: 10px 15px;
+    margin: 1rem 0 1.5rem;
+    padding: 1rem 1.25rem;
     background-color: #f8f9fa;
     border: 1px solid #dee2e6;
-    border-radius: 5px;
+    border-radius: 4px;
     transition: all 0.2s ease;
   }
-
+  
   .notice-checkbox-container:hover {
     background-color: #e9ecef;
   }
-
+  
   .notice-checkbox {
-    width: 18px;
-    height: 18px;
-    margin-right: 10px;
+    width: 20px;
+    height: 20px;
+    margin-right: 0.75rem;
     cursor: pointer;
   }
-
+  
   .notice-label {
     display: flex;
     align-items: center;
@@ -78,16 +112,10 @@
     color: #495057;
     cursor: pointer;
   }
-
-  .notice-label i {
-    color: #d72519;
-    margin-right: 8px;
-    font-size: 1.1em;
-  }
-
+  
   .notice-label .tooltip {
-    margin-left: 12px;
-    font-size: 0.8em;
+    margin-left: 0.75rem;
+    font-size: 0.85rem;
     color: #6c757d;
     font-weight: normal;
     opacity: 0.8;
@@ -97,9 +125,6 @@
 <div class="handover-form-page">
   <div class="page-header">
     <h1 class="page-title">
-      <i
-        class="fa-solid {% if handover %}fa-edit{% else %}fa-plus{% endif %}"
-      ></i>
       {% if handover %}인수인계 수정{% else %}신규 인수인계 작성{% endif %}
     </h1>
     <div class="header-actions">
@@ -107,7 +132,6 @@
         href="{% if handover %}/handover/{{ handover.handover_id }}{% else %}/handover{% endif %}"
         class="btn secondary-btn"
       >
-        <i class="fa-solid fa-times"></i>
         취소
       </a>
       <button
@@ -116,7 +140,6 @@
         class="btn primary-btn"
         id="submitBtn"
       >
-        <i class="fa-solid fa-check"></i>
         <span>{% if handover %}저장하기{% else %}등록하기{% endif %}</span>
       </button>
     </div>
@@ -124,12 +147,10 @@
 
   {% if error_message %}
   <div class="alert alert-danger">
-    <i class="fa-solid fa-circle-exclamation"></i>
     {{ error_message }}
   </div>
   {% endif %} {% if success_message %}
   <div class="alert alert-success">
-    <i class="fa-solid fa-circle-check"></i>
     {{ success_message }}
   </div>
   {% endif %}
@@ -137,7 +158,7 @@
   <div class="main-card">
     <form
       id="handoverForm"
-      action="{% if handover %}/api/handover/{{ handover.handover_id }}{% else %}/api/handover{% endif %}"
+      action="{% if handover %}/api/handover/{{ handover.handover_id }}/update{% else %}/api/handover/create{% endif %}"
       method="POST"
       class="handover-form two-column-form"
     >
@@ -151,22 +172,11 @@
       {% endif %}
 
       <div class="form-section">
-        <h3 class="section-title">인수인계 정보</h3>
+        <h3 class="section-title">{% if handover %}인수인계 수정{% else %}인수인계 작성{% endif %}</h3>
+        
+        {# 공지사항 체크박스 - 관리자만 표시 #}
+        {% if can_create_notice %}
         <div class="form-group">
-          <label for="title">제목 <span class="required">*</span></label>
-          <input
-            type="text"
-            id="title"
-            name="title"
-            class="input-field"
-            placeholder="제목을 입력하세요"
-            required
-            value="{{ handover.title if handover else '' }}"
-          />
-        </div>
-
-        {# 공지사항 체크박스 UI 개선 #} {% if can_create_notice %}
-        <div class="form-group checkbox-group">
           <div class="notice-checkbox-container">
             <input
               type="checkbox"
@@ -174,16 +184,9 @@
               name="is_notice"
               value="true"
               class="notice-checkbox"
-              {%
-              if
-              handover
-              and
-              handover.is_notice
-              %}checked{%
-              endif
-              %}
+              {% if handover and handover.is_notice %}checked{% endif %}
             />
-            <!-- 체크되지 않았을 때 전송될 히든 필드 추가 -->
+            <!-- 체크되지 않았을 때 전송될 히든 필드 -->
             <input
               type="hidden"
               name="is_notice"
@@ -191,7 +194,6 @@
               id="is_notice_hidden"
             />
             <label for="is_notice" class="notice-label">
-              <i class="fa-solid fa-bullhorn"></i>
               공지사항으로 등록
               <span class="tooltip">관리자만 공지사항 등록이 가능합니다</span>
             </label>
@@ -204,6 +206,35 @@
           value="{{ 'true' if handover and handover.is_notice else 'false' }}"
         />
         {% endif %}
+        
+        <div class="form-group">
+          <label for="title">제목 <span class="required">*</span></label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            class="input-field"
+            placeholder="제목을 입력하세요"
+            required
+            value="{{ handover.title if handover else '' }}"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="department">부서 <span class="required">*</span></label>
+          <div class="department-select-container">
+            <select
+              id="department"
+              name="department"
+              class="select-field"
+              required
+            >
+              <option value="CS" {% if handover and handover.department == 'CS' %}selected{% endif %}>CS</option>
+              <option value="HES" {% if handover and handover.department == 'HES' %}selected{% endif %}>HES</option>
+              <option value="LENOVO" {% if handover and handover.department == 'LENOVO' %}selected{% endif %}>LENOVO</option>
+            </select>
+          </div>
+        </div>
 
         <div class="form-group">
           <label for="content">내용 <span class="required">*</span></label>
@@ -214,9 +245,7 @@
             rows="12"
             required
             placeholder="내용을 입력하세요"
-          >
-{{ handover.content if handover else '' }}</textarea
-          >
+          >{{ handover.content if handover else '' }}</textarea>
         </div>
       </div>
     </form>
@@ -232,8 +261,7 @@
     if (form && submitBtn) {
       form.addEventListener("submit", function () {
         submitBtn.disabled = true;
-        submitBtn.innerHTML =
-          '<i class="fa-solid fa-spinner fa-spin"></i> 처리 중...';
+        submitBtn.textContent = '처리 중...';
       });
     }
 

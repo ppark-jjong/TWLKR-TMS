@@ -150,3 +150,63 @@ BEGIN
 END//
 
 DELIMITER ;
+
+DELIMITER //
+
+CREATE TRIGGER trg_dashboard_before_update_postal
+BEFORE UPDATE ON dashboard
+FOR EACH ROW
+BEGIN
+  DECLARE v_city VARCHAR(100);
+  DECLARE v_county VARCHAR(100);
+  DECLARE v_district VARCHAR(100);
+  DECLARE v_distance INT;
+  DECLARE v_duration_time INT;
+  DECLARE v_count INT;
+  DECLARE v_postal_exists INT;
+
+  -- 우편번호 또는 창고가 변경되었는지 확인
+  IF NEW.postal_code <> OLD.postal_code OR NEW.warehouse <> OLD.warehouse THEN
+    -- 새 우편번호가 존재하는지 확인
+    SELECT COUNT(*) INTO v_postal_exists FROM postal_code WHERE postal_code = NEW.postal_code;
+    
+    -- 우편번호가 존재하면 지역 정보 가져오기
+    IF v_postal_exists > 0 THEN
+      SELECT city, county, district
+      INTO v_city, v_county, v_district
+      FROM postal_code
+      WHERE postal_code = NEW.postal_code;
+      
+      SET NEW.city = v_city;
+      SET NEW.county = v_county;
+      SET NEW.district = v_district;
+      
+      -- postal_code_detail에서 거리/시간 정보 조회 (새 우편번호와 새 창고 기준)
+      SELECT COUNT(*) INTO v_count 
+      FROM postal_code_detail 
+      WHERE postal_code = NEW.postal_code AND warehouse = NEW.warehouse;
+      
+      IF v_count > 0 THEN
+        SELECT distance, duration_time INTO v_distance, v_duration_time
+        FROM postal_code_detail 
+        WHERE postal_code = NEW.postal_code AND warehouse = NEW.warehouse;
+        
+        SET NEW.distance = v_distance;
+        SET NEW.duration_time = v_duration_time;
+      ELSE
+        -- 해당 허브 정보가 없으면 기본값 0 설정
+        SET NEW.distance = 0;
+        SET NEW.duration_time = 0;
+      END IF;
+    ELSE
+      -- 새 우편번호가 존재하지 않으면 city, county, district 및 거리/시간 기본값 설정
+      SET NEW.city = NULL; 
+      SET NEW.county = NULL;
+      SET NEW.district = NULL;
+      SET NEW.distance = 0;
+      SET NEW.duration_time = 0;
+    END IF;
+  END IF; -- postal_code 또는 warehouse 변경 시 조건 끝
+END//
+
+DELIMITER ;

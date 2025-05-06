@@ -10,6 +10,10 @@ import logging
 import sys
 import traceback
 from urllib.parse import quote
+import pandas as pd
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 
 from fastapi import (
     APIRouter,
@@ -22,7 +26,7 @@ from fastapi import (
     Form,
     Body,
 )
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -70,6 +74,16 @@ logger = logging.getLogger(__name__)
 # 라우터 생성
 api_router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 page_router = APIRouter(dependencies=[Depends(get_current_user)])
+
+# 상태 및 유형 라벨 매핑
+status_labels = {
+    "WAITING": "대기",
+    "IN_PROGRESS": "진행",
+    "COMPLETE": "완료",
+    "ISSUE": "이슈",
+    "CANCEL": "취소",
+}
+type_labels = {"DELIVERY": "배송", "RETURN": "회수"}
 
 
 # === 유틸리티 함수 ===
@@ -196,6 +210,106 @@ async def get_dashboard_page(
 
 
 # === API 엔드포인트 라우트 ===
+@api_router.post("/orders/batch-update")
+@db_transaction
+async def batch_update_orders(
+    request: Request,
+    update_data: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    주문 일괄 변경 API
+    여러 주문의 상태나 기사 정보를 한 번에 변경합니다.
+    """
+    user_id = current_user.get("user_id")
+    user_role = current_user.get("user_role")
+    logger.info(f"주문 일괄 변경 API 요청: user={user_id}")
+
+    try:
+        # 요청 데이터 검증
+        if not update_data or "ids" not in update_data or not update_data.get("update"):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "message": "잘못된 요청 형식입니다."},
+            )
+
+        order_ids = update_data.get("ids", [])
+        update_fields = update_data.get("update", {})
+
+        if not order_ids:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "message": "변경할 주문을 선택해주세요."},
+            )
+
+        # 상태 변경 또는 기사 배정 처리
+        results = []
+        succeeded = 0
+
+        if "status" in update_fields:
+            # 상태 일괄 변경
+            new_status = update_fields["status"]
+            status_results = change_status(
+                db=db,
+                dashboard_ids=order_ids,
+                new_status=new_status,
+                user_id=user_id,
+                user_role=user_role,
+            )
+
+            # 결과 처리
+            for result in status_results:
+                if result.get("success"):
+                    succeeded += 1
+                results.append(result)
+
+        elif "driver_name" in update_fields:
+            # 기사 일괄 배정
+            driver_name = update_fields.get("driver_name")
+            driver_contact = update_fields.get("driver_contact")
+
+            assign_results = assign_driver(
+                db=db,
+                dashboard_ids=order_ids,
+                driver_name=driver_name,
+                driver_contact=driver_contact,
+                user_id=user_id,
+            )
+
+            # 결과 처리
+            for result in assign_results:
+                if result.get("success"):
+                    succeeded += 1
+                results.append(result)
+        else:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "message": "지원하지 않는 변경 유형입니다."},
+            )
+
+        # 성공 응답
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": f"{succeeded}개 주문이 성공적으로 변경되었습니다.",
+                "succeeded": succeeded,
+                "failed": len(order_ids) - succeeded,
+                "results": results,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"주문 일괄 변경 처리 중 오류: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": f"일괄 변경 중 오류가 발생했습니다: {str(e)}",
+            },
+        )
+
+
 @api_router.get("/dashboard/list", response_model=DashboardListResponse)
 async def get_dashboard_list_api(
     db: Session = Depends(get_db),
@@ -237,6 +351,153 @@ async def get_dashboard_list_api(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"목록 조회 중 오류 발생: {error_detail}",
+        )
+
+
+@api_router.get("/dashboard/export-excel")
+async def export_dashboard_to_excel(
+    start_date: Optional[date] = Query(None, description="조회 시작일"),
+    end_date: Optional[date] = Query(None, description="조회 종료일"),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_admin_user),  # 관리자 전용 API
+):
+    """
+    관리자 전용 엑셀 다운로드 API
+    지정한 날짜 범위의 주문 데이터를 엑셀 파일로 내보냅니다.
+    """
+    logger.info(
+        f"엑셀 다운로드 요청: user={current_user.get('user_id')}, 시작일={start_date}, 종료일={end_date}"
+    )
+
+    try:
+        # 날짜 기본값 설정
+        today = datetime.now().date()
+        final_start_date = start_date or today
+        final_end_date = end_date or today
+
+        # 날짜 유효성 검사
+        if final_start_date > final_end_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="종료일은 시작일보다 같거나 늦어야 합니다.",
+            )
+
+        # 주문 데이터 가져오기
+        orders = get_dashboard_list(
+            db=db, start_date=final_start_date, end_date=final_end_date
+        )
+
+        if not orders:
+            df = pd.DataFrame()
+        else:
+            # 데이터를 Pandas DataFrame으로 변환 (영문 컬럼명 사용)
+            order_dicts = []
+            for order in orders:
+                order_dict = {
+                    "order_no": order.order_no,
+                    "type": order.type,
+                    "department": order.department,
+                    "warehouse": order.warehouse,
+                    "sla": order.sla,
+                    "status": order.status,
+                    "eta": order.eta.strftime("%Y-%m-%d %H:%M") if order.eta else None,
+                    "create_time": (
+                        order.create_time.strftime("%Y-%m-%d %H:%M")
+                        if order.create_time
+                        else None
+                    ),
+                    "depart_time": (
+                        order.depart_time.strftime("%Y-%m-%d %H:%M")
+                        if order.depart_time
+                        else None
+                    ),
+                    "complete_time": (
+                        order.complete_time.strftime("%Y-%m-%d %H:%M")
+                        if order.complete_time
+                        else None
+                    ),
+                    "postal_code": order.postal_code,
+                    "region": order.region or None,
+                    "address": order.address,
+                    "customer": order.customer,
+                    "contact": order.contact or None,
+                    "driver_name": order.driver_name or None,
+                    "driver_contact": order.driver_contact or None,
+                    "remark": order.remark or None,
+                    "update_by": order.update_by or None,
+                    "update_at": (
+                        order.update_at.strftime("%Y-%m-%d %H:%M")
+                        if order.update_at
+                        else None
+                    ),
+                }
+                order_dicts.append(order_dict)
+
+            df = pd.DataFrame(order_dicts)
+
+        # 엑셀 파일 생성 (openpyxl 직접 사용)
+        output = io.BytesIO()
+        # Pandas ExcelWriter 대신 openpyxl 직접 사용
+        # with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        #     df.to_excel(writer, sheet_name="주문목록", index=False)
+
+        # openpyxl을 사용하여 DataFrame을 쓰고 스타일 적용
+        df.to_excel(output, index=False, sheet_name="DashboardData")  # 시트 이름 변경
+        output.seek(0)  # 중요: to_excel 후 포인터 되돌리기
+
+        # 워크북 로드 및 스타일 적용
+        from openpyxl import load_workbook
+
+        wb = load_workbook(output)
+        ws = wb.active
+
+        # 헤더 스타일 정의 (볼드 제거, 회색 배경)
+        header_font = Font(bold=False)
+        header_fill = PatternFill(
+            start_color="E0E0E0", end_color="E0E0E0", fill_type="solid"
+        )
+
+        # 첫 번째 행(헤더)에 스타일 적용
+        for cell in ws[1]:  # 첫 번째 행의 모든 셀
+            cell.font = header_font
+            cell.fill = header_fill
+
+        # 수정된 워크북을 다시 BytesIO에 저장
+        output.seek(0)
+        output.truncate()  # 기존 내용 지우기
+        wb.save(output)
+        output.seek(0)
+
+        # 파일명 생성 (YYMMDD 형식)
+        start_str = final_start_date.strftime("%y%m%d")
+        end_str = final_end_date.strftime("%y%m%d")
+        filename_base = f"TWLKR-dashboard_{start_str}_{end_str}.xlsx"
+
+        # 파일명 URL 인코딩 (UTF-8)
+        filename_encoded = quote(filename_base)
+
+        # 스트리밍 응답 반환 (헤더 수정)
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                # RFC 6266 अनुसार Content-Disposition हेडर सेट करें
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+            },
+        )
+
+    except HTTPException as http_exc:
+        # HTTP 오류 그대로 전달
+        logger.warning(
+            f"엑셀 다운로드 HTTP 오류: {http_exc.status_code}, {http_exc.detail}"
+        )
+        raise http_exc
+    except Exception as e:
+        # 기타 오류 처리
+        logger.error(f"엑셀 다운로드 중 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"엑셀 파일 생성 중 오류가 발생했습니다: {str(e)}",
         )
 
 

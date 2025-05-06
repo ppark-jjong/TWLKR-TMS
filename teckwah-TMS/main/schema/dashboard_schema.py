@@ -21,6 +21,8 @@ class DashboardCreate(BaseModel):
     customer: str = Field(..., description="고객명")
     contact: Optional[str] = Field(None, description="연락처")
     remark: Optional[str] = Field(None, description="비고")
+    driver_name: Optional[str] = Field(None, description="기사 이름")
+    driver_contact: Optional[str] = Field(None, description="기사 연락처")
 
     @validator("postal_code")
     def validate_postal_code(cls, v):

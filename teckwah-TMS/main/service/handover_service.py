@@ -24,6 +24,7 @@ def _handover_to_dict(handover: Handover) -> Dict[str, Any]:
         "title": handover.title,
         "content": handover.content,
         "is_notice": handover.is_notice,
+        "department": handover.department,
         "create_by": handover.create_by,
         "create_at": handover.update_at.isoformat() if handover.update_at else None,
         "update_by": handover.update_by,
@@ -59,7 +60,7 @@ def get_handover_list_paginated(
 
 
 def get_handover_list_all(
-    db: Session, is_notice: Optional[bool] = None
+    db: Session, is_notice: Optional[bool] = None, department: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """전체 인수인계/공지 목록 조회 (is_notice가 None이면 전체)"""
     try:
@@ -67,6 +68,9 @@ def get_handover_list_all(
         if is_notice is not None:
             # is_notice 값이 True 또는 False로 명시된 경우 필터링
             query = query.filter(Handover.is_notice == is_notice)
+        if department is not None:
+            # department 값이 지정된 경우 필터링
+            query = query.filter(Handover.department == department)
         # is_notice가 None이면 필터링 없이 전체 조회
         all_handovers = query.order_by(desc(Handover.update_at)).all()
         return [_handover_to_dict(h) for h in all_handovers]
@@ -98,6 +102,7 @@ def create_handover(
     content: str,
     is_notice: bool,
     writer_id: str,
+    department: str = "CS",
 ) -> Handover:
     """인수인계 생성"""
     logger.info(f"인수인계 생성 요청: 작성자={writer_id}, 제목='{title}'")
@@ -113,6 +118,7 @@ def create_handover(
             is_locked=False,  # 기본값 명시적 설정
             locked_by=None,
             locked_at=None,
+            department=department,
         )
         db.add(handover)
         db.flush()

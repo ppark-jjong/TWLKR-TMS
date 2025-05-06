@@ -116,6 +116,28 @@
   min-width: 120px;
 }
 
+/* 기사명 필터 input 스타일 추가 */
+.filter-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color-dark);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
+  background-color: white;
+  min-width: 120px; /* 다른 필터와 너비 맞춤 */
+}
+
+.filter-input::placeholder {
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
+}
+
+.filter-input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(215, 37, 25, 0.2);
+}
+
 /* 행 개수 선택 스타일 */
 .filter-item.rows-per-page label {
   margin-right: 5px; /* 레이블과 셀렉트 박스 간격 */

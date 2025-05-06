@@ -51,7 +51,8 @@ def get_dashboard_response_data(order: Dashboard) -> Dict[str, Any]:
     if not order:
         return None
 
-    # 기본 필드 변환
+    # NULL 값 처리를 개선하여 'None' 문자열이 아닌 null로 반환하도록 변경
+    # None 값을 빈 문자열('')이나 문자열 'None'으로 변환하지 않고 그대로 null로 전달
     data = {
         "dashboard_id": order.dashboard_id,
         "order_no": order.order_no,
@@ -62,11 +63,11 @@ def get_dashboard_response_data(order: Dashboard) -> Dict[str, Any]:
         "postal_code": order.postal_code,
         "address": order.address,
         "customer": order.customer,
-        "contact": order.contact,
+        "contact": order.contact,  # None 값을 그대로 전달
         "status": order.status,
-        "driver_name": order.driver_name,
-        "driver_contact": order.driver_contact,
-        "remark": order.remark,
+        "driver_name": order.driver_name,  # None 값을 그대로 전달
+        "driver_contact": order.driver_contact,  # None 값을 그대로 전달
+        "remark": order.remark,  # None 값을 그대로 전달
         "update_at": order.update_at.isoformat() if order.update_at else None,
         "is_locked": order.is_locked,
         "locked_by": order.locked_by,
@@ -190,9 +191,16 @@ def create_dashboard(db: Session, data: DashboardCreate, user_id: str) -> Dashbo
 
     # region은 DB에서 생성되므로 모델 데이터에서 제외
     order_data = data.model_dump(exclude={"region"})
+
+    # 주문 생성 시 상태는 항상 'WAITING'으로 강제 설정 (클라이언트에서 어떤 값이 전달되어도 무시)
+    if "status" in order_data:
+        logger.info(
+            f"주문 생성 시 상태 강제 설정: {order_data.get('status')} -> WAITING"
+        )
+
     order_data.update(
         {
-            "status": "WAITING",
+            "status": "WAITING",  # 강제로 상태는 WAITING으로 설정
             "create_time": datetime.now(),
             "update_by": user_id,
             "update_at": datetime.now(),
@@ -363,18 +371,10 @@ def update_dashboard(
 def change_status(
     db: Session, dashboard_ids: List[int], new_status: str, user_id: str, user_role: str
 ) -> List[Dict[str, Any]]:
-    """주문 상태 변경"""
+    """주문 상태 변경 (최종 규칙 시간 처리, 프론트엔드 검증 신뢰)"""
     results = []
-    status_order = {
-        "WAITING": 0,
-        "IN_PROGRESS": 1,
-        "COMPLETE": 2,
-        "ISSUE": 3,
-        "CANCEL": 4,
-    }
 
     for dashboard_id in dashboard_ids:
-        lock_held = False  # 각 주문마다 락 처리
         try:
             # 1. 락 상태 확인
             lock_status = check_lock_status(db, "dashboard", dashboard_id, user_id)
@@ -383,11 +383,10 @@ def change_status(
                     {
                         "id": dashboard_id,
                         "success": False,
-                        "message": lock_status.get("message", "락 오류"),
+                        "message": lock_status.get("message", "락 오류 또는 편집 불가"),
                     }
                 )
-                continue  # 다음 주문으로
-            lock_held = True
+                continue
 
             order = (
                 db.query(Dashboard)
@@ -404,7 +403,8 @@ def change_status(
                 )
                 continue
 
-            if order.status == new_status:
+            old_status = order.status
+            if old_status == new_status:
                 results.append(
                     {
                         "id": dashboard_id,
@@ -414,57 +414,61 @@ def change_status(
                 )
                 continue
 
-            old_status = order.status
-            is_rollback = status_order.get(new_status, -1) < status_order.get(
-                old_status, -1
-            )
+            # --- 최종 규칙: ISSUE 또는 CANCEL 상태에서는 변경 불가 ---
+            if old_status in ["ISSUE", "CANCEL"]:
+                logger.warning(
+                    f"최종 상태 변경 시도: ID {dashboard_id}, {old_status} -> {new_status}, User {user_id}"
+                )
+                results.append(
+                    {
+                        "id": dashboard_id,
+                        "success": False,
+                        "message": f"{status_labels.get(old_status, old_status)} 상태는 변경할 수 없습니다.",
+                    }
+                )
+                continue
 
-            # 권한 검사
-            if user_role != "ADMIN":
-                valid_transitions = {
-                    "WAITING": ["IN_PROGRESS"],
-                    "IN_PROGRESS": ["COMPLETE", "ISSUE", "CANCEL"],
-                }
-                allowed_new_statuses = valid_transitions.get(old_status, [])
-                if new_status not in allowed_new_statuses:
-                    results.append(
-                        {
-                            "id": dashboard_id,
-                            "success": False,
-                            "message": f"{status_labels.get(old_status)} 상태에서 {status_labels.get(new_status)} 상태로 변경할 수 없습니다.",
-                        }
-                    )
-                    continue
-                if is_rollback:
-                    results.append(
-                        {
-                            "id": dashboard_id,
-                            "success": False,
-                            "message": "롤백은 관리자만 가능합니다.",
-                        }
-                    )
-                    continue
+            # --- 백엔드 단계 유효성 검증 제거 ---
+            # (프론트엔드에서 선택 자체를 제한하므로 불필요)
 
-            # 상태 변경 및 시간 기록
+            # 2. 상태 변경 및 시간 기록 (최종 규칙 적용)
             order.status = new_status
             now = datetime.now()
-            if old_status == "WAITING" and new_status == "IN_PROGRESS":
-                order.depart_time = now
-            elif old_status == "IN_PROGRESS" and new_status in [
-                "COMPLETE",
-                "ISSUE",
-                "CANCEL",
-            ]:
-                order.complete_time = now
-            elif is_rollback and user_role == "ADMIN":
-                if old_status in ["COMPLETE", "ISSUE", "CANCEL"]:
-                    order.complete_time = None
-                if old_status == "IN_PROGRESS" and new_status == "WAITING":
-                    order.depart_time = None
+            depart_time = order.depart_time
+            complete_time = order.complete_time
 
+            # --- 시간 값 설정/초기화 (최종 규칙) ---
+            if new_status == "WAITING":  # 역행: IN_PROGRESS -> WAITING (Admin Only)
+                if user_role == "ADMIN" and old_status == "IN_PROGRESS":
+                    depart_time = None
+                    complete_time = None
+            elif new_status == "IN_PROGRESS":
+                if old_status == "WAITING":  # 순방향: WAITING -> IN_PROGRESS
+                    depart_time = now
+                    complete_time = None
+                elif (
+                    user_role == "ADMIN" and old_status == "COMPLETE"
+                ):  # 관리자 역행: COMPLETE -> IN_PROGRESS
+                    complete_time = None  # 완료 시간만 제거
+            elif new_status == "COMPLETE":
+                if old_status == "IN_PROGRESS":  # 순방향: IN_PROGRESS -> COMPLETE
+                    if depart_time is None:
+                        depart_time = now  # 방어 코드
+                    complete_time = now
+            elif new_status == "ISSUE":
+                # -> ISSUE는 시간 값 유지 (규칙 수정)
+                pass
+            elif new_status == "CANCEL":
+                # -> CANCEL은 시간 값 유지 (규칙 수정)
+                pass
+
+            # 계산된 시간 값 적용
+            order.depart_time = depart_time
+            order.complete_time = complete_time
+
+            # 공통 업데이트 정보
             order.update_by = user_id
             order.update_at = now
-            order.is_locked = False  # 상태 변경 시 락 해제
 
             db.flush()
             results.append(
@@ -472,7 +476,6 @@ def change_status(
                     "id": dashboard_id,
                     "success": True,
                     "message": f"상태 변경: {status_labels.get(old_status)} → {status_labels.get(new_status)}",
-                    "rollback": is_rollback,
                     "old_status": old_status,
                     "new_status": new_status,
                 }
@@ -486,17 +489,7 @@ def change_status(
             results.append(
                 {"id": dashboard_id, "success": False, "message": "데이터베이스 오류"}
             )
-        finally:
-            if lock_held:
-                try:
-                    release_lock(db, "dashboard", dashboard_id, user_id)
-                except Exception as release_err:
-                    logger.error(
-                        f"상태 변경 락 해제 실패: ID {dashboard_id}, {release_err}"
-                    )
 
-    # 모든 변경 사항 커밋 (라우터 레벨에서 처리하는 것이 더 안전할 수 있음)
-    # db.commit()
     return results
 
 

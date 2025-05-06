@@ -4,6 +4,10 @@
   rel="stylesheet"
   href="{{ url_for('static', path='css/dashboard.css') }}"
 />
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', path='css/dashboard_additions.css') }}"
+/>
 {% endblock %} {% block content %}
 <div class="dashboard-page">
   <!-- 로딩 오버레이 -->
@@ -88,6 +92,15 @@
             <option value="LENOVO">LENOVO</option>
           </select>
         </div>
+        <div class="filter-item">
+          <label for="driverNameFilter">기사명</label>
+          <input
+            type="text"
+            id="driverNameFilter"
+            class="filter-input"
+            placeholder="기사명 검색"
+          />
+        </div>
         <!-- 창고 필터 제거 (요구사항 아님) -->
         <!-- <button class="btn secondary-btn" id="applyFilterBtn"> 필터 적용 </button> -->
         <button class="btn secondary-btn" id="resetFilterBtn">
@@ -113,6 +126,12 @@
           <button class="btn secondary-btn" id="refreshBtn">
             <i class="fa-solid fa-arrows-rotate"></i> 새로고침
           </button>
+          <!-- 관리자만 볼 수 있는 엑셀 다운로드 버튼 -->
+          {% if current_user and current_user.user_role == 'ADMIN' %}
+          <button class="btn secondary-btn" id="exportExcelBtn">
+            <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
+          </button>
+          {% endif %}
           <a href="/orders/new" class="btn primary-btn">
             <i class="fa-solid fa-plus"></i> 신규 등록
           </a>
@@ -188,17 +207,8 @@
   </div>
 </div>
 {% endblock %} {% block page_js %}
-<!-- -------- 초기 데이터를 JavaScript 변수로 정의하는 부분 제거 시작 -------- -->
-<!--
-<script>
-  /* eslint-disable */
-  // 서버에서 제공된 초기 데이터를 안전하게 JavaScript 변수로 설정
-  window.initialDashboardData = {{ initial_data|tojson|safe }};
-  /* eslint-enable */
-</script>
--->
-<!-- -------- 초기 데이터를 JavaScript 변수로 정의하는 부분 제거 끝 -------- -->
 
 <!-- 대시보드 관련 스크립트 -->
 <script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+
 {% endblock %}

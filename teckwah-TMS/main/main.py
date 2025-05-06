@@ -32,6 +32,7 @@ from main.routes import (
     dashboard_route,
     handover_route,
     users_route,
+    excel_export,
 )
 from main.core.templating import templates
 
@@ -150,6 +151,9 @@ app.include_router(
     dashboard_route.page_router, tags=["Dashboard Pages"]
 )  # 페이지 라우터
 app.include_router(dashboard_route.api_router, tags=["Dashboard API"])  # API 라우터
+
+# 엑셀 내보내기 라우터 (관리자 전용)
+app.include_router(excel_export.api_router, tags=["Excel Export API"])
 
 
 # 인수인계 라우터

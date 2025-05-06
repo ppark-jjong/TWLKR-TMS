@@ -39,7 +39,11 @@ from main.service.handover_service import (
 from main.utils.json_util import CustomJSONEncoder
 
 # 스키마 임포트 추가
-from main.schema.handover_schema import HandoverListResponse, HandoverCreate
+from main.schema.handover_schema import (
+    HandoverListResponse,
+    HandoverCreate,
+    HandoverResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -343,13 +347,18 @@ async def get_handover_list_api(
         None,
         description="null: 전체, True: 공지, False: 인수인계",
     ),
+    department: Optional[str] = Query(
+        None, description="부서 필터링 (CS, HES, LENOVO)"
+    ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     logger.info(
-        f"인수인계 목록 API 호출: notice={is_notice}, user={current_user.get('user_id')}"
+        f"인수인계 목록 API 호출: notice={is_notice}, department={department}, user={current_user.get('user_id')}"
     )
     try:
-        all_items = get_handover_list_all(db=db, is_notice=is_notice)
+        all_items = get_handover_list_all(
+            db=db, is_notice=is_notice, department=department
+        )
         # HandoverListResponse 스키마에 맞게 반환
         return HandoverListResponse(
             success=True, message="목록 조회 성공", data=all_items
@@ -361,54 +370,56 @@ async def get_handover_list_api(
         raise HTTPException(status_code=500, detail="목록 조회 중 오류 발생")
 
 
-@api_router.post("", status_code=status.HTTP_302_FOUND)
-@db_transaction  # 트랜잭션 관리
-async def create_handover_action(
+@api_router.post("/create", response_model=Dict[str, Any])
+@db_transaction
+async def create_handover_api(
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    # Form 필드 snake_case
     title: str = Form(...),
     content: str = Form(...),
-    is_notice: str = Form("false"),  # 폼에서 체크박스 값을 "true"/"false" 문자열로 처리
+    is_notice: str = Form(default="false"),
+    department: str = Form(default="CS"),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    인수인계 생성 API
+
+    - Form 파라미터:
+      - title(str): 제목
+      - content(str): 내용
+      - is_notice(str): 공지사항 여부 (문자열 "true"/"false")
+      - department(str): 부서 (CS/HES/LENOVO)
+    """
     user_id = current_user.get("user_id")
     user_role = current_user.get("user_role")
-    logger.info(
-        f"인수인계 생성 API 요청: user={user_id}, role={user_role}, title='{title}', is_notice={is_notice}"
-    )
+    logger.info(f"인수인계 생성 API 호출: user={user_id}, role={user_role}")
 
     try:
-        # 입력값 디버깅
-        logger.debug(
-            f"인수인계 생성 입력값: title='{title}', content='{content[:50]}...', is_notice={is_notice}"
-        )
-
-        # 문자열 "true"/"false"를 불리언으로 변환
-        # 체크박스는 체크되지 않으면 요청에 포함되지 않으므로, 기본값은 "false"
+        # 공지사항 생성 권한 확인 (관리자만 가능)
         is_notice_bool = is_notice.lower() == "true"
-        logger.debug(
-            f"공지사항 변환 결과: is_notice(문자열)={is_notice}, is_notice_bool={is_notice_bool}"
-        )
-
-        # 관리자가 아니면 공지사항 생성 불가
         if is_notice_bool and user_role != "ADMIN":
-            logger.warning(
-                f"인수인계 공지사항 생성 권한 없음: user={user_id}, role={user_role}"
-            )
-            error_message = quote("관리자만 공지사항을 생성할 수 있습니다.")
-            return RedirectResponse(
-                f"/handover/new?error={error_message}",
-                status_code=status.HTTP_303_SEE_OTHER,
+            logger.warning(f"공지사항 생성 권한 없음: user={user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="관리자만 공지사항을 생성할 수 있습니다.",
             )
 
-        # 서비스 함수 호출 - 일반 인수인계는 모든 사용자가 생성 가능
+        # 부서 유효성 검증
+        if department not in ["CS", "HES", "LENOVO"]:
+            logger.warning(f"유효하지 않은 부서: {department}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="유효하지 않은 부서입니다.",
+            )
+
+        # 인수인계 생성
         new_handover = create_handover(
             db=db,
             title=title,
             content=content,
-            is_notice=is_notice_bool,  # bool 값으로 전달
+            is_notice=is_notice_bool,
             writer_id=user_id,
+            department=department,
         )
 
         logger.info(
@@ -422,7 +433,6 @@ async def create_handover_action(
         )
 
     except HTTPException as http_exc:
-        # 권한 오류 등 예상된 오류 처리
         logger.warning(f"인수인계 생성 API 오류: {http_exc.detail}")
         error_message = quote(http_exc.detail)
         return RedirectResponse(
@@ -438,27 +448,35 @@ async def create_handover_action(
         )
 
 
-@api_router.post("/{handover_id}", status_code=status.HTTP_302_FOUND)
+@api_router.post("/{handover_id}/update", response_model=Dict[str, Any])
 @db_transaction
-async def update_handover_action(
+async def update_handover_api(
     request: Request,
     handover_id: int = Path(..., ge=1),
-    db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    # Form 필드 snake_case
     title: str = Form(...),
     content: str = Form(...),
-    is_notice: str = Form("false"),  # 폼에서 체크박스 값을 "true"/"false" 문자열로 처리
+    is_notice: str = Form(default="false"),
+    department: str = Form(default="CS"),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    인수인계 수정 API (락 점검 포함)
+
+    - Path 파라미터:
+      - handover_id(int): 인수인계 ID
+
+    - Form 파라미터:
+      - title(str): 제목
+      - content(str): 내용
+      - is_notice(str): 공지사항 여부 (문자열 "true"/"false")
+      - department(str): 부서 (CS/HES/LENOVO)
+    """
     user_id = current_user.get("user_id")
     user_role = current_user.get("user_role")
-    logger.info(
-        f"인수인계 수정 API 요청: id={handover_id}, user={user_id}, is_notice={is_notice}"
-    )
-
+    logger.info(f"인수인계 수정 API 호출: id={handover_id}, user={user_id}")
     detail_url = f"/handover/{handover_id}"
     edit_url = f"/handover/{handover_id}/edit"
-    lock_held = False
 
     try:
         # 수정 전 락 상태 확인
@@ -516,11 +534,21 @@ async def update_handover_action(
                 status_code=status.HTTP_303_SEE_OTHER,
             )
 
+        # 부서 유효성 검증
+        if department not in ["CS", "HES", "LENOVO"]:
+            logger.warning(f"유효하지 않은 부서: {department}")
+            error_message = quote("유효하지 않은 부서입니다.")
+            return RedirectResponse(
+                f"{edit_url}?error={error_message}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
         # 수정 데이터 준비
         update_data = {
             "title": title,
             "content": content,
             "is_notice": is_notice_bool,
+            "department": department,
         }
 
         # 서비스 함수 호출하여 인수인계 수정

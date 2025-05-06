@@ -2,7 +2,7 @@
 인수인계 모델 - init-db.sql 스키마와 정확히 일치하도록 수정됨
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from main.utils.database import Base
@@ -23,6 +23,12 @@ class Handover(Base):
         String(50), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False
     )
     is_notice = Column(Boolean, default=False)
+    # 부서 필드 추가
+    department = Column(
+        Enum("CS", "HES", "LENOVO", name="handover_department_enum"),
+        nullable=False,
+        default="CS"
+    )
     update_at = Column(DateTime, nullable=False, default=func.now())
     is_locked = Column(Boolean, default=False)
     locked_by = Column(String(50), nullable=True)  # 락 소유자 ID

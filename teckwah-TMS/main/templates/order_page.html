@@ -165,7 +165,7 @@
                 <span class="detail-label">배송기사</span>
                 <div class="field-with-edit">
                   <span id="driverNameDisplay"
-                    >{% if order.driver_name %}{{ order.driver_name }}{% else
+                    >{% if order.driver_name and order.driver_name != 'None' %}{{ order.driver_name }}{% else
                     %}-{% endif %}</span
                   >
                 </div>
@@ -174,7 +174,7 @@
                 <span class="detail-label">배송기사 연락처</span>
                 <div class="field-with-edit">
                   <span id="driverContactDisplay"
-                    >{% if order.driver_contact %}{{ order.driver_contact }}{%
+                    >{% if order.driver_contact and order.driver_contact != 'None' %}{{ order.driver_contact }}{%
                     else %}-{% endif %}</span
                   >
                 </div>
@@ -193,7 +193,7 @@
               <div class="detail-item">
                 <span class="detail-label">연락처</span>
                 <span class="detail-value"
-                  >{% if order.contact %}{{ order.contact }}{% else %}-{% endif
+                  >{% if order.contact and order.contact != 'None' %}{{ order.contact }}{% else %}-{% endif
                   %}</span
                 >
               </div>
@@ -208,7 +208,7 @@
             </div>
             <div class="remark-container">
               <span class="detail-value"
-                >{% if order.remark %}{{ order.remark }}{% else %}-{% endif
+                >{% if order.remark and order.remark != 'None' %}{{ order.remark }}{% else %}-{% endif
                 %}</span
               >
             </div>
@@ -237,15 +237,7 @@
     </div>
   </div>
 </div>
-{% endblock %} {% block page_js %} {# 디버깅용 코드 제거 #} {#
-<script>
-  console.log("JS에서 확인한 주문 ID: {{ order.dashboard_id }}");
-  console.log("주문 데이터 키: {{ order.keys()|list|join(', ') }}");
-  console.log(
-    "주문 데이터 샘플: {{ order.dashboard_id }}, {{ order.order_no }}"
-  );
-</script>
-#} {# 페이지 데이터를 JSON으로 변환하여 스크립트 태그에 저장 #}
+{% endblock %} {% block page_js %}
 <script id="page-data-script" type="application/json">
   {{ {'order': order, 'lock_status': lock_status, 'current_user_role': current_user.user_role}|tojson|safe }}
 </script>

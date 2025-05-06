@@ -4,6 +4,20 @@
  */
 const Utils = {
   /**
+   * NULL 값 처리 개선
+   * null, 'None', undefined 값을 안전하게 처리
+   * @param {any} value - 검사할 값
+   * @param {string} defaultValue - 기본값 (생략 시 빈 문자열)
+   * @returns {string} - 처리된 값
+   */
+  safeText: function(value, defaultValue = '') {
+    // null, undefined, 'None' 문자열을 defaultValue로 변환
+    if (value === null || value === undefined || value === 'None') {
+      return defaultValue;
+    }
+    return value;
+  },
+  /**
    * 우편번호 포맷팅 (4자리 -> 5자리)
    * @param {string} code - 입력된 우편번호
    * @returns {string} - 포맷팅된 우편번호
