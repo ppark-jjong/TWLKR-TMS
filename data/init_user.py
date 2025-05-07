@@ -7,18 +7,18 @@ import sys
 # ============================
 # 데이터베이스 설정 (로컬 MySQL)
 # ============================
-# MYSQL_USER = "root"
-# MYSQL_PASSWORD = "Teckwah0206@"
-# MYSQL_HOST = "localhost"
-# MYSQL_PORT = 3307
-# MYSQL_DATABASE = "delivery_system"
-# MYSQL_CHARSET = "utf8mb4"
 MYSQL_USER = "root"
-MYSQL_PASSWORD = "1234"
+MYSQL_PASSWORD = "teckwah0206"
 MYSQL_HOST = "localhost"
-MYSQL_PORT = 3306
+MYSQL_PORT = 3307
 MYSQL_DATABASE = "delivery_system"
 MYSQL_CHARSET = "utf8mb4"
+# MYSQL_USER = "root"
+# MYSQL_PASSWORD = "1234"
+# MYSQL_HOST = "localhost"
+# MYSQL_PORT = 3306
+# MYSQL_DATABASE = "delivery_system"
+# MYSQL_CHARSET = "utf8mb4"
 
 
 def get_mysql_connection():
