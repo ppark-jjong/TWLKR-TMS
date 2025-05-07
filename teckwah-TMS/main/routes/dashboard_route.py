@@ -1163,7 +1163,6 @@ async def create_order_action(
         # create_dashboard 서비스 호출 (Pydantic 모델 객체 생성)
         try:
             create_data_obj = DashboardCreate(**create_data)
-            logger.debug(f"주문 생성 객체 생성 성공: {create_data_obj}")
         except Exception as e:
             logger.error(f"주문 생성 객체 생성 실패: {str(e)}", exc_info=True)
             error_message = quote(f"주문 데이터 형식 오류: {str(e)}")

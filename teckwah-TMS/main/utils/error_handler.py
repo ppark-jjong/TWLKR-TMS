@@ -39,7 +39,8 @@ def create_error_response(
     # 오류 로깅
     logger.error(f"오류 응답: {message} (코드: {status_code}, 내부 코드: {error_code})")
     if details:
-        logger.debug(f"오류 상세 정보: {details}")
+        # logger.debug(f"오류 상세 정보: {details}") # 프로덕션에서 불필요한 로그 제거
+        pass  # debug 로그만 있었으므로 pass 추가
 
     return JSONResponse(status_code=status_code, content=content)
 

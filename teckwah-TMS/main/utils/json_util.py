@@ -57,9 +57,10 @@ def custom_json_dumps(obj: Any) -> str:
 
         # 객체 타입 로깅
         if hasattr(obj, "__dict__"):
-            logger.debug(
-                f"객체 타입: {type(obj).__name__}, 속성: {list(obj.__dict__.keys())}"
-            )
+            # logger.debug( # 프로덕션에서 불필요한 로그 제거
+            #     f"객체 타입: {type(obj).__name__}, 속성: {list(obj.__dict__.keys())}"
+            # )
+            pass  # debug 로그만 있었으므로 pass 추가
 
         # 딕셔너리인 경우 문제 필드 찾기
         if isinstance(obj, dict):

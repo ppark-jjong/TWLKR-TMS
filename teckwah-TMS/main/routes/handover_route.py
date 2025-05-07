@@ -523,7 +523,6 @@ async def update_handover_api(
 
         # 문자열 "true"/"false"를 불리언으로 변환
         is_notice_bool = is_notice.lower() == "true"
-        logger.debug(f"인수인계 is_notice 변환: {is_notice} -> {is_notice_bool}")
 
         # 공지사항 여부 변경 시 관리자 권한 필요
         if is_notice_bool != handover.is_notice and user_role != "ADMIN":

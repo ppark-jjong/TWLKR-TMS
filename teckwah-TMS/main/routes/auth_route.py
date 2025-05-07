@@ -30,8 +30,8 @@ async def login_page(request: Request):
     로그인 페이지 렌더링
     """
     # 함수 진입점 로깅
-    logging.debug(f"login_page 시작: URL={request.url}")
-    
+    # logging.debug(f"login_page 시작: URL={request.url}")
+
     # return_to 파라미터가 있는 경우 템플릿에 전달
     return_to = request.query_params.get("return_to", "/dashboard")
 
@@ -43,8 +43,8 @@ async def login_page(request: Request):
         return RedirectResponse(url=return_to, status_code=status.HTTP_303_SEE_OTHER)
 
     # 중간 포인트 로깅
-    logging.debug(f"login_page 렌더링: return_to={return_to}")
-    
+    # logging.debug(f"login_page 렌더링: return_to={return_to}")
+
     return templates.TemplateResponse(
         "login.html",
         {
@@ -71,13 +71,13 @@ async def login(
     """
     # 함수 진입점 로깅
     logging.info(f"login 시작: 사용자 ID={user_id}, return_to={return_to}")
-    
+
     authenticated, user_data = authenticate_user(db, user_id, user_password)
 
     if not authenticated or not user_data:
         # 중간 포인트 로깅 - 인증 실패
         logging.warning(f"로그인 실패: 사용자 ID={user_id}")
-        
+
         return templates.TemplateResponse(
             "login.html",
             {
@@ -92,9 +92,11 @@ async def login(
 
     # 쿠키 기반 세션에 사용자 정보 저장
     request.session["user"] = user_data
-    
+
     # 중간 포인트 로깅 - 로그인 성공
-    logging.info(f"로그인 성공: 사용자 '{user_id}', 권한='{user_data.get('user_role')}'")
+    logging.info(
+        f"로그인 성공: 사용자 '{user_id}', 권한='{user_data.get('user_role')}'"
+    )
 
     return RedirectResponse(url=return_to, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -108,13 +110,13 @@ async def logout(request: Request):
     # 함수 진입점 로깅
     user_id = request.session.get("user", {}).get("user_id", "알 수 없음")
     logging.info(f"logout 시작: 사용자 ID={user_id}")
-    
+
     # 쿠키 기반 세션 클리어
     request.session.clear()
-    
+
     # 중간 포인트 로깅 - 로그아웃 성공
     logging.info(f"로그아웃 성공: 사용자 ID={user_id}")
-    
+
     return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -124,8 +126,8 @@ async def get_me(request: Request):
     현재 로그인된 사용자 정보 반환
     """
     # 함수 진입점 로깅
-    logging.debug(f"get_me 시작: IP={request.client.host}")
-    
+    # logging.debug(f"get_me 시작: IP={request.client.host}")
+
     user = request.session.get("user")
     if not user:
         logging.warning(f"인증되지 않은 사용자 접근: IP={request.client.host}")
@@ -133,10 +135,10 @@ async def get_me(request: Request):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="인증되지 않은 사용자입니다.",
         )
-    
+
     # 중간 포인트 로깅 - 사용자 정보 반환
-    logging.debug(f"사용자 정보 반환: 사용자 ID={user.get('user_id')}")
-    
+    # logging.debug(f"사용자 정보 반환: 사용자 ID={user.get('user_id')}")
+
     return user
 
 
@@ -147,7 +149,7 @@ async def check_session(request: Request):
     클라이언트에서 주기적으로 호출하여 세션 상태를 확인합니다.
     """
     # 함수 진입점 로깅
-    logging.debug(f"세션 체크 API 호출: IP={request.client.host}")
+    # logging.debug(f"세션 체크 API 호출: IP={request.client.host}")
 
     user = request.session.get("user")
     if not user:
@@ -155,9 +157,9 @@ async def check_session(request: Request):
         return {"authenticated": False, "message": "세션이 만료되었습니다."}
 
     # 세션이 유효한 경우 사용자 정보 반환 (민감한 정보 제외)
-    logging.debug(
-        f"세션 체크 성공: 사용자={user.get('user_id')}, 권한={user.get('user_role')}"
-    )
+    # logging.debug(
+    #     f"세션 체크 성공: 사용자={user.get('user_id')}, 권한={user.get('user_role')}"
+    # )
     return {
         "authenticated": True,
         "message": "세션이 유효합니다.",

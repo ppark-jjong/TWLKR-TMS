@@ -61,7 +61,7 @@ async def users_page(
         }
 
         # 중간 포인트 로깅 - DB 쿼리 전
-        logging.debug(f"DB 쿼리 시작: 사용자 목록 조회 (필터: {filter_data})")
+        # logging.debug(f"DB 쿼리 시작: 사용자 목록 조회 (필터: {filter_data})") # 프로덕션에서 불필요한 로그 제거
 
         # 사용자 목록 조회
         users, pagination = get_user_list(

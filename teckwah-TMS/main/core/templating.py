@@ -76,13 +76,10 @@ def custom_tojson(value):
         result = json.dumps(value, cls=TemplateJSONEncoder, ensure_ascii=False)
         return result
     except Exception as e:
-        import logging
-
-        logging.error(f"[Templating] JSON 변환 오류: {str(e)}")
-
         # 오류 상세 로깅
         if isinstance(value, dict):
-            logging.debug(f"JSON 직렬화 실패한 객체 키: {list(value.keys())}")
+            # logging.debug(f"JSON 직렬화 실패한 객체 키: {list(value.keys())}") # 프로덕션에서 불필요한 로그 제거
+            pass  # debug 로그만 있었으므로 pass 추가
 
             # 문제의 키 식별
             for k, v in value.items():

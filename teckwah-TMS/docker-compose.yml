@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: ./Dockerfile
     image: teckwah-tms:latest
-    container_name: teckwah-tms
-    restart: always
+    container_name: teckwahkr-tms
+    restart: 'no'
     ports:
       - '8080:8080'
     environment:
@@ -24,7 +24,7 @@ services:
       MYSQL_CHARSET: 'utf8mb4'
 
       # 세션 설정
-      SESSION_SECRET: 'bbdcf8bf3de489b385cc6307ce420ad563ba4848c201fa9d003cdb4efdab42da'
+      SESSION_SECRET: 'random_secret_key'
       SESSION_EXPIRE_HOURS: '24'
 
       # 락 설정

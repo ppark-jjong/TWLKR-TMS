@@ -16,7 +16,7 @@ from typing import Optional
 
 # --- 로깅 설정 초기화 ---
 logging.basicConfig(
-    level=logging.INFO,
+    level=settings.LOG_LEVEL,
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -119,8 +119,10 @@ app.add_middleware(LoggingMiddleware)
 
 # 2. 세션 미들웨어
 # GAE 환경에서는 HTTPS 강제, 로컬에서는 HTTP 허용
-is_production = os.getenv('GAE_ENV', '').startswith('standard')
-logger.info(f"환경 감지: {'프로덕션(GAE)' if is_production else '로컬/개발'} - HTTPS 강제: {is_production}")
+is_production = os.getenv("GAE_ENV", "").startswith("standard")
+logger.info(
+    f"환경 감지: {'프로덕션(GAE)' if is_production else '로컬/개발'} - HTTPS 강제: {is_production}"
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SESSION_SECRET,

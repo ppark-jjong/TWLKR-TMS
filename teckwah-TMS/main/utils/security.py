@@ -41,7 +41,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_current_user(request: Request) -> Dict[str, Any]:
     """
     현재 요청의 세션에서 사용자 정보를 가져옵니다.
-    
+
     SessionMiddleware가 제공하는 request.session을 사용합니다.
     이는 쿠키 기반 세션으로, GAE 환경에서도 안정적으로 동작합니다.
 
@@ -57,7 +57,8 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     user = request.session.get("user")
 
     if user:
-        logger.debug(f"세션에서 사용자 정보 확인: {user.get('user_id')}")
+        # logger.debug(f"세션에서 사용자 정보 확인: {user.get('user_id')}") # 프로덕션에서 불필요한 로그 제거
+        pass  # user가 있을 때 debug 로그만 있었으므로 pass 추가
     else:
         logger.warning(f"인증되지 않은 접근 시도: {request.url.path}")
         raise HTTPException(

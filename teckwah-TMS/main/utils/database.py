@@ -23,7 +23,9 @@ logger.info(f"MYSQL_HOST: {settings.MYSQL_HOST}")
 logger.info(f"MYSQL_PORT: {settings.MYSQL_PORT}")
 logger.info(f"MYSQL_DATABASE: {settings.MYSQL_DATABASE}")
 logger.info(f"GAE_ENV: {os.getenv('GAE_ENV', '없음')}")
-logger.info(f"연결 URL 패턴: mysql+pymysql://[user]@{settings.MYSQL_HOST}{'/' if os.getenv('GAE_ENV', '').startswith('standard') else ':' + str(settings.MYSQL_PORT) + '/'}{settings.MYSQL_DATABASE}")
+logger.info(
+    f"연결 URL 패턴: mysql+pymysql://[user]@{settings.MYSQL_HOST}{'/' if os.getenv('GAE_ENV', '').startswith('standard') else ':' + str(settings.MYSQL_PORT) + '/'}{settings.MYSQL_DATABASE}"
+)
 logger.info("===========================")
 
 # SQLAlchemy 엔진 생성
@@ -54,18 +56,20 @@ def test_db_connection():
     try:
         logger.info("=====================================================")
         logger.info("데이터베이스 연결 테스트 시작...")
-        
+
         # 환경 정보 로깅
-        is_gae = os.getenv('GAE_ENV', '').startswith('standard')
+        is_gae = os.getenv("GAE_ENV", "").startswith("standard")
         logger.info(f"환경: {'GAE 프로덕션' if is_gae else '로컬/개발'}")
         logger.info(f"호스트 IP: {socket.gethostbyname(socket.gethostname())}")
-        
+
         # 상세 연결 정보 로깅
         logger.info(f"연결 대상: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}")
         logger.info(f"데이터베이스: {settings.MYSQL_DATABASE}")
         logger.info(f"사용자: {settings.MYSQL_USER}")
-        logger.info(f"비밀번호 길이: {len(settings.MYSQL_PASSWORD) if settings.MYSQL_PASSWORD else 0}")
-        
+        logger.info(
+            f"비밀번호 길이: {len(settings.MYSQL_PASSWORD) if settings.MYSQL_PASSWORD else 0}"
+        )
+
         # 연결 URL 로깅 (비밀번호 마스킹)
         safe_url = settings.DATABASE_URL.replace(settings.MYSQL_PASSWORD, "******")
         logger.info(f"생성된 연결 URL: {safe_url}")
@@ -76,62 +80,73 @@ def test_db_connection():
             sock.settimeout(5)  # 5초 타임아웃
             result = sock.connect_ex((settings.MYSQL_HOST, settings.MYSQL_PORT))
             sock.close()
-            
+
             if result == 0:
-                logger.info(f"소켓 테스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}에 연결 가능")
+                logger.info(
+                    f"소켓 테스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}에 연결 가능"
+                )
             else:
-                logger.warning(f"소켓 테스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}에 연결 불가 (오류코드: {result})")
+                logger.warning(
+                    f"소켓 테스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}에 연결 불가 (오류코드: {result})"
+                )
         except Exception as sock_err:
             logger.warning(f"소켓 연결 테스트 실패: {str(sock_err)}")
 
-        # 실제 데이터베이스 연결 시도 
+        # 실제 데이터베이스 연결 시도
         logger.info("SQLAlchemy로 데이터베이스 연결 시도...")
         with engine.connect() as conn:
             # MySQL 버전 확인
             result = conn.execute(text("SELECT VERSION()"))
             version = result.fetchone()[0]
-            
-            # 현재 사용자 확인 
+
+            # 현재 사용자 확인
             result = conn.execute(text("SELECT CURRENT_USER()"))
             current_user = result.fetchone()[0]
-            
+
             logger.info(f"데이터베이스 연결 성공!")
             logger.info(f"MySQL 버전: {version}")
             logger.info(f"연결된 사용자: {current_user}")
             logger.info("=====================================================")
-            
+
             return True
     except Exception as e:
         logger.error("=====================================================")
         logger.error(f"데이터베이스 연결 실패: {str(e)}")
-        
+
         # 오류 메시지에서 'Access denied' 문자열 확인
         error_msg = str(e).lower()
-        if 'access denied' in error_msg:
+        if "access denied" in error_msg:
             logger.error("원인: MySQL 사용자 접근 권한 문제")
             logger.error("해결 방법:")
             logger.error("1. Cloud SQL에서 다음 SQL 명령어로 사용자 권한 설정:")
-            logger.error("   CREATE USER 'teckwahkr-db'@'%' IDENTIFIED BY 'teckwah0206';")
-            logger.error("   GRANT ALL PRIVILEGES ON delivery_system.* TO 'teckwahkr-db'@'%';")
+            logger.error(
+                "   CREATE USER 'teckwahkr-db'@'%' IDENTIFIED BY 'teckwah0206';"
+            )
+            logger.error(
+                "   GRANT ALL PRIVILEGES ON delivery_system.* TO 'teckwahkr-db'@'%';"
+            )
             logger.error("   FLUSH PRIVILEGES;")
-            
+
             # 오류 메시지에서 실제 IP 주소 추출 시도
             import re
+
             ip_match = re.search(r"'([^']*)'@'([^']*)'", error_msg)
             if ip_match:
                 connecting_ip = ip_match.group(2)
-                logger.error(f"2. 연결 시도 IP: {connecting_ip} - 이 IP에 대한 권한이 필요합니다.")
-        
+                logger.error(
+                    f"2. 연결 시도 IP: {connecting_ip} - 이 IP에 대한 권한이 필요합니다."
+                )
+
         # 연결 URL 부분 마스킹 (비밀번호 제외)
-        parts = settings.DATABASE_URL.split('@')
+        parts = settings.DATABASE_URL.split("@")
         if len(parts) > 1:
             masked_url = f"...@{parts[1]}"
             logger.error(f"사용된 연결 URL: {masked_url}")
-        
+
         logger.error(f"설정된 DB 호스트: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}")
         logger.error(f"설정된 DB 이름: {settings.MYSQL_DATABASE}")
         logger.error("=====================================================")
-        
+
         return False
 
 
@@ -193,7 +208,6 @@ def db_transaction(func):
         try:
             result = await func(*args, **kwargs)
             db.commit()  # 명시적 커밋
-            logger.debug(f"DB 트랜잭션 커밋 (데코레이터): 함수 {func.__name__}")
             return result
         except Exception as e:
             db.rollback()  # 명시적 롤백
