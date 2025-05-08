@@ -27,9 +27,10 @@ CREATE TABLE IF NOT EXISTS postal_code_detail (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 4. 사용자 정보를 저장할 user 테이블
+-- 4. 사용자 정보를 저장할 user 테이블 (user_name 필드 추가)
 CREATE TABLE IF NOT EXISTS user (
   user_id VARCHAR(50) NOT NULL PRIMARY KEY,
+  user_name VARCHAR(50) NOT NULL,  -- 사용자 이름 필드 추가
   user_password VARCHAR(255) NOT NULL,
   user_department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
   user_role ENUM('ADMIN', 'USER') NOT NULL
@@ -37,8 +38,7 @@ CREATE TABLE IF NOT EXISTS user (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
-
--- 6. 대시보드 정보를 저장할 dashboard 테이블 
+-- 6. 대시보드 정보를 저장할 dashboard 테이블 (락 제거, 배송사 및 버전 필드 추가)
 CREATE TABLE IF NOT EXISTS dashboard (
   dashboard_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_no varchar(255) NOT NULL,
@@ -66,10 +66,10 @@ CREATE TABLE IF NOT EXISTS dashboard (
   update_by VARCHAR(50) NULL,
   remark TEXT NULL,
   update_at DATETIME NULL,
-  is_locked BOOLEAN DEFAULT FALSE,
-  locked_by VARCHAR(50) NULL,  -- 락 소유자
-  locked_at DATETIME NULL,    -- 락 획득 시간
+  delivery_company ENUM('로얄', '서경', '택화') DEFAULT NULL,
+  version INT NOT NULL DEFAULT 1,
   FOREIGN KEY (postal_code) REFERENCES postal_code(postal_code),
+  FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE SET NULL,
   INDEX idx_eta (eta),
   INDEX idx_department (department),
   INDEX idx_order_no (order_no)
@@ -77,26 +77,26 @@ CREATE TABLE IF NOT EXISTS dashboard (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 9. 인수인계 정보를 저장할 handover 테이블 (불필요 필드 제거)
+-- 9. 인수인계 정보를 저장할 handover 테이블 (락 제거, 상태 및 버전 필드 추가)
 CREATE TABLE IF NOT EXISTS handover (
     handover_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-	department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
+    department ENUM('CS', 'HES', 'LENOVO') NOT NULL,
     content TEXT NOT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_at DATETIME NOT NULL,
     update_by VARCHAR(50) NOT NULL,
     create_by VARCHAR(50) NOT NULL,
     is_notice BOOLEAN DEFAULT FALSE,
-    is_locked BOOLEAN DEFAULT FALSE,
-    locked_by VARCHAR(50) NULL,  -- 락 소유자
-    locked_at DATETIME NULL,    -- 락 획득 시간
+    status ENUM('OPEN', 'CLOSE') NOT NULL DEFAULT 'OPEN',
+    version INT NOT NULL DEFAULT 1,
     FOREIGN KEY (update_by) REFERENCES user(user_id) ON DELETE CASCADE,
     FOREIGN KEY (create_by) REFERENCES user(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- 10. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정 (버전 관련 트리거 제거)
+-- 10. 트리거 생성: dashboard 테이블 INSERT 시 지역정보와 해당 허브별 거리/소요시간 자동 설정 (기존 유지)
 DELIMITER //
 
 CREATE TRIGGER trg_dashboard_before_insert_postal

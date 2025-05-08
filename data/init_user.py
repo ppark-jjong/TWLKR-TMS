@@ -7,18 +7,18 @@ import sys
 # ============================
 # 데이터베이스 설정 (로컬 MySQL)
 # ============================
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "teckwah0206"
-MYSQL_HOST = "localhost"
-MYSQL_PORT = 3307
-MYSQL_DATABASE = "delivery_system"
-MYSQL_CHARSET = "utf8mb4"
 # MYSQL_USER = "root"
-# MYSQL_PASSWORD = "1234"
+# MYSQL_PASSWORD = "teckwah0206"
 # MYSQL_HOST = "localhost"
-# MYSQL_PORT = 3306
+# MYSQL_PORT = 3307
 # MYSQL_DATABASE = "delivery_system"
 # MYSQL_CHARSET = "utf8mb4"
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "1234"
+MYSQL_HOST = "localhost"
+MYSQL_PORT = 3306
+MYSQL_DATABASE = "delivery_system"
+MYSQL_CHARSET = "utf8mb4"
 
 
 def get_mysql_connection():
@@ -67,13 +67,13 @@ def execute_query(query, params=None, fetch=False, many=False):
         connection.close()
 
 
-def create_user(user_id, password, department, role):
+def create_user(user_id, user_name, password, department, role):
     hashed_password = hash_password(password)
     query = """
-        INSERT INTO user (user_id, user_password, user_department, user_role)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO user (user_id, user_name, user_password, user_department, user_role)
+        VALUES (%s, %s, %s, %s, %s)
     """
-    params = (user_id, hashed_password, department, role)
+    params = (user_id, user_name, hashed_password, department, role)
     result = execute_query(query, params)
     if result:
         print(f"사용자 '{user_id}' 생성 완료")
@@ -91,14 +91,14 @@ def delete_user(user_id):
 
 
 def list_users():
-    query = "SELECT user_id, user_department, user_role FROM user"
+    query = "SELECT user_id, user_name, user_department, user_role FROM user"
     users = execute_query(query, fetch=True)
     if users:
         print("\n현재 등록된 사용자 목록:")
-        print("USER ID\t\tDEPARTMENT\tROLE")
-        print("-" * 50)
+        print("USER ID\t\tUSER NAME\tDEPARTMENT\tROLE")
+        print("-" * 70)
         for user in users:
-            print(f"{user[0]}\t\t{user[1]}\t\t{user[2]}")
+            print(f"{user[0]}\t\t{user[1]}\t\t{user[2]}\t\t{user[3]}")
     else:
         print("등록된 사용자가 없습니다")
 
@@ -144,10 +144,11 @@ def interactive_cli():
             break
         elif command == "create":
             user_id = input("사용자 ID: ").strip()
+            user_name = input("사용자 이름: ").strip()
             password = input("비밀번호: ").strip()
             department = input("부서 (CS, HES, LENOVO): ").strip()
             role = input("역할 (admin, user): ").strip()
-            create_user(user_id, password, department, role)
+            create_user(user_id, user_name, password, department, role)
         elif command == "delete":
             user_id = input("삭제할 사용자 ID: ").strip()
             delete_user(user_id)
@@ -174,6 +175,7 @@ def parse_arguments():
         "action", nargs="?", choices=["create", "delete", "list"], help="수행할 작업"
     )
     parser.add_argument("--user-id", help="사용자 ID")
+    parser.add_argument("--user-name", help="사용자 이름")
     parser.add_argument("--password", help="비밀번호")
     parser.add_argument("--department", choices=["CS", "HES", "LENOVO"], help="부서")
     parser.add_argument("--role", choices=["admin", "user"], help="사용자 권한")
@@ -186,10 +188,16 @@ def main():
         interactive_cli()
         return
     if args.action == "create":
-        if not all([args.user_id, args.password, args.department, args.role]):
-            print("모든 인자(user-id, password, department, role)를 입력하세요")
+        if not all(
+            [args.user_id, args.user_name, args.password, args.department, args.role]
+        ):
+            print(
+                "모든 인자(user-id, user-name, password, department, role)를 입력하세요"
+            )
             return
-        create_user(args.user_id, args.password, args.department, args.role)
+        create_user(
+            args.user_id, args.user_name, args.password, args.department, args.role
+        )
     elif args.action == "delete":
         if not args.user_id:
             print("삭제할 사용자 ID를 입력하세요")

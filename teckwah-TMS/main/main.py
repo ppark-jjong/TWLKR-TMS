@@ -1,6 +1,7 @@
 import time
 import uuid
 import uvicorn
+import traceback
 from fastapi import FastAPI, Request, Response, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,8 +14,12 @@ import logging
 from datetime import datetime
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Optional
+from main.utils.config import get_settings
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 # --- 로깅 설정 초기화 ---
+settings = get_settings()
+
 logging.basicConfig(
     level=settings.LOG_LEVEL,
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -25,7 +30,6 @@ logger = logging.getLogger(__name__)
 # --- 프로젝트 모듈 임포트 ---
 # 실제 프로젝트 구조('main.')에 맞게 수정 필요할 수 있음.
 # 여기서는 main.py 기준으로 올바른 경로 사용.
-from main.utils.config import get_settings
 from main.utils.database import test_db_connection
 from main.routes import (
     auth_route,
@@ -37,7 +41,7 @@ from main.routes import (
 from main.core.templating import templates
 
 # --- 설정 로드 ---
-settings = get_settings()
+# settings = get_settings() # 이 라인을 위로 이동시킴
 
 
 # 템플릿 설정
@@ -49,6 +53,26 @@ templates = Jinja2Templates(directory="main/templates")
 async def lifespan(app: FastAPI):
     # 애플리케이션 시작 시
     logging.info("애플리케이션 시작 (lifespan)...")
+
+    # DB 연결 진단 (개선된 버전)
+    try:
+        from main.utils.diagnostics.db_connection import diagnose_db_connection
+
+        connection_success = diagnose_db_connection()
+        if not connection_success:
+            logging.warning(
+                "데이터베이스 연결 진단 실패 - 애플리케이션 동작에 문제가 발생할 수 있습니다"
+            )
+            # 대체 연결 방법 시도
+            from main.utils.diagnostics.db_connection import try_direct_mysql_connection
+
+            direct_success = try_direct_mysql_connection()
+            if direct_success:
+                logging.info("대체 연결 방법으로 데이터베이스 연결 성공")
+    except Exception as e:
+        logging.error(f"DB 연결 진단 중 오류 발생: {str(e)}")
+
+    # 기존 연결 테스트도 유지 (하위 호환성)
     test_db_connection()
 
     # 쿠키 기반 세션만 사용하므로 메모리 기반 세션 정리 비활성화
@@ -68,6 +92,11 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan,  # lifespan 핸들러 적용
 )
+
+# 프록시 헤더 미들웨어 추가 (X-Forwarded-For, X-Forwarded-Proto 등)
+# trusted_hosts는 App Engine 환경에 맞게 설정하거나, '*'로 모든 프록시를 신뢰할 수 있습니다.
+# GAE 환경에서는 Google의 프록시만 존재하므로 '*'로 설정해도 일반적으로 안전합니다.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 
 # --- 미들웨어 클래스 정의 ---
@@ -119,15 +148,18 @@ app.add_middleware(LoggingMiddleware)
 
 # 2. 세션 미들웨어
 # GAE 환경에서는 HTTPS 강제, 로컬에서는 HTTP 허용
-is_production = os.getenv("GAE_ENV", "").startswith("standard")
+# is_production = os.getenv("GAE_ENV", "").startswith("standard") # 기존 로직
+is_app_engine_env = bool(
+    os.getenv("GAE_INSTANCE")
+)  # App Engine 환경 (Standard/Flexible) 감지
 logger.info(
-    f"환경 감지: {'프로덕션(GAE)' if is_production else '로컬/개발'} - HTTPS 강제: {is_production}"
+    f"환경 감지: {'App Engine' if is_app_engine_env else '로컬/개발'} - 세션 쿠키 HTTPS 강제: {is_app_engine_env}"
 )
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SESSION_SECRET,
     max_age=settings.SESSION_EXPIRE_HOURS * 60 * 60,
-    https_only=is_production,  # 프로덕션에서만 HTTPS 강제
+    https_only=is_app_engine_env,  # App Engine 환경이면 항상 True
     same_site="lax",
     session_cookie="session",
 )
@@ -177,6 +209,105 @@ app.include_router(handover_route.api_router, tags=["Lock API"])  # 락 API 라�
 # Dockerfile에서 해당 경로에 파일이 복사되도록 구성해야 합니다.
 # 경로 "/static"으로 접근
 app.mount("/static", StaticFiles(directory="main/static"), name="static")
+
+
+# --- 진단용 엔드포인트 ---
+@app.get("/health", tags=["Diagnostics"])
+async def health_check():
+    """간단한 헬스 체크 엔드포인트"""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/db-test", tags=["Diagnostics"])
+async def db_test():
+    """데이터베이스 연결 진단 엔드포인트"""
+    try:
+        import socket
+        import pymysql
+        from main.utils.config import get_settings
+
+        settings = get_settings()
+
+        results = {
+            "vpc_info": {},
+            "socket_test": {},
+            "mysql_test": {},
+            "config": {
+                "host": settings.MYSQL_HOST,
+                "port": settings.MYSQL_PORT,
+                "user": settings.MYSQL_USER,
+                "database": settings.MYSQL_DATABASE,
+                "gae_env": os.getenv("GAE_ENV", "없음"),
+                "vpc_connector": os.getenv("VPC_CONNECTOR", "없음"),
+            },
+        }
+
+        # 1. 소켓 연결 테스트
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(3)  # 3초 타임아웃
+            start_time = time.time()
+            result = sock.connect_ex((settings.MYSQL_HOST, settings.MYSQL_PORT))
+            connect_time = time.time() - start_time
+            sock.close()
+
+            results["socket_test"] = {
+                "success": result == 0,
+                "result_code": result,
+                "connect_time": f"{connect_time:.2f}s",
+                "error": "없음" if result == 0 else f"소켓 오류 코드: {result}",
+            }
+        except Exception as e:
+            results["socket_test"] = {"success": False, "error": str(e)}
+
+        # 2. 직접 MySQL 연결 테스트
+        if results["socket_test"].get("success", False):
+            try:
+                start_time = time.time()
+                conn = pymysql.connect(
+                    host=settings.MYSQL_HOST,
+                    user=settings.MYSQL_USER,
+                    password=settings.MYSQL_PASSWORD,
+                    database=settings.MYSQL_DATABASE,
+                    port=settings.MYSQL_PORT,
+                    connect_timeout=5,
+                    charset="utf8mb4",
+                )
+                connect_time = time.time() - start_time
+
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT VERSION()")
+                    version = cursor.fetchone()[0]
+                    cursor.execute("SELECT CURRENT_USER()")
+                    current_user = cursor.fetchone()[0]
+                    cursor.execute("SELECT 1")
+                    ping = cursor.fetchone()[0]
+
+                conn.close()
+
+                results["mysql_test"] = {
+                    "success": True,
+                    "version": version,
+                    "current_user": current_user,
+                    "ping": ping,
+                    "connect_time": f"{connect_time:.2f}s",
+                }
+            except Exception as e:
+                results["mysql_test"] = {"success": False, "error": str(e)}
+
+        # 3. 현재 환경 정보
+        try:
+            local_ip = socket.gethostbyname(socket.gethostname())
+            results["vpc_info"] = {
+                "local_ip": local_ip,
+                "hostname": socket.gethostname(),
+            }
+        except Exception as e:
+            results["vpc_info"] = {"error": str(e)}
+
+        return results
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 
 # --- 기본 루트 엔드포인트 (수정) ---
