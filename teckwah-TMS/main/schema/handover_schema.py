@@ -13,7 +13,7 @@ class HandoverBase(BaseModel):
     title: str = Field(..., description="제목")
     content: str = Field(..., description="내용")
     is_notice: bool = Field(False, description="공지사항 여부")
-    department: str = Field("CS", description="부서(CS/HES/LENOVO)")
+    department: str = Field("ALL", description="부서(CS/HES/LENOVO/ALL)")
 
     class Config:
         populate_by_name = True
@@ -21,6 +21,8 @@ class HandoverBase(BaseModel):
 
 class HandoverCreate(HandoverBase):
     """인수인계 생성 스키마"""
+
+    status: Optional[str] = Field("OPEN", description="상태(OPEN/CLOSE)")
 
     pass
 
@@ -31,7 +33,8 @@ class HandoverUpdate(HandoverBase):
     title: Optional[str] = Field(None, description="제목")
     content: Optional[str] = Field(None, description="내용")
     is_notice: Optional[bool] = Field(None, description="공지사항 여부")
-    department: Optional[str] = Field(None, description="부서(CS/HES/LENOVO)")
+    department: Optional[str] = Field(None, description="부서(CS/HES/LENOVO/ALL)")
+    status: Optional[str] = Field(None, description="상태(OPEN/CLOSE)")
 
     class Config:
         populate_by_name = True
@@ -44,6 +47,9 @@ class HandoverResponse(HandoverBase):
     create_by: str = Field(..., description="작성자 ID")
     update_by: str = Field(..., description="수정자 ID")
     update_at: datetime = Field(..., description="수정 일시")
+    create_time: datetime = Field(..., description="생성 일시")
+    status: str = Field(..., description="상태(OPEN/CLOSE)")
+    version: int = Field(..., description="데이터 버전")
 
     class Config:
         from_attributes = True
@@ -69,6 +75,9 @@ class HandoverListItem(BaseModel):
     update_by: str
     is_notice: bool
     department: str
+    create_time: datetime
+    status: str
+    version: int
 
     class Config:
         from_attributes = True

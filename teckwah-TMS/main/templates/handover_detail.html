@@ -126,11 +126,11 @@ endblock %} {% block page_css %}
         <div class="handover-meta">
           <div class="meta-item">
             <span class="meta-label">작성자:</span>
-            <span class="meta-value">{{ handover.create_by }}</span>
+            <span class="meta-value">{{ handover.creator_name }}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">최종 수정자:</span>
-            <span class="meta-value">{{ handover.update_by }}</span>
+            <span class="meta-value">{{ handover.updater_name }}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">작성/수정일시:</span>
@@ -138,7 +138,7 @@ endblock %} {% block page_css %}
           </div>
           <div class="meta-item">
             <span class="meta-label">부서:</span>
-            <span class="meta-value">{{ handover.department }}</span>
+            <span class="meta-value">{{ '전체' if handover.department == 'ALL' else handover.department }}</span>
           </div>
         </div>
       </div>
