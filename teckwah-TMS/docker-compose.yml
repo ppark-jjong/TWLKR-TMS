@@ -26,7 +26,3 @@ services:
       # 세션 설정
       SESSION_SECRET: 'random_secret_key'
       SESSION_EXPIRE_HOURS: '24'
-
-      # 락 설정
-      LOCK_TIMEOUT_SECONDS: '300'
-      LOCK_CLEANUP_INTERVAL_MINUTES: '10'
