@@ -1,4 +1,4 @@
 .\cloud-sql-proxy.exe `
   --port 3307 `
   --credentials-file "C:\MyMain\teckwah-dashboard\cloud\gcloud-credentials.json" `
-	twlkr-459107:asia-northeast3:teckwahkr-db
+	twlkr-tms:asia-northeast3:teckwahkr-db
